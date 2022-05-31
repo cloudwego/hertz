@@ -1,0 +1,15 @@
+# Typo check: https://github.com/crate-ci/typos
+
+[files]
+extend-exclude = ["go.sum"]
+
+[default.extend-identifiers]
+# *sigh* this just isn't worth the cost of fixing
+ConnTLSer = "ConnTLSer"
+flate = "flate"
+TestCompressFlateSerial = "TestCompressFlateSerial"
+testCompressFlate = "testCompressFlate"
+TestCompressFlateConcurrent = "TestCompressFlateConcurrent"
+trUe = "trUe"
+OPTIO = "OPTIO"
+contant = "contant"

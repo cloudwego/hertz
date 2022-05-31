@@ -1,0 +1,21 @@
+#!/bin/bash
+main() {
+  file_name=.git/hooks/pre-commit
+
+  cat <<EOF >$file_name
+#!/bin/bash
+# version=11
+
+main() {
+      echo "Start to format code..."
+      bash script/go-fmt
+      echo -e "\033[32m Complete code style formatting :) \033[0m"
+}
+
+main
+EOF
+
+  chmod +x $file_name
+}
+
+main

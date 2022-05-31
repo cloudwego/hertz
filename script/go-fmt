@@ -1,0 +1,22 @@
+#!/bin/bash
+
+main() {
+  files=$(git diff --staged --diff-filter=ACMR --name-only)
+  go_files=()
+  for file in $files; do
+    ext=${file##*.}
+    if [ "$ext" != "go" ]; then
+        continue
+    fi
+    gofumpt -w "$file"
+    go_files+=("$file")
+  done
+  add_files=$(printf " %s" "${go_files[@]}")
+  add_files=${add_files:1}
+
+  if [ -n "$add_files" ]; then
+    git add $add_files
+  fi
+}
+
+main
