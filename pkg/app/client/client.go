@@ -672,10 +672,10 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 
 func (c *Client) Use(mws ...Middleware) {
 	// Put the original middleware to the first
-	middlwares := make([]Middleware, 0, 1+len(mws))
+	middlewares := make([]Middleware, 0, 1+len(mws))
 	if c.mws != nil {
-		middlwares = append(middlwares, c.mws)
+		middlewares = append(middlewares, c.mws)
 	}
-	middlwares = append(middlwares, mws...)
-	c.mws = chain(middlwares...)
+	middlewares = append(middlewares, mws...)
+	c.mws = chain(middlewares...)
 }
