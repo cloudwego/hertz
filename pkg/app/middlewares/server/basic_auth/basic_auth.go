@@ -50,10 +50,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 )
 
-// Accounts is a alias to map[string]string, construct with {"username":"password"}
+// Accounts is an alias to map[string]string, construct with {"username":"password"}
 type Accounts map[string]string
 
-// pairs is a alias to map[string]string, which mean {"header":"username"}
+// pairs is an alias to map[string]string, which mean {"header":"username"}
 type pairs map[string]string
 
 func (p pairs) findValue(needle string) (v string, ok bool) {
