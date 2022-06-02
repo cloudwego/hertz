@@ -401,7 +401,7 @@ func TestContextRenderFileFromFS(t *testing.T) {
 	})
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
-	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func FSHandler(root string, stripSlashes int) HandlerFunc {"))
+	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
 	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
 	assert.DeepEqual(t, "/some/path", string(ctx.Request.URI().Path()))
 }
@@ -418,7 +418,7 @@ func TestContextRenderFile(t *testing.T) {
 	ctx.File("./fs.go")
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
-	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func FSHandler(root string, stripSlashes int) HandlerFunc {"))
+	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
 	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
 }
 
