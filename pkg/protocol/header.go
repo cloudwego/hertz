@@ -43,7 +43,6 @@ package protocol
 
 import (
 	"bytes"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,6 +50,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -1327,7 +1327,7 @@ func ParseContentLength(b []byte) (int, error) {
 		return -1, err
 	}
 	if n != len(b) {
-		return -1, fmt.Errorf("non-numeric chars at the end of Content-Length")
+		return -1, errs.NewPublic("non-numeric chars at the end of Content-Length")
 	}
 	return v, nil
 }
