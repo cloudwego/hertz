@@ -52,7 +52,7 @@ func init() {
 // looks like it might've been a misdirected plaintext HTTP request.
 func TLSRecordHeaderLooksLikeHTTP(hdr [5]byte) bool {
 	switch string(hdr[:]) {
-	case "GET /", "HEAD ", "POST ", "PUT /", "OPTIO":
+	case "GET /", "HEAD ", "POST ", "PUT /", "OPTIONS":
 		return true
 	}
 	return false
