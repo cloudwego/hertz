@@ -89,5 +89,5 @@ func CopyZeroAlloc(w network.Writer, r io.Reader) (int64, error) {
 	buf := vbuf.([]byte)
 	n, err := CopyBuffer(w, r, buf)
 	CopyBufPool.Put(vbuf)
-	return int64(n), err
+	return n, err
 }
