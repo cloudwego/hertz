@@ -1212,41 +1212,6 @@ func ServeFileUncompressed(ctx *RequestContext, path string) {
 	ServeFile(ctx, path)
 }
 
-// FSHandler returns request handler serving static files from
-// the given root folder.
-//
-// stripSlashes indicates how many leading slashes must be stripped
-// from requested path before searching requested file in the root folder.
-// Examples:
-//
-//   * stripSlashes = 0, original path: "/foo/bar", result: "/foo/bar"
-//   * stripSlashes = 1, original path: "/foo/bar", result: "/bar"
-//   * stripSlashes = 2, original path: "/foo/bar", result: ""
-//
-// The returned request handler automatically generates index pages
-// for directories without index.html.
-//
-// The returned handler caches requested file handles
-// for FSHandlerCacheDuration.
-// Make sure your program has enough 'max open files' limit aka
-// 'ulimit -n' if root folder contains many files.
-//
-// Do not create multiple request handler instances for the same
-// (root, stripSlashes) arguments - just reuse a single instance.
-// Otherwise goroutine leak will occur.
-func FSHandler(root string, stripSlashes int) HandlerFunc {
-	fs := &FS{
-		Root:               root,
-		IndexNames:         []string{"index.html"},
-		GenerateIndexPages: true,
-		AcceptByteRange:    true,
-	}
-	if stripSlashes > 0 {
-		fs.PathRewrite = NewPathSlashesStripper(stripSlashes)
-	}
-	return fs.NewRequestHandler()
-}
-
 // NewPathSlashesStripper returns path rewriter, which strips slashesCount
 // leading slashes from the path.
 //
