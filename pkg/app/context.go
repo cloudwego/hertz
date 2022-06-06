@@ -970,6 +970,11 @@ func (ctx *RequestContext) GetRawData() []byte {
 	return ctx.Request.Body()
 }
 
+// Body returns body data
+func (ctx *RequestContext) Body() ([]byte, error) {
+	return ctx.Request.BodyE()
+}
+
 type ClientIP func(ctx *RequestContext) string
 
 var defaultClientIP = func(ctx *RequestContext) string {
