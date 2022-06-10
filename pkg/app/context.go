@@ -140,10 +140,8 @@ func NewContext(maxParams uint16) *RequestContext {
 // Loop fn for every k/v in Keys
 func (ctx *RequestContext) ForEachKey(fn func(k string, v interface{})) {
 	ctx.mu.RLock()
-	if ctx.Keys != nil {
-		for key, val := range ctx.Keys {
-			fn(key, val)
-		}
+	for key, val := range ctx.Keys {
+		fn(key, val)
 	}
 	ctx.mu.RUnlock()
 }
