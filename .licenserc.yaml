@@ -9,6 +9,6 @@ header:
 
   paths-ignore:
     - pkg/common/testdata/**
-    - tool/protobuf/api/**
+    - cmd/hz/internal/protobuf/api
 
   comment: on-failure
