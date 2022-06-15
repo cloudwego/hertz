@@ -297,11 +297,11 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 						continue
 					}
 					if idx == 0 {
-						tagString += " " + tag.Key + ":\"" + tag.Value + ":\"" + " "
+						tagString += " " + tag.Key + ":\"" + tag.Value + "\"" + " "
 					} else if idx == len(tags)-1 {
 						tagString += tag.Key + ":\"" + tag.Value + "\""
 					} else {
-						tagString += tag.Key + ":\"" + tag.Value + ":\"" + " "
+						tagString += tag.Key + ":\"" + tag.Value + "\"" + " "
 					}
 				}
 				insertPointer := "struct." + stName + "." + fieldName + "." + "tag"
