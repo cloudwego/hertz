@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 /*
  * Copyright 2022 CloudWeGo Authors
  *
@@ -20,6 +23,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/netpoll"
 )
@@ -68,6 +72,14 @@ func (c *Conn) WriteBinary(b []byte) (n int, err error) {
 
 func (c *Conn) Flush() error {
 	return c.Conn.Flush()
+}
+
+func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
+	if errors.Is(err, netpoll.ErrConnClosed) {
+		hlog.Warnf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
+		return true
+	}
+	return false
 }
 
 func normalizeErr(err error) error {

@@ -67,17 +67,16 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
-	netpoll2 "github.com/cloudwego/hertz/pkg/network/netpoll"
+	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/factory"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
-	"github.com/cloudwego/netpoll"
 )
 
 var (
-	defaultTransporter = netpoll2.NewTransporter
+	defaultTransporter = standard.NewTransporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")
 	errAlreadyRunning   = errs.NewPrivate("engine is already running")
@@ -378,14 +377,11 @@ func errProcess(conn io.Closer, err error) {
 	// Get remote address
 	rip := getRemoteAddrFromCloser(conn)
 
-	// Handle netpoll error
-	if errors.Is(err, netpoll.ErrConnClosed) {
-		hlog.Warnf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
-		return
-	}
-	if errors.Is(err, netpoll.ErrReadTimeout) {
-		hlog.Errorf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
-		return
+	// Handle Specific error
+	if ie, ok := conn.(network.HandleSpecificError); ok {
+		if ie.HandleSpecificError(err, rip) {
+			return
+		}
 	}
 	// other errors
 	hlog.Errorf("HERTZ: Error=%s, remoteAddr=%s", err.Error(), rip)
