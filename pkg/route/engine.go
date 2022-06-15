@@ -375,18 +375,29 @@ func errProcess(conn io.Closer, err error) {
 		return
 	}
 
+	// Get remote address
+	rip := getRemoteAddrFromCloser(conn)
+
 	// Handle netpoll error
 	if errors.Is(err, netpoll.ErrConnClosed) {
-		hlog.Warnf("HERTZ: Netpoll error=%s", err.Error())
+		hlog.Warnf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
 		return
 	}
 	if errors.Is(err, netpoll.ErrReadTimeout) {
-		hlog.Errorf("HERTZ: Netpoll error=%s", err.Error())
+		hlog.Errorf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
 		return
 	}
-
 	// other errors
-	hlog.Errorf("HERTZ: Error=%s", err.Error())
+	hlog.Errorf("HERTZ: Error=%s, remoteAddr=%s", err.Error(), rip)
+}
+
+func getRemoteAddrFromCloser(conn io.Closer) string {
+	if c, ok := conn.(network.Conn); ok {
+		if addr := c.RemoteAddr(); addr != nil {
+			return addr.String()
+		}
+	}
+	return ""
 }
 
 func (engine *Engine) Close() error {

@@ -280,14 +280,17 @@ func file_test_proto_rawDescGZIP() []byte {
 	return file_test_proto_rawDescData
 }
 
-var file_test_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_test_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_test_proto_goTypes = []interface{}{
-	(FOO)(0),                   // 0: proto.FOO
-	(*Test)(nil),               // 1: proto.Test
-	(*TestStruct)(nil),         // 2: proto.TestStruct
-	(*Test_OptionalGroup)(nil), // 3: proto.Test.OptionalGroup
-}
+var (
+	file_test_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+	file_test_proto_msgTypes  = make([]protoimpl.MessageInfo, 3)
+	file_test_proto_goTypes   = []interface{}{
+		(FOO)(0),                   // 0: proto.FOO
+		(*Test)(nil),               // 1: proto.Test
+		(*TestStruct)(nil),         // 2: proto.TestStruct
+		(*Test_OptionalGroup)(nil), // 3: proto.Test.OptionalGroup
+	}
+)
+
 var file_test_proto_depIdxs = []int32{
 	3, // 0: proto.Test.optionalgroup:type_name -> proto.Test.OptionalGroup
 	1, // [1:1] is the sub-list for method output_type
