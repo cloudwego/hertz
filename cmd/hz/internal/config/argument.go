@@ -187,6 +187,9 @@ func (arg *Argument) checkPackage() error {
 		} else {
 			arg.Gopkg = gopkg
 		}
+		if arg.Gomod == "" {
+			arg.Gomod = arg.Gopkg
+		}
 	}
 	if !arg.IsUpdate() && arg.Gomod == "" {
 		return fmt.Errorf("output directory %s is not under GOPATH/src. Please specify a module name with the '-module' flag", arg.Cwd)
