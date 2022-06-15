@@ -42,12 +42,12 @@
 package bytesconv
 
 import (
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
@@ -198,12 +198,10 @@ func AppendUint(dst []byte, n int) []byte {
 	return dst
 }
 
-// AppendHTTPDate appends HTTP-compliant (RFC1123) representation of date
+// AppendHTTPDate appends HTTP-compliant representation of date
 // to dst and returns the extended dst.
 func AppendHTTPDate(dst []byte, date time.Time) []byte {
-	dst = date.In(time.UTC).AppendFormat(dst, time.RFC1123)
-	copy(dst[len(dst)-3:], bytestr.StrGMT)
-	return dst
+	return date.In(time.UTC).AppendFormat(dst, http.TimeFormat)
 }
 
 func AppendQuotedPath(dst, src []byte) []byte {
