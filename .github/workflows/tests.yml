@@ -28,3 +28,6 @@ jobs:
 
       - name: Unit Test
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Codecov
+        uses: codecov/codecov-action@v2
