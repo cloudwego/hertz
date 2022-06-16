@@ -211,7 +211,11 @@ func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap ma
 		}
 		opt := getGoPackage(f, pkgMap)
 		if !strings.Contains(opt, gopkg) {
-			opt = gopkg + "/" + opt
+			if strings.HasPrefix(opt, "/") {
+				opt = gopkg + opt
+			} else {
+				opt = gopkg + "/" + opt
+			}
 		}
 		impt, _ := plugin.fixModelPathAndPackage(opt)
 		*f.Options.GoPackage = impt
