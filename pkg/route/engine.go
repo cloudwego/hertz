@@ -378,8 +378,8 @@ func errProcess(conn io.Closer, err error) {
 	rip := getRemoteAddrFromCloser(conn)
 
 	// Handle Specific error
-	if ie, ok := conn.(network.HandleSpecificError); ok {
-		if ie.HandleSpecificError(err, rip) {
+	if hsp, ok := conn.(network.HandleSpecificError); ok {
+		if hsp.HandleSpecificError(err, rip) {
 			return
 		}
 	}
