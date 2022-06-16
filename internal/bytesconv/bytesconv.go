@@ -201,7 +201,7 @@ func AppendUint(dst []byte, n int) []byte {
 // AppendHTTPDate appends HTTP-compliant representation of date
 // to dst and returns the extended dst.
 func AppendHTTPDate(dst []byte, date time.Time) []byte {
-	return date.In(time.UTC).AppendFormat(dst, http.TimeFormat)
+	return date.UTC().AppendFormat(dst, http.TimeFormat)
 }
 
 func AppendQuotedPath(dst, src []byte) []byte {
