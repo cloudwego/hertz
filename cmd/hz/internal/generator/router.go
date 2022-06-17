@@ -118,7 +118,7 @@ func (routerNode *RouterNode) DyeGroupName() error {
 					break
 				}
 			}
-			node.MiddleWare = strings.ToLower(pname)
+			node.MiddleWare = "_" + strings.ToLower(pname)
 		}
 		if layer >= len(groups)-1 {
 			groups = append(groups, node.MiddleWare)
