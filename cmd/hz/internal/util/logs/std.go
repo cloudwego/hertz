@@ -46,6 +46,7 @@ func NewStdLogger(level int) *StdLogger {
 		warnLogger: log.New(warn, "[WARN]", log.Llongfile),
 		errLogger:  log.New(err, "[ERROR]", log.Llongfile),
 		out:        out,
+		warn:       warn,
 		err:        err,
 	}
 }
@@ -104,6 +105,10 @@ func (stdLogger *StdLogger) FlushOut() {
 
 func (stdLogger *StdLogger) Err() string {
 	return string(stdLogger.err.Bytes())
+}
+
+func (stdLogger *StdLogger) Warn() string {
+	return string(stdLogger.warn.Bytes())
 }
 
 func (stdLogger *StdLogger) ErrLines() []string {

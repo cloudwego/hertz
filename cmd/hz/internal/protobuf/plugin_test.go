@@ -42,5 +42,5 @@ func TestPlugin_Handle(t *testing.T) {
 	args, _ := plu.parseArgs(*req.Parameter)
 
 	plu.Handle(req, args)
-	plu.recvLogger()
+	plu.recvWarningLogger()
 }

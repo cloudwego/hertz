@@ -18,6 +18,7 @@ package protobuf
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"path/filepath"
 	"strings"
 
@@ -40,11 +41,14 @@ func getGoPackage(f *descriptorpb.FileDescriptorProto, pkgMap map[string]string)
 	}
 	goPkg := *f.Options.GoPackage
 
+	// if go_package has ";", for example go_package="/a/b/c;d", we will use "/a/b/c" as go_package
 	if strings.Contains(goPkg, ";") {
-		b := strings.Split(goPkg, ";")
-		if len(b) == 2 {
-			goPkg = b[0]
+		pkg := strings.Split(goPkg, ";")
+		if len(pkg) == 2 {
+			logs.Warnf("The go_package of the file(%s) is \"%s\", hz will use \"%s\" as the go_package.", f.GetName(), goPkg, pkg[0])
+			goPkg = pkg[0]
 		}
+
 	}
 
 	if goPkg == "" {

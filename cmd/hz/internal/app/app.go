@@ -257,11 +257,12 @@ func triggerPlugin(args *config.Argument) error {
 	logs.Debugf("begin to trigger plugin, compiler: %s, idl_paths: %v", compiler, args.IdlPaths)
 	buf, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause: %v", compiler, err, string(buf))
+		return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause:\n%v", compiler, err, string(buf))
 	}
 
-	if buf != nil {
-		logs.Info(string(buf))
+	// If len(buf) != 0, the plugin returned the log.
+	if len(buf) != 0 {
+		fmt.Println(string(buf))
 	}
 	logs.Debugf("end run plugin %s_gen_hertz", compiler)
 	return nil
