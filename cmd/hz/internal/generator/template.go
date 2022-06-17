@@ -253,7 +253,7 @@ func (tg *TemplateGenerator) GetFormatAndExcludedFiles() ([]File, error) {
 
 		// lint file
 		if err := data.Lint(); err != nil {
-			return nil, err
+			logs.Warnf("Lint file: %s failed:\n %s\n", data.Path, data.Content)
 		}
 		files = append(files, data)
 	}
