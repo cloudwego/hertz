@@ -109,11 +109,13 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
+			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + sb.Name
 			if err != nil {
 				return nil, err
 			}
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
+			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + st.Name
 			if err != nil {
 				return nil, err
 			}
@@ -153,8 +155,12 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 			}
 			merges = service.Models
 			merges.MergeMap(method.Models)
-			reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + sb.Name
-			respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + st.Name
+			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
+				reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + sb.Name
+			}
+			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
+				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + st.Name
+			}
 			method.RequestTypeName = reqName
 			method.ReturnTypeName = respName
 
