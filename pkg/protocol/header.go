@@ -1321,6 +1321,17 @@ func (h *RequestHeader) VisitAll(f func(key, value []byte)) {
 	}
 }
 
+// VisitAllCustomHeader calls f for each header in header.h which contains all headers
+// except cookie, host, content-length, content-type, user-agent and connection.
+//
+// f must not retain references to key and/or value after returning.
+// Copy key and/or value contents before returning if you need retaining them.
+//
+// To get the headers in order they were received use VisitAllInOrder.
+func (h *RequestHeader) VisitAllCustomHeader(f func(key, value []byte)) {
+	visitArgs(h.h, f)
+}
+
 func ParseContentLength(b []byte) (int, error) {
 	v, n, err := bytesconv.ParseUintBuf(b)
 	if err != nil {
