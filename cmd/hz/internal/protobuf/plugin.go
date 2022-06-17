@@ -80,29 +80,43 @@ type Plugin struct {
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
+	defer func() {
+		if args.Verbose {
+			verboseLog := plugin.recvVerboseLogger()
+			if len(verboseLog) != 0 {
+				fmt.Fprintf(os.Stderr, verboseLog)
+			}
+		} else {
+			warning := plugin.recvWarningLogger()
+			if len(warning) != 0 {
+				fmt.Fprintf(os.Stderr, warning)
+			}
+		}
+	}()
 	// read protoc request
 	in, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		plugin.logger.Errorf("read request failed: %s", err.Error())
+		plugin.logger.Errorf("read request failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 
 	req := &pluginpb.CodeGeneratorRequest{}
 	err = proto.Unmarshal(in, req)
 	if err != nil {
-		plugin.logger.Errorf("unmarshal request failed: %s", err.Error())
+		plugin.logger.Errorf("unmarshal request failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 
 	args, err = plugin.parseArgs(*req.Parameter)
 	if err != nil {
-		plugin.logger.Errorf("parse args failed: %s", err.Error())
+		plugin.logger.Errorf("parse args failed: %s\n", err.Error())
+		return meta.PluginError
 	}
 	CheckTagOption(args)
 	// generate
 	err = plugin.Handle(req, args)
 	if err != nil {
-		plugin.logger.Errorf("generate failed: %s", err.Error())
+		plugin.logger.Errorf("generate failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 	return 0
@@ -115,11 +129,20 @@ func (plugin *Plugin) setLogger() {
 	logs.SetLogger(plugin.logger)
 }
 
-func (plugin *Plugin) recvLogger() string {
-	warns := plugin.logger.Err()
+func (plugin *Plugin) recvWarningLogger() string {
+	warns := plugin.logger.Warn()
 	plugin.logger.Flush()
 	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
 	return warns
+}
+
+func (plugin *Plugin) recvVerboseLogger() string {
+	info := plugin.logger.Out()
+	warns := plugin.logger.Warn()
+	verboseLog := string(info) + warns
+	plugin.logger.Flush()
+	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
+	return verboseLog
 }
 
 func (plugin *Plugin) parseArgs(param string) (*config.Argument, error) {
@@ -143,18 +166,39 @@ func (plugin *Plugin) parseArgs(param string) (*config.Argument, error) {
 	return args, nil
 }
 
+func (plugin *Plugin) Response(resp *pluginpb.CodeGeneratorResponse) error {
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("marshal response failed: %s", err.Error())
+	}
+	_, err = os.Stdout.Write(out)
+	if err != nil {
+		return fmt.Errorf("write response failed: %s", err.Error())
+	}
+	return nil
+}
+
 func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Argument) error {
 	plugin.fixGoPackage(req, plugin.PkgMap)
 
-	// use protogen
+	// new plugin
 	opts := protogen.Options{}
 	gen, err := opts.New(req)
 	if err != nil {
-		return fmt.Errorf("new protogen failed: %s", err.Error())
+		return fmt.Errorf("new protoc plugin failed: %s", err.Error())
 	}
+	// plugin start working
 	err = plugin.GenerateFiles(gen)
 	if err != nil {
-		return fmt.Errorf("generate files failed: %s", err.Error())
+		// Error within the plugin will be responded by the plugin.
+		// But if the plugin does not response correctly, the error is returned to the upper level.
+		gen.Error(err)
+		resp := gen.Response()
+		err2 := plugin.Response(resp)
+		if err2 != nil {
+			return fmt.Errorf("generate model file failed: %s", err.Error())
+		}
+		return nil
 	}
 
 	files := gen.Request.ProtoFile
@@ -166,7 +210,13 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	deps := make(map[string]*descriptorpb.FileDescriptorProto, len(main.GetDependency()))
 	for _, dep := range main.GetDependency() {
 		if f, ok := maps[dep]; !ok {
-			return fmt.Errorf("dependency file not found: %s", dep)
+			gen.Error(fmt.Errorf("dependency file not found: %s", dep))
+			resp := gen.Response()
+			err2 := plugin.Response(resp)
+			if err2 != nil {
+				return fmt.Errorf("dependency file not found: %s", dep)
+			}
+			return nil
 		} else {
 			deps[dep] = f
 		}
@@ -174,7 +224,13 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 
 	pkgFiles, err := plugin.genHttpPackage(main, deps, args)
 	if err != nil {
-		return err
+		gen.Error(err)
+		resp := gen.Response()
+		err2 := plugin.Response(resp)
+		if err2 != nil {
+			return fmt.Errorf("generate package files failed: %s", err.Error())
+		}
+		return nil
 	}
 
 	// construct plugin response
@@ -189,20 +245,17 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 		}
 		resp.File = append(resp.File, renderFile)
 	}
-	out, err := proto.Marshal(resp)
-	if err != nil {
-		return fmt.Errorf("marshal response failed: %s", err.Error())
-	}
-	plugin.recvLogger()
 
-	// response
-	_, err = os.Stdout.Write(out)
+	// plugin stop working
+	err = plugin.Response(resp)
 	if err != nil {
 		return fmt.Errorf("write response failed: %s", err.Error())
 	}
+
 	return nil
 }
 
+// fixGoPackage will update go_package to store all the model files in ${model_dir}
 func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap map[string]string) {
 	gopkg := plugin.Package
 	for _, f := range req.ProtoFile {
