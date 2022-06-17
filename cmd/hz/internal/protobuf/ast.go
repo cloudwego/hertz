@@ -30,7 +30,7 @@ import (
 
 var BaseProto = descriptorpb.FileDescriptorProto{}
 
-// getGoPackage 获取go文件的option go_package
+// getGoPackage  get option go_package
 func getGoPackage(f *descriptorpb.FileDescriptorProto, pkgMap map[string]string) string {
 	if f.Options == nil {
 		f.Options = new(descriptorpb.FileOptions)
@@ -39,6 +39,14 @@ func getGoPackage(f *descriptorpb.FileDescriptorProto, pkgMap map[string]string)
 		f.Options.GoPackage = new(string)
 	}
 	goPkg := *f.Options.GoPackage
+
+	if strings.Contains(goPkg, ";") {
+		b := strings.Split(goPkg, ";")
+		if len(b) == 2 {
+			goPkg = b[0]
+		}
+	}
+
 	if goPkg == "" {
 		goPkg = f.GetPackage()
 	}
