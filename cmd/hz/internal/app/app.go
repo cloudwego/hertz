@@ -86,7 +86,7 @@ func Init() *cli.App {
 
 	idlFlag := cli.StringSliceFlag{Name: "idl", Usage: "Specify the IDL file path. (.thrift or .proto)"}
 	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name to generate go.mod.", Destination: &globalArgs.Gomod}
-	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name to generate server side codes.", Destination: &globalArgs.ServiceName}
+	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name.", Destination: &globalArgs.ServiceName}
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
 	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
 	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
@@ -103,12 +103,12 @@ func Init() *cli.App {
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
 	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}:{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
-	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}})", Destination: &globalArgs.CustomizePackage}
+	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}:)", Destination: &globalArgs.CustomizePackage}
 
 	// app
 	app := cli.NewApp()
 	app.Name = "hz"
-	app.Usage = "A idl parser and code generator for hertz projects"
+	app.Usage = "A idl parser and code generator for Hertz projects"
 	app.Version = meta.Version
 
 	// global flags
