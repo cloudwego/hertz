@@ -82,7 +82,7 @@ func Update(c *cli.Context) error {
 
 func Init() *cli.App {
 	// flags
-	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "Turn on verbose mode.", Destination: &globalArgs.Verbose}
+	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "turn on verbose mode", Destination: &globalArgs.Verbose}
 
 	idlFlag := cli.StringSliceFlag{Name: "idl", Usage: "Specify the IDL file path. (.thrift or .proto)"}
 	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name to generate go.mod.", Destination: &globalArgs.Gomod}
@@ -90,14 +90,14 @@ func Init() *cli.App {
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
 	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
 	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
-	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, no client code is generated", Destination: &globalArgs.ClientDir}
+	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, no client code is generated.", Destination: &globalArgs.ClientDir}
 
 	optPkgFlag := cli.StringSliceFlag{Name: "option_package", Aliases: []string{"P"}, Usage: "Specify the package path. ({include_path}={import_path})"}
 	includesFlag := cli.StringSliceFlag{Name: "proto_path", Aliases: []string{"I"}, Usage: "Add an IDL search path for includes. (Valid only if idl is protobuf)"}
 	excludeFilesFlag := cli.StringSliceFlag{Name: "exclude_file", Aliases: []string{"E"}, Usage: "Specify the files that do not need to be updated."}
 	thriftOptionsFlag := cli.StringSliceFlag{Name: "thriftgo", Aliases: []string{"t"}, Usage: "Specify arguments for the thriftgo. ({flag}={value})"}
 	protoOptionsFlag := cli.StringSliceFlag{Name: "protoc", Aliases: []string{"p"}, Usage: "Specify arguments for the protoc. ({flag}={value})"}
-	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only", Destination: &globalArgs.NoRecurse}
+	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
@@ -120,7 +120,7 @@ func Init() *cli.App {
 	app.Commands = []*cli.Command{
 		{
 			Name:  meta.CmdNew,
-			Usage: "Generate a new hertz project",
+			Usage: "Generate a new Hertz project",
 			Flags: []cli.Flag{
 				&idlFlag,
 				&serviceNameFlag,
