@@ -18,9 +18,10 @@ package protobuf
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"path/filepath"
 	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"

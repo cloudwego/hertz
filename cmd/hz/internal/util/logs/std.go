@@ -117,7 +117,7 @@ func (stdLogger *StdLogger) ErrLines() []string {
 		return nil
 	}
 	var rets []string
-	for _, line := range lines{
+	for _, line := range lines {
 		rets = append(rets, string(line))
 	}
 	return rets
@@ -129,7 +129,7 @@ func (stdLogger *StdLogger) WarnLines() []string {
 		return nil
 	}
 	var rets []string
-	for _, line := range lines{
+	for _, line := range lines {
 		rets = append(rets, string(line))
 	}
 	return rets
@@ -143,7 +143,7 @@ func (stdLogger *StdLogger) FlushErr() {
 func (stdLogger *StdLogger) OutLines() []string {
 	lines := bytes.Split(stdLogger.out.Bytes(), []byte("[INFO]"))
 	var rets []string
-	for _, line := range lines{
+	for _, line := range lines {
 		rets = append(rets, string(line))
 	}
 	return rets
