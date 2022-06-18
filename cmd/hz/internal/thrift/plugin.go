@@ -40,16 +40,29 @@ type Plugin struct {
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
+	defer func() {
+		if args.Verbose {
+			verboseLog := plugin.recvVerboseLogger()
+			if len(verboseLog) != 0 {
+				fmt.Fprintf(os.Stderr, verboseLog)
+			}
+		} else {
+			warning := plugin.recvWarningLogger()
+			if len(warning) != 0 {
+				fmt.Fprintf(os.Stderr, warning)
+			}
+		}
+	}()
 
 	err := plugin.handleRequest()
 	if err != nil {
-		plugin.logger.Errorf("handle request failed: %s", err.Error())
+		logs.Errorf("handle request failed: %s", err.Error())
 		return meta.PluginError
 	}
 
 	args, err = plugin.parseArgs()
 	if err != nil {
-		plugin.logger.Errorf("parse args failed: %s", err.Error())
+		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
 	options := CheckTagOption(plugin.args)
@@ -59,27 +72,27 @@ func (plugin *Plugin) Run() int {
 	cf, _ := util.GetColonPair(args.CustomizePackage)
 	pkg, err := args.GetGoPackage()
 	if err != nil {
-		plugin.logger.Errorf("get go package failed: %s", err.Error())
+		logs.Errorf("get go package failed: %s", err.Error())
 		return meta.PluginError
 	}
 	handlerDir, err := args.GetHandlerDir()
 	if err != nil {
-		plugin.logger.Errorf("get handler dir failed: %s", err.Error())
+		logs.Errorf("get handler dir failed: %s", err.Error())
 		return meta.PluginError
 	}
 	routerDir, err := args.GetRouterDir()
 	if err != nil {
-		plugin.logger.Errorf("get router dir failed: %s", err.Error())
+		logs.Errorf("get router dir failed: %s", err.Error())
 		return meta.PluginError
 	}
 	modelDir, err := args.GetModelDir()
 	if err != nil {
-		plugin.logger.Errorf("get model dir failed: %s", err.Error())
+		logs.Errorf("get model dir failed: %s", err.Error())
 		return meta.PluginError
 	}
 	clientDir, err := args.GetClientDir()
 	if err != nil {
-		plugin.logger.Errorf("get client dir failed: %s", err.Error())
+		logs.Errorf("get client dir failed: %s", err.Error())
 		return meta.PluginError
 	}
 	sg := generator.HttpPackageGenerator{
@@ -101,23 +114,23 @@ func (plugin *Plugin) Run() int {
 
 	err = sg.Generate(pkgInfo)
 	if err != nil {
-		plugin.logger.Errorf("generate package failed: %s", err.Error())
+		logs.Errorf("generate package failed: %s", err.Error())
 		return meta.PluginError
 	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
-		plugin.logger.Errorf("format file failed: %s", err.Error())
+		logs.Errorf("format file failed: %s", err.Error())
 		return meta.PluginError
 	}
 
 	res, err := plugin.GetResponse(files, sg.OutputDir)
 	if err != nil {
-		plugin.logger.Errorf("get response failed: %s", err.Error())
+		logs.Errorf("get response failed: %s", err.Error())
 		return meta.PluginError
 	}
 	plugin.response(res)
 	if err != nil {
-		plugin.logger.Errorf("response failed: %s", err.Error())
+		logs.Errorf("response failed: %s", err.Error())
 		return meta.PluginError
 	}
 	return 0
@@ -126,11 +139,30 @@ func (plugin *Plugin) Run() int {
 func (plugin *Plugin) setLogger() {
 	plugin.logger = logs.NewStdLogger(logs.LevelInfo)
 	plugin.logger.Defer = true
+	plugin.logger.ErrOnly = true
 	logs.SetLogger(plugin.logger)
 }
 
+func (plugin *Plugin) recvWarningLogger() string {
+	warns := plugin.logger.Warn()
+	plugin.logger.Flush()
+	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
+	return warns
+}
+
+func (plugin *Plugin) recvVerboseLogger() string {
+	info := plugin.logger.Out()
+	warns := plugin.logger.Warn()
+	verboseLog := string(info) + warns
+	plugin.logger.Flush()
+	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
+	return verboseLog
+}
+
 func (plugin *Plugin) recvLogger() []string {
-	warns := plugin.logger.ErrLines()
+	warns := plugin.logger.WarnLines()
+	errors := plugin.logger.ErrLines()
+	warns = append(warns, errors...)
 	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
 	return warns
 }
@@ -155,7 +187,7 @@ func (plugin *Plugin) parseArgs() (*config.Argument, error) {
 	args := new(config.Argument)
 	err := args.Unpack(plugin.req.PluginParameters)
 	if err != nil {
-		plugin.logger.Errorf("unpack args failed: %s", err.Error())
+		logs.Errorf("unpack args failed: %s", err.Error())
 	}
 	plugin.args = args
 	return args, nil
@@ -334,10 +366,8 @@ func (plugin *Plugin) GetResponse(files []generator.File, outputDir string) (*th
 	}
 
 	contents = append(contents, insertTag...)
-	warns := plugin.recvLogger()
 
 	return &thriftgo_plugin.Response{
-		Warnings: warns,
 		Contents: contents,
 	}, nil
 }
