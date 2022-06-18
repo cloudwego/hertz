@@ -96,27 +96,27 @@ func (plugin *Plugin) Run() int {
 	// read protoc request
 	in, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		plugin.logger.Errorf("read request failed: %s\n", err.Error())
+		logs.Errorf("read request failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 
 	req := &pluginpb.CodeGeneratorRequest{}
 	err = proto.Unmarshal(in, req)
 	if err != nil {
-		plugin.logger.Errorf("unmarshal request failed: %s\n", err.Error())
+		logs.Errorf("unmarshal request failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 
 	args, err = plugin.parseArgs(*req.Parameter)
 	if err != nil {
-		plugin.logger.Errorf("parse args failed: %s\n", err.Error())
+		logs.Errorf("parse args failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 	CheckTagOption(args)
 	// generate
 	err = plugin.Handle(req, args)
 	if err != nil {
-		plugin.logger.Errorf("generate failed: %s\n", err.Error())
+		logs.Errorf("generate failed: %s\n", err.Error())
 		return meta.PluginError
 	}
 	return 0
