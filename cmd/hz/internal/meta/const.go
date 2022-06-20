@@ -17,7 +17,7 @@
 package meta
 
 // Version hz version
-const Version = "v0.0.1"
+const Version = "v0.1.0"
 
 // Mode hz run modes
 type Mode int
