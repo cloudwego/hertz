@@ -192,11 +192,12 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	if err != nil {
 		// Error within the plugin will be responded by the plugin.
 		// But if the plugin does not response correctly, the error is returned to the upper level.
+		var err = fmt.Errorf("generate model file failed: %s", err.Error())
 		gen.Error(err)
 		resp := gen.Response()
 		err2 := plugin.Response(resp)
 		if err2 != nil {
-			return fmt.Errorf("generate model file failed: %s", err.Error())
+			return err
 		}
 		return nil
 	}
@@ -210,11 +211,12 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	deps := make(map[string]*descriptorpb.FileDescriptorProto, len(main.GetDependency()))
 	for _, dep := range main.GetDependency() {
 		if f, ok := maps[dep]; !ok {
-			gen.Error(fmt.Errorf("dependency file not found: %s", dep))
+			var err = fmt.Errorf("dependency file not found: %s", dep)
+			gen.Error(err)
 			resp := gen.Response()
 			err2 := plugin.Response(resp)
 			if err2 != nil {
-				return fmt.Errorf("dependency file not found: %s", dep)
+				return err
 			}
 			return nil
 		} else {
@@ -224,11 +226,12 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 
 	pkgFiles, err := plugin.genHttpPackage(main, deps, args)
 	if err != nil {
+		var err = fmt.Errorf("generate package files failed: %s", err.Error())
 		gen.Error(err)
 		resp := gen.Response()
 		err2 := plugin.Response(resp)
 		if err2 != nil {
-			return fmt.Errorf("generate package files failed: %s", err.Error())
+			return err
 		}
 		return nil
 	}
