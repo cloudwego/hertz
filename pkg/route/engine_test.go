@@ -43,16 +43,19 @@ package route
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 )
@@ -148,9 +151,35 @@ func TestEngineUnescapeRaw(t *testing.T) {
 	}
 }
 
+func TestConnectionClose(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.Init()
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(200, "ok")
+	})
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
+	err := engine.Serve(context.Background(), conn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+}
+
+func TestConnectionClose01(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.Init()
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		ctx.SetConnectionClose()
+		ctx.String(200, "ok")
+	})
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	err := engine.Serve(context.Background(), conn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+}
+
 func TestIdleTimeout(t *testing.T) {
 	engine := NewEngine(config.NewOptions(nil))
 	engine.options.IdleTimeout = 0
+	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(100 * time.Millisecond)
@@ -180,9 +209,9 @@ func TestIdleTimeout(t *testing.T) {
 func TestIdleTimeout01(t *testing.T) {
 	engine := NewEngine(config.NewOptions(nil))
 	engine.options.IdleTimeout = 1 * time.Second
-	engine.status = statusRunning
+	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.Init()
-	// engine.status = route.statusRunning
+	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(10 * time.Millisecond)
 		ctx.String(200, "ok")

@@ -364,7 +364,7 @@ func errProcess(conn io.Closer, err error) {
 	}()
 
 	// Quiet close the connection
-	if errors.Is(err, errs.ErrIdleTimeout) {
+	if errors.Is(err, errs.ErrShortConnection) || errors.Is(err, errs.ErrIdleTimeout) {
 		return
 	}
 
