@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"reflect"
 
+	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"gopkg.in/yaml.v2"
 )
 
@@ -134,8 +135,8 @@ func serviceToLayoutData(service Layout) (map[string]interface{}, error) {
 func serviceToRouterData(service Layout) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"Registers":      []string{},
-		"RouterPkgPath":  service.GoModule + "/" + defaultRouterDir,
-		"HandlerPkgPath": service.GoModule + "/" + defaultHandlerDir,
+		"RouterPkgPath":  service.GoModule + util.PathToImport(sp+defaultRouterDir, ""),
+		"HandlerPkgPath": service.GoModule + util.PathToImport(sp+defaultHandlerDir, ""),
 	}, nil
 }
 
