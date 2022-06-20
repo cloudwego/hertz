@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package api;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "/api";
+
+extend google.protobuf.FieldOptions {
+  optional string raw_body = 50101;
+  optional string query = 50102;
+  optional string header = 50103;
+  optional string cookie = 50104;
+  optional string body = 50105;
+  optional string path = 50106;
+  optional string vd = 50107;
+  optional string form = 50108;
+  optional string go_tag = 51001;
+  optional string js_conv = 50109;
+}
+
+extend google.protobuf.MethodOptions {
+  optional string get = 50201;
+  optional string post = 50202;
+  optional string put = 50203;
+  optional string delete = 50204;
+  optional string patch = 50205;
+  optional string options = 50206;
+  optional string head = 50207;
+  optional string any = 50208;
+  optional string gen_path = 50301;
+  optional string api_version = 50302;
+  optional string tag = 50303;
+  optional string name = 50304;
+  optional string api_level = 50305;
+  optional string serializer = 50306;
+  optional string param = 50307;
+  optional string baseurl = 50308;
+}
+
+extend google.protobuf.EnumValueOptions {
+  optional int32 http_code = 50401;
+}

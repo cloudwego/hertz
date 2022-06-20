@@ -49,13 +49,14 @@ import (
 
 var (
 	// These errors are the base error, which are used for checking in errors.Is()
-	ErrNeedMore      = errors.New("need more data")
-	ErrChunkedStream = errors.New("chunked stream")
-	ErrBodyTooLarge  = errors.New("body size exceeds the given limit")
-	ErrHijacked      = errors.New("connection has been hijacked")
-	ErrIdleTimeout   = errors.New("idle timeout")
-	ErrTimeout       = errors.New("timeout")
-	ErrNothingRead   = errors.New("nothing read")
+	ErrNeedMore        = errors.New("need more data")
+	ErrChunkedStream   = errors.New("chunked stream")
+	ErrBodyTooLarge    = errors.New("body size exceeds the given limit")
+	ErrHijacked        = errors.New("connection has been hijacked")
+	ErrIdleTimeout     = errors.New("idle timeout")
+	ErrTimeout         = errors.New("timeout")
+	ErrNothingRead     = errors.New("nothing read")
+	ErrShortConnection = errors.New("short connection")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.

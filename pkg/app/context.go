@@ -140,10 +140,8 @@ func NewContext(maxParams uint16) *RequestContext {
 // Loop fn for every k/v in Keys
 func (ctx *RequestContext) ForEachKey(fn func(k string, v interface{})) {
 	ctx.mu.RLock()
-	if ctx.Keys != nil {
-		for key, val := range ctx.Keys {
-			fn(key, val)
-		}
+	for key, val := range ctx.Keys {
+		fn(key, val)
 	}
 	ctx.mu.RUnlock()
 }
@@ -405,7 +403,7 @@ func (ctx *RequestContext) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// File writes the specified file into the body stream in a efficient way.
+// File writes the specified file into the body stream in an efficient way.
 func (ctx *RequestContext) File(filepath string) {
 	ServeFile(ctx, filepath)
 }
@@ -420,7 +418,7 @@ func (ctx *RequestContext) FileFromFS(filepath string, fs *FS) {
 	fs.NewRequestHandler()(context.Background(), ctx)
 }
 
-// FileAttachment use a efficient way to write the file to body stream.
+// FileAttachment use an efficient way to write the file to body stream.
 //
 // When client download the file, it will rename the file as filename
 func (ctx *RequestContext) FileAttachment(filepath, filename string) {
@@ -970,6 +968,11 @@ func (ctx *RequestContext) GetHeader(key string) []byte {
 // GetRawData returns body data.
 func (ctx *RequestContext) GetRawData() []byte {
 	return ctx.Request.Body()
+}
+
+// Body returns body data
+func (ctx *RequestContext) Body() ([]byte, error) {
+	return ctx.Request.BodyE()
 }
 
 type ClientIP func(ctx *RequestContext) string

@@ -58,7 +58,7 @@ func (r *bindRequest) GetPostForm() (url.Values, error) {
 		postMap[keyStr] = values
 	})
 	mf, err := r.req.MultipartForm()
-	if err == nil && mf.Value != nil {
+	if err == nil {
 		for k, v := range mf.Value {
 			if len(v) > 0 {
 				postMap[k] = v
@@ -126,7 +126,7 @@ func (r *bindRequest) GetBody() ([]byte, error) {
 func (r *bindRequest) GetFileHeaders() (map[string][]*multipart.FileHeader, error) {
 	files := make(map[string][]*multipart.FileHeader)
 	mf, err := r.req.MultipartForm()
-	if err == nil && mf.File != nil {
+	if err == nil {
 		for k, v := range mf.File {
 			if len(v) > 0 {
 				files[k] = v

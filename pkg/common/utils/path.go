@@ -40,11 +40,7 @@
 
 package utils
 
-import (
-	"net"
-	"strconv"
-	"strings"
-)
+import "strings"
 
 // CleanPath is the URL version of path.Clean, it returns a canonical URL path
 // for p, eliminating . and .. elements.
@@ -191,13 +187,11 @@ func bufApp(buf *[]byte, s string, w int, c byte) {
 }
 
 func AddMissingPort(addr string, isTLS bool) string {
-	n := strings.Index(addr, ":")
-	if n >= 0 {
+	if strings.IndexByte(addr, ':') >= 0 {
 		return addr
 	}
-	port := 80
-	if isTLS {
-		port = 443
+	if !isTLS {
+		return addr + ":80"
 	}
-	return net.JoinHostPort(addr, strconv.Itoa(port))
+	return addr + ":443"
 }

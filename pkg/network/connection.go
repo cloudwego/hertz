@@ -89,3 +89,7 @@ type ConnTLSer interface {
 	Handshake() error
 	ConnectionState() tls.ConnectionState
 }
+
+type HandleSpecificError interface {
+	HandleSpecificError(err error, rip string) (needIgnore bool)
+}

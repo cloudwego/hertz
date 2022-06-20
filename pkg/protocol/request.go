@@ -130,6 +130,9 @@ func (w *requestBodyWriter) Write(p []byte) (int, error) {
 }
 
 func (req *Request) Options() *config.RequestOptions {
+	if req.options == nil {
+		req.options = config.NewRequestOptions(nil)
+	}
 	return req.options
 }
 
@@ -784,11 +787,7 @@ func (req *Request) QueryString() []byte {
 // SetOptions is used to set request options.
 // These options can be used to do something in middlewares such as service discovery.
 func (req *Request) SetOptions(opts ...config.RequestOption) {
-	if req.options == nil {
-		req.options = config.NewRequestOptions(opts)
-	} else {
-		req.options.Apply(opts)
-	}
+	req.Options().Apply(opts)
 }
 
 // ConnectionClose returns true if 'Connection: close' header is set.

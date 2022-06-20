@@ -22,14 +22,9 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
 )
 
 var defaultDialer network.Dialer
-
-func init() {
-	defaultDialer = netpoll.NewDialer()
-}
 
 func SetDialer(dialer network.Dialer) {
 	defaultDialer = dialer
