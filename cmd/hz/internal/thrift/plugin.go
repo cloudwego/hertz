@@ -159,14 +159,6 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	return verboseLog
 }
 
-func (plugin *Plugin) recvLogger() []string {
-	warns := plugin.logger.WarnLines()
-	errors := plugin.logger.ErrLines()
-	warns = append(warns, errors...)
-	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
-	return warns
-}
-
 func (plugin *Plugin) handleRequest() error {
 	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {

@@ -21,11 +21,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
-
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
