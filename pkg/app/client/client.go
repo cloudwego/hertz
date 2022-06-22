@@ -55,6 +55,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 )
 
@@ -214,7 +215,7 @@ func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args) 
 	return defaultClient.Post(ctx, dst, url, postArgs)
 }
 
-var defaultClient = Client{DialTimeout: time.Second}
+var defaultClient = Client{DialTimeout: consts.DefaultDialTimeout}
 
 // Client implements http client.
 //
@@ -601,7 +602,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 			ProxyURI:                      proxyURI,
 		}
 		hc = http1.NewHostClient(hConfig)
-		m[string(host)] = hc
+		m[h] = hc
 		if len(m) == 1 {
 			startCleaner = true
 		}
