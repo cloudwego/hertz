@@ -46,7 +46,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"sync"
 	"time"
 
@@ -56,6 +55,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 )
 
