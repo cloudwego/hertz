@@ -606,15 +606,11 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 	}
 
 	// detect content-type
-	ext := fileExtension(fileInfo.Name(), compressed, h.compressedFileSuffix)
-	contentType := mime.TypeByExtension(ext)
-	if len(contentType) == 0 {
-		data, err := readFileHeader(f, compressed)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read header of the file %q: %s", f.Name(), err)
-		}
-		contentType = http.DetectContentType(data)
+	data, err := readFileHeader(f, compressed)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read header of the file %q: %s", f.Name(), err)
 	}
+	contentType = http.DetectContentType(data)
 
 	lastModified := fileInfo.ModTime()
 	ff := &fsFile{
