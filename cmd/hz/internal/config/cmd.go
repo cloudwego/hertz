@@ -61,8 +61,12 @@ func lookupTool(idlType string) (string, error) {
 	dir := filepath.Dir(path)
 	if tool == meta.TpCompilerProto {
 		pgh, err := exec.LookPath(meta.ProtocPluginName)
+		linkName := filepath.Join(dir, meta.ProtocPluginName)
+		if util.IsWindows() {
+			linkName = linkName + ".exe"
+		}
 		if err != nil {
-			err = link(exe, filepath.Join(dir, meta.ProtocPluginName))
+			err = link(exe, linkName)
 			if err != nil {
 				return "", err
 			}
@@ -76,8 +80,12 @@ func lookupTool(idlType string) (string, error) {
 
 	if tool == meta.TpCompilerThrift {
 		tgh, err := exec.LookPath(meta.ThriftPluginName)
+		linkName := filepath.Join(dir, meta.ThriftPluginName)
+		if util.IsWindows() {
+			linkName = linkName + ".exe"
+		}
 		if err != nil {
-			err = link(exe, filepath.Join(dir, meta.ThriftPluginName))
+			err = link(exe, linkName)
 			if err != nil {
 				return "", err
 			}

@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 )
 
 func GetGOPATH() (gopath string, err error) {
@@ -125,4 +127,8 @@ func InitGoMod(module string) error {
 		Stderr: os.Stderr,
 	}
 	return cmd.Run()
+}
+
+func IsWindows() bool {
+	return meta.SysType == meta.WindowsOS
 }

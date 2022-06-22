@@ -19,11 +19,13 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/app"
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/protobuf"
 	"github.com/cloudwego/hertz/cmd/hz/internal/thrift"
+	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 )
 
@@ -48,7 +50,11 @@ func Run() {
 }
 
 func pluginMode() {
-	switch filepath.Base(os.Args[0]) {
+	pluginName := filepath.Base(os.Args[0])
+	if util.IsWindows() {
+		pluginName = strings.TrimSuffix(pluginName, ".exe")
+	}
+	switch pluginName {
 	case meta.ThriftPluginName:
 		plugin := new(thrift.Plugin)
 		os.Exit(plugin.Run())
