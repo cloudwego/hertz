@@ -1,10 +1,10 @@
 name: Pull Request Check
 
-on: [pull_request]
+on: [ pull_request ]
 
 jobs:
   compliant:
-    runs-on: self-hosted
+    runs-on: [ self-hosted, X64 ]
     steps:
       - uses: actions/checkout@v3
 
@@ -17,7 +17,7 @@ jobs:
         uses: crate-ci/typos@master
 
   staticcheck:
-    runs-on: self-hosted
+    runs-on: [ self-hosted, X64 ]
     steps:
       - uses: actions/checkout@v3
 
