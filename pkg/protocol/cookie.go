@@ -192,10 +192,7 @@ func (c *Cookie) AppendBytes(dst []byte) []byte {
 		dst = bytesconv.AppendUint(dst, c.maxAge)
 	} else if !c.expire.IsZero() {
 		c.bufKV.value = bytesconv.AppendHTTPDate(c.bufKV.value[:0], c.expire)
-		dst = append(dst, ';', ' ')
-		dst = append(dst, bytestr.StrCookieExpires...)
-		dst = append(dst, '=')
-		dst = append(dst, c.bufKV.value...)
+		dst = appendCookiePart(dst, bytestr.StrCookieExpires, c.bufKV.value)
 	}
 	if len(c.domain) > 0 {
 		dst = appendCookiePart(dst, bytestr.StrCookieDomain, c.domain)
@@ -216,20 +213,11 @@ func (c *Cookie) AppendBytes(dst []byte) []byte {
 		dst = append(dst, ';', ' ')
 		dst = append(dst, bytestr.StrCookieSameSite...)
 	case CookieSameSiteLaxMode:
-		dst = append(dst, ';', ' ')
-		dst = append(dst, bytestr.StrCookieSameSite...)
-		dst = append(dst, '=')
-		dst = append(dst, bytestr.StrCookieSameSiteLax...)
+		dst = appendCookiePart(dst, bytestr.StrCookieSameSite, bytestr.StrCookieSameSiteLax)
 	case CookieSameSiteStrictMode:
-		dst = append(dst, ';', ' ')
-		dst = append(dst, bytestr.StrCookieSameSite...)
-		dst = append(dst, '=')
-		dst = append(dst, bytestr.StrCookieSameSiteStrict...)
+		dst = appendCookiePart(dst, bytestr.StrCookieSameSite, bytestr.StrCookieSameSiteStrict)
 	case CookieSameSiteNoneMode:
-		dst = append(dst, ';', ' ')
-		dst = append(dst, bytestr.StrCookieSameSite...)
-		dst = append(dst, '=')
-		dst = append(dst, bytestr.StrCookieSameSiteNone...)
+		dst = appendCookiePart(dst, bytestr.StrCookieSameSite, bytestr.StrCookieSameSiteNone)
 	}
 	return dst
 }
