@@ -97,7 +97,7 @@ func (w *byteSliceWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// WriteGunzip writes ungzipped p to w and returns the number of uncompressed
+// WriteGunzip writes gunzipped p to w and returns the number of uncompressed
 // bytes written to w.
 func WriteGunzip(w io.Writer, p []byte) (int, error) {
 	r := &byteSliceReader{p}
