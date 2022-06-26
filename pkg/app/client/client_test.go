@@ -93,11 +93,10 @@ func TestCloseIdleConnections(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+
 	if _, _, err := c.Get(context.Background(), nil, "http://google.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -140,11 +139,9 @@ func TestClientInvalidURI(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -178,11 +175,9 @@ func TestClientGetWithBody(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -225,11 +220,9 @@ func TestClientURLAuth(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
 	for up, expected := range cases {
 		req := protocol.AcquireRequest()
 		req.Header.SetMethod(consts.MethodGet)
@@ -261,11 +254,10 @@ func TestClientNilResp(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+
 	req := protocol.AcquireRequest()
 	req.Header.SetMethod(consts.MethodGet)
 	req.SetRequestURI("http://example.com")
@@ -287,11 +279,9 @@ func TestClientParseConn(t *testing.T) {
 	go engine.Run()
 	time.Sleep(time.Millisecond * 500)
 
-	c := &Client{
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-		},
-	}
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -332,10 +322,9 @@ func TestClientPostArgs(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
+	}))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -378,11 +367,9 @@ func TestClientHeaderCase(t *testing.T) {
 	}()
 	time.Sleep(time.Second)
 
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
-	c.DisableHeaderNamesNormalizing = true
+	}), WithDisableHeaderNamesNormalizing(true))
 	code, body, err := c.Get(context.Background(), nil, "http://example.com")
 	if err != nil {
 		t.Error(err)
@@ -414,10 +401,12 @@ func TestClientReadTimeout(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		ReadTimeout:               time.Second * 4,
-		MaxIdempotentCallAttempts: 1,
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			ReadTimeout:               time.Second * 4,
+			MaxIdempotentCallAttempts: 1,
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
 		},
 	}
 	dialer.SetDialer(standard.NewDialer())
@@ -483,10 +472,9 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
+	}))
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
@@ -521,11 +509,9 @@ func TestClientSetUserAgent(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	userAgent := "I'm not hertz"
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
-	c.Name = userAgent
+	}), WithName(userAgent))
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
@@ -554,11 +540,10 @@ func TestClientNoUserAgent(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
-	c.NoDefaultUserAgentHeader = true
+	}), WithNoDefaultUserAgentHeader(true))
+
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
@@ -640,10 +625,10 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	// make sure that the client sends all the request headers and body.
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
+	}))
+
 	var req protocol.Request
 	req.Header.SetMethod(consts.MethodPost)
 	req.SetRequestURI(uri)
@@ -685,11 +670,10 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient()
-	c.Dial = func(addr string) (network.Conn, error) {
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}
-	c.DisablePathNormalizing = true
+	}), WithDisablePathNormalizing(true))
+
 	urlWithEncodedPath := "http://example.com/encoded/Y%2BY%2FY%3D/stuff"
 
 	var req protocol.Request
@@ -729,9 +713,11 @@ func TestHostClientPendingRequests(t *testing.T) {
 	time.Sleep(time.Second)
 
 	c := &http1.HostClient{
-		Addr: "foobar",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foobar",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
 		},
 	}
 
@@ -820,11 +806,13 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		Addr: "foobar",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foobar",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
+			MaxConns: 1,
 		},
-		MaxConns: 1,
 	}
 
 	for i := 0; i < 5; i++ {
@@ -889,11 +877,13 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		Addr: "foobar",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foobar",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
+			MaxConnDuration: 10 * time.Millisecond,
 		},
-		MaxConnDuration: 10 * time.Millisecond,
 	}
 
 	for i := 0; i < 5; i++ {
@@ -935,10 +925,12 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 
 	dialsCount := make(map[string]int)
 	c := &http1.HostClient{
-		Addr: "foo,bar,baz",
-		Dial: func(addr string) (network.Conn, error) {
-			dialsCount[addr]++
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foo,bar,baz",
+			Dial: func(addr string) (network.Conn, error) {
+				dialsCount[addr]++
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
 		},
 	}
 
@@ -1000,9 +992,11 @@ func TestClientFollowRedirects(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		Addr: "xxx",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "xxx",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
 		},
 	}
 
@@ -1094,12 +1088,14 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		Addr: "foobar",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foobar",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
+			MaxConns:           1,
+			MaxConnWaitTimeout: 200 * time.Millisecond,
 		},
-		MaxConns:           1,
-		MaxConnWaitTimeout: 200 * time.Millisecond,
 	}
 
 	for i := 0; i < 5; i++ {
@@ -1163,12 +1159,14 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	c := &http1.HostClient{
-		Addr: "foobar",
-		Dial: func(addr string) (network.Conn, error) {
-			return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+		ClientOptions: &http1.ClientOptions{
+			Addr: "foobar",
+			Dial: func(addr string) (network.Conn, error) {
+				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+			},
+			MaxConns:           1,
+			MaxConnWaitTimeout: 10 * time.Millisecond,
 		},
-		MaxConns:           1,
-		MaxConnWaitTimeout: 10 * time.Millisecond,
 	}
 
 	var errNoFreeConnsCount uint32
@@ -1435,7 +1433,7 @@ func TestSetMultipartFields(t *testing.T) {
 	go engine.Run()
 
 	time.Sleep(100 * time.Millisecond)
-	client := &Client{DialTimeout: 50 * time.Millisecond}
+	client, _ := NewClient(WithDialTimeout(50 * time.Millisecond))
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
 	defer func() {
