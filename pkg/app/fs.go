@@ -733,11 +733,11 @@ func (h *fsHandler) openIndexFile(ctx *RequestContext, dirPath string, mustCompr
 
 func (ff *fsFile) decReadersCount() {
 	ff.h.cacheLock.Lock()
+	defer ff.h.cacheLock.Unlock()
 	ff.readersCount--
 	if ff.readersCount < 0 {
 		panic("BUG: negative fsFile.readersCount!")
 	}
-	ff.h.cacheLock.Unlock()
 }
 
 func (ff *fsFile) bigFileReader() (io.Reader, error) {
