@@ -444,16 +444,13 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
 	var err error
 	var retry bool
+
 	maxAttempts := c.MaxIdempotentCallAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = consts.DefaultMaxIdempotentCallAttempts
-	}
 	isRequestRetryable := isIdempotent
 	if c.RetryIf != nil {
 		isRequestRetryable = c.RetryIf
 	}
 	attempts := 0
-	hasBodyStream := req.IsBodyStream()
 
 	atomic.AddInt32(&c.pendingRequests, 1)
 	for {
@@ -462,9 +459,15 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 			break
 		}
 
-		if hasBodyStream {
+		attempts++
+		if attempts >= maxAttempts {
 			break
 		}
+
+		if req.IsBodyStream() {
+			break
+		}
+
 		if !isRequestRetryable(req) {
 			// Retry non-idempotent requests if the server closes
 			// the connection before sending the response.
@@ -477,10 +480,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 				break
 			}
 		}
-		attempts++
-		if attempts >= maxAttempts {
-			break
-		}
+
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
 
