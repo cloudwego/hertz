@@ -44,7 +44,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -53,10 +52,13 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/factory"
+	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
 var errorInvalidURI = errors.NewPublic("invalid uri")
@@ -163,7 +165,7 @@ func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Respo
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func DoRedirects(ctx context.Context, req *protocol.Request, resp *protocol.Response, maxRedirectsCount int) error {
-	_, _, err := client.DoRequestFollowRedirects(ctx, req, resp, req.URI().String(), maxRedirectsCount, &defaultClient)
+	_, _, err := client.DoRequestFollowRedirects(ctx, req, resp, req.URI().String(), maxRedirectsCount, defaultClient)
 	return err
 }
 
@@ -215,7 +217,7 @@ func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args) 
 	return defaultClient.Post(ctx, dst, url, postArgs)
 }
 
-var defaultClient = Client{DialTimeout: consts.DefaultDialTimeout}
+var defaultClient, _ = NewClient(WithDialTimeout(consts.DefaultDialTimeout))
 
 // Client implements http client.
 //
@@ -225,134 +227,7 @@ var defaultClient = Client{DialTimeout: consts.DefaultDialTimeout}
 type Client struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
-	// Client name. Used in User-Agent request header.
-	//
-	// Default client name is used if not set.
-	Name string
-
-	// NoDefaultUserAgentHeader when set to true, causes the default
-	// User-Agent header to be excluded from the Request.
-	NoDefaultUserAgentHeader bool
-
-	// Callback for establishing new connections to hosts.
-	//
-	// Default Dial is used if not set.
-	Dial client.DialFunc
-
-	// Timeout for establishing new connections to hosts.
-	//
-	// Default DialTimeout is used if not set.
-	DialTimeout time.Duration
-
-	// Attempt to connect to both ipv4 and ipv6 addresses if set to true.
-	//
-	// This option is used only if default TCP dialer is used,
-	// i.e. if Dial is blank.
-	//
-	// By default client connects only to ipv4 addresses,
-	// since unfortunately ipv6 remains broken in many networks worldwide :)
-	DialDualStack bool
-
-	// TLS config for https connections.
-	//
-	// Default TLS config is used if not set.
-	TLSConfig *tls.Config
-
-	// Maximum number of connections per each host which may be established.
-	//
-	// DefaultMaxConnsPerHost is used if not set.
-	MaxConnsPerHost int
-
-	// Idle keep-alive connections are closed after this duration.
-	//
-	// By default idle connections are closed
-	// after DefaultMaxIdleConnDuration.
-	MaxIdleConnDuration time.Duration
-
-	// Keep-alive connections are closed after this duration.
-	//
-	// By default connection duration is unlimited.
-	MaxConnDuration time.Duration
-
-	// Maximum number of attempts for idempotent calls
-	//
-	// DefaultMaxIdempotentCallAttempts is used if not set.
-	MaxIdempotentCallAttempts int
-
-	// Per-connection buffer size for responses' reading.
-	// This also limits the maximum header size.
-	//
-	// Default buffer size is used if 0.
-	ReadBufferSize int
-
-	// Per-connection buffer size for requests' writing.
-	//
-	// Default buffer size is used if 0.
-	WriteBufferSize int
-
-	// Maximum duration for full response reading (including body).
-	//
-	// By default response read timeout is unlimited.
-	ReadTimeout time.Duration
-
-	// Maximum duration for full request writing (including body).
-	//
-	// By default request write timeout is unlimited.
-	WriteTimeout time.Duration
-
-	// Maximum response body size.
-	//
-	// The client returns ErrBodyTooLarge if this limit is greater than 0
-	// and response body is greater than the limit.
-	//
-	// By default response body size is unlimited.
-	MaxResponseBodySize int
-
-	// Header names are passed as-is without normalization
-	// if this option is set.
-	//
-	// Disabled header names' normalization may be useful only for proxying
-	// responses to other clients expecting case-sensitive header names.
-	//
-	// By default request and response header names are normalized, i.e.
-	// The first letter and the first letters following dashes
-	// are uppercased, while all the other letters are lowercased.
-	// Examples:
-	//
-	//     * HOST -> Host
-	//     * content-type -> Content-Type
-	//     * cONTENT-lenGTH -> Content-Length
-	DisableHeaderNamesNormalizing bool
-
-	// Path values are sent as-is without normalization
-	//
-	// Disabled path normalization may be useful for proxying incoming requests
-	// to servers that are expecting paths to be forwarded as-is.
-	//
-	// By default path values are normalized, i.e.
-	// extra slashes are removed, special characters are encoded.
-	DisablePathNormalizing bool
-
-	// Maximum duration for waiting for a free connection.
-	//
-	// By default will not waiting, return ErrNoFreeConns immediately
-	MaxConnWaitTimeout time.Duration
-
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf client.RetryIfFunc
-
-	// Connection will close after each request when set this to true.
-	KeepAlive bool
-
-	// ResponseBodyStream enables response body streaming
-	ResponseBodyStream bool
-
-	mLock sync.Mutex
-	m     map[string]client.HostClient
-	ms    map[string]client.HostClient
-	mws   Middleware
+	options *config.ClientOptions
 
 	// Proxy specifies a function to return a proxy for a given
 	// Request. If the function returns a non-nil error, the
@@ -364,6 +239,22 @@ type Client struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
+
+	// RetryIf controls whether a retry should be attempted after an error.
+	//
+	// By default will use isIdempotent function
+	RetryIf func(request *protocol.Request) bool
+
+	clientFactory suite.ClientFactory
+
+	mLock sync.Mutex
+	m     map[string]client.HostClient
+	ms    map[string]client.HostClient
+	mws   Middleware
+}
+
+func (c *Client) GetOptions() *config.ClientOptions {
+	return c.options
 }
 
 // SetProxy is used to set client proxy.
@@ -372,6 +263,16 @@ type Client struct {
 // If you want to use another proxy, please create another client and set proxy to it.
 func (c *Client) SetProxy(p protocol.Proxy) {
 	c.Proxy = p
+}
+
+// SetRetryIf is used to set RetryIf func.
+func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
+	c.RetryIf = fn
+}
+
+// SetDialFunc is used to set custom dial func.
+func (c *Client) SetDialFunc(dial func(addr string) (network.Conn, error)) {
+	c.options.Dial = dial
 }
 
 // Get returns the status code and body of url.
@@ -532,7 +433,7 @@ func (c *Client) Do(ctx context.Context, req *protocol.Request, resp *protocol.R
 }
 
 func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
-	if !c.KeepAlive {
+	if !c.options.KeepAlive {
 		req.Header.SetConnectionClose(true)
 	}
 	uri := req.URI()
@@ -565,6 +466,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if isTLS {
 		m = c.ms
 	}
+
 	if m == nil {
 		m = make(map[string]client.HostClient)
 		if isTLS {
@@ -573,40 +475,26 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 			c.m = m
 		}
 	}
+
 	h := string(host)
 	hc := m[h]
 	if hc == nil {
-		hConfig := &client.HostClientConfig{
-			Addr:                          h,
-			Name:                          c.Name,
-			NoDefaultUserAgentHeader:      c.NoDefaultUserAgentHeader,
-			DialDualStack:                 c.DialDualStack,
-			DisableHeaderNamesNormalizing: c.DisableHeaderNamesNormalizing,
-			DisablePathNormalizing:        c.DisablePathNormalizing,
-			TLSConfig:                     c.TLSConfig,
-			IsTLS:                         isTLS,
-			MaxConns:                      c.MaxConnsPerHost,
-			MaxIdempotentCallAttempts:     c.MaxIdempotentCallAttempts,
-			ReadBufferSize:                c.ReadBufferSize,
-			WriteBufferSize:               c.WriteBufferSize,
-			MaxResponseBodySize:           c.MaxResponseBodySize,
-			Dial:                          c.Dial,
-			RetryIf:                       c.RetryIf,
-			DialTimeout:                   c.DialTimeout,
-			MaxIdleConnDuration:           c.MaxIdleConnDuration,
-			MaxConnDuration:               c.MaxConnDuration,
-			ReadTimeout:                   c.ReadTimeout,
-			WriteTimeout:                  c.WriteTimeout,
-			MaxConnWaitTimeout:            c.MaxConnWaitTimeout,
-			ResponseBodyStream:            c.ResponseBodyStream,
-			ProxyURI:                      proxyURI,
+		if c.clientFactory == nil {
+			// load http1 client by default
+			c.clientFactory = factory.NewClientFactory(newHttp1OptionFromClient(c))
 		}
-		hc = http1.NewHostClient(hConfig)
+		hc, _ = c.clientFactory.NewHostClient()
+		hc.SetDynamicConfig(&client.DynamicConfig{
+			Addr:     h,
+			ProxyURI: proxyURI,
+			IsTLS:    isTLS,
+		})
 		m[h] = hc
 		if len(m) == 1 {
 			startCleaner = true
 		}
 	}
+
 	c.mLock.Unlock()
 
 	if startCleaner {
@@ -652,22 +540,17 @@ func (c *Client) mCleaner() {
 	}
 }
 
+func (c *Client) SetClientFactory(cf suite.ClientFactory) {
+	c.clientFactory = cf
+}
+
 // NewClient return a client with options
 func NewClient(opts ...config.ClientOption) (*Client, error) {
 	opt := config.NewClientOptions(opts)
 	c := &Client{
-		DialTimeout:               opt.DialTimeout,
-		MaxConnsPerHost:           opt.MaxConnsPerHost,
-		MaxIdleConnDuration:       opt.MaxIdleConnDuration,
-		MaxConnDuration:           opt.MaxConnDuration,
-		MaxConnWaitTimeout:        opt.MaxConnWaitTimeout,
-		MaxIdempotentCallAttempts: opt.MaxIdempotentCallAttempts,
-		KeepAlive:                 opt.KeepAlive,
-		ReadTimeout:               opt.ReadTimeout,
-		ResponseBodyStream:        opt.ResponseBodyStream,
-		TLSConfig:                 opt.TLSConfig,
-		Dial:                      opt.DialFunc,
+		options: opt,
 	}
+
 	return c, nil
 }
 
@@ -679,4 +562,27 @@ func (c *Client) Use(mws ...Middleware) {
 	}
 	middlewares = append(middlewares, mws...)
 	c.mws = chain(middlewares...)
+}
+
+func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
+	return &http1.ClientOptions{
+		Name:                          c.options.Name,
+		NoDefaultUserAgentHeader:      c.options.NoDefaultUserAgentHeader,
+		Dial:                          c.options.Dial,
+		DialTimeout:                   c.options.DialTimeout,
+		DialDualStack:                 c.options.DialDualStack,
+		TLSConfig:                     c.options.TLSConfig,
+		MaxConns:                      c.options.MaxConnsPerHost,
+		MaxConnDuration:               c.options.MaxConnDuration,
+		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
+		MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
+		ReadTimeout:                   c.options.ReadTimeout,
+		WriteTimeout:                  c.options.WriteTimeout,
+		MaxResponseBodySize:           c.options.MaxResponseBodySize,
+		DisableHeaderNamesNormalizing: c.options.DisableHeaderNamesNormalizing,
+		DisablePathNormalizing:        c.options.DisablePathNormalizing,
+		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
+		RetryIf:                       c.RetryIf,
+		ResponseBodyStream:            c.options.ResponseBodyStream,
+	}
 }
