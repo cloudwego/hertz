@@ -624,7 +624,7 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 		contentLength:   contentLength,
 		compressed:      compressed,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: time.Now(),
 	}
@@ -705,7 +705,7 @@ func (h *fsHandler) createDirIndex(base *protocol.URI, dirPath string, mustCompr
 		contentLength:   len(dirIndex),
 		compressed:      mustCompress,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: lastModified,
 	}

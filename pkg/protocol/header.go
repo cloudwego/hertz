@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1420,7 +1421,7 @@ func UpdateServerDate() {
 }
 
 func refreshServerDate() {
-	b := bytesconv.AppendHTTPDate(nil, time.Now())
+	b := bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), time.Now())
 	ServerDate.Store(b)
 }
 
