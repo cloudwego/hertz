@@ -666,7 +666,7 @@ func (req *Request) parsePostArgs() {
 	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.StrPostArgsContentType) {
 		return
 	}
-	req.postArgs.ParseBytes(req.BodyBytes())
+	req.postArgs.ParseBytes(req.Body())
 }
 
 // BodyE returns request body.
