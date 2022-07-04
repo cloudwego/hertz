@@ -49,6 +49,7 @@ import (
 	"io"
 	"io/ioutil"
 	"mime/multipart"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -259,6 +260,31 @@ func testRequestPostArgsSuccess(t *testing.T, req *protocol.Request, s string, e
 		if vv != v {
 			t.Fatalf("Unexpected value for key %q: %q. Expected %q for %q", k, vv, v, s)
 		}
+	}
+}
+
+func TestRequestPostArgsBodyStream(t *testing.T) {
+	var req protocol.Request
+	s := "POST / HTTP/1.1\r\nHost: aaa.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 8196\r\n\r\n"
+	contentB := make([]byte, 8192)
+	for i := 0; i < len(contentB); i++ {
+		contentB[i] = 'a'
+	}
+	content := string(contentB)
+	requestString := s + url.Values{"key": []string{content}}.Encode()
+
+	r := bytes.NewBufferString(requestString)
+	zr := netpoll.NewReader(r)
+	if err := ReadHeader(&req.Header, zr); err != nil {
+		t.Fatalf("Unexpected error when reading header %q: %s", s, err)
+	}
+
+	err := ReadBodyStream(&req, zr, 1024*4, false, false)
+	if err != nil {
+		t.Fatalf("Unexpected error when reading bodystream %q: %s", s, err)
+	}
+	if string(req.PostArgs().Peek("key")) != content {
+		assert.DeepEqual(t, content, string(req.PostArgs().Peek("key")))
 	}
 }
 
