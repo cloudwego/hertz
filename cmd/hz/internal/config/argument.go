@@ -59,7 +59,6 @@ type Argument struct {
 	Excludes       []string
 	NoRecurse      bool
 
-	// 第三方layout模板配置
 	CustomizeLayout  string
 	CustomizePackage string
 	ModelBackend     string

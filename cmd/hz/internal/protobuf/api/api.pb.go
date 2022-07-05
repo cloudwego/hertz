@@ -296,21 +296,21 @@ var (
 	// optional string any = 50208;
 	E_Any = &file_api_proto_extTypes[17]
 	// optional string gen_path = 50301;
-	E_GenPath = &file_api_proto_extTypes[18] //客户端代码生成时用户指定的path,优先级高于api_version
+	E_GenPath = &file_api_proto_extTypes[18]
 	// optional string api_version = 50302;
-	E_ApiVersion = &file_api_proto_extTypes[19] //客户端代码生成时，指定path中的:version变量值
+	E_ApiVersion = &file_api_proto_extTypes[19]
 	// optional string tag = 50303;
-	E_Tag = &file_api_proto_extTypes[20] // rpc标签，可以是多个，逗号分隔
+	E_Tag = &file_api_proto_extTypes[20]
 	// optional string name = 50304;
-	E_Name = &file_api_proto_extTypes[21] // rpc的名字
+	E_Name = &file_api_proto_extTypes[21]
 	// optional string api_level = 50305;
-	E_ApiLevel = &file_api_proto_extTypes[22] //接口等级
+	E_ApiLevel = &file_api_proto_extTypes[22]
 	// optional string serializer = 50306;
-	E_Serializer = &file_api_proto_extTypes[23] //序列化方式, json
+	E_Serializer = &file_api_proto_extTypes[23]
 	// optional string param = 50307;
-	E_Param = &file_api_proto_extTypes[24] //客户端请求是否带上公共参数
+	E_Param = &file_api_proto_extTypes[24]
 	// optional string baseurl = 50308;
-	E_Baseurl = &file_api_proto_extTypes[25] // ttnet选路时使用的baseurl
+	E_Baseurl = &file_api_proto_extTypes[25]
 )
 
 // Extension fields to descriptorpb.EnumValueOptions.
