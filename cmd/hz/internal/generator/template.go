@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,9 +38,10 @@ type TemplateConfig struct {
 }
 
 type Template struct {
-	Path   string    `yaml:"path"`   // The generated path and its filename, such as biz/handler/ping.go
-	Delims [2]string `yaml:"delims"` // Template Action Instruction Identifier，default: "{{}}"
-	Body   string    `yaml:"body"`   // Render template, currently only supports go template syntax
+	Path         string    `yaml:"path"`         // The generated path and its filename, such as biz/handler/ping.go
+	Delims       [2]string `yaml:"delims"`       // Template Action Instruction Identifier，default: "{{}}"
+	Body         string    `yaml:"body"`         // Render template, currently only supports go template syntax
+	TemplatePath string    `yaml:"templatePath"` // The template body path
 }
 
 // TemplateGenerator contains information about the output template
@@ -103,8 +105,25 @@ func (tg *TemplateGenerator) Init() error {
 		}
 		tpl := template.New(path)
 		tpl = tpl.Delims(delims[0], delims[1])
-		if tpl, err = tpl.Parse(l.Body); err != nil {
-			return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+		if l.Body != "" && l.TemplatePath == "" {
+			if tpl, err = tpl.Parse(l.Body); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
+		}
+		if l.TemplatePath != "" && l.Body == "" {
+			abs, err := filepath.Abs(l.TemplatePath)
+			if err != nil {
+				return fmt.Errorf("get absolute path of template '%s' failed, err: %v", l.TemplatePath, err.Error())
+			}
+			str, err := ioutil.ReadFile(abs)
+			if err != nil {
+				fmt.Println("read template file fail", err.Error())
+			}
+			if tpl, err = tpl.Parse(string(str)); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
+		} else if l.TemplatePath != "" && l.Body != "" {
+			return fmt.Errorf("only one of Body and TemplatePath can be used at the same time")
 		}
 
 		tpls[path] = tpl
