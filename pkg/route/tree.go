@@ -152,13 +152,7 @@ func checkPathValid(path string) (valid bool) {
 // addRoute adds a node with the given handle to the path.
 func (r *router) addRoute(path string, h app.HandlersChain) {
 	checkPathValid(path)
-	// Validate path
-	if path == nilString {
-		path = "/"
-	}
-	if path[0] != '/' {
-		path = "/" + path
-	}
+
 	pnames := []string{} // Param names
 	ppath := path        // Pristine path
 
