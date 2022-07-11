@@ -50,6 +50,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
@@ -168,11 +169,13 @@ func (c *Cookie) SetKeyBytes(key []byte) {
 
 // SetValue sets cookie value.
 func (c *Cookie) SetValue(value string) {
+	warnIfInvalid(bytesconv.S2b(value))
 	c.value = append(c.value[:0], value...)
 }
 
 // SetValueBytes sets cookie value.
 func (c *Cookie) SetValueBytes(value []byte) {
+	warnIfInvalid(value)
 	c.value = append(c.value[:0], value...)
 }
 
@@ -538,4 +541,15 @@ func getCookieKey(dst, src []byte) []byte {
 		src = src[:n]
 	}
 	return decodeCookieArg(dst, src, false)
+}
+
+func warnIfInvalid(value []byte) bool {
+	for i := range value {
+		if bytesconv.ValidCookieValueTable[value[i]] == 0 {
+			hlog.Warnf("HERTZ: Invalid byte %q in Cookie.Value, "+
+				"it may cause compatibility problems with user agents", value[i])
+			return false
+		}
+	}
+	return true
 }
