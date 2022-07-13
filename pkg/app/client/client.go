@@ -243,7 +243,7 @@ type Client struct {
 	// RetryIf controls whether a retry should be attempted after an error.
 	//
 	// By default will use isIdempotent function
-	RetryIf func(request *protocol.Request) bool
+	//RetryIf func(request *protocol.Request, err error) bool
 
 	clientFactory suite.ClientFactory
 
@@ -266,8 +266,8 @@ func (c *Client) SetProxy(p protocol.Proxy) {
 }
 
 // SetRetryIf is used to set RetryIf func.
-func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
-	c.RetryIf = fn
+func (c *Client) SetRetryIf(fn func(request *protocol.Request, response *protocol.Response, err error) bool) {
+	c.options.RetryConfig.RetryIf = fn
 }
 
 // SetDialFunc is used to set custom dial func.
@@ -566,23 +566,24 @@ func (c *Client) Use(mws ...Middleware) {
 
 func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 	return &http1.ClientOptions{
-		Name:                          c.options.Name,
-		NoDefaultUserAgentHeader:      c.options.NoDefaultUserAgentHeader,
-		Dial:                          c.options.Dial,
-		DialTimeout:                   c.options.DialTimeout,
-		DialDualStack:                 c.options.DialDualStack,
-		TLSConfig:                     c.options.TLSConfig,
-		MaxConns:                      c.options.MaxConnsPerHost,
-		MaxConnDuration:               c.options.MaxConnDuration,
-		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
-		MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
+		Name:                     c.options.Name,
+		NoDefaultUserAgentHeader: c.options.NoDefaultUserAgentHeader,
+		Dial:                     c.options.Dial,
+		DialTimeout:              c.options.DialTimeout,
+		DialDualStack:            c.options.DialDualStack,
+		TLSConfig:                c.options.TLSConfig,
+		MaxConns:                 c.options.MaxConnsPerHost,
+		MaxConnDuration:          c.options.MaxConnDuration,
+		MaxIdleConnDuration:      c.options.MaxIdleConnDuration,
+		//MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
 		ReadTimeout:                   c.options.ReadTimeout,
 		WriteTimeout:                  c.options.WriteTimeout,
 		MaxResponseBodySize:           c.options.MaxResponseBodySize,
 		DisableHeaderNamesNormalizing: c.options.DisableHeaderNamesNormalizing,
 		DisablePathNormalizing:        c.options.DisablePathNormalizing,
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
-		RetryIf:                       c.RetryIf,
-		ResponseBodyStream:            c.options.ResponseBodyStream,
+		//RetryIf:                       c.RetryIf,
+		ResponseBodyStream: c.options.ResponseBodyStream,
+		RetryConfig:        c.options.RetryConfig,
 	}
 }

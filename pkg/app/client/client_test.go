@@ -46,6 +46,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/protocol/retry"
 	"io"
 	"io/ioutil"
 	"net"
@@ -402,8 +403,8 @@ func TestClientReadTimeout(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			ReadTimeout:               time.Second * 4,
-			MaxIdempotentCallAttempts: 1,
+			ReadTimeout: time.Second * 4,
+			RetryConfig: &retry.RetryConfig{MaxIdempotentCallAttempts: 1},
 			Dial: func(addr string) (network.Conn, error) {
 				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
 			},
@@ -442,6 +443,7 @@ func TestClientReadTimeout(t *testing.T) {
 
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(res)
+		//done <- struct{}{}
 		close(done)
 	}()
 
@@ -449,7 +451,7 @@ func TestClientReadTimeout(t *testing.T) {
 	case <-done:
 		// It is abnormal when waiting time exceeds the value of readTimeout times the number of retries.
 		// Give it extra 2 seconds just to be sure.
-	case <-time.After(c.ReadTimeout*time.Duration(c.MaxIdempotentCallAttempts) + time.Second*2):
+	case <-time.After(c.ReadTimeout*time.Duration(c.RetryConfig.MaxIdempotentCallAttempts) + time.Second*2):
 		t.Fatal("Client.ReadTimeout didn't work")
 	}
 }

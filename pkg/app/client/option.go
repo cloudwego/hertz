@@ -18,6 +18,7 @@ package client
 
 import (
 	"crypto/tls"
+	"github.com/cloudwego/hertz/pkg/protocol/retry"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -70,11 +71,11 @@ func WithKeepAlive(b bool) config.ClientOption {
 }
 
 // WithMaxIdempotentCallAttempts sets maximum number of attempts for idempotent calls.
-func WithMaxIdempotentCallAttempts(n int) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.MaxIdempotentCallAttempts = n
-	}}
-}
+//func WithMaxIdempotentCallAttempts(n int) config.ClientOption {
+//	return config.ClientOption{F: func(o *config.ClientOptions) {
+//		o.MaxIdempotentCallAttempts = n
+//	}}
+//}
 
 // WithClientReadTimeout sets maximum duration for full response reading (including body).
 func WithClientReadTimeout(t time.Duration) config.ClientOption {
@@ -139,5 +140,12 @@ func WithNoDefaultUserAgentHeader(isNoDefaultUserAgentHeader bool) config.Client
 func WithDisablePathNormalizing(isDisablePathNormalizing bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.DisablePathNormalizing = isDisablePathNormalizing
+	}}
+}
+
+// WithRetryConfig sets RetryConfig to create an instance.
+func WithRetryConfig(retryCfg *retry.RetryConfig) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.RetryConfig = retryCfg
 	}}
 }

@@ -97,8 +97,8 @@ type HostClientConfig struct {
 	MaxIdempotentCallAttempts int
 	MaxResponseBodySize       int
 
-	Dial               DialFunc
-	RetryIf            RetryIfFunc
+	Dial DialFunc
+	//RetryIf            retry.RetryIfFunc
 	ResponseBodyStream bool
 
 	DialTimeout         time.Duration
@@ -129,11 +129,6 @@ type DynamicConfig struct {
 //   - foobar.com:443
 //   - foobar.com:8080
 type DialFunc func(addr string) (network.Conn, error)
-
-// RetryIfFunc signature of retry if function
-//
-// Request argument passed to RetryIfFunc, if there are any request errors.
-type RetryIfFunc func(request *protocol.Request) bool
 
 type clientURLResponse struct {
 	statusCode int

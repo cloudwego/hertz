@@ -422,6 +422,11 @@ func (h *RequestHeader) IsPost() bool {
 	return bytes.Equal(h.Method(), bytestr.StrPost)
 }
 
+// IsPost returns true if request method is POST.
+func (h *RequestHeader) IsDelete() bool {
+	return bytes.Equal(h.Method(), bytestr.StrDelete)
+}
+
 // IsConnect returns true if request method is CONNECT.
 func (h *RequestHeader) IsConnect() bool {
 	return bytes.Equal(h.Method(), bytestr.StrConnect)

@@ -18,6 +18,7 @@ package config
 
 import (
 	"crypto/tls"
+	"github.com/cloudwego/hertz/pkg/protocol/retry"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/network"
@@ -35,14 +36,14 @@ type ClientOptions struct {
 	// The max connection nums for each host
 	MaxConnsPerHost int
 
-	MaxIdleConnDuration       time.Duration
-	MaxConnDuration           time.Duration
-	MaxConnWaitTimeout        time.Duration
-	MaxIdempotentCallAttempts int
-	KeepAlive                 bool
-	ReadTimeout               time.Duration
-	TLSConfig                 *tls.Config
-	ResponseBodyStream        bool
+	MaxIdleConnDuration time.Duration
+	MaxConnDuration     time.Duration
+	MaxConnWaitTimeout  time.Duration
+	//MaxIdempotentCallAttempts int
+	KeepAlive          bool
+	ReadTimeout        time.Duration
+	TLSConfig          *tls.Config
+	ResponseBodyStream bool
 
 	// Client name. Used in User-Agent request header.
 	//
@@ -104,15 +105,17 @@ type ClientOptions struct {
 	// By default path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
+
+	RetryConfig *retry.RetryConfig
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {
 	options := &ClientOptions{
-		DialTimeout:               consts.DefaultDialTimeout,
-		MaxConnsPerHost:           consts.DefaultMaxConnsPerHost,
-		MaxIdleConnDuration:       consts.DefaultMaxIdleConnDuration,
-		MaxIdempotentCallAttempts: consts.DefaultMaxIdempotentCallAttempts,
-		KeepAlive:                 true,
+		DialTimeout:         consts.DefaultDialTimeout,
+		MaxConnsPerHost:     consts.DefaultMaxConnsPerHost,
+		MaxIdleConnDuration: consts.DefaultMaxIdleConnDuration,
+		RetryConfig:         &retry.RetryConfig{},
+		KeepAlive:           true,
 	}
 	options.Apply(opts)
 
