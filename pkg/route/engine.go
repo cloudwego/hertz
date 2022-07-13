@@ -175,8 +175,11 @@ type Engine struct {
 	// Indicates the engine status (Init/Running/Shutdown/Closed).
 	status uint32
 
-	// Hook functions get triggered sequentially before engine start to shutdown
+	// Hook functions get triggered sequentially when engine shutdown
 	OnShutdown []CtxCallback
+
+	// Hook functions get triggered sequentially when engine start
+	OnServerStart []CtxCallback
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -250,7 +253,7 @@ func (engine *Engine) NewContext() *app.RequestContext {
 //	one request (in hand or next incoming), idleTimeout or ExitWaitTime
 // 4. Exit
 func (engine *Engine) Shutdown(ctx context.Context) (err error) {
-	if engine.status != statusRunning {
+	if atomic.LoadUint32(&engine.status) != statusRunning {
 		return errStatusNotRunning
 	}
 	if !atomic.CompareAndSwapUint32(&engine.status, statusRunning, statusShutdown) {
@@ -280,6 +283,14 @@ func (engine *Engine) Run() (err error) {
 		return errAlreadyRunning
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
+
+	// trigger hooks if any
+	ctx := context.Background()
+	for i := range engine.OnServerStart {
+		go func(index int) {
+			engine.OnServerStart[index](ctx)
+		}(i)
+	}
 
 	return engine.listenAndServe()
 }

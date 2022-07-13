@@ -20,6 +20,8 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/common/registry"
 )
 
 // Option is the only struct that can be used to set Options.
@@ -64,6 +66,12 @@ type Options struct {
 	Tracers                      []interface{}
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
+
+	// RegistryInfo is used to in registry.
+	RegistryInfo *registry.Info
+
+	// Registry is used for service registry.
+	Registry registry.Registry
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -183,6 +191,8 @@ func NewOptions(opts []Option) *Options {
 
 		// trace level, default LevelDetailed
 		TraceLevel: new(interface{}),
+
+		Registry: registry.NoopRegistry,
 	}
 	options.Apply(opts)
 	return options

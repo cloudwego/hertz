@@ -550,7 +550,6 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 	c := &Client{
 		options: opt,
 	}
-
 	return c, nil
 }
 
