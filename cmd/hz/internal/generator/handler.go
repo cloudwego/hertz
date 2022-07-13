@@ -111,7 +111,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return err
 	}
 
-	hertzImport := regexp.MustCompile(`"github.com/cloudwego/hertz/pkg/app"\n`)
+	hertzImport := regexp.MustCompile(`import \(\n`)
 	// insert new imports
 	for alias, model := range handler.(Handler).Imports {
 		if bytes.Contains(file, []byte(model.Package)) {
@@ -120,7 +120,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 
 		subIndexImport := hertzImport.FindSubmatchIndex(file)
 		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
-			return fmt.Errorf("\"github.com/cloudwego/hertz/pkg/app\" not found in %s", string(file))
+			return fmt.Errorf("\"import (\" not found in %s", string(file))
 		}
 
 		buf := bytes.NewBuffer(nil)
@@ -132,35 +132,36 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 
 	// insert new handler
 	for _, method := range handler.(Handler).Methods {
-		if bytes.Contains(file, []byte(fmt.Sprintf("func %s(ctx context.Context, c *app.RequestContext)", method.Name))) {
+		if bytes.Contains(file, []byte(fmt.Sprintf("func %s(", method.Name))) {
 			continue
 		}
 
-		handlerFunc := fmt.Sprintf("%s\n"+
-			"func %s(ctx context.Context, c *app.RequestContext) { \n"+
-			"\tvar err error\n"+
-			"\tvar req %s\n"+
-			"\terr = c.BindAndValidate(&req)\n"+
-			"\tif err != nil {\n"+
-			"\t\tc.String(400, err.Error())\n"+
-			"\t\treturn\n"+
-			"\t}\n\n"+
-			"\tresp := new(%s)\n\n"+
-			"\tc.%s(200, resp)\n"+
-			"}\n", method.Comment, method.Name, method.RequestTypeName, method.ReturnTypeName, method.Serializer)
-
-		if len(method.Name) == 0 {
-			handlerFunc = fmt.Sprintf("%s\n"+
-				"func %s(ctx context.Context, c *app.RequestContext) { \n"+
-				"\tvar err error\n"+
-				"\tresp := new(%s)\n\n"+
-				"\tc.%s(200, resp)\n"+
-				"}\n", method.Comment, method.Name, method.ReturnTypeName, method.Serializer)
+		// Generate additional handlers using templates
+		handlerSingleTpl := pkgGen.tpls[handlerSingleTplName]
+		if handlerSingleTpl == nil {
+			return fmt.Errorf("tpl %s not found", handlerSingleTplName)
+		}
+		data := make(map[string]string, 5)
+		data["Comment"] = method.Comment
+		data["Name"] = method.Name
+		data["RequestTypeName"] = method.RequestTypeName
+		data["ReturnTypeName"] = method.ReturnTypeName
+		data["Serializer"] = method.Serializer
+		handlerFunc := bytes.NewBuffer(nil)
+		err = handlerSingleTpl.Execute(handlerFunc, data)
+		if err != nil {
+			return fmt.Errorf("execute template \"%s\" failed, %v", handlerSingleTplName, err)
 		}
 
 		buf := bytes.NewBuffer(nil)
-		buf.Write(file)
-		buf.Write([]byte(handlerFunc))
+		_, err = buf.Write(file)
+		if err != nil {
+			return fmt.Errorf("write handler \"%s\" failed, %v", method.Name, err)
+		}
+		_, err = buf.Write(handlerFunc.Bytes())
+		if err != nil {
+			return fmt.Errorf("write handler \"%s\" failed, %v", method.Name, err)
+		}
 		file = buf.Bytes()
 	}
 

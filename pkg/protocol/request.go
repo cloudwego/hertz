@@ -204,7 +204,7 @@ func (req *Request) PostArgString() []byte {
 	return req.postArgs.QueryString()
 }
 
-// MultipartForm returns requests's multipart form.
+// MultipartForm returns request's multipart form.
 //
 // Returns errNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
@@ -815,7 +815,7 @@ func AcquireRequest() *Request {
 
 // ReleaseRequest returns req acquired via AcquireRequest to request pool.
 //
-// It is forbidden accessing req and/or its' members after returning
+// It is forbidden accessing req and/or its members after returning
 // it to request pool.
 func ReleaseRequest(req *Request) {
 	req.Reset()

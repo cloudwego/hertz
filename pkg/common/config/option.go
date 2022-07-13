@@ -20,6 +20,8 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/common/registry"
 )
 
 // Option is the only struct that can be used to set Options.
@@ -64,6 +66,11 @@ type Options struct {
 	Tracers                      []interface{}
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
+
+	// Registry is used for service registry.
+	Registry registry.Registry
+	// RegistryInfo is base info used for service registry.
+	RegistryInfo *registry.Info
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -75,7 +82,7 @@ func (o *Options) Apply(opts []Option) {
 func NewOptions(opts []Option) *Options {
 	options := &Options{
 		// Keep-alive timeout. When idle connection exceeds this time,
-		// server will send keep-alive packets to ensure it's a validate
+		// server will send keep-alive packets to ensure it's a validated
 		// connection.
 		//
 		// NOTE: Usually there is no need to care about this value, just
@@ -183,6 +190,8 @@ func NewOptions(opts []Option) *Options {
 
 		// trace level, default LevelDetailed
 		TraceLevel: new(interface{}),
+
+		Registry: registry.NoopRegistry,
 	}
 	options.Apply(opts)
 	return options

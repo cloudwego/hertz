@@ -14,10 +14,22 @@
  * limitations under the License.
  */
 
-package hertz
+package service_discovery
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.2.0"
+import (
+	"context"
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
+
+func TestWithCustomizedInstances(t *testing.T) {
+	var options []ServiceDiscoveryOption
+	options = append(options, WithCustomizedAddrs("127.0.0.1:8080"))
+	opts := &ServiceDiscoveryOptions{}
+	opts.Apply(options)
+	assert.Assert(t, opts.Resolver.Name() == "127.0.0.1:8080")
+	res, err := opts.Resolver.Resolve(context.Background(), "")
+	assert.Assert(t, err == nil)
+	assert.Assert(t, res.Instances[0].Address().String() == "127.0.0.1:8080")
+}

@@ -9,9 +9,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Check License Header
-        uses: apache/skywalking-eyes@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: apache/skywalking-eyes/header@501a28d2fb4a9b962661987e50cf0219631b32ff
 
       - name: typos-action
         uses: crate-ci/typos@master

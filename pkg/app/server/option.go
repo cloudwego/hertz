@@ -21,6 +21,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/registry"
+
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
@@ -159,7 +161,7 @@ func WithMaxRequestBodySize(bs int) config.Option {
 	}}
 }
 
-// WithMaxKeepBodySize sets max size of request/response body to keep when recycle. Unit: byte
+// WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
 func WithMaxKeepBodySize(bs int) config.Option {
@@ -266,5 +268,19 @@ func WithTracer(t tracer.Tracer) config.Option {
 func WithTraceLevel(level stats.Level) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.TraceLevel = level
+	}}
+}
+
+// WithRegistry sets the registry
+func WithRegistry(r registry.Registry) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.Registry = r
+	}}
+}
+
+// WithRegistryInfo sets the registry info
+func WithRegistryInfo(info *registry.Info) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.RegistryInfo = info
 	}}
 }

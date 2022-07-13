@@ -624,7 +624,7 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 		contentLength:   contentLength,
 		compressed:      compressed,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: time.Now(),
 	}
@@ -705,7 +705,7 @@ func (h *fsHandler) createDirIndex(base *protocol.URI, dirPath string, mustCompr
 		contentLength:   len(dirIndex),
 		compressed:      mustCompress,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: lastModified,
 	}
@@ -1012,7 +1012,7 @@ func stripTrailingSlashes(path []byte) []byte {
 }
 
 func isFileCompressible(f *os.File, minCompressRatio float64) bool {
-	// Try compressing the first 4kb of of the file
+	// Try compressing the first 4kb of the file
 	// and see if it can be compressed by more than
 	// the given minCompressRatio.
 	b := bytebufferpool.Get()

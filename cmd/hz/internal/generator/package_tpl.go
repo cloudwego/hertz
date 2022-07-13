@@ -17,20 +17,36 @@
 package generator
 
 var (
-	routerTplName     = "router.go"
-	middlewareTplName = "middleware.go"
-	handlerTplName    = "handler.go"
-	modelTplName      = "model.go"
-	registerTplName   = "register.go"
-	clientTplName     = "client.go"
+	routerTplName           = "router.go"
+	middlewareTplName       = "middleware.go"
+	middlewareSingleTplName = "middleware_single.go"
+	handlerTplName          = "handler.go"
+	handlerSingleTplName    = "handler_single.go"
+	modelTplName            = "model.go"
+	registerTplName         = "register.go"
+	clientTplName           = "client.go"
 
 	insertPointNew        = "//INSERT_POINT: DO NOT DELETE THIS LINE!"
 	insertPointPatternNew = `//INSERT_POINT\: DO NOT DELETE THIS LINE\!`
-	insertPointPatternOld = `func register\(r \*(hertz|server)\.Hertz\) \{\n`
 )
 
+var templateNameSet = map[string]string{
+	routerTplName:           routerTplName,
+	middlewareTplName:       middlewareTplName,
+	middlewareSingleTplName: middlewareSingleTplName,
+	handlerTplName:          handlerTplName,
+	handlerSingleTplName:    handlerSingleTplName,
+	modelTplName:            modelTplName,
+	registerTplName:         registerTplName,
+	clientTplName:           clientTplName,
+}
+
 func IsDefaultTpl(name string) bool {
-	return name == routerTplName || name == handlerTplName || name == modelTplName || name == registerTplName || name == middlewareTplName || name == clientTplName
+	if _, exist := templateNameSet[name]; exist {
+		return true
+	}
+
+	return false
 }
 
 var defaultPkgConfig = TemplateConfig{
@@ -192,6 +208,37 @@ func New{{.ServiceName}}Client(opt ...config.ClientOption) (*{{.ServiceName}}Cli
 	}, nil
 }
 		`,
+		},
+		{
+			Path:   defaultHandlerDir + sp + handlerSingleTplName,
+			Delims: [2]string{"{{", "}}"},
+			Body: `
+{{.Comment}}
+func {{.Name}}(ctx context.Context, c *app.RequestContext) { 
+	var err error
+	{{if ne .RequestTypeName "" -}}
+	var req {{.RequestTypeName}}
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(400, err.Error())
+		return
+	}
+	{{end}}
+	resp := new({{.ReturnTypeName}})
+
+	c.{{.Serializer}}(200, resp)
+}
+`,
+		},
+		{
+			Path:   defaultRouterDir + sp + middlewareSingleTplName,
+			Delims: [2]string{"{{", "}}"},
+			Body: `
+func {{.MiddleWare}}Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+`,
 		},
 	},
 }

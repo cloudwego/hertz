@@ -42,6 +42,7 @@
 package protocol
 
 import (
+	"math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -356,4 +357,27 @@ func testCookieParse(t *testing.T, s, expectedS string) {
 	if result != expectedS {
 		t.Fatalf("unexpected cookies %q. Expecting %q. Original %q", result, expectedS, s)
 	}
+}
+
+func Test_WarnIfInvalid(t *testing.T) {
+	assert.False(t, warnIfInvalid([]byte(";")))
+	assert.False(t, warnIfInvalid([]byte("\\")))
+	assert.False(t, warnIfInvalid([]byte("\"")))
+	assert.True(t, warnIfInvalid([]byte("")))
+	for i := 0; i < 5; i++ {
+		validCookie := getValidCookie()
+		assert.True(t, warnIfInvalid(validCookie))
+	}
+}
+
+func getValidCookie() []byte {
+	var validCookie []byte
+	for i := 0; i < 100; i++ {
+		r := rand.Intn(0x78-0x20) + 0x20
+		if r == ';' || r == '\\' || r == '"' {
+			continue
+		}
+		validCookie = append(validCookie, byte(r))
+	}
+	return validCookie
 }

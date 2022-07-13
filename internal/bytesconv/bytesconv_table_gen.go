@@ -140,6 +140,25 @@ func main() {
 		return a
 	}()
 
+	validCookieValueTable := func() [256]byte {
+		// The implementation here is equal to net/http validCookieValueByte(b byte)
+		// see https://datatracker.ietf.org/doc/html/rfc6265#section-4.1.1
+		var a [256]byte
+		for i := 0; i < 256; i++ {
+			a[i] = 0
+		}
+
+		for i := 0x20; i < 0x7f; i++ {
+			a[i] = 1
+		}
+
+		a['"'] = 0
+		a[';'] = 0
+		a['\\'] = 0
+
+		return a
+	}()
+
 	w := new(bytes.Buffer)
 	w.WriteString(pre)
 	fmt.Fprintf(w, "const Hex2intTable = %q\n", hex2intTable)
@@ -147,6 +166,7 @@ func main() {
 	fmt.Fprintf(w, "const ToUpperTable = %q\n", toUpperTable)
 	fmt.Fprintf(w, "const QuotedArgShouldEscapeTable = %q\n", quotedArgShouldEscapeTable)
 	fmt.Fprintf(w, "const QuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
+	fmt.Fprintf(w, "const ValidCookieValueTable = %q\n", validCookieValueTable)
 
 	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
 		log.Fatal(err)
