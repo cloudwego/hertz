@@ -92,9 +92,27 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 		tpl := template.New(path)
 		tpl = tpl.Delims(delims[0], delims[1])
 		var err error
-		if tpl, err = tpl.Parse(layout.Body); err != nil {
-			return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+		if layout.Body != "" && layout.TemplatePath == "" {
+			if tpl, err = tpl.Parse(layout.Body); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
 		}
+		if layout.TemplatePath != "" && layout.Body == "" {
+			abspath, err := filepath.Abs(layout.TemplatePath)
+			if err != nil {
+				return fmt.Errorf("get absolute path of template '%s' failed, err: %v", layout.TemplatePath, err.Error())
+			}
+			tplBytes, err := ioutil.ReadFile(abspath)
+			if err != nil {
+				fmt.Errorf("read %s fail, error: %v", abspath, err.Error())
+			}
+			if tpl, err = tpl.Parse(util.Bytes2Str(tplBytes)); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
+		} else if layout.TemplatePath != "" && layout.Body != "" {
+			return fmt.Errorf("only one of Body and TemplatePath can be used at the same time")
+		}
+
 		if pkgGen.tpls == nil {
 			pkgGen.tpls = make(map[string]*template.Template, len(config.Layouts))
 		}
