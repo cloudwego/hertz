@@ -120,7 +120,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 
 		subIndexImport := hertzImport.FindSubmatchIndex(file)
 		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
-			return fmt.Errorf("\"github.com/cloudwego/hertz/pkg/app\" not found in %s", string(file))
+			return fmt.Errorf("\"github.com/cloudwego/hertz/pkg/app\" not found in %s", util.Bytes2Str(file))
 		}
 
 		buf := bytes.NewBuffer(nil)
@@ -164,7 +164,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		file = buf.Bytes()
 	}
 
-	pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, ""})
+	pkgGen.files = append(pkgGen.files, File{filePath, util.Bytes2Str(file), false, ""})
 
 	return nil
 }

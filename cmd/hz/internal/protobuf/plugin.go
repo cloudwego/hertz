@@ -139,7 +139,7 @@ func (plugin *Plugin) recvWarningLogger() string {
 func (plugin *Plugin) recvVerboseLogger() string {
 	info := plugin.logger.Out()
 	warns := plugin.logger.Warn()
-	verboseLog := string(info) + warns
+	verboseLog := util.Bytes2Str(info) + warns
 	plugin.logger.Flush()
 	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
 	return verboseLog

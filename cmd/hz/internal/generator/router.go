@@ -250,7 +250,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 
 		subIndexImport := regImport.FindSubmatchIndex(file)
 		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
-			return fmt.Errorf("wrong format %s: 'import (' not found", string(file))
+			return fmt.Errorf("wrong format %s: 'import (' not found", util.Bytes2Str(file))
 		}
 
 		bufImport := bytes.NewBuffer(nil)
@@ -267,7 +267,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 
 		subIndexReg := regRegisterV3.FindSubmatchIndex(file)
 		if len(subIndexReg) != 2 || subIndexReg[0] < 1 {
-			return fmt.Errorf("wrong format %s: insert-point '%s' not found", string(file), insertPointPatternOld)
+			return fmt.Errorf("wrong format %s: insert-point '%s' not found", util.Bytes2Str(file), insertPointPatternOld)
 		}
 
 		bufReg := bytes.NewBuffer(nil)
@@ -275,7 +275,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		bufReg.WriteString("\n\t" + insertReg)
 		bufReg.Write(file[subIndexReg[1]:])
 
-		pkgGen.files = append(pkgGen.files, File{registerPath, string(bufReg.Bytes()), false, registerTplName})
+		pkgGen.files = append(pkgGen.files, File{registerPath, util.Bytes2Str(bufReg.Bytes()), false, registerTplName})
 	}
 
 	return nil
@@ -337,7 +337,7 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 		file = buf.Bytes()
 	}
 
-	pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, middlewareTplName})
+	pkgGen.files = append(pkgGen.files, File{filePath, util.Bytes2Str(file), false, middlewareTplName})
 
 	return nil
 }

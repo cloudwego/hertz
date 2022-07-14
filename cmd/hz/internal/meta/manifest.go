@@ -18,6 +18,7 @@ package meta
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func (manifest *Manifest) Validate(dir string) error {
 		logs.Errorf("Invalid manifest file: %s, pattern '%s' not match\n", filepath.Join(dir, ManifestFile), regVersion.String())
 		return fmt.Errorf("current project doesn't belong to hertz framework")
 	}
-	v, err := gv.NewVersion(string(rd[ms[2]:ms[3]]))
+	v, err := gv.NewVersion(util.Bytes2Str(rd[ms[2]:ms[3]]))
 	if err != nil {
 		return err
 	}
