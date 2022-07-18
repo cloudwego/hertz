@@ -1914,12 +1914,13 @@ func TestClientRetry(t *testing.T) {
 		retry.WithMaxDelay(10*time.Second),
 		retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
 		retry.WithRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
-			if regexp.MustCompile("connection has been closed").MatchString(fmt.Sprintln(err)) {
-				return true
-			}
-			return false
+			return regexp.MustCompile("connection has been closed").MatchString(fmt.Sprintln(err))
 		}),
 	)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	client.SetRetryConfig(retryCfg)
 	_, resp, err := client.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
 	if err != nil {
