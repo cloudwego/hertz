@@ -65,6 +65,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
@@ -402,8 +403,8 @@ func TestClientReadTimeout(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			ReadTimeout:               time.Second * 4,
-			MaxIdempotentCallAttempts: 1,
+			ReadTimeout: time.Second * 4,
+			RetryConfig: &retry.RetryConfig{MaxIdempotentCallAttempts: 1},
 			Dial: func(addr string) (network.Conn, error) {
 				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
 			},
@@ -442,6 +443,7 @@ func TestClientReadTimeout(t *testing.T) {
 
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(res)
+		//done <- struct{}{}
 		close(done)
 	}()
 
@@ -449,7 +451,7 @@ func TestClientReadTimeout(t *testing.T) {
 	case <-done:
 		// It is abnormal when waiting time exceeds the value of readTimeout times the number of retries.
 		// Give it extra 2 seconds just to be sure.
-	case <-time.After(c.ReadTimeout*time.Duration(c.MaxIdempotentCallAttempts) + time.Second*2):
+	case <-time.After(c.ReadTimeout*time.Duration(c.RetryConfig.MaxIdempotentCallAttempts) + time.Second*2):
 		t.Fatal("Client.ReadTimeout didn't work")
 	}
 }
@@ -1887,4 +1889,48 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
+}
+
+func TestClientRetry(t *testing.T) {
+	t.Parallel()
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "127.0.0.1:10036"
+	engine := route.NewEngine(opt)
+	engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		ctx.SetBodyString("pong")
+	})
+	go engine.Run()
+	time.Sleep(time.Millisecond * 500)
+
+	client, err := NewClient(WithDialTimeout(2 * time.Second))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	startTime := time.Now().UnixNano()
+	retryCfg, err := retry.NewRetryConfig(
+		retry.WithMaxIdempotentCallAttempts(3),
+		retry.WithDelay(1*time.Second),
+		retry.WithMaxDelay(10*time.Second),
+		retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
+		retry.WithRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+			if regexp.MustCompile("connection has been closed").MatchString(fmt.Sprintln(err)) {
+				return true
+			}
+			return false
+		}),
+	)
+	client.SetRetryConfig(retryCfg)
+	_, resp, err := client.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
+	if err != nil {
+		if time.Duration(time.Now().UnixNano()-startTime) > 8*time.Second && time.Duration(time.Now().UnixNano()-startTime) < 9*time.Second {
+			t.Logf("Retry triggered : resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
+		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
+			t.Logf("Retry not triggered : resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
+		} else {
+			t.Fatal(err)
+		}
+		return
+	}
+	t.Logf("resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
 }

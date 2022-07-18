@@ -69,13 +69,6 @@ func WithKeepAlive(b bool) config.ClientOption {
 	}}
 }
 
-// WithMaxIdempotentCallAttempts sets maximum number of attempts for idempotent calls.
-func WithMaxIdempotentCallAttempts(n int) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.MaxIdempotentCallAttempts = n
-	}}
-}
-
 // WithClientReadTimeout sets maximum duration for full response reading (including body).
 func WithClientReadTimeout(t time.Duration) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {

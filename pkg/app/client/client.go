@@ -52,6 +52,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
@@ -240,10 +241,8 @@ type Client struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
 
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf func(request *protocol.Request) bool
+	// RetryConfig All configurations related to retry
+	RetryConfig *retry.RetryConfig
 
 	clientFactory suite.ClientFactory
 
@@ -265,9 +264,8 @@ func (c *Client) SetProxy(p protocol.Proxy) {
 	c.Proxy = p
 }
 
-// SetRetryIf is used to set RetryIf func.
-func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
-	c.RetryIf = fn
+func (c *Client) SetRetryConfig(retryConfig *retry.RetryConfig) {
+	c.RetryConfig = retryConfig
 }
 
 // SetDialFunc is used to set custom dial func.
@@ -575,14 +573,13 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		MaxConns:                      c.options.MaxConnsPerHost,
 		MaxConnDuration:               c.options.MaxConnDuration,
 		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
-		MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
 		ReadTimeout:                   c.options.ReadTimeout,
 		WriteTimeout:                  c.options.WriteTimeout,
 		MaxResponseBodySize:           c.options.MaxResponseBodySize,
 		DisableHeaderNamesNormalizing: c.options.DisableHeaderNamesNormalizing,
 		DisablePathNormalizing:        c.options.DisablePathNormalizing,
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
-		RetryIf:                       c.RetryIf,
 		ResponseBodyStream:            c.options.ResponseBodyStream,
+		RetryConfig:                   c.RetryConfig,
 	}
 }
