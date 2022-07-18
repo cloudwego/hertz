@@ -185,7 +185,7 @@ func (resolver *Resolver) ResolveConstantValue(constant *parser.ConstValue) (mod
 	case parser.ConstType_ConstDouble:
 		return model.DoubleExpression{Src: constant.TypedValue.GetDouble()}, nil
 	case parser.ConstType_ConstLiteral:
-		return model.StringExpression{Src: string(constant.TypedValue.GetLiteral())}, nil
+		return model.StringExpression{Src: constant.TypedValue.GetLiteral()}, nil
 	case parser.ConstType_ConstList:
 		eleType, err := switchConstantType(constant.Type)
 		if err != nil {

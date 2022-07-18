@@ -105,7 +105,7 @@ func TestPoolVariousSizesConcurrent(t *testing.T) {
 
 func testPoolVariousSizes(t *testing.T) {
 	for i := 0; i < steps+1; i++ {
-		n := (1 << uint32(i))
+		n := 1 << uint32(i)
 
 		testGetPut(t, n)
 		testGetPut(t, n+1)
