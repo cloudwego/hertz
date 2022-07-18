@@ -66,6 +66,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
@@ -389,10 +390,10 @@ func TestClientReadTimeout(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			ReadTimeout:               time.Second * 4,
-			MaxIdempotentCallAttempts: 1,
-			Dialer:                    standard.NewDialer(),
-			Addr:                      opt.Addr,
+			ReadTimeout: time.Second * 4,
+			RetryConfig: &retry.RetryConfig{MaxIdempotentCallAttempts: 1},
+			Dialer:      standard.NewDialer(),
+			Addr:        opt.Addr,
 		},
 	}
 
@@ -434,7 +435,7 @@ func TestClientReadTimeout(t *testing.T) {
 	case <-done:
 		// It is abnormal when waiting time exceeds the value of readTimeout times the number of retries.
 		// Give it extra 2 seconds just to be sure.
-	case <-time.After(c.ReadTimeout*time.Duration(c.MaxIdempotentCallAttempts) + time.Second*2):
+	case <-time.After(c.ReadTimeout*time.Duration(c.RetryConfig.MaxIdempotentCallAttempts) + time.Second*2):
 		t.Fatal("Client.ReadTimeout didn't work")
 	}
 }
@@ -1878,4 +1879,49 @@ func newMockDialerWithCustomFunc(network, address string, timeout time.Duration,
 		address:          address,
 		timeout:          timeout,
 	}
+}
+
+func TestClientRetry(t *testing.T) {
+	t.Parallel()
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "127.0.0.1:10036"
+	engine := route.NewEngine(opt)
+	engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		ctx.SetBodyString("pong")
+	})
+	go engine.Run()
+	time.Sleep(time.Millisecond * 500)
+
+	client, err := NewClient(WithDialTimeout(2 * time.Second))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	startTime := time.Now().UnixNano()
+	retryCfg, err := retry.NewRetryConfig(
+		retry.WithMaxIdempotentCallAttempts(3),
+		retry.WithDelay(1*time.Second),
+		retry.WithMaxDelay(10*time.Second),
+		retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
+		retry.WithRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+			return regexp.MustCompile("connection has been closed").MatchString(fmt.Sprintln(err))
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	client.SetRetryConfig(retryCfg)
+	_, resp, err := client.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
+	if err != nil {
+		if time.Duration(time.Now().UnixNano()-startTime) > 8*time.Second && time.Duration(time.Now().UnixNano()-startTime) < 9*time.Second {
+			t.Logf("Retry triggered : resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
+		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
+			t.Logf("Retry not triggered : resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
+		} else {
+			t.Fatal(err)
+		}
+		return
+	}
+	t.Logf("resp=%v\nerr=%v\n", string(resp), fmt.Sprintln(err))
 }

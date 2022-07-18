@@ -96,7 +96,6 @@ type HostClientConfig struct {
 	MaxIdempotentCallAttempts int
 	MaxResponseBodySize       int
 
-	RetryIf            RetryIfFunc
 	ResponseBodyStream bool
 
 	DialTimeout         time.Duration
