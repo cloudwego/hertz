@@ -43,7 +43,7 @@ type RetryConfig struct {
 	MaxJitter time.Duration
 
 	// This field is pending. A callback at each retry
-	//onRetry RetryFunc
+	// onRetry RetryFunc
 
 	// Judge whether the retry condition is met when an error occurs,which can be customized by the user
 	RetryIf RetryIfFunc
@@ -57,6 +57,7 @@ func (o *RetryConfig) Apply(opts []RetryOption) {
 		op.F(o)
 	}
 }
+
 func NewRetryConfig(opts ...RetryOption) (*RetryConfig, error) {
 	retryCfg := &RetryConfig{
 		MaxIdempotentCallAttempts: consts.DefaultMaxIdempotentCallAttempts,
@@ -81,7 +82,6 @@ type DelayPolicyFunc func(attempts uint, err error, retryConfig *RetryConfig) ti
 
 // DefaultRetryIf Default retry condition, to be optimized
 func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
-
 	if req.IsBodyStream() {
 		return false
 	}
