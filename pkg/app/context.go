@@ -492,7 +492,7 @@ func (ctx *RequestContext) RequestBodyStream() io.Reader {
 	return ctx.Request.BodyStream()
 }
 
-// MultipartForm returns requests's multipart form.
+// MultipartForm returns request's multipart form.
 //
 // Returns errNoMultipartForm if request's content-type
 // isn't 'multipart/form-data'.

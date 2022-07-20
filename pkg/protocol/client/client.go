@@ -173,7 +173,7 @@ func GetURLDeadline(ctx context.Context, dst []byte, url string, deadline time.T
 	req.SetOptions(requestOptions...)
 
 	// Note that the request continues execution on errTimeout until
-	// client-specific ReadTimeout exceeds. This helps limiting load
+	// client-specific ReadTimeout exceeds. This helps to limit load
 	// on slow hosts by MaxConns* concurrent requests.
 	//
 	// Without this 'hack' the load on slow host could exceed MaxConns*
