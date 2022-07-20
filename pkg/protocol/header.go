@@ -1273,7 +1273,7 @@ func (h *RequestHeader) UserAgent() []byte {
 //     * conteNT-tYPE -> Content-Type
 //     * foo-bar-baz -> Foo-Bar-Baz
 //
-// Disable header names' normalization only if know what are you doing.
+// Disable header names' normalization only if you know what are you doing.
 func (h *RequestHeader) DisableNormalizing() {
 	h.disableNormalizing = true
 }
@@ -1446,7 +1446,7 @@ func (h *RequestHeader) SetMethodBytes(method []byte) {
 //     * conteNT-tYPE -> Content-Type
 //     * foo-bar-baz -> Foo-Bar-Baz
 //
-// Disable header names' normalization only if know what are you doing.
+// Disable header names' normalization only if you know what are you doing.
 func (h *ResponseHeader) DisableNormalizing() {
 	h.disableNormalizing = true
 }

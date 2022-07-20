@@ -366,7 +366,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 
 	for s.next(kv) {
 		if len(kv.key) != 0 {
-			// Case insensitive switch on first char
+			// Case-insensitive switch on first char
 			switch kv.key[0] | 0x20 {
 			case 'm':
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieMaxAge, kv.key) {
@@ -404,7 +404,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 
 			case 's': // "samesite"
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieSameSite, kv.key) {
-					// Case insensitive switch on first char
+					// Case-insensitive switch on first char
 					switch kv.value[0] | 0x20 {
 					case 'l': // "lax"
 						if utils.CaseInsensitiveCompare(bytestr.StrCookieSameSiteLax, kv.value) {
@@ -422,7 +422,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 				}
 			}
 		} else if len(kv.value) != 0 {
-			// Case insensitive switch on first char
+			// Case-insensitive switch on first char
 			switch kv.value[0] | 0x20 {
 			case 'h': // "httponly"
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieHTTPOnly, kv.value) {

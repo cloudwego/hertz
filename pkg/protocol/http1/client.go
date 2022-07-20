@@ -1154,7 +1154,7 @@ type ClientOptions struct {
 
 	// Maximum duration for waiting for a free connection.
 	//
-	// By default will not waiting, return errNoFreeConns immediately
+	// By default will not wait, return errNoFreeConns immediately
 	MaxConnWaitTimeout time.Duration
 
 	// RetryIf controls whether a retry should be attempted after an error.
