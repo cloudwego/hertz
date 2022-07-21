@@ -33,6 +33,7 @@ import (
 // Hertz is the core struct of hertz.
 type Hertz struct {
 	*route.Engine
+	signalWaiter func(err chan error) error
 }
 
 // New creates a hertz instance without any default config.
@@ -52,16 +53,19 @@ func Default(opts ...config.Option) *Hertz {
 	return h
 }
 
-// Spin runs the server until catching os.Signal.
-// SIGTERM triggers immediately close.
-// SIGHUP|SIGINT triggers graceful shutdown.
+// Spin runs the server until catching os.Signal or error returned by h.Run().
 func (h *Hertz) Spin() {
 	errCh := make(chan error)
 	go func() {
 		errCh <- h.Run()
 	}()
 
-	if err := waitSignal(errCh); err != nil {
+	signalWaiter := waitSignal
+	if h.signalWaiter != nil {
+		signalWaiter = h.signalWaiter
+	}
+
+	if err := signalWaiter(errCh); err != nil {
 		hlog.Errorf("HERTZ: Receive close signal: error=%v", err)
 		if err := h.Engine.Close(); err != nil {
 			hlog.Errorf("HERTZ: Close error=%v", err)
@@ -79,6 +83,16 @@ func (h *Hertz) Spin() {
 	}
 }
 
+// SetCustomSignalWaiter sets the signal waiter function.
+// If Default one is not met the requirement, set this function to customize.
+// Hertz will exit immediately if f returns an error, otherwise it will exit gracefully.
+func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
+	h.signalWaiter = f
+}
+
+// Default implementation for signal waiter.
+// SIGTERM triggers immediately close.
+// SIGHUP|SIGINT triggers graceful shutdown.
 func waitSignal(errCh chan error) error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
@@ -94,6 +108,7 @@ func waitSignal(errCh chan error) error {
 			return nil
 		}
 	case err := <-errCh:
+		// error occurs, exit immediately
 		return err
 	}
 
