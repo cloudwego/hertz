@@ -69,6 +69,10 @@ func (o *RequestOptions) IsSD() bool {
 	return o.isSD
 }
 
+func (o *RequestOptions) Tags() map[string]string {
+	return o.tags
+}
+
 func (o *RequestOptions) CopyTo(dst *RequestOptions) {
 	if dst.tags == nil {
 		dst.tags = make(map[string]string)

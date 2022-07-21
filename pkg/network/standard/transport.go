@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -44,16 +45,18 @@ type transport struct {
 	ln               net.Listener
 	tls              *tls.Config
 	listenConfig     *net.ListenConfig
+	lock             sync.Mutex
 }
 
 func (t *transport) serve() (err error) {
 	network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
-
+	t.lock.Lock()
 	if t.listenConfig != nil {
 		t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
 	} else {
 		t.ln, err = net.Listen(t.network, t.addr)
 	}
+	t.lock.Unlock()
 	if err != nil {
 		return err
 	}
@@ -88,9 +91,11 @@ func (t *transport) Shutdown(ctx context.Context) error {
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
+	t.lock.Lock()
 	if t.ln != nil {
 		_ = t.ln.Close()
 	}
+	t.lock.Unlock()
 	<-ctx.Done()
 	return nil
 }
