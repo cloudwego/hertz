@@ -709,10 +709,7 @@ func TestServiceRegistryInfo(t *testing.T) {
 
 func TestServiceRegistryNoInitInfo(t *testing.T) {
 	checkInfo := func(info *registry.Info) {
-		assert.Assert(t, info.Addr.String() == "127.0.0.1:9227")
-		assert.Assert(t, info.Weight == 10)
-		assert.Assert(t, info.ServiceName == "")
-		assert.Assert(t, info.Tags == nil, info.Tags)
+		assert.Assert(t, info == nil)
 	}
 	var rCount int32
 	var drCount int32

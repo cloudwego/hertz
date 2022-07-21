@@ -67,11 +67,10 @@ type Options struct {
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
 
-	// RegistryInfo is used to in registry.
-	RegistryInfo *registry.Info
-
 	// Registry is used for service registry.
 	Registry registry.Registry
+	// RegistryInfo is base info used for service registry.
+	RegistryInfo *registry.Info
 }
 
 func (o *Options) Apply(opts []Option) {

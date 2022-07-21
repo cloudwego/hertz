@@ -51,26 +51,26 @@ type ServiceDiscoveryOption struct {
 
 // WithCustomizedInstances specifies the target instance addresses when doing service discovery.
 // It overwrites the results from the Resolver
-func WithCustomizedInstances(hostports ...string) ServiceDiscoveryOption {
+func WithCustomizedInstances(addrs ...string) ServiceDiscoveryOption {
 	return ServiceDiscoveryOption{
 		F: func(o *ServiceDiscoveryOptions) {
 			var ins []discovery.Instance
-			for _, hp := range hostports {
-				if _, err := net.ResolveTCPAddr("tcp", hp); err == nil {
-					ins = append(ins, discovery.NewInstance("tcp", hp, registry.DefaultWeight, nil))
+			for _, addr := range addrs {
+				if _, err := net.ResolveTCPAddr("tcp", addr); err == nil {
+					ins = append(ins, discovery.NewInstance("tcp", addr, registry.DefaultWeight, nil))
 					continue
 				}
-				if _, err := net.ResolveUnixAddr("unix", hp); err == nil {
-					ins = append(ins, discovery.NewInstance("unix", hp, registry.DefaultWeight, nil))
+				if _, err := net.ResolveUnixAddr("unix", addr); err == nil {
+					ins = append(ins, discovery.NewInstance("unix", addr, registry.DefaultWeight, nil))
 					continue
 				}
-				panic(fmt.Errorf("WithHostPorts: invalid '%s'", hp))
+				panic(fmt.Errorf("WithCustomizedInstances: invalid '%s'", addr))
 			}
 			if len(ins) == 0 {
-				panic("WithHostPorts() requires at least one argument")
+				panic("WithCustomizedInstances() requires at least one argument")
 			}
 
-			targets := strings.Join(hostports, ",")
+			targets := strings.Join(addrs, ",")
 			o.Resolver = &discovery.SynthesizedResolver{
 				ResolveFunc: func(ctx context.Context, key string) (discovery.Result, error) {
 					return discovery.Result{

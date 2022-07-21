@@ -24,9 +24,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/registry"
-	"github.com/cloudwego/hertz/pkg/common/utils"
-
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -83,8 +80,6 @@ func (h *Hertz) Spin() {
 }
 
 func (h *Hertz) initExtension(errCh chan error) {
-	// build registry info
-	h.buildRegistryInfo()
 	opt := h.GetOptions()
 	// add register to OnServerStart
 	h.OnServerStart = append(h.OnServerStart, func(ctx context.Context) {
@@ -92,7 +87,7 @@ func (h *Hertz) initExtension(errCh chan error) {
 		// service may not be available as soon as startup.
 		time.Sleep(1 * time.Second)
 		if err := opt.Registry.Register(opt.RegistryInfo); err != nil {
-			hlog.CtxErrorf(ctx, "deregister failed,err=%+v", err)
+			hlog.CtxErrorf(ctx, "HERTZ: Register error=%v", err)
 			errCh <- err
 		}
 	})
@@ -100,7 +95,7 @@ func (h *Hertz) initExtension(errCh chan error) {
 	// add deregister to OnShutdown
 	h.OnShutdown = append(h.OnShutdown, func(ctx context.Context) {
 		if err := opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.CtxErrorf(ctx, "deregister failed,err=%+v", err)
+			hlog.CtxErrorf(ctx, "HERTZ: Deregister error=%v", err)
 		}
 	})
 }
@@ -124,16 +119,4 @@ func waitSignal(errCh chan error) error {
 	}
 
 	return nil
-}
-
-func (h *Hertz) buildRegistryInfo() {
-	opt := h.GetOptions()
-	if opt.RegistryInfo == nil {
-		opt.RegistryInfo = &registry.Info{}
-	}
-	info := opt.RegistryInfo
-	info.Addr = utils.NewNetAddr(opt.Network, opt.Addr)
-	if info.Weight == 0 {
-		info.Weight = registry.DefaultWeight
-	}
 }
