@@ -334,18 +334,18 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		if attempts >= maxAttempts {
 			break
 		}
-		if err != nil && shouldRetry {
-			// Check whether this request should be retried
-			if !isRequestRetryable(req, resp, err) {
-				break
-			}
-
-			wait := retry.Delay(attempts, err, retrycfg)
-			// Retry after wait time
-			time.Sleep(wait)
-		} else {
+		if err == nil || !shouldRetry {
 			break
 		}
+
+		// Check whether this request should be retried
+		if !isRequestRetryable(req, resp, err) {
+			break
+		}
+
+		wait := retry.Delay(attempts, err, retrycfg)
+		// Retry after wait time
+		time.Sleep(wait)
 
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
