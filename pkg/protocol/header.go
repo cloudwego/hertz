@@ -1494,11 +1494,6 @@ func (h *ResponseHeader) setSpecialHeader(key, value []byte) bool {
 			// Transfer-Encoding is managed automatically.
 			return true
 		}
-	case 'd':
-		if utils.CaseInsensitiveCompare(bytestr.StrDate, key) {
-			// Date is managed automatically.
-			return true
-		}
 	}
 
 	return false
