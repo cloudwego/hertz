@@ -90,6 +90,19 @@ type HostClient struct {
 
 	*ClientOptions
 
+	// Comma-separated list of upstream HTTP server host addresses,
+	// which are passed to Dialer in a round-robin manner.
+	//
+	// Each address may contain port if default dialer is used.
+	// For example,
+	//
+	//    - foobar.com:80
+	//    - foobar.com:443
+	//    - foobar.com:8080
+	Addr     string
+	IsTLS    bool
+	ProxyURI *protocol.URI
+
 	clientName  atomic.Value
 	lastUseTime uint32
 
@@ -1044,17 +1057,6 @@ func NewHostClient(c *ClientOptions) client.HostClient {
 }
 
 type ClientOptions struct {
-	// Comma-separated list of upstream HTTP server host addresses,
-	// which are passed to Dialer in a round-robin manner.
-	//
-	// Each address may contain port if default dialer is used.
-	// For example,
-	//
-	//    - foobar.com:80
-	//    - foobar.com:443
-	//    - foobar.com:8080
-	Addr string
-
 	// Client name. Used in User-Agent request header.
 	Name string
 
@@ -1085,8 +1087,6 @@ type ClientOptions struct {
 	// Whether to use TLS (aka SSL or HTTPS) for host connections.
 	// Optional TLS config.
 	TLSConfig *tls.Config
-
-	IsTLS bool
 
 	// Maximum number of connections which may be established to all hosts
 	// listed in Addr.
@@ -1168,6 +1168,4 @@ type ClientOptions struct {
 
 	// ResponseBodyStream enables response body streaming
 	ResponseBodyStream bool
-
-	ProxyURI *protocol.URI
 }
