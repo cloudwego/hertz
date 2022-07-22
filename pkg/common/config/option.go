@@ -75,7 +75,7 @@ func (o *Options) Apply(opts []Option) {
 func NewOptions(opts []Option) *Options {
 	options := &Options{
 		// Keep-alive timeout. When idle connection exceeds this time,
-		// server will send keep-alive packets to ensure it's a validate
+		// server will send keep-alive packets to ensure it's a validated
 		// connection.
 		//
 		// NOTE: Usually there is no need to care about this value, just

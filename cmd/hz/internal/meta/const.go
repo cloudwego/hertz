@@ -16,11 +16,18 @@
 
 package meta
 
+import "runtime"
+
 // Version hz version
 const Version = "v0.1.0"
 
 // Mode hz run modes
 type Mode int
+
+// SysType is the running program's operating system type
+const SysType = runtime.GOOS
+
+const WindowsOS = "windows"
 
 // hz Commands
 const (

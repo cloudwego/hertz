@@ -96,3 +96,11 @@ func BenchmarkHertzHeaderAdd(b *testing.B) {
 		zh.Add("X-tt-"+strconv.Itoa(i), "abc123456789")
 	}
 }
+
+func BenchmarkRefreshServerDate(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		refreshServerDate()
+	}
+}

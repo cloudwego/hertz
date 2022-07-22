@@ -70,6 +70,7 @@ var (
 
 type HostClient interface {
 	Doer
+	SetDynamicConfig(dc *DynamicConfig)
 	CloseIdleConnections()
 	ShouldRemove() bool
 	ConnectionCount() int
@@ -80,7 +81,8 @@ type Doer interface {
 }
 
 type HostClientConfig struct {
-	Addr string
+	DynamicConfig
+
 	Name string
 
 	NoDefaultUserAgentHeader      bool
@@ -93,8 +95,6 @@ type HostClientConfig struct {
 
 	MaxConns                  int
 	MaxIdempotentCallAttempts int
-	ReadBufferSize            int
-	WriteBufferSize           int
 	MaxResponseBodySize       int
 
 	Dial               DialFunc
@@ -107,8 +107,13 @@ type HostClientConfig struct {
 	ReadTimeout         time.Duration
 	WriteTimeout        time.Duration
 	MaxConnWaitTimeout  time.Duration
+}
 
+// DynamicConfig is config set which will be confirmed when starts a request.
+type DynamicConfig struct {
+	Addr     string
 	ProxyURI *protocol.URI
+	IsTLS    bool
 }
 
 // DialFunc must establish connection to addr.
@@ -168,7 +173,7 @@ func GetURLDeadline(ctx context.Context, dst []byte, url string, deadline time.T
 	req.SetOptions(requestOptions...)
 
 	// Note that the request continues execution on errTimeout until
-	// client-specific ReadTimeout exceeds. This helps limiting load
+	// client-specific ReadTimeout exceeds. This helps to limit load
 	// on slow hosts by MaxConns* concurrent requests.
 	//
 	// Without this 'hack' the load on slow host could exceed MaxConns*

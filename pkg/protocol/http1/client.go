@@ -58,7 +58,6 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/timer"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -88,141 +87,7 @@ var (
 type HostClient struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
-	// Comma-separated list of upstream HTTP server host addresses,
-	// which are passed to Dial in a round-robin manner.
-	//
-	// Each address may contain port if default dialer is used.
-	// For example,
-	//
-	//    - foobar.com:80
-	//    - foobar.com:443
-	//    - foobar.com:8080
-	Addr string
-
-	// Client name. Used in User-Agent request header.
-	Name string
-
-	// NoDefaultUserAgentHeader when set to true, causes the default
-	// User-Agent header to be excluded from the Request.
-	NoDefaultUserAgentHeader bool
-
-	// Callback for establishing new connection to the host.
-	//
-	// Default Dial is used if not set.
-	Dial client.DialFunc
-
-	// Timeout for establishing new connections to hosts.
-	//
-	// Default DialTimeout is used if not set.
-	DialTimeout time.Duration
-
-	// Attempt to connect to both ipv4 and ipv6 host addresses
-	// if set to true.
-	//
-	// This option is used only if default TCP dialer is used,
-	// i.e. if Dial is blank.
-	//
-	// By default client connects only to ipv4 addresses,
-	// since unfortunately ipv6 remains broken in many networks worldwide :)
-	DialDualStack bool
-
-	// Whether to use TLS (aka SSL or HTTPS) for host connections.
-	// Optional TLS config.
-	TLSConfig *tls.Config
-
-	IsTLS bool
-
-	// Maximum number of connections which may be established to all hosts
-	// listed in Addr.
-	//
-	// You can change this value while the HostClient is being used
-	// using HostClient.SetMaxConns(value)
-	//
-	// DefaultMaxConnsPerHost is used if not set.
-	MaxConns int
-
-	// Keep-alive connections are closed after this duration.
-	//
-	// By default connection duration is unlimited.
-	MaxConnDuration time.Duration
-
-	// Idle keep-alive connections are closed after this duration.
-	//
-	// By default idle connections are closed
-	// after DefaultMaxIdleConnDuration.
-	MaxIdleConnDuration time.Duration
-
-	// Maximum number of attempts for idempotent calls
-	//
-	// DefaultMaxIdempotentCallAttempts is used if not set.
-	MaxIdempotentCallAttempts int
-
-	// Per-connection buffer size for responses' reading.
-	// This also limits the maximum header size.
-	//
-	// Default buffer size is used if 0.
-	ReadBufferSize int
-
-	// Per-connection buffer size for requests' writing.
-	//
-	// Default buffer size is used if 0.
-	WriteBufferSize int
-
-	// Maximum duration for full response reading (including body).
-	//
-	// By default response read timeout is unlimited.
-	ReadTimeout time.Duration
-
-	// Maximum duration for full request writing (including body).
-	//
-	// By default request write timeout is unlimited.
-	WriteTimeout time.Duration
-
-	// Maximum response body size.
-	//
-	// The client returns errBodyTooLarge if this limit is greater than 0
-	// and response body is greater than the limit.
-	//
-	// By default response body size is unlimited.
-	MaxResponseBodySize int
-
-	// Header names are passed as-is without normalization
-	// if this option is set.
-	//
-	// Disabled header names' normalization may be useful only for proxying
-	// responses to other clients expecting case-sensitive header names.
-	//
-	// By default request and response header names are normalized, i.e.
-	// The first letter and the first letters following dashes
-	// are uppercased, while all the other letters are lowercased.
-	// Examples:
-	//
-	//     * HOST -> Host
-	//     * content-type -> Content-Type
-	//     * cONTENT-lenGTH -> Content-Length
-	DisableHeaderNamesNormalizing bool
-
-	// Path values are sent as-is without normalization
-	//
-	// Disabled path normalization may be useful for proxying incoming requests
-	// to servers that are expecting paths to be forwarded as-is.
-	//
-	// By default path values are normalized, i.e.
-	// extra slashes are removed, special characters are encoded.
-	DisablePathNormalizing bool
-
-	// Maximum duration for waiting for a free connection.
-	//
-	// By default will not waiting, return errNoFreeConns immediately
-	MaxConnWaitTimeout time.Duration
-
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf client.RetryIfFunc
-
-	// ResponseBodyStream enables response body streaming
-	ResponseBodyStream bool
+	*ClientOptions
 
 	clientName  atomic.Value
 	lastUseTime uint32
@@ -242,8 +107,12 @@ type HostClient struct {
 	pendingRequests int32
 
 	connsCleanerRun bool
+}
 
-	proxyURI *protocol.URI
+func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
+	c.Addr = dc.Addr
+	c.ProxyURI = dc.ProxyURI
+	c.IsTLS = dc.IsTLS
 }
 
 type clientConn struct {
@@ -444,16 +313,13 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
 	var err error
 	var retry bool
+
 	maxAttempts := c.MaxIdempotentCallAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = consts.DefaultMaxIdempotentCallAttempts
-	}
 	isRequestRetryable := isIdempotent
 	if c.RetryIf != nil {
 		isRequestRetryable = c.RetryIf
 	}
 	attempts := 0
-	hasBodyStream := req.IsBodyStream()
 
 	atomic.AddInt32(&c.pendingRequests, 1)
 	for {
@@ -462,9 +328,15 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 			break
 		}
 
-		if hasBodyStream {
+		attempts++
+		if attempts >= maxAttempts {
 			break
 		}
+
+		if req.IsBodyStream() {
+			break
+		}
+
 		if !isRequestRetryable(req) {
 			// Retry non-idempotent requests if the server closes
 			// the connection before sending the response.
@@ -477,10 +349,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 				break
 			}
 		}
-		attempts++
-		if attempts >= maxAttempts {
-			break
-		}
+
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
 
@@ -548,9 +417,9 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	usingProxy := false
 
-	if c.proxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
+	if c.ProxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
 		usingProxy = true
-		proxy.SetProxyAuthHeader(&req.Header, c.proxyURI)
+		proxy.SetProxyAuthHeader(&req.Header, c.ProxyURI)
 	}
 
 	resp.ParseNetAddr(conn)
@@ -982,7 +851,7 @@ func (c *HostClient) dialHostHard() (conn network.Conn, err error) {
 	for n > 0 {
 		addr := c.nextAddr()
 		tlsConfig := c.cachedTLSConfig(addr)
-		conn, err = dialAddr(addr, c.Dial, c.DialDualStack, tlsConfig, timeout, c.proxyURI, c.IsTLS)
+		conn, err = dialAddr(addr, c.Dial, c.DialDualStack, tlsConfig, timeout, c.ProxyURI, c.IsTLS)
 		if err == nil {
 			return conn, nil
 		}
@@ -996,8 +865,8 @@ func (c *HostClient) dialHostHard() (conn network.Conn, err error) {
 
 func (c *HostClient) cachedTLSConfig(addr string) *tls.Config {
 	var cfgAddr string
-	if c.proxyURI != nil && bytes.Equal(c.proxyURI.Scheme(), bytestr.StrHTTPS) {
-		cfgAddr = bytesconv.B2s(c.proxyURI.Host())
+	if c.ProxyURI != nil && bytes.Equal(c.ProxyURI.Scheme(), bytestr.StrHTTPS) {
+		cfgAddr = bytesconv.B2s(c.ProxyURI.Host())
 	}
 
 	if c.IsTLS && cfgAddr == "" {
@@ -1164,30 +1033,137 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 	}
 }
 
-func NewHostClient(c *client.HostClientConfig) client.HostClient {
+func NewHostClient(c *ClientOptions) client.HostClient {
 	return &HostClient{
-		Addr:                          utils.AddMissingPort(c.Addr, c.IsTLS),
-		Name:                          c.Name,
-		NoDefaultUserAgentHeader:      c.NoDefaultUserAgentHeader,
-		Dial:                          c.Dial,
-		DialDualStack:                 c.DialDualStack,
-		DialTimeout:                   c.DialTimeout,
-		TLSConfig:                     c.TLSConfig,
-		IsTLS:                         c.IsTLS,
-		MaxConns:                      c.MaxConns,
-		MaxIdleConnDuration:           c.MaxIdleConnDuration,
-		MaxConnDuration:               c.MaxConnDuration,
-		MaxIdempotentCallAttempts:     c.MaxIdempotentCallAttempts,
-		ReadBufferSize:                c.ReadBufferSize,
-		WriteBufferSize:               c.WriteBufferSize,
-		ReadTimeout:                   c.ReadTimeout,
-		WriteTimeout:                  c.WriteTimeout,
-		MaxResponseBodySize:           c.MaxResponseBodySize,
-		DisableHeaderNamesNormalizing: c.DisableHeaderNamesNormalizing,
-		DisablePathNormalizing:        c.DisablePathNormalizing,
-		MaxConnWaitTimeout:            c.MaxConnWaitTimeout,
-		RetryIf:                       c.RetryIf,
-		ResponseBodyStream:            c.ResponseBodyStream,
-		proxyURI:                      c.ProxyURI,
+		ClientOptions: c,
 	}
+}
+
+type ClientOptions struct {
+	// Comma-separated list of upstream HTTP server host addresses,
+	// which are passed to Dial in a round-robin manner.
+	//
+	// Each address may contain port if default dialer is used.
+	// For example,
+	//
+	//    - foobar.com:80
+	//    - foobar.com:443
+	//    - foobar.com:8080
+	Addr string
+
+	// Client name. Used in User-Agent request header.
+	Name string
+
+	// NoDefaultUserAgentHeader when set to true, causes the default
+	// User-Agent header to be excluded from the Request.
+	NoDefaultUserAgentHeader bool
+
+	// Callback for establishing new connection to the host.
+	//
+	// Default Dial is used if not set.
+	Dial client.DialFunc
+
+	// Timeout for establishing new connections to hosts.
+	//
+	// Default DialTimeout is used if not set.
+	DialTimeout time.Duration
+
+	// Attempt to connect to both ipv4 and ipv6 host addresses
+	// if set to true.
+	//
+	// This option is used only if default TCP dialer is used,
+	// i.e. if Dial is blank.
+	//
+	// By default client connects only to ipv4 addresses,
+	// since unfortunately ipv6 remains broken in many networks worldwide :)
+	DialDualStack bool
+
+	// Whether to use TLS (aka SSL or HTTPS) for host connections.
+	// Optional TLS config.
+	TLSConfig *tls.Config
+
+	IsTLS bool
+
+	// Maximum number of connections which may be established to all hosts
+	// listed in Addr.
+	//
+	// You can change this value while the HostClient is being used
+	// using HostClient.SetMaxConns(value)
+	//
+	// DefaultMaxConnsPerHost is used if not set.
+	MaxConns int
+
+	// Keep-alive connections are closed after this duration.
+	//
+	// By default connection duration is unlimited.
+	MaxConnDuration time.Duration
+
+	// Idle keep-alive connections are closed after this duration.
+	//
+	// By default idle connections are closed
+	// after DefaultMaxIdleConnDuration.
+	MaxIdleConnDuration time.Duration
+
+	// Maximum number of attempts for idempotent calls
+	//
+	// DefaultMaxIdempotentCallAttempts is used if not set.
+	MaxIdempotentCallAttempts int
+
+	// Maximum duration for full response reading (including body).
+	//
+	// By default response read timeout is unlimited.
+	ReadTimeout time.Duration
+
+	// Maximum duration for full request writing (including body).
+	//
+	// By default request write timeout is unlimited.
+	WriteTimeout time.Duration
+
+	// Maximum response body size.
+	//
+	// The client returns errBodyTooLarge if this limit is greater than 0
+	// and response body is greater than the limit.
+	//
+	// By default response body size is unlimited.
+	MaxResponseBodySize int
+
+	// Header names are passed as-is without normalization
+	// if this option is set.
+	//
+	// Disabled header names' normalization may be useful only for proxying
+	// responses to other clients expecting case-sensitive header names.
+	//
+	// By default request and response header names are normalized, i.e.
+	// The first letter and the first letters following dashes
+	// are uppercased, while all the other letters are lowercased.
+	// Examples:
+	//
+	//     * HOST -> Host
+	//     * content-type -> Content-Type
+	//     * cONTENT-lenGTH -> Content-Length
+	DisableHeaderNamesNormalizing bool
+
+	// Path values are sent as-is without normalization
+	//
+	// Disabled path normalization may be useful for proxying incoming requests
+	// to servers that are expecting paths to be forwarded as-is.
+	//
+	// By default path values are normalized, i.e.
+	// extra slashes are removed, special characters are encoded.
+	DisablePathNormalizing bool
+
+	// Maximum duration for waiting for a free connection.
+	//
+	// By default will not wait, return errNoFreeConns immediately
+	MaxConnWaitTimeout time.Duration
+
+	// RetryIf controls whether a retry should be attempted after an error.
+	//
+	// By default will use isIdempotent function
+	RetryIf client.RetryIfFunc
+
+	// ResponseBodyStream enables response body streaming
+	ResponseBodyStream bool
+
+	ProxyURI *protocol.URI
 }

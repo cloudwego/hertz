@@ -383,7 +383,7 @@ func AcquireResponse() *Response {
 
 // ReleaseResponse return resp acquired via AcquireResponse to response pool.
 //
-// It is forbidden accessing resp and/or its' members after returning
+// It is forbidden accessing resp and/or its members after returning
 // it to response pool.
 func ReleaseResponse(resp *Response) {
 	resp.Reset()

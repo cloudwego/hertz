@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package hertz
+package suite
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.2.0"
-)
+import "github.com/cloudwego/hertz/pkg/protocol/client"
+
+type ClientFactory interface {
+	NewHostClient() (hc client.HostClient, err error)
+}

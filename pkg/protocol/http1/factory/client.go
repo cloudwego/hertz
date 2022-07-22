@@ -14,10 +14,26 @@
  * limitations under the License.
  */
 
-package hertz
+package factory
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.2.0"
+import (
+	"github.com/cloudwego/hertz/pkg/protocol/client"
+	"github.com/cloudwego/hertz/pkg/protocol/http1"
+	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
+
+var _ suite.ClientFactory = &clientFactory{}
+
+type clientFactory struct {
+	option *http1.ClientOptions
+}
+
+func (s *clientFactory) NewHostClient() (client client.HostClient, err error) {
+	return http1.NewHostClient(s.option), nil
+}
+
+func NewClientFactory(option *http1.ClientOptions) suite.ClientFactory {
+	return &clientFactory{
+		option: option,
+	}
+}

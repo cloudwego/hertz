@@ -131,8 +131,10 @@ type Engine struct {
 	funcMap    template.FuncMap
 	htmlRender render.HTMLRender
 
-	// hijack
-	hijackConnPool sync.Pool
+	// NoHijackConnPool will control whether invite pool to acquire/release the hijackConn or not.
+	// If it is difficult to guarantee that hijackConn will not be closed repeatedly, set it to true.
+	NoHijackConnPool bool
+	hijackConnPool   sync.Pool
 	// KeepHijackedConns is an opt-in disable of connection
 	// close by hertz after connections' HijackHandler returns.
 	// This allows to save goroutines, e.g. when hertz used to upgrade
@@ -155,7 +157,7 @@ type Engine struct {
 	ctxPool sync.Pool
 
 	// Function to handle panics recovered from http handlers.
-	// It should be used to generate a error page and return the http error code
+	// It should be used to generate an error page and return the http error code
 	// 500 (Internal Server Error).
 	// The handler can be used to keep your server from crashing because of
 	// unrecovered panics.
@@ -698,7 +700,7 @@ func redirectFixedPath(c *app.RequestContext, root *node, trailingSlash bool) bo
 	return false
 }
 
-// NoRoute adds handlers for NoRoute. It return a 404 code by default.
+// NoRoute adds handlers for NoRoute. It returns a 404 code by default.
 func (engine *Engine) NoRoute(handlers ...app.HandlerFunc) {
 	engine.noRoute = handlers
 	engine.rebuild404Handlers()
@@ -756,20 +758,25 @@ func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 	engine.funcMap = funcMap
 }
 
-// Delims sets template left and right delims and returns a Engine instance.
+// Delims sets template left and right delims and returns an Engine instance.
 func (engine *Engine) Delims(left, right string) *Engine {
 	engine.delims = render.Delims{Left: left, Right: right}
 	return engine
 }
 
 func (engine *Engine) acquireHijackConn(c network.Conn) *hijackConn {
-	v := engine.hijackConnPool.Get()
-	if v == nil {
-		hjc := &hijackConn{
+	if engine.NoHijackConnPool {
+		return &hijackConn{
 			Conn: c,
 			e:    engine,
 		}
-		return hjc
+	}
+	v := engine.hijackConnPool.Get()
+	if v == nil {
+		return &hijackConn{
+			Conn: c,
+			e:    engine,
+		}
 	}
 	hjc := v.(*hijackConn)
 	hjc.Conn = c
@@ -777,6 +784,9 @@ func (engine *Engine) acquireHijackConn(c network.Conn) *hijackConn {
 }
 
 func (engine *Engine) releaseHijackConn(hjc *hijackConn) {
+	if engine.NoHijackConnPool {
+		return
+	}
 	hjc.Conn = nil
 	engine.hijackConnPool.Put(hjc)
 }

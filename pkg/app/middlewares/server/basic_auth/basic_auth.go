@@ -72,7 +72,7 @@ func constructPairs(accounts Accounts) pairs {
 }
 
 // BasicAuthForRealm returns a Basic HTTP Authorization middleware. It takes as arguments a map[string]string where
-// the key is the user name and the value is the password, as well as the name of the Realm.
+// the key is the username and the value is the password, as well as the name of the Realm.
 // If the realm is empty, "Authorization Required" will be used by default.
 // (see http://tools.ietf.org/html/rfc2617#section-1.2)
 func BasicAuthForRealm(accounts Accounts, realm, userKey string) app.HandlerFunc {
@@ -95,7 +95,7 @@ func BasicAuthForRealm(accounts Accounts, realm, userKey string) app.HandlerFunc
 
 // BasicAuth is a constructor of BasicAuth verifier to hertz middleware
 // It returns a Basic HTTP Authorization middleware. It takes as argument a map[string]string where
-// the key is the user name and the value is the password.
+// the key is the username and the value is the password.
 func BasicAuth(accounts Accounts) app.HandlerFunc {
 	return BasicAuthForRealm(accounts, "Authorization Required", "user")
 }

@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1273,7 +1274,7 @@ func (h *RequestHeader) UserAgent() []byte {
 //     * conteNT-tYPE -> Content-Type
 //     * foo-bar-baz -> Foo-Bar-Baz
 //
-// Disable header names' normalization only if know what are you doing.
+// Disable header names' normalization only if you know what are you doing.
 func (h *RequestHeader) DisableNormalizing() {
 	h.disableNormalizing = true
 }
@@ -1420,7 +1421,7 @@ func UpdateServerDate() {
 }
 
 func refreshServerDate() {
-	b := bytesconv.AppendHTTPDate(nil, time.Now())
+	b := bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), time.Now())
 	ServerDate.Store(b)
 }
 
@@ -1446,7 +1447,7 @@ func (h *RequestHeader) SetMethodBytes(method []byte) {
 //     * conteNT-tYPE -> Content-Type
 //     * foo-bar-baz -> Foo-Bar-Baz
 //
-// Disable header names' normalization only if know what are you doing.
+// Disable header names' normalization only if you know what are you doing.
 func (h *ResponseHeader) DisableNormalizing() {
 	h.disableNormalizing = true
 }

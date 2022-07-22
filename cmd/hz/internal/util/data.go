@@ -207,8 +207,18 @@ func ToSnakeCase(name string) string {
 	return SnakeString(name)
 }
 
+// unifyPath will convert "\" to "/" in path if the os is windows
+func unifyPath(path string) string {
+	if IsWindows() {
+		path = strings.ReplaceAll(path, "\\", "/")
+	}
+	return path
+}
+
 // BaseName get base name for path. ex: "github.com/p.s.m" => "p.s.m"
 func BaseName(include, subFixToTrim string) string {
+	include = unifyPath(include)
+	subFixToTrim = unifyPath(subFixToTrim)
 	last := include
 	if id := strings.LastIndex(last, "/"); id >= 0 && id < len(last)-1 {
 		last = last[id+1:]
@@ -220,6 +230,7 @@ func BaseName(include, subFixToTrim string) string {
 }
 
 func BaseNameAndTrim(include string) string {
+	include = unifyPath(include)
 	last := include
 	if id := strings.LastIndex(last, "/"); id >= 0 && id < len(last)-1 {
 		last = last[id+1:]
@@ -232,6 +243,8 @@ func BaseNameAndTrim(include string) string {
 }
 
 func SplitPackageName(pkg, subFixToTrim string) string {
+	pkg = unifyPath(pkg)
+	subFixToTrim = unifyPath(subFixToTrim)
 	last := SplitPackage(pkg, subFixToTrim)
 	if id := strings.LastIndex(last, "/"); id >= 0 && id < len(last)-1 {
 		last = last[id+1:]
@@ -240,6 +253,8 @@ func SplitPackageName(pkg, subFixToTrim string) string {
 }
 
 func SplitPackage(pkg, subFixToTrim string) string {
+	pkg = unifyPath(pkg)
+	subFixToTrim = unifyPath(subFixToTrim)
 	last := strings.TrimSuffix(pkg, subFixToTrim)
 	if id := strings.LastIndex(last, "/"); id >= 0 && id < len(last)-1 {
 		last = last[id+1:]
