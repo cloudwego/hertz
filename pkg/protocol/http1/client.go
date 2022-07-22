@@ -113,6 +113,7 @@ func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
 	c.Addr = dc.Addr
 	c.ProxyURI = dc.ProxyURI
 	c.IsTLS = dc.IsTLS
+	c.addrs = strings.Split(c.Addr, ",")
 }
 
 type clientConn struct {
