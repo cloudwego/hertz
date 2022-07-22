@@ -23,7 +23,7 @@ type RequestOptions struct {
 	isSD bool
 }
 
-// RequestOption 是唯一可以用来设置 RequestOption 的类.
+// RequestOption is the only class that can be used to set a RequestOption
 type RequestOption struct {
 	F func(o *RequestOptions)
 }
