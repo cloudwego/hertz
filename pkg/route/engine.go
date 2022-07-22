@@ -131,8 +131,10 @@ type Engine struct {
 	funcMap    template.FuncMap
 	htmlRender render.HTMLRender
 
-	// hijack
-	hijackConnPool sync.Pool
+	// NoHijackConnPool will control whether invite pool to acquire/release the hijackConn or not.
+	// If it is difficult to guarantee that hijackConn will not be closed repeatedly, set it to true.
+	NoHijackConnPool bool
+	hijackConnPool   sync.Pool
 	// KeepHijackedConns is an opt-in disable of connection
 	// close by hertz after connections' HijackHandler returns.
 	// This allows to save goroutines, e.g. when hertz used to upgrade
@@ -763,13 +765,18 @@ func (engine *Engine) Delims(left, right string) *Engine {
 }
 
 func (engine *Engine) acquireHijackConn(c network.Conn) *hijackConn {
-	v := engine.hijackConnPool.Get()
-	if v == nil {
-		hjc := &hijackConn{
+	if engine.NoHijackConnPool {
+		return &hijackConn{
 			Conn: c,
 			e:    engine,
 		}
-		return hjc
+	}
+	v := engine.hijackConnPool.Get()
+	if v == nil {
+		return &hijackConn{
+			Conn: c,
+			e:    engine,
+		}
 	}
 	hjc := v.(*hijackConn)
 	hjc.Conn = c
@@ -777,6 +784,9 @@ func (engine *Engine) acquireHijackConn(c network.Conn) *hijackConn {
 }
 
 func (engine *Engine) releaseHijackConn(hjc *hijackConn) {
+	if engine.NoHijackConnPool {
+		return
+	}
 	hjc.Conn = nil
 	engine.hijackConnPool.Put(hjc)
 }
