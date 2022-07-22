@@ -443,7 +443,7 @@ func TestClientReadTimeout(t *testing.T) {
 
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(res)
-		//done <- struct{}{}
+		// done <- struct{}{}
 		close(done)
 	}()
 
