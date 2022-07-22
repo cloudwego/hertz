@@ -31,7 +31,6 @@ func TestClientOptions(t *testing.T) {
 		WithMaxIdleConnDuration(5 * time.Second),
 		WithMaxConnDuration(10 * time.Second),
 		WithMaxConnWaitTimeout(5 * time.Second),
-		WithMaxIdempotentCallAttempts(10),
 		WithKeepAlive(false),
 		WithClientReadTimeout(1 * time.Second),
 		WithResponseBodyStream(true),
@@ -41,7 +40,6 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.MaxIdleConnDuration)
 	assert.DeepEqual(t, 10*time.Second, opt.MaxConnDuration)
 	assert.DeepEqual(t, 5*time.Second, opt.MaxConnWaitTimeout)
-	assert.DeepEqual(t, 10, opt.MaxIdempotentCallAttempts)
 	assert.DeepEqual(t, false, opt.KeepAlive)
 	assert.DeepEqual(t, 1*time.Second, opt.ReadTimeout)
 	assert.DeepEqual(t, true, opt.ResponseBodyStream)
