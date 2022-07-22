@@ -175,60 +175,46 @@ type FS struct {
 	h    HandlerFunc
 }
 
-type byteRangeUpdater interface {
-	UpdateByteRange(startPos, endPos int) error
-}
-
 type fsSmallFileReader struct {
-	ff       *fsFile
-	startPos int
-	endPos   int
+	ff     *fsFile
+	offset int64
 }
 
 func (r *fsSmallFileReader) Close() error {
 	ff := r.ff
 	ff.decReadersCount()
 	r.ff = nil
-	r.startPos = 0
-	r.endPos = 0
+	r.offset = 0
 	ff.h.smallFileReaderPool.Put(r)
 	return nil
 }
 
-func (r *fsSmallFileReader) UpdateByteRange(startPos, endPos int) error {
-	r.startPos = startPos
-	r.endPos = endPos + 1
-	return nil
-}
-
 func (r *fsSmallFileReader) Read(p []byte) (int, error) {
-	tailLen := r.endPos - r.startPos
-	if tailLen <= 0 {
-		return 0, io.EOF
-	}
-	if len(p) > tailLen {
-		p = p[:tailLen]
-	}
-
 	ff := r.ff
+
 	if ff.f != nil {
-		n, err := ff.f.ReadAt(p, int64(r.startPos))
-		r.startPos += n
+		n, err := ff.f.ReadAt(p, r.offset)
+		r.offset += int64(n)
 		return n, err
 	}
 
-	n := copy(p, ff.dirIndex[r.startPos:])
-	r.startPos += n
+	n := copy(p, ff.dirIndex[r.offset:])
+	r.offset += int64(n)
 	return n, nil
 }
 
 func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
+	if r.offset != 0 {
+		panic("BUG: no-zero offset! Read() mustn't be called before WriteTo()")
+	}
+
 	ff := r.ff
 
 	var n int
 	var err error
+
 	if ff.f == nil {
-		n, err = w.Write(ff.dirIndex[r.startPos:r.endPos])
+		n, err = w.Write(ff.dirIndex)
 		return int64(n), err
 	}
 
@@ -236,20 +222,13 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 		return rf.ReadFrom(r)
 	}
 
-	curPos := r.startPos
 	bufv := utils.CopyBufPool.Get()
 	buf := bufv.([]byte)
+
 	for err == nil {
-		tailLen := r.endPos - curPos
-		if tailLen <= 0 {
-			break
-		}
-		if len(buf) > tailLen {
-			buf = buf[:tailLen]
-		}
-		n, err = ff.f.ReadAt(buf, int64(curPos))
+		n, err = ff.f.ReadAt(buf, r.offset)
 		nw, errw := w.Write(buf[:n])
-		curPos += nw
+		r.offset += int64(nw)
 		if errw == nil && nw != n {
 			panic("BUG: Write(p) returned (n, nil), where n != len(p)")
 		}
@@ -262,7 +241,7 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 	if err == io.EOF {
 		err = nil
 	}
-	return int64(curPos - r.startPos), err
+	return r.offset, err
 }
 
 // ServeFile returns HTTP response containing compressed file contents
@@ -379,36 +358,23 @@ type fsHandler struct {
 type bigFileReader struct {
 	f  *os.File
 	ff *fsFile
-	r  io.Reader
-	lr io.LimitedReader
-}
-
-func (r *bigFileReader) UpdateByteRange(startPos, endPos int) error {
-	if _, err := r.f.Seek(int64(startPos), 0); err != nil {
-		return err
-	}
-	r.r = &r.lr
-	r.lr.R = r.f
-	r.lr.N = int64(endPos - startPos + 1)
-	return nil
 }
 
 func (r *bigFileReader) Read(p []byte) (int, error) {
-	return r.r.Read(p)
+	return r.f.Read(p)
 }
 
 func (r *bigFileReader) WriteTo(w io.Writer) (int64, error) {
 	if rf, ok := w.(io.ReaderFrom); ok {
 		// fast path. Sendfile must be triggered
-		return rf.ReadFrom(r.r)
+		return rf.ReadFrom(r.f)
 	}
 	zw := network.NewWriter(w)
 	// slow pathw
-	return utils.CopyZeroAlloc(zw, r.r)
+	return utils.CopyZeroAlloc(zw, r.f)
 }
 
 func (r *bigFileReader) Close() error {
-	r.r = r.f
 	n, err := r.f.Seek(0, 0)
 	if err == nil {
 		if n != 0 {
@@ -766,7 +732,6 @@ func (ff *fsFile) bigFileReader() (io.Reader, error) {
 	return &bigFileReader{
 		f:  f,
 		ff: ff,
-		r:  f,
 	}, nil
 }
 
@@ -788,9 +753,8 @@ func (ff *fsFile) smallFileReader() io.Reader {
 	}
 	r := v.(*fsSmallFileReader)
 	r.ff = ff
-	r.endPos = ff.contentLength
-	if r.startPos > 0 {
-		panic("BUG: fsSmallFileReader with non-nil startPos found in the pool")
+	if r.offset > 0 {
+		panic("BUG: fsSmallFileReader with non-nil offset found in the pool")
 	}
 	return r
 }
