@@ -28,14 +28,14 @@ extend google.protobuf.MethodOptions {
   optional string options = 50206;
   optional string head = 50207;
   optional string any = 50208;
-  optional string gen_path = 50301;
-  optional string api_version = 50302;
-  optional string tag = 50303;
-  optional string name = 50304;
-  optional string api_level = 50305;
-  optional string serializer = 50306;
-  optional string param = 50307;
-  optional string baseurl = 50308;
+  optional string gen_path = 50301; // The path specified by the user when the client code is generated, with a higher priority than api_version
+  optional string api_version = 50302; // Specify the value of the :version variable in path when the client code is generated
+  optional string tag = 50303; // rpc tag, can be multiple, separated by commas
+  optional string name = 50304; // Name of rpc
+  optional string api_level = 50305; // Interface Level
+  optional string serializer = 50306; // Serialization method
+  optional string param = 50307; // Whether client requests take public parameters
+  optional string baseurl = 50308; // Baseurl used in ttnet routing
 }
 
 extend google.protobuf.EnumValueOptions {
