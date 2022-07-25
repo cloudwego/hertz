@@ -23,12 +23,12 @@ type RequestOptions struct {
 	isSD bool
 }
 
-// RequestOption 是唯一可以用来设置 RequestOption 的类.
+// RequestOption is the only struct to set request-level options.
 type RequestOption struct {
 	F func(o *RequestOptions)
 }
 
-// NewRequestOptions create a *RequestOptions according to the given opts
+// NewRequestOptions create a *RequestOptions according to the given opts.
 func NewRequestOptions(opts []RequestOption) *RequestOptions {
 	options := &RequestOptions{
 		tags: make(map[string]string),
