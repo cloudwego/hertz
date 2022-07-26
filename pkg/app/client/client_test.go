@@ -65,7 +65,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
@@ -1899,19 +1898,28 @@ func TestClientDomainPort(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	expectedAddrMap := map[string]struct{}{
+		"example1.com:443":  {},
+		"example2.com:8888": {},
+		"example3.com:80":   {},
+	}
 	time.Sleep(time.Millisecond * 500)
 	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		assert.Assert(t, addr == "www.cloudwego.io:443")
+		if _, ok := expectedAddrMap[addr]; !ok {
+			t.Fatalf("not expected addr:%s", addr)
+		}
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
 	}))
-	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
-	defer func() {
-		protocol.ReleaseRequest(req)
-		protocol.ReleaseResponse(res)
-	}()
-	req.Header.SetMethod(consts.MethodGet)
-	req.SetRequestURI("https://www.cloudwego.io")
-	err := c.Do(context.Background(), req, res)
+
+	_, _, err := c.Get(context.Background(), nil, "https://example1.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Get(context.Background(), nil, "https://example2.com:8888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Get(context.Background(), nil, "http://example3.com")
 	if err != nil {
 		t.Fatal(err)
 	}
