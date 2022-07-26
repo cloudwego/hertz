@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package config
+package argument
 
 import (
 	"fmt"
@@ -254,17 +254,6 @@ func (arg *Argument) GetGoPackage() (string, error) {
 	return "", fmt.Errorf("project package name is not set")
 }
 
-func IdlTypeToCompiler(idlType string) (string, error) {
-	switch idlType {
-	case meta.IdlProto:
-		return meta.TpCompilerProto, nil
-	case meta.IdlThrift:
-		return meta.TpCompilerThrift, nil
-	default:
-		return "", fmt.Errorf("IDL type %s is not supported", idlType)
-	}
-}
-
 func (arg *Argument) ModelPackagePrefix() (string, error) {
 	ret := arg.Gomod
 	if arg.ModelDir == "" {
@@ -323,3 +312,17 @@ func (arg *Argument) GetClientDir() (string, error) {
 	}
 	return util.RelativePath(arg.ClientDir)
 }
+
+func (arg *Argument) GetThriftgoOptions() (string, error) {
+	prefix, err := arg.ModelPackagePrefix()
+	if err != nil {
+		return "", err
+	}
+	arg.ThriftOptions = append(arg.ThriftOptions, "package_prefix="+prefix)
+	if arg.JSONEnumStr {
+		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
+	}
+	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments"
+	return gas, nil
+}
+

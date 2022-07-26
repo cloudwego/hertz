@@ -22,10 +22,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal/config"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 	"github.com/cloudwego/thriftgo/parser"
 )
 
@@ -92,7 +92,7 @@ var (
 	unsetOmitempty = false
 )
 
-func CheckTagOption(args *config.Argument) []generator.Option {
+func CheckTagOption(args *argument.Argument) []generator.Option {
 	ret := []generator.Option{}
 	if args == nil {
 		return ret

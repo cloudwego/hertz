@@ -23,25 +23,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal/config"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
 
 type Plugin struct {
 	req    *thriftgo_plugin.Request
-	args   *config.Argument
+	args   *argument.Argument
 	logger *logs.StdLogger
 }
 
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
-	args := &config.Argument{}
+	args := &argument.Argument{}
 	defer func() {
 		if args.Verbose {
 			verboseLog := plugin.recvVerboseLogger()
@@ -181,11 +181,11 @@ func (plugin *Plugin) handleRequest() error {
 	return nil
 }
 
-func (plugin *Plugin) parseArgs() (*config.Argument, error) {
+func (plugin *Plugin) parseArgs() (*argument.Argument, error) {
 	if plugin.req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
-	args := new(config.Argument)
+	args := new(argument.Argument)
 	err := args.Unpack(plugin.req.PluginParameters)
 	if err != nil {
 		logs.Errorf("unpack args failed: %s", err.Error())

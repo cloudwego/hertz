@@ -27,6 +27,7 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 )
 
 func lookupTool(idlType string) (string, error) {
@@ -113,7 +114,7 @@ func link(src, dst string) error {
 	return nil
 }
 
-func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
+func BuildPluginCmd(args *argument.Argument) (*exec.Cmd, error) {
 	argPacks, err := args.Pack()
 	if err != nil {
 		return nil, err
@@ -174,15 +175,13 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func (arg *Argument) GetThriftgoOptions() (string, error) {
-	prefix, err := arg.ModelPackagePrefix()
-	if err != nil {
-		return "", err
+func IdlTypeToCompiler(idlType string) (string, error) {
+	switch idlType {
+	case meta.IdlProto:
+		return meta.TpCompilerProto, nil
+	case meta.IdlThrift:
+		return meta.TpCompilerThrift, nil
+	default:
+		return "", fmt.Errorf("IDL type %s is not supported", idlType)
 	}
-	arg.ThriftOptions = append(arg.ThriftOptions, "package_prefix="+prefix)
-	if arg.JSONEnumStr {
-		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
-	}
-	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments"
-	return gas, nil
 }

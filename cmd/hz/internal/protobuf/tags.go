@@ -22,11 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal/config"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/protobuf/api"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
@@ -38,7 +38,7 @@ var (
 	unsetOmitempty = false
 )
 
-func CheckTagOption(args *config.Argument) (ret []generator.Option) {
+func CheckTagOption(args *argument.Argument) (ret []generator.Option) {
 	if args == nil {
 		return
 	}

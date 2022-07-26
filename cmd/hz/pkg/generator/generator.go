@@ -14,32 +14,19 @@
  * limitations under the License.
  */
 
-package main
+package generator
 
 import (
-	"os"
-
 	"github.com/cloudwego/hertz/cmd/hz/internal/app"
-	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
-	"github.com/cloudwego/hertz/cmd/hz/pkg/plugin"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 )
 
-func main() {
-	// run in plugin mode
-	plugin.PluginMode()
-
-	// run in normal mode
-	Run()
+// GenerateLayout generates layout code based on args parameters.
+func GenerateLayout(args *argument.Argument) error {
+	return app.GenerateLayout(args)
 }
 
-func Run() {
-	defer func() {
-		logs.Flush()
-	}()
-
-	cli := app.Init()
-	err := cli.Run(os.Args)
-	if err != nil {
-		logs.Errorf("%v\n", err)
-	}
+// TriggerPlugin will splice the thriftgo/protoc command and execute the command to generate code.
+func TriggerPlugin(args *argument.Argument) error {
+	return app.TriggerPlugin(args)
 }

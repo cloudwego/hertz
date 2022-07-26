@@ -54,12 +54,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal/config"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -79,7 +79,7 @@ type Plugin struct {
 
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
-	args := &config.Argument{}
+	args := &argument.Argument{}
 	defer func() {
 		if args.Verbose {
 			verboseLog := plugin.recvVerboseLogger()
@@ -145,8 +145,8 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	return verboseLog
 }
 
-func (plugin *Plugin) parseArgs(param string) (*config.Argument, error) {
-	args := new(config.Argument)
+func (plugin *Plugin) parseArgs(param string) (*argument.Argument, error) {
+	args := new(argument.Argument)
 	params := strings.Split(param, ",")
 	err := args.Unpack(params)
 	if err != nil {
@@ -178,7 +178,7 @@ func (plugin *Plugin) Response(resp *pluginpb.CodeGeneratorResponse) error {
 	return nil
 }
 
-func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Argument) error {
+func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *argument.Argument) error {
 	plugin.fixGoPackage(req, plugin.PkgMap)
 
 	// new plugin
@@ -527,7 +527,7 @@ func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map
 	}, nil
 }
 
-func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps map[string]*descriptorpb.FileDescriptorProto, args *config.Argument) ([]generator.File, error) {
+func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps map[string]*descriptorpb.FileDescriptorProto, args *argument.Argument) ([]generator.File, error) {
 	options := CheckTagOption(args)
 	idl, err := plugin.getIdlInfo(ast, deps)
 	if err != nil {

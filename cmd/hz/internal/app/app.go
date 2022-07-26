@@ -26,11 +26,12 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
+	"github.com/cloudwego/hertz/cmd/hz/pkg/argument"
 	"github.com/urfave/cli/v2"
 )
 
 // global args. MUST fork it when use
-var globalArgs = config.NewArgument()
+var globalArgs = argument.NewArgument()
 
 func New(c *cli.Context) error {
 	args, err := globalArgs.Parse(c, meta.CmdNew)
@@ -40,12 +41,12 @@ func New(c *cli.Context) error {
 	setLogVerbose(args.Verbose)
 	logs.Debugf("args: %#v\n", args)
 
-	err = generateLayout(args)
+	err = GenerateLayout(args)
 	if err != nil {
 		return cli.Exit(err, meta.GenerateLayoutError)
 	}
 
-	err = triggerPlugin(args)
+	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
@@ -67,7 +68,7 @@ func Update(c *cli.Context) error {
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
 
-	err = triggerPlugin(args)
+	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
@@ -181,7 +182,7 @@ func setLogVerbose(verbose bool) {
 	}
 }
 
-func generateLayout(args *config.Argument) error {
+func GenerateLayout(args *argument.Argument) error {
 	lg := &generator.LayoutGenerator{
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
@@ -240,7 +241,7 @@ func generateLayout(args *config.Argument) error {
 	return nil
 }
 
-func triggerPlugin(args *config.Argument) error {
+func TriggerPlugin(args *argument.Argument) error {
 	if len(args.IdlPaths) == 0 {
 		return nil
 	}
