@@ -65,6 +65,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
@@ -1886,5 +1887,32 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	left, _ := ioutil.ReadAll(bodyStream)
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
+	}
+}
+
+func TestClientDomainPort(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "unix-test-10021"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		assert.Assert(t, addr == "www.cloudwego.io:443")
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(res)
+	}()
+	req.Header.SetMethod(consts.MethodGet)
+	req.SetRequestURI("https://www.cloudwego.io")
+	err := c.Do(context.Background(), req, res)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
