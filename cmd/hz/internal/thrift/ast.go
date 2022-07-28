@@ -22,6 +22,7 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	"github.com/cloudwego/thriftgo/parser"
 )
@@ -210,13 +211,18 @@ type ResolvedSymbol struct {
 }
 
 func (rs ResolvedSymbol) Expression() string {
+	base, err := NameStyle.Identify(rs.Base)
+	if err != nil {
+		logs.Warnf("%s naming style for %s failed, fall back to %s, please refer to the variable manually!", NameStyle.Name(), rs.Base, rs.Base)
+		base = rs.Base
+	}
 	if rs.Src != "" {
 		if !rs.IsValue && model.IsBaseType(rs.Type) {
-			return rs.Base
+			return base
 		}
-		return fmt.Sprintf("%s.%s", rs.Src, rs.Base)
+		return fmt.Sprintf("%s.%s", rs.Src, base)
 	}
-	return rs.Base
+	return base
 }
 
 func astToModel(ast *parser.Thrift, rs *Resolver) (*model.Model, error) {
