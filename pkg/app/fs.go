@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"html"
 	"io"
@@ -57,6 +58,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -350,7 +352,8 @@ type fsHandler struct {
 	compressedCache map[string]*fsFile
 	cacheLock       sync.Mutex
 
-	smallFileReaderPool sync.Pool
+	smallFileReaderPool  sync.Pool
+	smallRangeReaderPool sync.Pool
 }
 
 // bigFileReader attempts to trigger sendfile
@@ -759,6 +762,72 @@ func (ff *fsFile) smallFileReader() io.Reader {
 	return r
 }
 
+func (ff *fsFile) NewRangeReader() (io.Reader, error) {
+	if ff.isBig() {
+		r, err := ff.bigRangeReader()
+		if err != nil {
+			ff.decReadersCount()
+		}
+		return r, err
+	}
+	return ff.smallRangeReader(), nil
+}
+
+func (ff *fsFile) smallRangeReader() io.Reader {
+	v := ff.h.smallRangeReaderPool.Get()
+	if v == nil {
+		v = &smallRangeReader{
+			sta: make([]int, 64),
+			end: make([]int, 64),
+			buf: make([]byte, 4096),
+		}
+	}
+	r := v.(*smallRangeReader)
+	r.ff = ff
+	r.sta, r.end, r.buf = r.sta[:0], r.end[:0], r.buf[:0]
+	r.first = true
+	r.hasCurRangeBodyHeader = false
+	r.curRange = 0
+	r.boundary = randomBoundary()
+	return r
+}
+
+func (ff *fsFile) bigRangeReader() (io.Reader, error) {
+	if ff.f == nil {
+		panic("BUG: ff.f must be non-nil in bigRangeReader")
+	}
+	var r io.Reader
+
+	ff.rangeBigFilesLock.Lock()
+	n := len(ff.rangeBigFiles)
+	if n > 0 {
+		r = ff.rangeBigFiles[n-1]
+		ff.rangeBigFiles = ff.rangeBigFiles[:n-1]
+	}
+	ff.rangeBigFilesLock.Unlock()
+
+	if r != nil {
+		return r, nil
+	}
+	f, err := os.Open(ff.f.Name())
+	if err != nil {
+		return nil, fmt.Errorf("cannot open already opened file: %s", err)
+	}
+	rr := &bigRangeReader{
+		ff:                    ff,
+		f:                     f,
+		sta:                   make([]int, 64),
+		end:                   make([]int, 64),
+		buf:                   make([]byte, 4096),
+		first:                 true,
+		hasCurRangeBodyHeader: false,
+		curRange:              0,
+		boundary:              randomBoundary(),
+	}
+	rr.sta, rr.end, rr.buf = rr.sta[:0], rr.end[:0], rr.buf[:0]
+	return rr, nil
+}
+
 func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 	var path []byte
 	if h.pathRewrite != nil {
@@ -854,7 +923,14 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		return
 	}
 
-	r, err := ff.NewReader()
+	var r io.Reader
+	var err error
+	if h.acceptByteRange && len(byteRange) > 0 {
+		r, err = ff.NewRangeReader()
+	} else {
+		r, err = ff.NewReader()
+	}
+
 	if err != nil {
 		hlog.Errorf("HERTZ: Cannot obtain file reader for path=%q, error=%s", path, err)
 		ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
@@ -871,7 +947,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 	if h.acceptByteRange {
 		hdr.SetCanonical(bytestr.StrAcceptRanges, bytestr.StrBytes)
 		if len(byteRange) > 0 {
-			startPos, endPos, err := ParseByteRange(byteRange, contentLength)
+			staList, endList, err := ParseByteRanges(byteRange, contentLength)
 			if err != nil {
 				r.(io.Closer).Close()
 				hlog.Errorf("HERTZ: Cannot parse byte range %q for path=%q,error=%s", byteRange, path, err)
@@ -879,15 +955,19 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 				return
 			}
 
-			if err = r.(byteRangeUpdater).UpdateByteRange(startPos, endPos); err != nil {
+			if err = r.(byteRangeHandler).ByteRangeUpdate(staList, endList); err != nil {
 				r.(io.Closer).Close()
 				hlog.Errorf("HERTZ: Cannot seek byte range %q for path=%q, error=%s", byteRange, path, err)
 				ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 				return
 			}
-
-			hdr.SetContentRange(startPos, endPos, contentLength)
-			contentLength = endPos - startPos + 1
+			switch {
+			case len(staList) == 1:
+				hdr.SetContentRange(staList[0], endList[0], contentLength)
+			case len(staList) > 1:
+				hdr.SetContentType(fmt.Sprintf("multipart/byteranges; boundary=%s", r.(byteRangeHandler).Boundary()))
+			}
+			contentLength = r.(byteRangeHandler).ByteRangeLength()
 			statusCode = consts.StatusPartialContent
 		}
 	}
@@ -930,6 +1010,9 @@ type fsFile struct {
 
 	bigFiles     []*bigFileReader
 	bigFilesLock sync.Mutex
+
+	rangeBigFiles     []*bigRangeReader
+	rangeBigFilesLock sync.Mutex
 }
 
 func (ff *fsFile) Release() {
@@ -942,6 +1025,12 @@ func (ff *fsFile) Release() {
 				r.f.Close()
 			}
 			ff.bigFilesLock.Unlock()
+
+			ff.rangeBigFilesLock.Lock()
+			for _, r := range ff.rangeBigFiles {
+				r.f.Close()
+			}
+			ff.rangeBigFilesLock.Unlock()
 		}
 	}
 }
@@ -1057,58 +1146,60 @@ func fsModTime(t time.Time) time.Time {
 	return t.In(time.UTC).Truncate(time.Second)
 }
 
-// ParseByteRange parses 'Range: bytes=...' header value.
-//
-// It follows https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35 .
-func ParseByteRange(byteRange []byte, contentLength int) (startPos, endPos int, err error) {
+func ParseByteRanges(byteRange []byte, contentLength int) (startPos, endPos []int, err error) {
 	b := byteRange
 	if !bytes.HasPrefix(b, bytestr.StrBytes) {
-		return 0, 0, fmt.Errorf("unsupported range units: %q. Expecting %q", byteRange, bytestr.StrBytes)
+		return startPos, endPos, fmt.Errorf("unsupported range units: %q. Expecting %q", byteRange, bytestr.StrBytes)
 	}
-
 	b = b[len(bytestr.StrBytes):]
 	if len(b) == 0 || b[0] != '=' {
-		return 0, 0, fmt.Errorf("missing byte range in %q", byteRange)
+		return startPos, endPos, fmt.Errorf("missing byte range in %q", byteRange)
 	}
 	b = b[1:]
 
-	n := bytes.IndexByte(b, '-')
-	if n < 0 {
-		return 0, 0, fmt.Errorf("missing the end position of byte range in %q", byteRange)
-	}
+	var n, sta, end, v int
 
-	if n == 0 {
-		v, err := bytesconv.ParseUint(b[n+1:])
-		if err != nil {
-			return 0, 0, err
+	for _, ra := range bytes.Split(b, bytesconv.S2b(",")) {
+		n = bytes.IndexByte(ra, '-')
+		if n < 0 {
+			return startPos, endPos, fmt.Errorf("missing the end position of byte range in %q", byteRange)
 		}
-		startPos := contentLength - v
-		if startPos < 0 {
-			startPos = 0
+		if n == 0 {
+			v, err = bytesconv.ParseUint(ra[n+1:])
+			if err != nil {
+				return startPos, endPos, err
+			}
+			sta = contentLength - v
+			if sta < 0 {
+				sta = 0
+			}
+			startPos = append(startPos, sta)
+			endPos = append(endPos, contentLength-1)
+			continue
 		}
-		return startPos, contentLength - 1, nil
-	}
-
-	if startPos, err = bytesconv.ParseUint(b[:n]); err != nil {
-		return 0, 0, err
-	}
-	if startPos >= contentLength {
-		return 0, 0, fmt.Errorf("the start position of byte range cannot exceed %d. byte range %q", contentLength-1, byteRange)
-	}
-
-	b = b[n+1:]
-	if len(b) == 0 {
-		return startPos, contentLength - 1, nil
-	}
-
-	if endPos, err = bytesconv.ParseUint(b); err != nil {
-		return 0, 0, err
-	}
-	if endPos >= contentLength {
-		endPos = contentLength - 1
-	}
-	if endPos < startPos {
-		return 0, 0, fmt.Errorf("the start position of byte range cannot exceed the end position. byte range %q", byteRange)
+		if sta, err = bytesconv.ParseUint(ra[:n]); err != nil {
+			return startPos, endPos, err
+		}
+		if sta >= contentLength {
+			return startPos, endPos, fmt.Errorf("the start position of byte range cannot exceed %d. byte range %q", contentLength-1, byteRange)
+		}
+		ra = ra[n+1:]
+		if len(ra) == 0 {
+			startPos = append(startPos, sta)
+			endPos = append(endPos, contentLength-1)
+			continue
+		}
+		if end, err = bytesconv.ParseUint(ra); err != nil {
+			return startPos, endPos, err
+		}
+		if end >= contentLength {
+			end = contentLength - 1
+		}
+		if end < sta {
+			return startPos, endPos, fmt.Errorf("the start position of byte range cannot exceed the end position. byte range %q", byteRange)
+		}
+		startPos = append(startPos, sta)
+		endPos = append(endPos, end)
 	}
 	return startPos, endPos, nil
 }
@@ -1225,4 +1316,552 @@ func NewPathSlashesStripper(slashesCount int) PathRewriteFunc {
 	return func(ctx *RequestContext) []byte {
 		return stripLeadingSlashes(ctx.Path(), slashesCount)
 	}
+}
+
+type byteRangeHandler interface {
+	ByteRangeUpdate(sta, end []int) error
+	ByteRangeLength() int
+	Boundary() string
+	IsMultiRange() bool
+}
+
+type smallRangeReader struct {
+	ff  *fsFile
+	sta []int
+	end []int
+
+	// handle multi range
+	buf                   []byte
+	first                 bool
+	hasCurRangeBodyHeader bool
+	curRange              int
+	boundary              string
+}
+
+func (r *smallRangeReader) ByteRangeUpdate(sta, end []int) error {
+	for i := range sta {
+		r.sta = append(r.sta, sta[i])
+		r.end = append(r.end, end[i]+1)
+	}
+	return nil
+}
+
+func (r *smallRangeReader) IsMultiRange() bool {
+	return len(r.sta) > 1
+}
+
+func (r *smallRangeReader) Boundary() string {
+	return r.boundary
+}
+
+func (r *smallRangeReader) ByteRangeLength() int {
+	if !r.IsMultiRange() {
+		return r.end[0] - r.sta[0]
+	}
+	sum := 0
+	first := true
+	bufv := utils.CopyBufPool.Get()
+	buf := bufv.([]byte)
+	for i := range r.sta {
+		buf = buf[:0]
+		if i > 0 {
+			first = false
+		}
+		multiRangeBodyHeader(&buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, first)
+		sum += len(buf)
+	}
+	buf = buf[:0]
+	multiRangeBodyEnd(&buf, r.boundary)
+	sum += len(buf)
+	utils.CopyBufPool.Put(bufv)
+	return sum
+}
+
+func (r *smallRangeReader) Close() error {
+	ff := r.ff
+	ff.decReadersCount()
+	r.ff = nil
+
+	r.sta, r.end, r.buf = r.sta[:0], r.end[:0], r.buf[:0]
+	r.curRange = 0
+	r.first = true
+	r.hasCurRangeBodyHeader = false
+	r.boundary = ""
+	ff.h.smallRangeReaderPool.Put(r)
+	return nil
+}
+
+func (r *smallRangeReader) Read(p []byte) (int, error) {
+
+	ff := r.ff
+	var err error
+	cPos, cLen, n := 0, 0, 0
+	if ff.f == nil {
+
+		if r.IsMultiRange() {
+			cLen = len(p[cPos:])
+			n = copy(p[cPos:], r.buf)
+			if len(r.buf) > cLen {
+				r.buf = r.buf[n:]
+				return n, nil
+			}
+			cPos += n
+			r.buf = r.buf[:0]
+		}
+
+		for i := r.curRange; i < len(r.sta); i++ {
+			if r.sta[i] >= r.end[i] {
+				continue
+			}
+
+			if r.IsMultiRange() && !r.hasCurRangeBodyHeader {
+				r.hasCurRangeBodyHeader = true
+				multiRangeBodyHeader(&r.buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, r.first)
+				r.first = false
+				cLen = len(p[cPos:])
+				n = copy(p[cPos:], r.buf)
+				cPos += n
+				if len(r.buf) > cLen {
+					r.buf = r.buf[n:]
+					return cPos, nil
+				}
+				r.buf = r.buf[:0]
+			}
+
+			cLen = len(p[cPos:])
+			n = copy(p[cPos:], ff.dirIndex[r.sta[i]:r.end[i]])
+			if r.end[i]-r.sta[i] > cLen {
+				r.sta[i] += n
+				return cPos + n, nil
+			}
+			cPos += n
+			r.curRange = i + 1
+		}
+
+		if r.IsMultiRange() {
+			multiRangeBodyEnd(&r.buf, r.boundary)
+			cLen = len(p[cPos:])
+			n = copy(p[cPos:], r.buf)
+			if len(r.buf) > len(p[cPos:]) {
+				r.buf = r.buf[n:]
+				return cPos + n, nil
+			}
+			cPos += n
+			r.buf = r.buf[:0]
+		}
+
+		return cPos, io.EOF
+	}
+
+	if r.curRange >= len(r.sta) && len(r.buf) == 0 {
+		return 0, io.EOF
+	}
+
+	if r.IsMultiRange() {
+		cLen = len(p[cPos:])
+		n = copy(p[cPos:], r.buf)
+		if len(r.buf) > cLen {
+			r.buf = r.buf[n:]
+			return n, nil
+		}
+		cPos += n
+		r.buf = r.buf[:0]
+	}
+
+	for i := r.curRange; i < len(r.sta); i++ {
+		if r.sta[i] >= r.end[i] {
+			continue
+		}
+
+		if r.IsMultiRange() && !r.hasCurRangeBodyHeader {
+			r.hasCurRangeBodyHeader = true
+			multiRangeBodyHeader(&r.buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, r.first)
+			r.first = false
+			cLen = len(p[cPos:])
+			n = copy(p[cPos:], r.buf)
+			cPos += n
+			if len(r.buf) > cLen {
+				r.buf = r.buf[n:]
+				return cPos, nil
+			}
+			r.buf = r.buf[:0]
+		}
+
+		cLen = len(p[cPos:])
+		if r.end[i]-r.sta[i] > cLen {
+			n, err = ff.f.ReadAt(p[cPos:], int64(r.sta[i]))
+			r.sta[i] += n
+			return cPos + n, err
+		}
+
+		// todo use pool?
+		cBody := make([]byte, r.end[i]-r.sta[i])
+		n, err = ff.f.ReadAt(cBody, int64(r.sta[i]))
+		if err != nil && err != io.EOF {
+			return cPos + n, err
+		}
+		n = copy(p[cPos:], cBody)
+		cPos += n
+		r.curRange = i + 1
+		r.hasCurRangeBodyHeader = false
+	}
+
+	if r.IsMultiRange() {
+		multiRangeBodyEnd(&r.buf, r.boundary)
+		cLen = len(p[cPos:])
+		n = copy(p[cPos:], r.buf)
+		if len(r.buf) > len(p[cPos:]) {
+			r.buf = r.buf[n:]
+			return cPos + n, nil
+		}
+		cPos += n
+		r.buf = r.buf[:0]
+	}
+	return cPos, io.EOF
+}
+
+func (r *smallRangeReader) WriteTo(w io.Writer) (int64, error) {
+	ff := r.ff
+	var err error
+	cPos, cLen, n, sum := 0, 0, 0, 0
+	bufv := utils.CopyBufPool.Get()
+	buf := bufv.([]byte)
+	first := true
+	if ff.f == nil {
+		for i := range r.sta {
+
+			if r.IsMultiRange() {
+				buf = buf[:0]
+				if i > 0 {
+					first = false
+				}
+				multiRangeBodyHeader(&buf, r.sta[i], r.end[i], ff.contentLength, ff.contentType, r.boundary, first)
+				nw, errw := w.Write(buf)
+				if errw == nil && nw != len(buf) {
+					panic("BUG: buf returned(n, nil),where n != len(buf)")
+				}
+				sum += nw
+				if errw != nil {
+					return int64(sum), errw
+				}
+			}
+
+			n, err = w.Write(ff.dirIndex[r.sta[i]:r.end[i]])
+			sum += n
+			if err != nil {
+				return int64(sum), err
+			}
+		}
+		if r.IsMultiRange() {
+			buf = buf[:0]
+			multiRangeBodyEnd(&buf, r.boundary)
+			nw, errw := w.Write(buf)
+			if errw == nil && nw != len(buf) {
+				panic("BUG: buf returned (n, nil), where n != len(buf)")
+			}
+			sum += nw
+			err = errw
+		}
+		return int64(sum), err
+	}
+
+	if rf, ok := w.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+
+	for i := range r.sta {
+
+		if r.IsMultiRange() {
+			buf = buf[:0]
+			if i > 0 {
+				first = false
+			}
+			multiRangeBodyHeader(&buf, r.sta[i], r.end[i], ff.contentLength, ff.contentType, r.boundary, first)
+			nw, errw := w.Write(buf)
+			if errw == nil && nw != len(buf) {
+				panic("BUG: buf returned(n, nil),where n != len(buf)")
+			}
+			sum += nw
+			if errw != nil {
+				return int64(sum), errw
+			}
+		}
+
+		cPos = r.sta[i]
+		buf = buf[:4096]
+		for err == nil {
+			cLen = r.end[i] - cPos
+			if cLen <= 0 {
+				break
+			}
+			if len(buf) > cLen {
+				buf = buf[:cLen]
+			}
+			n, err = ff.f.ReadAt(buf, int64(cPos))
+			nw, errw := w.Write(buf[:n])
+			cPos += nw
+			sum += nw
+			if errw == nil && nw != n {
+				panic("BUG: Write(p) returned (n, nil), where n != len(p)")
+			}
+			if err == nil {
+				err = errw
+			}
+		}
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	if r.IsMultiRange() {
+		buf = buf[:0]
+		multiRangeBodyEnd(&buf, r.boundary)
+		nw, errw := w.Write(buf)
+		if errw == nil && nw != len(buf) {
+			panic("BUG: buf returned (n, nil), where n != len(buf)")
+		}
+		sum += nw
+		if err == nil {
+			err = errw
+		}
+	}
+	return int64(sum), err
+}
+
+func multiRangeBodyHeader(b *[]byte, sta, end, size int, ct, boundary string, first bool) {
+	if first {
+		*b = append(*b, bytesconv.S2b(fmt.Sprintf("\r\n"))...)
+	}
+	*b = append(*b, bytesconv.S2b(fmt.Sprintf("--%s\r\n", boundary))...)
+	*b = append(*b, bytesconv.S2b(fmt.Sprintf("%s: %s\r\n", consts.HeaderContentRange,
+		fmt.Sprintf("bytes %d-%d/%d", sta, end-1, size)))...)
+	*b = append(*b, bytesconv.S2b(fmt.Sprintf("%s: %s\n", consts.HeaderContentType, ct))...)
+	*b = append(*b, bytesconv.S2b(fmt.Sprintf("\r\n"))...)
+}
+
+func multiRangeBodyEnd(b *[]byte, boundary string) {
+	*b = append(*b, bytesconv.S2b(fmt.Sprintf("\r\n--%s--", boundary))...)
+}
+
+func randomBoundary() string {
+	var buf [30]byte
+	_, err := io.ReadFull(rand.Reader, buf[:])
+	if err != nil {
+		panic(err)
+	}
+	return *(*string)(unsafe.Pointer(&buf))
+}
+
+type bigRangeReader struct {
+	ff  *fsFile
+	f   *os.File
+	sta []int
+	end []int
+
+	// handle multi range
+	buf                   []byte
+	first                 bool
+	hasCurRangeBodyHeader bool
+	curRange              int
+	boundary              string
+}
+
+func (r *bigRangeReader) ByteRangeUpdate(sta, end []int) error {
+	for i := range sta {
+		r.sta = append(r.sta, sta[i])
+		r.end = append(r.end, end[i]+1)
+	}
+	return nil
+}
+
+func (r *bigRangeReader) IsMultiRange() bool {
+	return len(r.sta) > 1
+}
+
+func (r *bigRangeReader) Boundary() string {
+	return r.boundary
+}
+
+func (r *bigRangeReader) ByteRangeLength() int {
+	if !r.IsMultiRange() {
+		return r.end[0] - r.sta[0]
+	}
+	sum := 0
+	first := true
+	bufv := utils.CopyBufPool.Get()
+	buf := bufv.([]byte)
+	for i := range r.sta {
+		buf = buf[:0]
+		if i > 0 {
+			first = false
+		}
+		multiRangeBodyHeader(&buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, first)
+		sum += len(buf)
+	}
+	buf = buf[:0]
+	multiRangeBodyEnd(&buf, r.boundary)
+	sum += len(buf)
+	utils.CopyBufPool.Put(bufv)
+	return sum
+}
+
+func (r *bigRangeReader) Close() error {
+	n, err := r.f.Seek(0, 0)
+	if err == nil {
+		if n != 0 {
+			panic("BUG: File.Seek(0,0) returned (non-zero, nil)")
+		}
+		ff := r.ff
+		ff.rangeBigFilesLock.Lock()
+		r.end, r.sta, r.buf = r.end[:0], r.sta[:0], r.buf[:0]
+		r.curRange = 0
+		r.first = true
+		r.hasCurRangeBodyHeader = false
+
+		ff.rangeBigFiles = append(ff.rangeBigFiles, r)
+		ff.rangeBigFilesLock.Unlock()
+	} else {
+		r.f.Close()
+	}
+	r.ff.decReadersCount()
+	return err
+}
+
+func (r *bigRangeReader) Read(p []byte) (int, error) {
+	if r.curRange >= len(r.sta) && len(r.buf) == 0 {
+		return 0, io.EOF
+	}
+
+	ff := r.ff
+	var err error
+	cPos, cLen, n := 0, 0, 0
+
+	if r.IsMultiRange() {
+		cLen = len(p[cPos:])
+		n = copy(p[cPos:], r.buf)
+		if len(r.buf) > cLen {
+			r.buf = r.buf[n:]
+			return n, nil
+		}
+		cPos += n
+		r.buf = r.buf[:0]
+	}
+
+	for i := r.curRange; i < len(r.sta); i++ {
+		if r.sta[i] >= r.end[i] {
+			continue
+		}
+
+		if r.IsMultiRange() && !r.hasCurRangeBodyHeader {
+			r.hasCurRangeBodyHeader = true
+			multiRangeBodyHeader(&r.buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, r.first)
+			r.first = false
+			cLen = len(p[cPos:])
+			n = copy(p[cPos:], r.buf)
+			cPos += n
+			if len(r.buf) > cLen {
+				r.buf = r.buf[n:]
+				return cPos, nil
+			}
+			r.buf = r.buf[:0]
+		}
+
+		cLen = len(p[cPos:])
+		if r.end[i]-r.sta[i] > cLen {
+			n, err = r.f.ReadAt(p[cPos:], int64(r.sta[i]))
+			r.sta[i] += n
+			return cPos + n, err
+		}
+
+		// todo use pool?
+		cBody := make([]byte, r.end[i]-r.sta[i])
+		n, err = ff.f.ReadAt(cBody, int64(r.sta[i]))
+		if err != nil && err != io.EOF {
+			return cPos + n, err
+		}
+		n = copy(p[cPos:], cBody)
+		cPos += n
+		r.curRange = i + 1
+		r.hasCurRangeBodyHeader = false
+	}
+
+	if r.IsMultiRange() {
+		multiRangeBodyEnd(&r.buf, r.boundary)
+		cLen = len(p[cPos:])
+		n = copy(p[cPos:], r.buf)
+		if len(r.buf) > len(p[cPos:]) {
+			r.buf = r.buf[n:]
+			return cPos + n, nil
+		}
+		cPos += n
+		r.buf = r.buf[:0]
+	}
+	return cPos, io.EOF
+}
+
+func (r *bigRangeReader) WriteTo(w io.Writer) (int64, error) {
+	if rf, ok := w.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+
+	var err error
+	cPos, cLen, n, sum := 0, 0, 0, 0
+	first := true
+
+	bufv := utils.CopyBufPool.Get()
+	buf := bufv.([]byte)
+
+	for i := range r.sta {
+
+		if r.IsMultiRange() {
+			buf = buf[:0]
+			if i > 0 {
+				first = false
+			}
+			multiRangeBodyHeader(&buf, r.sta[i], r.end[i], r.ff.contentLength, r.ff.contentType, r.boundary, first)
+			nw, errw := w.Write(buf)
+			if errw == nil && nw != len(buf) {
+				panic("BUG: buf returned(n, nil),where n != len(buf)")
+			}
+			sum += nw
+			if errw != nil {
+				return int64(sum), errw
+			}
+		}
+
+		cPos = r.sta[i]
+		buf = buf[:4096]
+		for err == nil {
+			cLen = r.end[i] - cPos
+			if cLen <= 0 {
+				break
+			}
+			if len(buf) > cLen {
+				buf = buf[:cLen]
+			}
+			n, err = r.f.ReadAt(buf, int64(cPos))
+			nw, errw := w.Write(buf[:n])
+			cPos += nw
+			sum += nw
+			if errw == nil && nw != n {
+				panic("BUG: Write(p) returned (n, nil), where n != len(p)")
+			}
+			if err == nil {
+				err = errw
+			}
+		}
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	if r.IsMultiRange() {
+		buf = buf[:0]
+		multiRangeBodyEnd(&buf, r.boundary)
+		nw, errw := w.Write(buf)
+		if err == nil && nw != len(buf) {
+			panic("BUG: buf returned (n, nil), where n != len(buf)")
+		}
+		sum += nw
+		err = errw
+	}
+	return int64(sum), err
 }

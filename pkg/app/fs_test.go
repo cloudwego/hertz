@@ -355,11 +355,14 @@ func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
 	}
 
 	fileSize := len(expectedBody)
-	startPos := rand.Intn(fileSize)
-	endPos := rand.Intn(fileSize)
-	if endPos < startPos {
-		startPos, endPos = endPos, startPos
+	startPos, endPos := make([]int, 0), make([]int, 0)
+	start := rand.Intn(fileSize)
+	end := rand.Intn(fileSize)
+	if end < start {
+		start, end = end, start
 	}
+	startPos = append(startPos, start)
+	endPos = append(endPos, end)
 
 	ctx.Request.SetRequestURI(filePath)
 	ctx.Request.Header.SetByteRange(startPos, endPos)
@@ -381,13 +384,13 @@ func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
 		t.Fatalf("unexpected content-range %q. Expecting %q. filePath=%q", cr, expectedCR, filePath)
 	}
 	body := r.Body()
-	bodySize := endPos - startPos + 1
+	bodySize := end - start + 1
 	if len(body) != bodySize {
 		t.Fatalf("unexpected body size %d. Expecting %d. filePath=%q, startPos=%d, endPos=%d",
 			len(body), bodySize, filePath, startPos, endPos)
 	}
 
-	expectedBody = expectedBody[startPos : endPos+1]
+	expectedBody = expectedBody[start : end+1]
 	if !bytes.Equal(body, expectedBody) {
 		t.Fatalf("unexpected body %q. Expecting %q. filePath=%q, startPos=%d, endPos=%d",
 			body, expectedBody, filePath, startPos, endPos)
@@ -407,33 +410,35 @@ func getFileContents(path string) ([]byte, error) {
 func TestParseByteRangeSuccess(t *testing.T) {
 	t.Parallel()
 
-	testParseByteRangeSuccess(t, "bytes=0-0", 1, 0, 0)
-	testParseByteRangeSuccess(t, "bytes=1234-6789", 6790, 1234, 6789)
+	testParseByteRangeSuccess(t, "bytes=0-0", 1, []int{0}, []int{0})
+	testParseByteRangeSuccess(t, "bytes=1234-6789", 6790, []int{1234}, []int{6789})
 
-	testParseByteRangeSuccess(t, "bytes=123-", 456, 123, 455)
-	testParseByteRangeSuccess(t, "bytes=-1", 1, 0, 0)
-	testParseByteRangeSuccess(t, "bytes=-123", 456, 333, 455)
+	testParseByteRangeSuccess(t, "bytes=123-", 456, []int{123}, []int{455})
+	testParseByteRangeSuccess(t, "bytes=-1", 1, []int{0}, []int{0})
+	testParseByteRangeSuccess(t, "bytes=-123", 456, []int{333}, []int{455})
 
 	// End position exceeding content-length. It should be updated to content-length-1.
 	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
-	testParseByteRangeSuccess(t, "bytes=1-2345", 234, 1, 233)
-	testParseByteRangeSuccess(t, "bytes=0-2345", 2345, 0, 2344)
+	testParseByteRangeSuccess(t, "bytes=1-2345", 234, []int{1}, []int{233})
+	testParseByteRangeSuccess(t, "bytes=0-2345", 2345, []int{0}, []int{2344})
 
 	// Start position overflow. Whole range must be returned.
 	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
-	testParseByteRangeSuccess(t, "bytes=-567", 56, 0, 55)
+	testParseByteRangeSuccess(t, "bytes=-567", 56, []int{0}, []int{55})
 }
 
-func testParseByteRangeSuccess(t *testing.T, v string, contentLength, startPos, endPos int) {
-	startPos1, endPos1, err := ParseByteRange([]byte(v), contentLength)
+func testParseByteRangeSuccess(t *testing.T, v string, contentLength int, startPos, endPos []int) {
+	startPos1, endPos1, err := ParseByteRanges([]byte(v), contentLength)
 	if err != nil {
 		t.Fatalf("unexpected error: %s. v=%q, contentLength=%d", err, v, contentLength)
 	}
-	if startPos1 != startPos {
-		t.Fatalf("unexpected startPos=%d. Expecting %d. v=%q, contentLength=%d", startPos1, startPos, v, contentLength)
-	}
-	if endPos1 != endPos {
-		t.Fatalf("unexpected endPos=%d. Expectind %d. v=%q, contentLength=%d", endPos1, endPos, v, contentLength)
+	for i := range startPos1 {
+		if startPos1[i] != startPos[i] {
+			t.Fatalf("unexpected startPos=%d. Expecting %d. v=%q, contentLength=%d", startPos1[i], startPos[i], v, contentLength)
+		}
+		if endPos1[i] != endPos[i] {
+			t.Fatalf("unexpected endPos=%d. Expectind %d. v=%q, contentLength=%d", endPos1[i], endPos[i], v, contentLength)
+		}
 	}
 }
 
@@ -465,7 +470,7 @@ func TestParseByteRangeError(t *testing.T) {
 }
 
 func testParseByteRangeError(t *testing.T, v string, contentLength int) {
-	_, _, err := ParseByteRange([]byte(v), contentLength)
+	_, _, err := ParseByteRanges([]byte(v), contentLength)
 	if err == nil {
 		t.Fatalf("expecting error when parsing byte range %q", v)
 	}
