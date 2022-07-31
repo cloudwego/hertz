@@ -107,9 +107,37 @@ func WithResponseBodyStream(b bool) config.ClientOption {
 
 // WithDialFunc is used to set dialer function
 //
-// NOTE: By default, hertz client uses dialer.DialConnection as DialFunc
+// NOTE: By default, hertz client uses dialer.DialConnection as DialFunc.
 func WithDialFunc(f client.DialFunc) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.DialFunc = f
+		o.Dial = f
+	}}
+}
+
+// WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
+func WithDisableHeaderNamesNormalizing(disable bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.DisableHeaderNamesNormalizing = disable
+	}}
+}
+
+// WithName sets client name which used in User-Agent Header.
+func WithName(name string) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.Name = name
+	}}
+}
+
+// WithNoDefaultUserAgentHeader sets whether no default User-Agent header.
+func WithNoDefaultUserAgentHeader(isNoDefaultUserAgentHeader bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.NoDefaultUserAgentHeader = isNoDefaultUserAgentHeader
+	}}
+}
+
+// WithDisablePathNormalizing sets whether disable path normalizing.
+func WithDisablePathNormalizing(isDisablePathNormalizing bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.DisablePathNormalizing = isDisablePathNormalizing
 	}}
 }

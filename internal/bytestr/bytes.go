@@ -41,7 +41,6 @@ var (
 	StrStar             = []byte("*")
 	StrColonSlashSlash  = []byte("://")
 	StrColonSpace       = []byte(": ")
-	StrGMT              = []byte("GMT")
 	StrAt               = []byte("@")
 	StrSD               = []byte("sd")
 

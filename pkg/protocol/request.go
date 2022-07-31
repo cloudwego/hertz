@@ -130,6 +130,9 @@ func (w *requestBodyWriter) Write(p []byte) (int, error) {
 }
 
 func (req *Request) Options() *config.RequestOptions {
+	if req.options == nil {
+		req.options = config.NewRequestOptions(nil)
+	}
 	return req.options
 }
 
@@ -201,7 +204,7 @@ func (req *Request) PostArgString() []byte {
 	return req.postArgs.QueryString()
 }
 
-// MultipartForm returns requests's multipart form.
+// MultipartForm returns request's multipart form.
 //
 // Returns errNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
@@ -663,7 +666,7 @@ func (req *Request) parsePostArgs() {
 	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.StrPostArgsContentType) {
 		return
 	}
-	req.postArgs.ParseBytes(req.BodyBytes())
+	req.postArgs.ParseBytes(req.Body())
 }
 
 // BodyE returns request body.
@@ -784,11 +787,7 @@ func (req *Request) QueryString() []byte {
 // SetOptions is used to set request options.
 // These options can be used to do something in middlewares such as service discovery.
 func (req *Request) SetOptions(opts ...config.RequestOption) {
-	if req.options == nil {
-		req.options = config.NewRequestOptions(opts)
-	} else {
-		req.options.Apply(opts)
-	}
+	req.Options().Apply(opts)
 }
 
 // ConnectionClose returns true if 'Connection: close' header is set.
@@ -816,7 +815,7 @@ func AcquireRequest() *Request {
 
 // ReleaseRequest returns req acquired via AcquireRequest to request pool.
 //
-// It is forbidden accessing req and/or its' members after returning
+// It is forbidden accessing req and/or its members after returning
 // it to request pool.
 func ReleaseRequest(req *Request) {
 	req.Reset()

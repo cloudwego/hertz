@@ -159,7 +159,7 @@ func WithMaxRequestBodySize(bs int) config.Option {
 	}}
 }
 
-// WithMaxKeepBodySize sets max size of request/response body to keep when recycle. Unit: byte
+// WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
 func WithMaxKeepBodySize(bs int) config.Option {

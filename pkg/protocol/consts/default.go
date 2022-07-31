@@ -66,5 +66,5 @@ const (
 	DefaultMaxIdleConnDuration = 10 * time.Second
 
 	// DefaultMaxIdempotentCallAttempts is the default idempotent calls attempts count.
-	DefaultMaxIdempotentCallAttempts = 5
+	DefaultMaxIdempotentCallAttempts = 1
 )

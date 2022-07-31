@@ -51,7 +51,6 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -486,7 +485,7 @@ func TestFSMultiByteRangeConcurrent(t *testing.T) {
 	ch := make(chan struct{}, concurrency)
 	for i := 0; i < concurrency; i++ {
 		go func() {
-			for j := 0; j < 50; j++ {
+			for j := 0; j < 5; j++ {
 				testFSMultiByteRangeOfRead(t, h, "/fs.go")
 				testFSMultiByteRangeOfWriteTo(t, h, "/fs.go")
 			}
@@ -526,7 +525,7 @@ func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string)
 		t.Fatalf("cannot read file %q: %s", filePath, err)
 	}
 
-	num := rand.Intn(50) + 2
+	num := rand.Intn(20) + 2
 
 	fileSize := len(expectedBody)
 	startPos, endPos := make([]int, 0), make([]int, 0)
@@ -954,120 +953,6 @@ func TestFileLock(t *testing.T) {
 		lock.Lock()
 		time.Sleep(time.Microsecond)
 		lock.Unlock() // nolint:staticcheck
-	}
-}
-
-func TestFSHandlerSingleThread(t *testing.T) {
-	requestHandler := FSHandler(".", 0)
-
-	f, err := os.Open(".")
-	if err != nil {
-		t.Fatalf("cannot open cwd: %s", err)
-	}
-
-	filenames, err := f.Readdirnames(0)
-	f.Close()
-	if err != nil {
-		t.Fatalf("cannot read dirnames in cwd: %s", err)
-	}
-	sort.Strings(filenames)
-
-	for i := 0; i < 3; i++ {
-		fsHandlerTest(t, requestHandler, filenames)
-	}
-}
-
-func TestFSHandlerConcurrent(t *testing.T) {
-	requestHandler := FSHandler(".", 0)
-
-	f, err := os.Open(".")
-	if err != nil {
-		t.Fatalf("cannot open cwd: %s", err)
-	}
-
-	filenames, err := f.Readdirnames(0)
-	f.Close()
-	if err != nil {
-		t.Fatalf("cannot read dirnames in cwd: %s", err)
-	}
-	sort.Strings(filenames)
-
-	concurrency := 10
-	ch := make(chan struct{}, concurrency)
-	for j := 0; j < concurrency; j++ {
-		go func() {
-			for i := 0; i < 3; i++ {
-				fsHandlerTest(t, requestHandler, filenames)
-			}
-			ch <- struct{}{}
-		}()
-	}
-
-	for j := 0; j < concurrency; j++ {
-		select {
-		case <-ch:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout")
-		}
-	}
-}
-
-func fsHandlerTest(t *testing.T, requestHandler HandlerFunc, filenames []string) {
-	var ctx RequestContext
-	var req protocol.Request
-	req.CopyTo(&ctx.Request)
-	ctx.Request.Header.SetHost("foobar.com")
-
-	filesTested := 0
-	for _, name := range filenames {
-		f, err := os.Open(name)
-		if err != nil {
-			t.Fatalf("cannot open file %q: %s", name, err)
-		}
-		stat, err := f.Stat()
-		if err != nil {
-			t.Fatalf("cannot get file stat %q: %s", name, err)
-		}
-		if stat.IsDir() {
-			f.Close()
-			continue
-		}
-		data, err := ioutil.ReadAll(f)
-		f.Close()
-		if err != nil {
-			t.Fatalf("cannot read file contents %q: %s", name, err)
-		}
-
-		ctx.URI().Update(name)
-		requestHandler(context.Background(), &ctx)
-		if ctx.Response.BodyStream() == nil {
-			t.Fatalf("response body stream must be non-empty")
-		}
-		body, err := ioutil.ReadAll(ctx.Response.BodyStream())
-		if err != nil {
-			t.Fatalf("error when reading response body stream: %s", err)
-		}
-		if !bytes.Equal(body, data) {
-			t.Fatalf("unexpected body returned: %q. Expecting %q", body, data)
-		}
-		filesTested++
-		if filesTested >= 10 {
-			break
-		}
-	}
-
-	// verify index page generation
-	ctx.URI().Update("/")
-	requestHandler(context.Background(), &ctx)
-	if ctx.Response.BodyStream() == nil {
-		t.Fatalf("response body stream must be non-empty")
-	}
-	body, err := ioutil.ReadAll(ctx.Response.BodyStream())
-	if err != nil {
-		t.Fatalf("error when reading response body stream: %s", err)
-	}
-	if len(body) == 0 {
-		t.Fatalf("index page must be non-empty")
 	}
 }
 

@@ -140,10 +140,8 @@ func NewContext(maxParams uint16) *RequestContext {
 // Loop fn for every k/v in Keys
 func (ctx *RequestContext) ForEachKey(fn func(k string, v interface{})) {
 	ctx.mu.RLock()
-	if ctx.Keys != nil {
-		for key, val := range ctx.Keys {
-			fn(key, val)
-		}
+	for key, val := range ctx.Keys {
+		fn(key, val)
 	}
 	ctx.mu.RUnlock()
 }
@@ -494,7 +492,7 @@ func (ctx *RequestContext) RequestBodyStream() io.Reader {
 	return ctx.Request.BodyStream()
 }
 
-// MultipartForm returns requests's multipart form.
+// MultipartForm returns request's multipart form.
 //
 // Returns errNoMultipartForm if request's content-type
 // isn't 'multipart/form-data'.
@@ -688,7 +686,7 @@ func (ctx *RequestContext) Set(key string, value interface{}) {
 }
 
 // Get returns the value for the given key, ie: (value, true).
-// If the value does not exists it returns (nil, false)
+// If the value does not exist it returns (nil, false)
 func (ctx *RequestContext) Get(key string) (value interface{}, exists bool) {
 	ctx.mu.RLock()
 	value, exists = ctx.Keys[key]
@@ -970,6 +968,11 @@ func (ctx *RequestContext) GetHeader(key string) []byte {
 // GetRawData returns body data.
 func (ctx *RequestContext) GetRawData() []byte {
 	return ctx.Request.Body()
+}
+
+// Body returns body data
+func (ctx *RequestContext) Body() ([]byte, error) {
+	return ctx.Request.BodyE()
 }
 
 type ClientIP func(ctx *RequestContext) string

@@ -591,7 +591,7 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 		contentLength:   contentLength,
 		compressed:      compressed,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: time.Now(),
 	}
@@ -672,7 +672,7 @@ func (h *fsHandler) createDirIndex(base *protocol.URI, dirPath string, mustCompr
 		contentLength:   len(dirIndex),
 		compressed:      mustCompress,
 		lastModified:    lastModified,
-		lastModifiedStr: bytesconv.AppendHTTPDate(nil, lastModified),
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
 
 		t: lastModified,
 	}
@@ -700,11 +700,11 @@ func (h *fsHandler) openIndexFile(ctx *RequestContext, dirPath string, mustCompr
 
 func (ff *fsFile) decReadersCount() {
 	ff.h.cacheLock.Lock()
+	defer ff.h.cacheLock.Unlock()
 	ff.readersCount--
 	if ff.readersCount < 0 {
 		panic("BUG: negative fsFile.readersCount!")
 	}
-	ff.h.cacheLock.Unlock()
 }
 
 func (ff *fsFile) bigFileReader() (io.Reader, error) {
@@ -1064,7 +1064,7 @@ func stripTrailingSlashes(path []byte) []byte {
 }
 
 func isFileCompressible(f *os.File, minCompressRatio float64) bool {
-	// Try compressing the first 4kb of of the file
+	// Try compressing the first 4kb of the file
 	// and see if it can be compressed by more than
 	// the given minCompressRatio.
 	b := bytebufferpool.Get()
@@ -1264,41 +1264,6 @@ func stripLeadingSlashes(path []byte, stripSlashes int) []byte {
 func ServeFileUncompressed(ctx *RequestContext, path string) {
 	ctx.Request.Header.DelBytes(bytestr.StrAcceptEncoding)
 	ServeFile(ctx, path)
-}
-
-// FSHandler returns request handler serving static files from
-// the given root folder.
-//
-// stripSlashes indicates how many leading slashes must be stripped
-// from requested path before searching requested file in the root folder.
-// Examples:
-//
-//   * stripSlashes = 0, original path: "/foo/bar", result: "/foo/bar"
-//   * stripSlashes = 1, original path: "/foo/bar", result: "/bar"
-//   * stripSlashes = 2, original path: "/foo/bar", result: ""
-//
-// The returned request handler automatically generates index pages
-// for directories without index.html.
-//
-// The returned handler caches requested file handles
-// for FSHandlerCacheDuration.
-// Make sure your program has enough 'max open files' limit aka
-// 'ulimit -n' if root folder contains many files.
-//
-// Do not create multiple request handler instances for the same
-// (root, stripSlashes) arguments - just reuse a single instance.
-// Otherwise goroutine leak will occur.
-func FSHandler(root string, stripSlashes int) HandlerFunc {
-	fs := &FS{
-		Root:               root,
-		IndexNames:         []string{"index.html"},
-		GenerateIndexPages: true,
-		AcceptByteRange:    true,
-	}
-	if stripSlashes > 0 {
-		fs.PathRewrite = NewPathSlashesStripper(stripSlashes)
-	}
-	return fs.NewRequestHandler()
 }
 
 // NewPathSlashesStripper returns path rewriter, which strips slashesCount

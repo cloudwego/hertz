@@ -114,6 +114,8 @@ func (group *RouterGroup) handle(httpMethod, relativePath string, handlers app.H
 	return group.returnObj()
 }
 
+var upperLetterReg = regexp.MustCompile("^[A-Z]+$")
+
 // Handle registers a new request handle and middleware with the given path and method.
 // The last handler should be the real handler, the other ones should be middleware that can and should be shared among different routes.
 // See the example code in GitHub.
@@ -125,7 +127,7 @@ func (group *RouterGroup) handle(httpMethod, relativePath string, handlers app.H
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
 func (group *RouterGroup) Handle(httpMethod, relativePath string, handlers ...app.HandlerFunc) IRoutes {
-	if matches, err := regexp.MatchString("^[A-Z]+$", httpMethod); !matches || err != nil {
+	if matches := upperLetterReg.MatchString(httpMethod); !matches {
 		panic("http method " + httpMethod + " is not valid")
 	}
 	return group.handle(httpMethod, relativePath, handlers)

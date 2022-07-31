@@ -314,7 +314,11 @@ func (c *Conn) peekBuffer(i int, buf []byte) error {
 // next loads the buf with data of size i with moving read pointer.
 func (c *Conn) next(length int, b []byte) error {
 	c.peekBuffer(length, b)
-	return c.Skip(length)
+	err := c.Skip(length)
+	if err != nil {
+		return err
+	}
+	return c.Release()
 }
 
 // fill loads more data than size i, otherwise it will block read.
