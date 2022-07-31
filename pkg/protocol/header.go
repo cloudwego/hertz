@@ -865,7 +865,7 @@ func (h *RequestHeader) Reset() {
 func (h *RequestHeader) SetByteRange(startPos, endPos []int) {
 	b := h.bufKV.value[:0]
 	b = append(b, bytestr.StrBytes...)
-	b = append(b, '-')
+	b = append(b, '=')
 	for i := range startPos {
 		if i > 0 {
 			b = append(b, ',')

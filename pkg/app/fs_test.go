@@ -45,12 +45,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -303,7 +305,7 @@ func TestServeFileUncompressed(t *testing.T) {
 	}
 }
 
-func TestFSByteRangeConcurrent(t *testing.T) {
+func TestFSSingleByteRangeConcurrent(t *testing.T) {
 	t.Parallel()
 
 	fs := &FS{
@@ -317,7 +319,8 @@ func TestFSByteRangeConcurrent(t *testing.T) {
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			for j := 0; j < 5; j++ {
-				testFSByteRange(t, h, "/fs.go")
+				testFSSingleByteRangeOfRead(t, h, "/fs.go")
+				testFSSingleByteRangeOfWriteTo(t, h, "/fs.go")
 			}
 			ch <- struct{}{}
 		}()
@@ -332,7 +335,7 @@ func TestFSByteRangeConcurrent(t *testing.T) {
 	}
 }
 
-func TestFSByteRangeSingleThread(t *testing.T) {
+func TestFSSingleByteRangeSingleThread(t *testing.T) {
 	t.Parallel()
 
 	fs := &FS{
@@ -341,10 +344,81 @@ func TestFSByteRangeSingleThread(t *testing.T) {
 	}
 	h := fs.NewRequestHandler()
 
-	testFSByteRange(t, h, "/fs.go")
+	testFSSingleByteRangeOfRead(t, h, "/fs.go")
+	testFSSingleByteRangeOfWriteTo(t, h, "/fs.go")
 }
 
-func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
+func testFSSingleByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string) {
+	var ctx RequestContext
+	req := &protocol.Request{}
+	req.CopyTo(&ctx.Request)
+
+	expectedBody, err := getFileContents(filePath)
+	if err != nil {
+		t.Fatalf("cannot read file %q: %s", filePath, err)
+	}
+
+	fileSize := len(expectedBody)
+	startPos, endPos := make([]int, 0), make([]int, 0)
+	start := rand.Intn(fileSize)
+	end := rand.Intn(fileSize)
+	if end < start {
+		start, end = end, start
+	}
+	startPos = append(startPos, start)
+	endPos = append(endPos, end)
+
+	ctx.Request.SetRequestURI(filePath)
+	ctx.Request.Header.SetByteRange(startPos, endPos)
+	h(context.Background(), &ctx)
+
+	bodySize := end - start + 1
+
+	// todo 代码优化
+	// test WriteTo(w io.Writer)
+	if fileSize > consts.MaxSmallFileSize {
+		reader, ok := ctx.Response.BodyStream().(*bigRangeReader)
+		if !ok {
+			t.Fatal("expected bigRangeReader")
+		}
+		buf := bytes.NewBuffer(nil)
+
+		n, err := reader.WriteTo(pureWriter{buf})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != int64(bodySize) {
+			t.Fatalf("expected %d bytes, got %d bytes", bodySize, n)
+		}
+		body1 := buf.String()
+		if body1 != bytesconv.B2s(expectedBody[start:end+1]) {
+			t.Fatalf("unexpected body %q. Expecting %q. filePath=%q, startPos=%d, endPos=%d",
+				body1, bytesconv.B2s(expectedBody[start:end+1]), filePath, startPos, endPos)
+		}
+	} else {
+		reader, ok := ctx.Response.BodyStream().(*smallRangeReader)
+		if !ok {
+			t.Fatal("expected smallRangeReader")
+		}
+		buf := bytes.NewBuffer(nil)
+
+		n, err := reader.WriteTo(pureWriter{buf})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != int64(bodySize) {
+			t.Fatalf("expected %d bytes, got %d bytes", bodySize, n)
+		}
+		body1 := buf.String()
+		if body1 != bytesconv.B2s(expectedBody[start:end+1]) {
+			t.Fatalf("unexpected body %q. Expecting %q. filePath=%q, startPos=%d, endPos=%d",
+				body1, bytesconv.B2s(expectedBody[start:end+1]), filePath, startPos, endPos)
+		}
+	}
+
+}
+
+func testFSSingleByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 	var ctx RequestContext
 	req := &protocol.Request{}
 	req.CopyTo(&ctx.Request)
@@ -370,6 +444,7 @@ func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
 
 	var r protocol.Response
 	s := resp.GetHTTP1Response(&ctx.Response).String()
+
 	zr := mock.NewZeroCopyReader(s)
 	if err := resp.Read(&r, zr); err != nil {
 		t.Fatalf("unexpected error: %s. filePath=%q", err, filePath)
@@ -377,9 +452,10 @@ func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
 	if r.StatusCode() != consts.StatusPartialContent {
 		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusPartialContent, filePath)
 	}
+
 	cr := r.Header.Peek(consts.HeaderContentRange)
 
-	expectedCR := fmt.Sprintf("bytes %d-%d/%d", startPos, endPos, fileSize)
+	expectedCR := fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize)
 	if string(cr) != expectedCR {
 		t.Fatalf("unexpected content-range %q. Expecting %q. filePath=%q", cr, expectedCR, filePath)
 	}
@@ -397,6 +473,281 @@ func testFSByteRange(t *testing.T, h HandlerFunc, filePath string) {
 	}
 }
 
+func TestFSMultiByteRangeConcurrent(t *testing.T) {
+	t.Parallel()
+
+	fs := &FS{
+		Root:            ".",
+		AcceptByteRange: true,
+	}
+	h := fs.NewRequestHandler()
+
+	concurrency := 10
+	ch := make(chan struct{}, concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			for j := 0; j < 50; j++ {
+				testFSMultiByteRangeOfRead(t, h, "/fs.go")
+				testFSMultiByteRangeOfWriteTo(t, h, "/fs.go")
+			}
+			ch <- struct{}{}
+		}()
+	}
+
+	for i := 0; i < concurrency; i++ {
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timeout")
+		case <-ch:
+		}
+	}
+}
+
+func TestFSMultiByteRangeSingleThread(t *testing.T) {
+	t.Parallel()
+
+	fs := &FS{
+		Root:            ".",
+		AcceptByteRange: true,
+	}
+	h := fs.NewRequestHandler()
+
+	testFSMultiByteRangeOfRead(t, h, "/fs.go")
+	testFSMultiByteRangeOfWriteTo(t, h, "/fs.go")
+}
+
+func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string) {
+	var ctx RequestContext
+	req := &protocol.Request{}
+	req.CopyTo(&ctx.Request)
+
+	expectedBody, err := getFileContents(filePath)
+	if err != nil {
+		t.Fatalf("cannot read file %q: %s", filePath, err)
+	}
+
+	num := rand.Intn(50) + 2
+
+	fileSize := len(expectedBody)
+	startPos, endPos := make([]int, 0), make([]int, 0)
+
+	for i := 0; i < num; i++ {
+		start := rand.Intn(fileSize)
+		end := rand.Intn(fileSize)
+		if end < start {
+			start, end = end, start
+		}
+		startPos = append(startPos, start)
+		endPos = append(endPos, end)
+	}
+
+	ctx.Request.SetRequestURI(filePath)
+	ctx.Request.Header.SetByteRange(startPos, endPos)
+	h(context.Background(), &ctx)
+
+	var body string
+	var boundary string
+
+	if fileSize > consts.MaxSmallFileSize {
+		reader, ok := ctx.Response.BodyStream().(*bigRangeReader)
+		boundary = reader.Boundary()
+		if !ok {
+			t.Fatal("expected bigRangeReader")
+		}
+		buf := bytes.NewBuffer(nil)
+
+		_, err := reader.WriteTo(pureWriter{buf})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = buf.String()
+	} else {
+		reader, ok := ctx.Response.BodyStream().(*smallRangeReader)
+		boundary = reader.Boundary()
+		if !ok {
+			t.Fatal("expected smallRangeReader")
+		}
+		buf := bytes.NewBuffer(nil)
+
+		_, err := reader.WriteTo(pureWriter{buf})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = buf.String()
+	}
+
+	singleBodys := make([]byte, 0)
+
+	// compare with single range
+	for i := 0; i < num; i++ {
+		var ctx1 RequestContext
+		req1 := &protocol.Request{}
+		req1.CopyTo(&ctx1.Request)
+		ctx1.Request.SetRequestURI(filePath)
+		ctx1.Request.Header.SetByteRange([]int{startPos[i]}, []int{endPos[i]})
+		h(context.Background(), &ctx1)
+
+		var r1 protocol.Response
+		s1 := resp.GetHTTP1Response(&ctx1.Response).String()
+
+		zr1 := mock.NewZeroCopyReader(s1)
+		if err1 := resp.Read(&r1, zr1); err1 != nil {
+			t.Fatalf("unexpected error: %s. filePath=%q", err1, filePath)
+		}
+		if r1.StatusCode() != consts.StatusPartialContent {
+			t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r1.StatusCode(), consts.StatusPartialContent, filePath)
+		}
+
+		cr1 := r1.Header.Peek(consts.HeaderContentRange)
+		expectedCR1 := fmt.Sprintf("bytes %d-%d/%d", startPos[i], endPos[i], fileSize)
+		if string(cr1) != expectedCR1 {
+			t.Fatalf("unexpected content-range %q. Expecting %q. filePath=%q", cr1, expectedCR1, filePath)
+		}
+
+		body1 := r1.Body()
+		bodySize := endPos[i] - startPos[i] + 1
+		if len(body1) != bodySize {
+			t.Fatalf("unexpected body size %d. Expecting %d. filePath=%q, startPos=%d, endPos=%d",
+				len(body), bodySize, filePath, startPos[i], endPos[i])
+		}
+
+		expectedBody1 := expectedBody[startPos[i] : endPos[i]+1]
+		if !bytes.Equal(body1, expectedBody1) {
+			t.Fatalf("unexpected body %q. Expecting %q. filePath=%q, startPos=%d, endPos=%d",
+				body1, expectedBody1, filePath, startPos[i], endPos[i])
+		}
+		buf := make([]byte, 0)
+		first := true
+		if i > 0 {
+			first = false
+		}
+		ct1 := r1.Header.Peek(consts.HeaderContentType)
+		multiRangeBodyHeader(&buf, startPos[i], endPos[i]+1, fileSize, string(ct1), boundary, first)
+		singleBodys = append(singleBodys, buf...)
+		singleBodys = append(singleBodys, body1...)
+	}
+	buf := make([]byte, 0)
+	multiRangeBodyEnd(&buf, boundary)
+	singleBodys = append(singleBodys, buf...)
+	if body != string(singleBodys) {
+		t.Fatalf("multipart ranges content is invalid")
+	}
+
+}
+
+func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
+	var ctx RequestContext
+	req := &protocol.Request{}
+	req.CopyTo(&ctx.Request)
+
+	expectedBody, err := getFileContents(filePath)
+	if err != nil {
+		t.Fatalf("cannot read file %q: %s", filePath, err)
+	}
+
+	num := rand.Intn(50) + 2
+
+	fileSize := len(expectedBody)
+	startPos, endPos := make([]int, 0), make([]int, 0)
+
+	for i := 0; i < num; i++ {
+		start := rand.Intn(fileSize)
+		end := rand.Intn(fileSize)
+		if end < start {
+			start, end = end, start
+		}
+		startPos = append(startPos, start)
+		endPos = append(endPos, end)
+	}
+
+	ctx.Request.SetRequestURI(filePath)
+	ctx.Request.Header.SetByteRange(startPos, endPos)
+	h(context.Background(), &ctx)
+
+	var r protocol.Response
+	s := resp.GetHTTP1Response(&ctx.Response).String()
+
+	zr := mock.NewZeroCopyReader(s)
+	if err := resp.Read(&r, zr); err != nil {
+		t.Fatalf("unexpected error: %s. filePath=%q", err, filePath)
+	}
+	if r.StatusCode() != consts.StatusPartialContent {
+		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusPartialContent, filePath)
+	}
+
+	ct := r.Header.Peek(consts.HeaderContentType)
+	expectedCT := fmt.Sprintf("multipart/byteranges; boundary=")
+	if !strings.HasPrefix(string(ct), expectedCT) {
+		t.Fatalf("unexpected content-type %q. Expecting prefix  %q. filePath=%q", ct, expectedCT, filePath)
+	}
+
+	cl := r.Header.Peek(consts.HeaderContentLength)
+
+	body := r.Body()
+	if fmt.Sprintf("%d", len(body)) != bytesconv.B2s(cl) {
+		t.Fatalf("error")
+	}
+
+	boundary := string(ct)[len(expectedCT):]
+
+	singleBodys := make([]byte, 0)
+
+	// compare with single range
+	for i := 0; i < num; i++ {
+		var ctx1 RequestContext
+		req1 := &protocol.Request{}
+		req1.CopyTo(&ctx1.Request)
+		ctx1.Request.SetRequestURI(filePath)
+		ctx1.Request.Header.SetByteRange([]int{startPos[i]}, []int{endPos[i]})
+		h(context.Background(), &ctx1)
+
+		var r1 protocol.Response
+		s1 := resp.GetHTTP1Response(&ctx1.Response).String()
+
+		zr1 := mock.NewZeroCopyReader(s1)
+		if err1 := resp.Read(&r1, zr1); err1 != nil {
+			t.Fatalf("unexpected error: %s. filePath=%q", err1, filePath)
+		}
+		if r1.StatusCode() != consts.StatusPartialContent {
+			t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r1.StatusCode(), consts.StatusPartialContent, filePath)
+		}
+
+		cr1 := r1.Header.Peek(consts.HeaderContentRange)
+		expectedCR1 := fmt.Sprintf("bytes %d-%d/%d", startPos[i], endPos[i], fileSize)
+		if string(cr1) != expectedCR1 {
+			t.Fatalf("unexpected content-range %q. Expecting %q. filePath=%q", cr1, expectedCR1, filePath)
+		}
+
+		body1 := r1.Body()
+		bodySize := endPos[i] - startPos[i] + 1
+		if len(body1) != bodySize {
+			t.Fatalf("unexpected body size %d. Expecting %d. filePath=%q, startPos=%d, endPos=%d",
+				len(body), bodySize, filePath, startPos[i], endPos[i])
+		}
+
+		expectedBody1 := expectedBody[startPos[i] : endPos[i]+1]
+		if !bytes.Equal(body1, expectedBody1) {
+			t.Fatalf("unexpected body %q. Expecting %q. filePath=%q, startPos=%d, endPos=%d",
+				body1, expectedBody1, filePath, startPos[i], endPos[i])
+		}
+		buf := make([]byte, 0)
+		first := true
+		if i > 0 {
+			first = false
+		}
+		ct1 := r1.Header.Peek(consts.HeaderContentType)
+		multiRangeBodyHeader(&buf, startPos[i], endPos[i]+1, fileSize, string(ct1), boundary, first)
+		singleBodys = append(singleBodys, buf...)
+		singleBodys = append(singleBodys, body1...)
+	}
+	buf := make([]byte, 0)
+	multiRangeBodyEnd(&buf, boundary)
+	singleBodys = append(singleBodys, buf...)
+	if string(body) != string(singleBodys) {
+		t.Fatalf("multipart ranges content is invalid")
+	}
+}
+
 func getFileContents(path string) ([]byte, error) {
 	path = "." + path
 	f, err := os.Open(path)
@@ -407,7 +758,7 @@ func getFileContents(path string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-func TestParseByteRangeSuccess(t *testing.T) {
+func TestParseByteSingleRangeSuccess(t *testing.T) {
 	t.Parallel()
 
 	testParseByteRangeSuccess(t, "bytes=0-0", 1, []int{0}, []int{0})
@@ -425,6 +776,23 @@ func TestParseByteRangeSuccess(t *testing.T) {
 	// Start position overflow. Whole range must be returned.
 	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
 	testParseByteRangeSuccess(t, "bytes=-567", 56, []int{0}, []int{55})
+}
+
+func TestParseByteMultiRangeSuccess(t *testing.T) {
+	t.Parallel()
+
+	testParseByteRangeSuccess(t, "bytes=1234-6789,23-342", 6790, []int{1234, 23}, []int{6789, 342})
+	testParseByteRangeSuccess(t, "bytes=123-,-123", 456, []int{123, 333}, []int{455, 455})
+
+	// End position exceeding content-length. It should be updated to content-length-1.
+	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+	testParseByteRangeSuccess(t, "bytes=1-2345,1-345", 234, []int{1, 1}, []int{233, 233})
+
+	testParseByteRangeSuccess(t, "bytes=0-2345,23-1234", 2345, []int{0, 23}, []int{2344, 1234})
+
+	// Start position overflow. Whole range must be returned.
+	// See https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+	testParseByteRangeSuccess(t, "bytes=-567,-765", 56, []int{0, 0}, []int{55, 55})
 }
 
 func testParseByteRangeSuccess(t *testing.T, v string, contentLength int, startPos, endPos []int) {
@@ -458,9 +826,6 @@ func TestParseByteRangeError(t *testing.T) {
 	testParseByteRangeError(t, "bytes=foobar", 123)
 	testParseByteRangeError(t, "bytes=1-foobar", 123)
 	testParseByteRangeError(t, "bytes=df-344", 545)
-
-	// multiple byte ranges
-	testParseByteRangeError(t, "bytes=1-2,4-6", 123)
 
 	// byte range exceeding contentLength
 	testParseByteRangeError(t, "bytes=123-", 12)
