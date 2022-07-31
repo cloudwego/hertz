@@ -45,7 +45,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/cloudwego/hertz/internal/bytesconv"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -55,6 +54,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -414,7 +414,6 @@ func testFSSingleByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string
 				body1, bytesconv.B2s(expectedBody[start:end+1]), filePath, startPos, endPos)
 		}
 	}
-
 }
 
 func testFSSingleByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
@@ -495,7 +494,7 @@ func TestFSMultiByteRangeConcurrent(t *testing.T) {
 
 	for i := 0; i < concurrency; i++ {
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(time.Second):
 			t.Fatalf("timeout")
 		case <-ch:
 		}
@@ -631,7 +630,6 @@ func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string)
 	if body != string(singleBodys) {
 		t.Fatalf("multipart ranges content is invalid")
 	}
-
 }
 
 func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
@@ -675,7 +673,7 @@ func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 	}
 
 	ct := r.Header.Peek(consts.HeaderContentType)
-	expectedCT := fmt.Sprintf("multipart/byteranges; boundary=")
+	expectedCT := "multipart/byteranges; boundary="
 	if !strings.HasPrefix(string(ct), expectedCT) {
 		t.Fatalf("unexpected content-type %q. Expecting prefix  %q. filePath=%q", ct, expectedCT, filePath)
 	}
