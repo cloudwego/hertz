@@ -198,7 +198,9 @@ func (r *fsSmallFileReader) Read(p []byte) (int, error) {
 		r.offset += int64(n)
 		return n, err
 	}
-
+	if r.offset == int64(len(ff.dirIndex)) {
+		return 0, io.EOF
+	}
 	n := copy(p, ff.dirIndex[r.offset:])
 	r.offset += int64(n)
 	return n, nil
