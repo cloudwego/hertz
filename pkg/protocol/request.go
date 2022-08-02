@@ -177,6 +177,7 @@ func (req *Request) ResetSkipHeader() {
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+	req.isTLS = false
 }
 
 func SwapRequestBody(a, b *Request) {
@@ -310,7 +311,8 @@ func (req *Request) Host() []byte {
 	return req.URI().Host()
 }
 
-// SetIsTLS is used to set isTLS
+// SetIsTLS is used by TLS server to mark whether the request is a TLS request.
+// Client shouldn't use this method but should depend on the uri.scheme instead.
 func (req *Request) SetIsTLS(isTLS bool) {
 	req.isTLS = isTLS
 }
