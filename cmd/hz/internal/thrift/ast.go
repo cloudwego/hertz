@@ -35,8 +35,9 @@ func getGoPackage(ast *parser.Thrift, pkgMap map[string]string) string {
 	} else {
 		goPackage := ast.GetNamespaceOrReferenceName("go")
 		if goPackage != "" {
-			filePackage = goPackage
+			return util.SplitPackage(goPackage, "")
 		}
+		// If namespace is not declared, the file name (without the extension) is used as the package name
 		return util.SplitPackage(filePackage, ".thrift")
 	}
 }
