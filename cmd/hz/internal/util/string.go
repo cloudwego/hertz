@@ -23,7 +23,6 @@ import (
 	"unsafe"
 )
 
-// FIXME: 后面改为用hertz internal下的
 func Str2Bytes(in string) (out []byte) {
 	op := (*reflect.SliceHeader)(unsafe.Pointer(&out))
 	ip := (*reflect.StringHeader)(unsafe.Pointer(&in))
@@ -33,7 +32,6 @@ func Str2Bytes(in string) (out []byte) {
 	return
 }
 
-// FIXME: 后面改为用hertz internal下的
 func Bytes2Str(in []byte) (out string) {
 	op := (*reflect.StringHeader)(unsafe.Pointer(&out))
 	ip := (*reflect.SliceHeader)(unsafe.Pointer(&in))

@@ -1888,3 +1888,39 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
 }
+
+func TestClientDomainPort(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "unix-test-10021"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	expectedAddrMap := map[string]struct{}{
+		"example1.com:443":  {},
+		"example2.com:8888": {},
+		"example3.com:80":   {},
+	}
+	time.Sleep(time.Millisecond * 500)
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		if _, ok := expectedAddrMap[addr]; !ok {
+			t.Fatalf("not expected addr:%s", addr)
+		}
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+
+	_, _, err := c.Get(context.Background(), nil, "https://example1.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Get(context.Background(), nil, "https://example2.com:8888")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Get(context.Background(), nil, "http://example3.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
