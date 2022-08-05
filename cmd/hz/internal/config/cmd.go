@@ -38,20 +38,37 @@ func lookupTool(idlType string) (string, error) {
 	path, err := exec.LookPath(tool)
 	logs.Debugf("[DEBUG]path:%v", path)
 	if err != nil {
-		logs.Warnf("Failed to find %q from $PATH: %s. Try $GOPATH/bin/%s instead\n", path, err.Error(), tool)
-		p, err := exec.LookPath(tool)
+		goPath, err := util.GetGOPATH()
 		if err != nil {
-			return "", fmt.Errorf("failed to find %q from $PATH or $GOPATH/bin: %s", tool, err)
+			return "", fmt.Errorf("get 'GOPATH' failed for find %s : %v", tool, path)
 		}
-		path = filepath.Join(p, "bin", tool)
+		path = filepath.Join(goPath, "bin", tool)
 	}
 
 	isExist, err := util.PathExist(path)
 	if err != nil {
+		return "", fmt.Errorf("check '%s' path error: %v", path, err)
 	}
 
 	if !isExist {
-		return "", fmt.Errorf("%s is not installed, please install it first", tool)
+		if tool == meta.TpCompilerThrift {
+			// If thriftgo does not exist, the latest version will be installed automatically.
+			err := util.InstallAndCheckThriftgo()
+			if err != nil {
+				return "", fmt.Errorf("can't install '%s' automatically, please install it manually for https://github.com/cloudwego/thriftgo, err : %v", tool, err)
+			}
+		} else {
+			// todo: protoc automatic installation
+			return "", fmt.Errorf("%s is not installed, please install it first", tool)
+		}
+	}
+
+	if tool == meta.TpCompilerThrift {
+		// If thriftgo exists, the version is detected; if the version is lower than v0.2.0 then the latest version of thriftgo is automatically installed.
+		err := util.CheckAndUpdateThriftgo()
+		if err != nil {
+			return "", fmt.Errorf("update thriftgo version failed, please install it manually for https://github.com/cloudwego/thriftgo, err: %v", err)
+		}
 	}
 
 	exe, err := os.Executable()
@@ -183,6 +200,6 @@ func (arg *Argument) GetThriftgoOptions() (string, error) {
 	if arg.JSONEnumStr {
 		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
 	}
-	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments"
+	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments,gen_json_tag=false"
 	return gas, nil
 }
