@@ -20,12 +20,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/registry"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 )
 
 func TestOptions(t *testing.T) {
+	info := &registry.Info{
+		ServiceName: "hertz.test.api",
+		Weight:      10,
+		Addr:        utils.NewNetAddr("tcp", ":8888"),
+	}
 	opt := config.NewOptions([]config.Option{
 		WithReadTimeout(time.Second),
 		WithIdleTimeout(time.Second),
@@ -48,6 +56,7 @@ func TestOptions(t *testing.T) {
 		WithReadBufferSize(100),
 		WithALPN(true),
 		WithTraceLevel(stats.LevelDisabled),
+		WithRegistry(nil, info),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
 	assert.DeepEqual(t, opt.IdleTimeout, time.Second)
@@ -69,6 +78,8 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.ReadBufferSize, 100)
 	assert.DeepEqual(t, opt.ALPN, true)
 	assert.DeepEqual(t, opt.TraceLevel, stats.LevelDisabled)
+	assert.DeepEqual(t, opt.RegistryInfo, info)
+	assert.DeepEqual(t, opt.Registry, nil)
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -92,4 +103,6 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.H2C, false)
 	assert.DeepEqual(t, opt.ReadBufferSize, 4096)
 	assert.DeepEqual(t, opt.ALPN, false)
+	assert.DeepEqual(t, opt.Registry, registry.NoopRegistry)
+	assert.Assert(t, opt.RegistryInfo == nil)
 }

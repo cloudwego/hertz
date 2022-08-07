@@ -56,6 +56,8 @@ func Default(opts ...config.Option) *Hertz {
 // Spin runs the server until catching os.Signal or error returned by h.Run().
 func (h *Hertz) Spin() {
 	errCh := make(chan error)
+	h.initOnRunHooks(errCh)
+	h.initOnShutdownHooks()
 	go func() {
 		errCh <- h.Run()
 	}()
@@ -113,4 +115,31 @@ func waitSignal(errCh chan error) error {
 	}
 
 	return nil
+}
+
+func (h *Hertz) initOnRunHooks(errChan chan error) {
+	// add register func to runHooks
+	opt := h.GetOptions()
+	h.OnRun = append(h.OnRun, func(ctx context.Context) error {
+		go func() {
+			// delay register 1s
+			time.Sleep(1 * time.Second)
+			if err := opt.Registry.Register(opt.RegistryInfo); err != nil {
+				hlog.Errorf("HERTZ: Register error=%v", err)
+				// pass err to errChan
+				errChan <- err
+			}
+		}()
+		return nil
+	})
+}
+
+func (h *Hertz) initOnShutdownHooks() {
+	opt := h.GetOptions()
+	// add deregister func to shutdownHooks
+	h.OnShutdown = append(h.OnShutdown, func(ctx context.Context) {
+		if err := opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+			hlog.Errorf("HERTZ: Deregister error=%v", err)
+		}
+	})
 }
