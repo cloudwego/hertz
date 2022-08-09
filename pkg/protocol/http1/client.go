@@ -330,6 +330,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	for {
 
 		shouldRetry, err = c.do(req, resp)
+		// TODO : Integrate the pre logic with the current logic
 		attempts++
 		if attempts >= maxAttempts {
 			break
