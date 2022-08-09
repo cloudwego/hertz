@@ -43,7 +43,7 @@ type RetryConfig struct {
 	MaxJitter time.Duration
 
 	// This field is pending. A callback at each retry
-	// onRetry RetryFunc
+	// retryCallback RetryFunc
 
 	// Judge whether the retry condition is met when an error occurs,which can be customized by the user
 	RetryIf RetryIfFunc
@@ -82,8 +82,8 @@ type DelayPolicyFunc func(attempts uint, err error, retryConfig *RetryConfig) ti
 
 // DefaultRetryIf Default retry condition, to be optimized
 func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
-	if req.IsBodyStream() {
-		return false
+	if !req.IsBodyStream() {
+		return true
 	}
 	// Retry non-idempotent requests if the server closes
 	// the connection before sending the response.
@@ -92,13 +92,18 @@ func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) b
 	// keep-alive connection on timeout.
 	//
 	// Apache and nginx usually do this.
-	if isIdempotent(req, resp, err) && err != io.EOF {
-		return false
-	}
-	if resp.StatusCode() == 0 || resp.StatusCode() == 429 || (resp.StatusCode()) >= 500 && resp.StatusCode() != 501 {
+	if !isIdempotent(req, resp, err) && err == io.EOF {
 		return true
 	}
-	return true
+	// Retry the response in the range of 500,
+	// because 5xx is usually not a permanent error,
+	// which may be related to the interruption and downtime of the server.
+	// Give the server a certain backoff time to recover.
+	// This will also catch invalid response codes, such as 0, etc
+	if resp.StatusCode() == 0 || (resp.StatusCode()) >= 500 && resp.StatusCode() != 501 {
+		return true
+	}
+	return false
 }
 
 func isIdempotent(req *protocol.Request, resp *protocol.Response, err error) bool {

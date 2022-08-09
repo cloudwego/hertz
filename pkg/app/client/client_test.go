@@ -64,8 +64,8 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
-	"github.com/cloudwego/hertz/pkg/common/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
@@ -443,7 +443,6 @@ func TestClientReadTimeout(t *testing.T) {
 
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(res)
-		// done <- struct{}{}
 		close(done)
 	}()
 

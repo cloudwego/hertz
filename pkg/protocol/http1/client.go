@@ -56,8 +56,8 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
+	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
-	"github.com/cloudwego/hertz/pkg/common/retry"
 	"github.com/cloudwego/hertz/pkg/common/timer"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
@@ -312,8 +312,8 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
-	var err error
 	var (
+		err                error
 		shouldRetry        bool
 		attempts           uint              = 0
 		maxAttempts        uint              = 1
@@ -334,18 +334,18 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		if attempts >= maxAttempts {
 			break
 		}
-		if err != nil && shouldRetry {
-			// Check whether this request should be retried
-			if !isRequestRetryable(req, resp, err) {
-				break
-			}
-
-			wait := retry.Delay(attempts, err, retrycfg)
-			// Retry after wait time
-			time.Sleep(wait)
-		} else {
+		if err == nil || !shouldRetry {
 			break
 		}
+
+		// Check whether this request should be retried
+		if !isRequestRetryable(req, resp, err) {
+			break
+		}
+
+		wait := retry.Delay(attempts, err, retrycfg)
+		// Retry after wait time
+		time.Sleep(wait)
 
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
