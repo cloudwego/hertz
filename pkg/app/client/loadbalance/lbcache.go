@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package service_discovery
+package loadbalance
 
 import (
 	"context"
@@ -23,10 +23,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/cloudwego/hertz/pkg/common/loadbalance"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"golang.org/x/sync/singleflight"
 )
@@ -38,42 +37,42 @@ type cacheResult struct {
 }
 
 var (
-	balancerFactories    sync.Map // key: resolver name + loadbalance name
+	balancerFactories    sync.Map // key: resolver name + load-balancer name
 	balancerFactoriesSfg singleflight.Group
 )
 
-func cacheKey(resolver, balancer string, opts loadbalance.LoadBalanceOptions) string {
+func cacheKey(resolver, balancer string, opts Options) string {
 	return fmt.Sprintf("%s|%s|{%s %s}", resolver, balancer, opts.RefreshInterval, opts.ExpireInterval)
 }
 
 type BalancerFactory struct {
-	opts     loadbalance.LoadBalanceOptions
+	opts     Options
 	cache    sync.Map // key -> LoadBalancer
 	resolver discovery.Resolver
-	balancer loadbalance.Loadbalancer
+	balancer Loadbalancer
 	sfg      singleflight.Group
 }
 
-// NewBalancerFactory get or create a balancer with given target
-// if has the same key(resolver.Target(target)), we will cache and reuse the Balance
-func NewBalancerFactory(resolver discovery.Resolver, opts ...ServiceDiscoveryOption) *BalancerFactory {
-	options := &ServiceDiscoveryOptions{
-		Balancer: loadbalance.NewWeightedBalancer(),
-		LbOpts:   loadbalance.DefaultLbOpts,
-		Resolver: resolver,
-	}
-	options.Apply(opts)
-	options.LbOpts.Check()
-	uniqueKey := cacheKey(options.Resolver.Name(), options.Balancer.Name(), options.LbOpts)
+type Config struct {
+	Resolver discovery.Resolver
+	Balancer Loadbalancer
+	LbOpts   Options
+}
+
+// NewBalancerFactory get or create a balancer with given target.
+// If it has the same key(resolver.Target(target)), we will cache and reuse the Balance.
+func NewBalancerFactory(config Config) *BalancerFactory {
+	config.LbOpts.Check()
+	uniqueKey := cacheKey(config.Resolver.Name(), config.Balancer.Name(), config.LbOpts)
 	val, ok := balancerFactories.Load(uniqueKey)
 	if ok {
 		return val.(*BalancerFactory)
 	}
 	val, _, _ = balancerFactoriesSfg.Do(uniqueKey, func() (interface{}, error) {
 		b := &BalancerFactory{
-			opts:     options.LbOpts,
-			resolver: options.Resolver,
-			balancer: options.Balancer,
+			opts:     config.LbOpts,
+			resolver: config.Resolver,
+			balancer: config.Balancer,
 		}
 		go b.watcher()
 		go b.refresh()

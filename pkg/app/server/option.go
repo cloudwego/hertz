@@ -21,8 +21,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/registry"
-
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"

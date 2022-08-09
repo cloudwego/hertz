@@ -19,12 +19,12 @@ package loadbalance
 import (
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
 )
 
 // Loadbalancer picks instance for the given service discovery result.
 type Loadbalancer interface {
-	// Pick is used to select a instance according to discovery result
+	// Pick is used to select an instance according to discovery result
 	Pick(discovery.Result) discovery.Instance
 
 	// Rebalance is used to refresh the cache of load balance's information
@@ -42,13 +42,13 @@ const (
 	DefaultExpireInterval  = 15 * time.Second
 )
 
-var DefaultLbOpts = LoadBalanceOptions{
+var DefaultLbOpts = Options{
 	RefreshInterval: DefaultRefreshInterval,
 	ExpireInterval:  DefaultExpireInterval,
 }
 
-// LoadBalanceOptions for LoadBalance option
-type LoadBalanceOptions struct {
+// Options for LoadBalance option
+type Options struct {
 	// refresh discovery result timely
 	RefreshInterval time.Duration
 
@@ -57,8 +57,8 @@ type LoadBalanceOptions struct {
 	ExpireInterval time.Duration
 }
 
-// Check  check option's param
-func (v *LoadBalanceOptions) Check() {
+// Check checks option's param
+func (v *Options) Check() {
 	if v.RefreshInterval <= 0 {
 		v.RefreshInterval = DefaultRefreshInterval
 	}

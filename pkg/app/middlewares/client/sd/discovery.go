@@ -14,19 +14,33 @@
  * limitations under the License.
  */
 
-package service_discovery
+package sd
 
 import (
 	"context"
 
 	"github.com/cloudwego/hertz/pkg/app/client"
-	"github.com/cloudwego/hertz/pkg/common/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/loadbalance"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-// DiscoveryMW will construct a middleware with BalancerFactory.
-func DiscoveryMW(resolver discovery.Resolver, opts ...ServiceDiscoveryOption) func(next client.Endpoint) client.Endpoint {
-	f := NewBalancerFactory(resolver, opts...)
+// Discovery will construct a middleware with BalancerFactory.
+func Discovery(resolver discovery.Resolver, opts ...ServiceDiscoveryOption) func(next client.Endpoint) client.Endpoint {
+	options := &ServiceDiscoveryOptions{
+		Balancer: loadbalance.NewWeightedBalancer(),
+		LbOpts:   loadbalance.DefaultLbOpts,
+		Resolver: resolver,
+	}
+	options.Apply(opts)
+
+	lbConfig := loadbalance.Config{
+		Resolver: options.Resolver,
+		Balancer: options.Balancer,
+		LbOpts:   options.LbOpts,
+	}
+
+	f := loadbalance.NewBalancerFactory(lbConfig)
 	return func(next client.Endpoint) client.Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
 			if req.Options() != nil && req.Options().IsSD() {

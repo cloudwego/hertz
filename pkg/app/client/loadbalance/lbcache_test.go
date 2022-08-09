@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package service_discovery
+package loadbalance
 
 import (
 	"context"
@@ -23,8 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/discovery"
-	"github.com/cloudwego/hertz/pkg/common/loadbalance"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
@@ -41,19 +40,23 @@ func TestBuilder(t *testing.T) {
 		NameFunc: func() string { return t.Name() },
 	}
 	lb := mockLoadbalancer{
-		RebalanceFunc: nil,
-		DeleteFunc:    nil,
-		PickFunc: func(res discovery.Result) discovery.Instance {
+		rebalanceFunc: nil,
+		deleteFunc:    nil,
+		pickFunc: func(res discovery.Result) discovery.Instance {
 			assert.Assert(t, res.CacheKey == t.Name()+":mockRoute", res.CacheKey)
 			assert.Assert(t, len(res.Instances) == 1)
 			assert.Assert(t, len(res.Instances) == 1)
 			assert.Assert(t, res.Instances[0].Address().String() == "127.0.0.1:8888")
 			return res.Instances[0]
 		},
-		NameFunc: func() string { return "Synthesized" },
+		nameFunc: func() string { return "Synthesized" },
 	}
-	NewBalancerFactory(r, WithLoadBalanceOptions(lb, loadbalance.DefaultLbOpts))
-	b, ok := balancerFactories.Load(cacheKey(t.Name(), "Synthesized", loadbalance.DefaultLbOpts))
+	NewBalancerFactory(Config{
+		Balancer: lb,
+		LbOpts:   DefaultLbOpts,
+		Resolver: r,
+	})
+	b, ok := balancerFactories.Load(cacheKey(t.Name(), "Synthesized", DefaultLbOpts))
 	assert.Assert(t, ok)
 	assert.Assert(t, b != nil)
 	req := &protocol.Request{}
@@ -69,7 +72,7 @@ func TestBuilder(t *testing.T) {
 
 func TestBalancerCache(t *testing.T) {
 	count := 10
-	var inss []discovery.Instance
+	inss := []discovery.Instance{}
 	for i := 0; i < count; i++ {
 		inss = append(inss, discovery.NewInstance("tcp", fmt.Sprint(i), 10, nil))
 	}
@@ -82,9 +85,13 @@ func TestBalancerCache(t *testing.T) {
 		},
 		NameFunc: func() string { return t.Name() },
 	}
-	lb := loadbalance.NewWeightedBalancer()
+	lb := NewWeightedBalancer()
 	for i := 0; i < count; i++ {
-		blf := NewBalancerFactory(r, WithLoadBalanceOptions(lb, loadbalance.LoadBalanceOptions{}))
+		blf := NewBalancerFactory(Config{
+			Balancer: lb,
+			LbOpts:   Options{},
+			Resolver: r,
+		})
 		req := &protocol.Request{}
 		req.SetHost("svc")
 		for a := 0; a < count; a++ {
@@ -107,7 +114,11 @@ func TestBalancerRefresh(t *testing.T) {
 		},
 		NameFunc: func() string { return t.Name() },
 	}
-	blf := NewBalancerFactory(r)
+	blf := NewBalancerFactory(Config{
+		Balancer: NewWeightedBalancer(),
+		LbOpts:   DefaultLbOpts,
+		Resolver: r,
+	})
 	req := &protocol.Request{}
 	req.SetHost("svc1")
 	addr, err := blf.GetInstance(context.Background(), req)
@@ -124,43 +135,43 @@ func TestBalancerRefresh(t *testing.T) {
 }
 
 func TestCacheKey(t *testing.T) {
-	uniqueKey := cacheKey("hello", "world", loadbalance.LoadBalanceOptions{RefreshInterval: 15 * time.Second, ExpireInterval: 5 * time.Minute})
+	uniqueKey := cacheKey("hello", "world", Options{RefreshInterval: 15 * time.Second, ExpireInterval: 5 * time.Minute})
 	assert.Assert(t, uniqueKey == "hello|world|{15s 5m0s}")
 }
 
 type mockLoadbalancer struct {
-	RebalanceFunc func(ch discovery.Result)
-	DeleteFunc    func(key string)
-	PickFunc      func(discovery.Result) discovery.Instance
-	NameFunc      func() string
+	rebalanceFunc func(ch discovery.Result)
+	deleteFunc    func(key string)
+	pickFunc      func(discovery.Result) discovery.Instance
+	nameFunc      func() string
 }
 
 // Rebalance implements the Loadbalancer interface.
 func (m mockLoadbalancer) Rebalance(ch discovery.Result) {
-	if m.RebalanceFunc != nil {
-		m.RebalanceFunc(ch)
+	if m.rebalanceFunc != nil {
+		m.rebalanceFunc(ch)
 	}
 }
 
 // Delete implements the Loadbalancer interface.
 func (m mockLoadbalancer) Delete(ch string) {
-	if m.DeleteFunc != nil {
-		m.DeleteFunc(ch)
+	if m.deleteFunc != nil {
+		m.deleteFunc(ch)
 	}
 }
 
 // Name implements the Loadbalancer interface.
 func (m mockLoadbalancer) Name() string {
-	if m.NameFunc != nil {
-		return m.NameFunc()
+	if m.nameFunc != nil {
+		return m.nameFunc()
 	}
 	return ""
 }
 
 // Pick implements the Loadbalancer interface.
 func (m mockLoadbalancer) Pick(d discovery.Result) discovery.Instance {
-	if m.PickFunc != nil {
-		return m.PickFunc(d)
+	if m.pickFunc != nil {
+		return m.pickFunc(d)
 	}
 	return nil
 }

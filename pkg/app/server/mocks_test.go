@@ -17,7 +17,7 @@
 package server
 
 import (
-	"github.com/cloudwego/hertz/pkg/common/registry"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 )
 
 var _ registry.Registry = &MockRegistry{}

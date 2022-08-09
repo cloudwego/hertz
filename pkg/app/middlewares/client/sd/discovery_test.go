@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-package service_discovery
+package sd
 
 import (
 	"context"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/discovery"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-func TestDiscoveryMW(t *testing.T) {
+func TestDiscovery(t *testing.T) {
 	inss := []discovery.Instance{
 		discovery.NewInstance("tcp", "127.0.0.1:8888", 10, nil),
 		discovery.NewInstance("tcp", "127.0.0.1:8889", 10, nil),
@@ -41,7 +41,7 @@ func TestDiscoveryMW(t *testing.T) {
 		NameFunc: func() string { return t.Name() },
 	}
 
-	mw := DiscoveryMW(r)
+	mw := Discovery(r)
 	checkMdw := func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
 		t.Log(string(req.Host()))
 		assert.Assert(t, string(req.Host()) == "127.0.0.1:8888" || string(req.Host()) == "127.0.0.1:8889")

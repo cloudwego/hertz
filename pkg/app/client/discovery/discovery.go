@@ -20,7 +20,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/cloudwego/hertz/pkg/common/registry"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
@@ -95,7 +95,7 @@ func (i *instance) Tag(key string) (value string, exist bool) {
 	return
 }
 
-// NewInstance creates a Instance using the given network, address and tags
+// NewInstance creates an Instance using the given network, address and tags
 func NewInstance(network, address string, weight int, tags map[string]string) Instance {
 	return &instance{
 		addr:   utils.NewNetAddr(network, address),

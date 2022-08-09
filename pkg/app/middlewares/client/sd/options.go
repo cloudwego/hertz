@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package service_discovery
+package sd
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/cloudwego/hertz/pkg/common/discovery"
-	"github.com/cloudwego/hertz/pkg/common/loadbalance"
-	"github.com/cloudwego/hertz/pkg/common/registry"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/loadbalance"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 )
 
 // ServiceDiscoveryOptions service discovery option for client
@@ -36,7 +36,7 @@ type ServiceDiscoveryOptions struct {
 	Balancer loadbalance.Loadbalancer
 
 	// LbOpts LoadBalance option
-	LbOpts loadbalance.LoadBalanceOptions
+	LbOpts loadbalance.Options
 }
 
 func (o *ServiceDiscoveryOptions) Apply(opts []ServiceDiscoveryOption) {
@@ -88,7 +88,7 @@ func WithCustomizedAddrs(addrs ...string) ServiceDiscoveryOption {
 }
 
 // WithLoadBalanceOptions  sets Loadbalancer and loadbalance options for hertz client
-func WithLoadBalanceOptions(lb loadbalance.Loadbalancer, options loadbalance.LoadBalanceOptions) ServiceDiscoveryOption {
+func WithLoadBalanceOptions(lb loadbalance.Loadbalancer, options loadbalance.Options) ServiceDiscoveryOption {
 	return ServiceDiscoveryOption{F: func(o *ServiceDiscoveryOptions) {
 		o.LbOpts = options
 		o.Balancer = lb

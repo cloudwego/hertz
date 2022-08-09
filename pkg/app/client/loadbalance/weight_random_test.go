@@ -20,7 +20,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/discovery"
+	"github.com/cloudwego/hertz/pkg/app/client/discovery"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 

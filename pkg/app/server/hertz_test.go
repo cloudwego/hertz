@@ -35,11 +35,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/registry"
-
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
+	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"

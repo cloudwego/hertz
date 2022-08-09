@@ -20,12 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/registry"
-	"github.com/cloudwego/hertz/pkg/common/utils"
-
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
 func TestOptions(t *testing.T) {
