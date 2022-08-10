@@ -92,7 +92,7 @@ func (c *Config) LoadAll(core Core) (serverMap ServerMap, err error) {
 	return serverMap, nil
 }
 
-// New return a empty Config suite, use .Add() to add protocol impl
+// New return an empty Config suite, use .Add() to add protocol impl
 func New() *Config {
 	c := &Config{configMap: make(map[string]ServerFactory)}
 	return c

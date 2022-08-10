@@ -1143,7 +1143,7 @@ type ClientOptions struct {
 
 	// Maximum duration for waiting for a free connection.
 	//
-	// By default will not waiting, return errNoFreeConns immediately
+	// By default will not wait, return errNoFreeConns immediately
 	MaxConnWaitTimeout time.Duration
 
 	// ResponseBodyStream enables response body streaming

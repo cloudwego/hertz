@@ -466,7 +466,9 @@ func TestRouterMiddlewareAndStatic(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, w.Code)
 	assert.True(t, strings.Contains(w.Body.String(), "package route"))
-	assert.DeepEqual(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", w.Header().Get("Content-Type"))
 	assert.NotEqual(t, w.Header().Get("Last-Modified"), "Mon, 02 Jan 2006 15:04:05 MST")
 	assert.DeepEqual(t, "Mon, 02 Jan 2006 15:04:05 MST", w.Header().Get("Expires"))
 	assert.DeepEqual(t, "Hertz Framework", w.Header().Get("x-Hertz"))

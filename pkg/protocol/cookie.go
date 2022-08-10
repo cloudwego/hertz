@@ -50,6 +50,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
@@ -168,11 +169,13 @@ func (c *Cookie) SetKeyBytes(key []byte) {
 
 // SetValue sets cookie value.
 func (c *Cookie) SetValue(value string) {
+	warnIfInvalid(bytesconv.S2b(value))
 	c.value = append(c.value[:0], value...)
 }
 
 // SetValueBytes sets cookie value.
 func (c *Cookie) SetValueBytes(value []byte) {
+	warnIfInvalid(value)
 	c.value = append(c.value[:0], value...)
 }
 
@@ -366,7 +369,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 
 	for s.next(kv) {
 		if len(kv.key) != 0 {
-			// Case insensitive switch on first char
+			// Case-insensitive switch on first char
 			switch kv.key[0] | 0x20 {
 			case 'm':
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieMaxAge, kv.key) {
@@ -404,7 +407,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 
 			case 's': // "samesite"
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieSameSite, kv.key) {
-					// Case insensitive switch on first char
+					// Case-insensitive switch on first char
 					switch kv.value[0] | 0x20 {
 					case 'l': // "lax"
 						if utils.CaseInsensitiveCompare(bytestr.StrCookieSameSiteLax, kv.value) {
@@ -422,7 +425,7 @@ func (c *Cookie) ParseBytes(src []byte) error {
 				}
 			}
 		} else if len(kv.value) != 0 {
-			// Case insensitive switch on first char
+			// Case-insensitive switch on first char
 			switch kv.value[0] | 0x20 {
 			case 'h': // "httponly"
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieHTTPOnly, kv.value) {
@@ -538,4 +541,15 @@ func getCookieKey(dst, src []byte) []byte {
 		src = src[:n]
 	}
 	return decodeCookieArg(dst, src, false)
+}
+
+func warnIfInvalid(value []byte) bool {
+	for i := range value {
+		if bytesconv.ValidCookieValueTable[value[i]] == 0 {
+			hlog.Warnf("HERTZ: Invalid byte %q in Cookie.Value, "+
+				"it may cause compatibility problems with user agents", value[i])
+			return false
+		}
+	}
+	return true
 }

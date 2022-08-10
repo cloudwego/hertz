@@ -177,6 +177,7 @@ func (req *Request) ResetSkipHeader() {
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+	req.isTLS = false
 }
 
 func SwapRequestBody(a, b *Request) {
@@ -204,7 +205,7 @@ func (req *Request) PostArgString() []byte {
 	return req.postArgs.QueryString()
 }
 
-// MultipartForm returns requests's multipart form.
+// MultipartForm returns request's multipart form.
 //
 // Returns errNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
@@ -310,7 +311,8 @@ func (req *Request) Host() []byte {
 	return req.URI().Host()
 }
 
-// SetIsTLS is used to set isTLS
+// SetIsTLS is used by TLS server to mark whether the request is a TLS request.
+// Client shouldn't use this method but should depend on the uri.scheme instead.
 func (req *Request) SetIsTLS(isTLS bool) {
 	req.isTLS = isTLS
 }
@@ -815,7 +817,7 @@ func AcquireRequest() *Request {
 
 // ReleaseRequest returns req acquired via AcquireRequest to request pool.
 //
-// It is forbidden accessing req and/or its' members after returning
+// It is forbidden accessing req and/or its members after returning
 // it to request pool.
 func ReleaseRequest(req *Request) {
 	req.Reset()

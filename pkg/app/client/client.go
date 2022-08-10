@@ -53,6 +53,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
@@ -483,7 +484,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 		}
 		hc, _ = c.clientFactory.NewHostClient()
 		hc.SetDynamicConfig(&client.DynamicConfig{
-			Addr:     h,
+			Addr:     utils.AddMissingPort(h, isTLS),
 			ProxyURI: proxyURI,
 			IsTLS:    isTLS,
 		})
