@@ -28,7 +28,6 @@ import (
 
 // RetryConfig All configurations related to retry
 type RetryConfig struct {
-
 	// The maximum number of idempotent call retries, including the initial call
 	MaxIdempotentCallAttempts uint
 

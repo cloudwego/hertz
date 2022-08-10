@@ -1120,7 +1120,8 @@ func testContinueReadBodyStream(t *testing.T, header, body string, maxBodySize, 
 }
 
 func verifyRequestHeader(t *testing.T, h *protocol.RequestHeader, expectedContentLength int,
-	expectedRequestURI, expectedHost, expectedReferer, expectedContentType string) {
+	expectedRequestURI, expectedHost, expectedReferer, expectedContentType string,
+) {
 	if h.ContentLength() != expectedContentLength {
 		t.Fatalf("Unexpected Content-Length %d. Expected %d", h.ContentLength(), expectedContentLength)
 	}
