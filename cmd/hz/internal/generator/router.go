@@ -73,9 +73,6 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType string) err
 	if paths[0] == "" {
 		paths = paths[1:]
 	}
-	if paths[len(paths)-1] == "" {
-		paths = paths[:len(paths)-1]
-	}
 	parent, last := routerNode.FindNearest(paths)
 	if last == len(paths) {
 		return fmt.Errorf("path '%s' has been registered", method.Path)
