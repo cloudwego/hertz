@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -147,7 +148,26 @@ func UnpackArgs(args []string, c interface{}) error {
 			}
 			x.SetString(values[0])
 		case reflect.Slice:
-
+			if len(values) != 1 {
+				return fmt.Errorf("field %s can't be assigned multi values: %v", n, values)
+			}
+			ss := strings.Split(values[0], ";")
+			if x.Type().Elem().Kind() == reflect.Int {
+				n := reflect.MakeSlice(x.Type(), len(ss), len(ss))
+				for i, s := range ss {
+					val, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return err
+					}
+					n.Index(i).SetInt(val)
+				}
+				x.Set(n)
+			} else {
+				for _, s := range ss {
+					val := reflect.Append(x, reflect.ValueOf(s))
+					x.Set(val)
+				}
+			}
 		case reflect.Map:
 			if len(values) != 1 {
 				return fmt.Errorf("field %s can't be assigned multi values: %v", n, values)
