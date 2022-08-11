@@ -98,11 +98,13 @@ func (routerNode *RouterNode) DyeGroupName() error {
 				pname = handleName[len(handleName)-1]
 			}
 			pname = util.ToVarName([]string{pname})
+			// The tolow operation is placed here, unifying the middleware raw name
+			pname = strings.ToLower(pname)
 			pname, err := util.GetMiddlewareUniqueName(pname)
 			if err != nil {
 				return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
 			}
-			node.MiddleWare = "_" + strings.ToLower(pname)
+			node.MiddleWare = "_" + pname
 		}
 		if layer >= len(groups)-1 {
 			groups = append(groups, node.MiddleWare)
