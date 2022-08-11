@@ -18,8 +18,14 @@ package utils
 
 import "sync"
 
+var defaultBufferSize = 4096
+
+func SetDefaultBufferSize(n int) {
+	defaultBufferSize = n
+}
+
 var CopyBufPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, 4096)
+		return make([]byte, defaultBufferSize)
 	},
 }
