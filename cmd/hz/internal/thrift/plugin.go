@@ -230,8 +230,11 @@ func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 		Package:     pkg,
 		PackageName: util.SplitPackageName(pkg, ""),
 	}
-	rs := NewResolver(ast, main, pkgMap)
-	err := rs.LoadAll(ast)
+	rs, err := NewResolver(ast, main, pkgMap)
+	if err != nil {
+		return nil, fmt.Errorf("new thrift resolver failed, err:%v", err)
+	}
+	err = rs.LoadAll(ast)
 	if err != nil {
 		return nil, err
 	}

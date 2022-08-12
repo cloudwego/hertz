@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
@@ -86,7 +85,6 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType string) err
 // DyeGroupName traverses the routing tree in depth and names the middleware for each node.
 func (routerNode *RouterNode) DyeGroupName() error {
 	groups := []string{"root"}
-	unique := map[string]bool{}
 
 	hook := func(layer int, node *RouterNode) error {
 		node.GroupName = groups[layer]
@@ -99,24 +97,10 @@ func (routerNode *RouterNode) DyeGroupName() error {
 				handleName := strings.Split(node.Handler, ".")
 				pname = handleName[len(handleName)-1]
 			}
-			origin := util.ToVarName([]string{pname})
-			pname = origin
-			// There may be a node with the same name on the routing tree.
-			// In order to prevent the generated routing groups from having the same name,
-			// the names of these routing groups are renamed.
-			// 10000 is a large number that cannot be repeated.
-			for i := 0; i < 10000; i++ {
-				if _, ok := unique[pname]; ok {
-					pname = origin + strconv.Itoa(i)
-					if i == 9999 {
-						return fmt.Errorf("cannot generate a unique name for the routing group. "+
-							"The sequence number of the routing group for %s with the same name cannot exceed 9999. "+
-							"\"+\n\t\t\t\t\t\t\t\"Please reduce the use of routing groups with the same name", origin)
-					}
-				} else {
-					unique[pname] = true
-					break
-				}
+			pname = util.ToVarName([]string{pname})
+			pname, err := util.GetMiddlewareUniqueName(pname)
+			if err != nil {
+				return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
 			}
 			node.MiddleWare = "_" + strings.ToLower(pname)
 		}
