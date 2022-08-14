@@ -56,6 +56,7 @@ type Options struct {
 	DisablePreParseMultipartForm bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
+	AutoRender                   bool
 	Network                      string
 	Addr                         string
 	ExitWaitTimeout              time.Duration

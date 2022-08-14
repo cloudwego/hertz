@@ -63,8 +63,14 @@ type HTMLRender interface {
 
 // HTMLProduction contains template reference and its delims.
 type HTMLProduction struct {
-	Template *template.Template
-	Delims   Delims
+	Template   *template.Template
+	AutoRender bool
+
+	// for auto render
+	Delims  Delims
+	FuncMap template.FuncMap
+	TemType string
+	Paths   []string
 }
 
 // HTML contains template reference and its name with given interface object.
@@ -78,6 +84,17 @@ var htmlContentType = "text/html; charset=utf-8"
 
 // Instance (HTMLProduction) returns an HTML instance which it realizes Render interface.
 func (r HTMLProduction) Instance(name string, data interface{}) Render {
+	if r.AutoRender {
+		switch r.TemType {
+		case "glob":
+			r.Template = template.Must(template.New("").Delims(r.Delims.Left, r.Delims.Right).Funcs(r.FuncMap).
+				ParseGlob(r.Paths[0]))
+		case "files":
+			r.Template = template.Must(template.New("").Delims(r.Delims.Left, r.Delims.Right).Funcs(r.FuncMap).
+				ParseFiles(r.Paths...))
+		}
+	}
+
 	return HTML{
 		Template: r.Template,
 		Name:     name,
