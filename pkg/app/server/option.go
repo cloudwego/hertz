@@ -268,3 +268,10 @@ func WithTraceLevel(level stats.Level) config.Option {
 		o.TraceLevel = level
 	}}
 }
+
+// WithAutoRender sets the render type
+func WithAutoRender(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AutoRender = b
+	}}
+}

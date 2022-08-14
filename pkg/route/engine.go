@@ -738,19 +738,28 @@ func (engine *Engine) LoadHTMLGlob(pattern string) {
 	right := engine.delims.Right
 	templ := template.Must(template.New("").Delims(left, right).Funcs(engine.funcMap).ParseGlob(pattern))
 
-	engine.SetHTMLTemplate(templ)
+	engine.SetHTMLTemplate(templ, "glob", []string{pattern})
 }
 
 // LoadHTMLFiles loads a slice of HTML files
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLFiles(files ...string) {
 	templ := template.Must(template.New("").Delims(engine.delims.Left, engine.delims.Right).Funcs(engine.funcMap).ParseFiles(files...))
-	engine.SetHTMLTemplate(templ)
+	engine.SetHTMLTemplate(templ, "files", files)
 }
 
 // SetHTMLTemplate associate a template with HTML renderer.
-func (engine *Engine) SetHTMLTemplate(templ *template.Template) {
-	engine.htmlRender = render.HTMLProduction{Template: templ.Funcs(engine.funcMap)}
+func (engine *Engine) SetHTMLTemplate(templ *template.Template, temType string, paths []string) {
+	autoRender := engine.options.AutoRender
+	htmlProd := render.HTMLProduction{Template: templ.Funcs(engine.funcMap), AutoRender: autoRender}
+
+	if autoRender {
+		htmlProd.Delims = engine.delims
+		htmlProd.FuncMap = engine.funcMap
+		htmlProd.TemType = temType
+		htmlProd.Paths = paths
+	}
+	engine.htmlRender = htmlProd
 }
 
 // SetFuncMap sets the funcMap used for template.funcMap.
