@@ -21,6 +21,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
@@ -273,5 +274,13 @@ func WithTraceLevel(level stats.Level) config.Option {
 func WithAutoRender(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.AutoRender = b
+	}}
+}
+
+// WithRegistry sets the registry and registry's info
+func WithRegistry(r registry.Registry, info *registry.Info) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.Registry = r
+		o.RegistryInfo = info
 	}}
 }

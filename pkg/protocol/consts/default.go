@@ -52,7 +52,7 @@ const (
 
 	// *** Client default value start from here ***
 
-	// DefaultDialTimeout is timeout used by Dial and DialDualStack
+	// DefaultDialTimeout is timeout used by Dialer and DialDualStack
 	// for establishing TCP connections.
 	DefaultDialTimeout = time.Second
 

@@ -45,6 +45,9 @@ type Conn struct {
 }
 
 func (c *Conn) SetReadTimeout(t time.Duration) error {
+	if t <= 0 {
+		return c.c.SetReadDeadline(time.Time{})
+	}
 	return c.c.SetReadDeadline(time.Now().Add(t))
 }
 
