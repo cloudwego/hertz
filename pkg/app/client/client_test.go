@@ -1879,3 +1879,29 @@ func newMockDialerWithCustomFunc(network, address string, timeout time.Duration,
 		timeout:          timeout,
 	}
 }
+
+func TestClientDialerName(t *testing.T) {
+	client, _ := NewClient()
+	dName := client.GetDialerName()
+	if dName != "netpoll" {
+		t.Errorf("expected 'netpoll', but get %s", dName)
+	}
+
+	client, _ = NewClient(WithDialer(standard.NewDialer()))
+	dName = client.GetDialerName()
+	if dName != "standard" {
+		t.Errorf("expected 'standard', but get %s", dName)
+	}
+
+	client, _ = NewClient(WithDialer(&mockDialer{}))
+	dName = client.GetDialerName()
+	if dName != "client" {
+		t.Errorf("expected 'client', but get %s", dName)
+	}
+
+	client.options.Dialer = nil
+	dName = client.GetDialerName()
+	if dName != "" {
+		t.Errorf("expected 'empty string', but get %s", dName)
+	}
+}
