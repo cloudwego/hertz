@@ -245,46 +245,6 @@ func TestLoadHTMLFiles(t *testing.T) {
 	assert.DeepEqual(t, "<h1>Date: 2017/07/01</h1>", string(b[0:n]))
 }
 
-func TestLoadHTMLGlobWithAutoRender(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8997"), WithAutoRender(true))
-	engine.Delims("{[{", "}]}")
-	engine.LoadHTMLGlob("../../common/testdata/template/index.tmpl")
-	engine.GET("/index", func(c context.Context, ctx *app.RequestContext) {
-		ctx.HTML(consts.StatusOK, "index.tmpl", utils.H{
-			"title": "Main website",
-		})
-	})
-	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:8997/index")
-	assert.DeepEqual(t, 200, resp.StatusCode)
-	b := make([]byte, 100)
-	n, _ := resp.Body.Read(b)
-	assert.DeepEqual(t, "<html>\n<h1>\n    Main website\n</h1>\n</html>", string(b[0:n]))
-}
-
-func TestLoadHTMLFilesWithAutoRender(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8998"), WithAutoRender(true))
-	engine.Delims("{[{", "}]}")
-	engine.SetFuncMap(template.FuncMap{
-		"formatAsDate": formatAsDate,
-	})
-	engine.LoadHTMLFiles("../../common/testdata/template/htmltemplate.html", "../../common/testdata/template/index.tmpl")
-
-	engine.GET("/raw", func(c context.Context, ctx *app.RequestContext) {
-		ctx.HTML(consts.StatusOK, "htmltemplate.html", map[string]interface{}{
-			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),
-		})
-	})
-	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:8998/raw")
-	assert.DeepEqual(t, 200, resp.StatusCode)
-	b := make([]byte, 100)
-	n, _ := resp.Body.Read(b)
-	assert.DeepEqual(t, "<h1>Date: 2017/07/01</h1>", string(b[0:n]))
-}
-
 func formatAsDate(t time.Time) string {
 	year, month, day := t.Date()
 	return fmt.Sprintf("%d/%02d/%02d", year, month, day)
