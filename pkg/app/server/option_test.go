@@ -105,5 +105,6 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.ReadBufferSize, 4096)
 	assert.DeepEqual(t, opt.ALPN, false)
 	assert.DeepEqual(t, opt.Registry, registry.NoopRegistry)
+	assert.DeepEqual(t, opt.AutoRender, false)
 	assert.Assert(t, opt.RegistryInfo == nil)
 }
