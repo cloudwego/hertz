@@ -98,26 +98,20 @@ func TestPathCleanPath(t *testing.T) {
 
 // The Function AddMissingPort can only add the missed port, don't consider the other error case.
 func TestPathAddMissingPort(t *testing.T) {
-	isTLS := true
-	notTLS := false
-	ipAddress := "127.0.0.1"
-	expectedNormalHTTPAddress := "127.0.0.1:80"
-	expectedNormalHTTPsAddress := "127.0.0.1:443"
-	httpAddress := AddMissingPort(ipAddress, notTLS)
-	httpsAddress := AddMissingPort(ipAddress, isTLS)
-
-	if httpAddress != expectedNormalHTTPAddress {
-		t.Fatalf("Unexpected address: %s. Expecting address: %s", httpAddress, expectedNormalHTTPAddress)
-	}
-	if httpsAddress != expectedNormalHTTPsAddress {
-		t.Fatalf("Unexpected address: %s. Expecting address: %s", httpsAddress, expectedNormalHTTPsAddress)
-	}
-
-	normalAddress := "127.0.0.1:80"
-	expectedNormalAddress := "127.0.0.1:80"
-	addAddress := AddMissingPort(normalAddress, notTLS)
-
-	if addAddress != expectedNormalAddress {
-		t.Fatalf("Unexpected address: %s. Expecting address: %s", addAddress, expectedNormalAddress)
+	ipList := []string{"127.0.0.1", "111.111.1.1", "[0:0:0:0:0:ffff:192.1.56.10]", "[0:0:0:0:0:ffff:c0a8:101]", "www.foobar.com"}
+	for _, ip := range ipList {
+		if AddMissingPort(ip, true) != ip+":443" {
+			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip, true), ip+":443")
+		}
+		if AddMissingPort(ip, false) != ip+":80" {
+			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip, false), ip+":80")
+		}
+		customizedPort := ":8080"
+		if AddMissingPort(ip+customizedPort, true) != ip+customizedPort {
+			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip+customizedPort, false), ip+customizedPort)
+		}
+		if AddMissingPort(ip+customizedPort, false) != ip+customizedPort {
+			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip+customizedPort, true), ip+customizedPort)
+		}
 	}
 }
