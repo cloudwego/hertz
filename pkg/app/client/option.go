@@ -22,9 +22,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
-	"github.com/cloudwego/hertz/pkg/protocol/client"
 )
 
 // WithDialTimeout sets dial timeout.
@@ -87,14 +85,14 @@ func WithClientReadTimeout(t time.Duration) config.ClientOption {
 func WithTLSConfig(cfg *tls.Config) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.TLSConfig = cfg
-		dialer.SetDialer(standard.NewDialer())
+		o.Dialer = standard.NewDialer()
 	}}
 }
 
 // WithDialer sets the specific dialer.
 func WithDialer(d network.Dialer) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
-		dialer.SetDialer(d)
+		o.Dialer = d
 	}}
 }
 
@@ -102,15 +100,6 @@ func WithDialer(d network.Dialer) config.ClientOption {
 func WithResponseBodyStream(b bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.ResponseBodyStream = b
-	}}
-}
-
-// WithDialFunc is used to set dialer function
-//
-// NOTE: By default, hertz client uses dialer.DialConnection as DialFunc.
-func WithDialFunc(f client.DialFunc) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.Dial = f
 	}}
 }
 

@@ -186,9 +186,16 @@ func bufApp(buf *[]byte, s string, w int, c byte) {
 	b[w] = c
 }
 
+// AddMissingPort adds a port to a host if it is missing.
+// A literal IPv6 address in hostport must be enclosed in square
+// brackets, as in "[::1]:80", "[::1%lo0]:80".
 func AddMissingPort(addr string, isTLS bool) string {
 	if strings.IndexByte(addr, ':') >= 0 {
-		return addr
+		endOfV6 := strings.IndexByte(addr, ']')
+		// we do not care about the validity of the address, just check if it has more bytes after ']'
+		if endOfV6 < len(addr)-1 {
+			return addr
+		}
 	}
 	if !isTLS {
 		return addr + ":80"

@@ -51,7 +51,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/timer"
-	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -97,7 +96,6 @@ type HostClientConfig struct {
 	MaxIdempotentCallAttempts int
 	MaxResponseBodySize       int
 
-	Dial               DialFunc
 	RetryIf            RetryIfFunc
 	ResponseBodyStream bool
 
@@ -115,20 +113,6 @@ type DynamicConfig struct {
 	ProxyURI *protocol.URI
 	IsTLS    bool
 }
-
-// DialFunc must establish connection to addr.
-//
-// There is no need in establishing TLS (SSL) connection for https.
-// The client automatically converts connection to TLS
-// if HostClient.IsTLS is set.
-//
-// TCP address passed to DialFunc always contains host and port.
-// Example TCP addr values:
-//
-//   - foobar.com:80
-//   - foobar.com:443
-//   - foobar.com:8080
-type DialFunc func(addr string) (network.Conn, error)
 
 // RetryIfFunc signature of retry if function
 //

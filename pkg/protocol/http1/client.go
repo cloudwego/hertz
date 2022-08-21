@@ -57,6 +57,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/timer"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
@@ -851,7 +852,7 @@ func (c *HostClient) dialHostHard() (conn network.Conn, err error) {
 	for n > 0 {
 		addr := c.nextAddr()
 		tlsConfig := c.cachedTLSConfig(addr)
-		conn, err = dialAddr(addr, c.Dial, c.DialDualStack, tlsConfig, timeout, c.ProxyURI, c.IsTLS)
+		conn, err = dialAddr(addr, c.Dialer, c.DialDualStack, tlsConfig, timeout, c.ProxyURI, c.IsTLS)
 		if err == nil {
 			return conn, nil
 		}
@@ -891,29 +892,32 @@ func (c *HostClient) cachedTLSConfig(addr string) *tls.Config {
 	return cfg
 }
 
-func dialAddr(addr string, dial client.DialFunc, dialDualStack bool, tlsConfig *tls.Config, timeout time.Duration, proxyURI *protocol.URI, isTLS bool) (network.Conn, error) {
+func dialAddr(addr string, dial network.Dialer, dialDualStack bool, tlsConfig *tls.Config, timeout time.Duration, proxyURI *protocol.URI, isTLS bool) (network.Conn, error) {
 	var conn network.Conn
 	var err error
-	if dial != nil {
-		conn, err = dial(addr)
-	} else {
-		// addr has already been added port, no need to do it here
-		if proxyURI != nil {
-			// use tcp connection first, proxy will AddTLS to it
-			conn, err = dialer.DialConnection("tcp", string(proxyURI.Host()), timeout, nil)
-		} else {
-			conn, err = dialer.DialConnection("tcp", addr, timeout, tlsConfig)
-		}
+	if dial == nil {
+		hlog.Warnf("HERTZ: HostClient: no dialer specified, trying to use default dialer")
+		dial = dialer.DefaultDialer()
 	}
+	dialFunc := dial.DialConnection
+
+	// addr has already been added port, no need to do it here
+	if proxyURI != nil {
+		// use tcp connection first, proxy will AddTLS to it
+		conn, err = dialFunc("tcp", string(proxyURI.Host()), timeout, nil)
+	} else {
+		conn, err = dialFunc("tcp", addr, timeout, tlsConfig)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 	if conn == nil {
-		panic("BUG: DialFunc returned (nil, nil)")
+		panic("BUG: dial.DialConnection returned (nil, nil)")
 	}
 
 	if proxyURI != nil {
-		conn, err = proxy.SetupProxy(conn, addr, proxyURI, tlsConfig, isTLS)
+		conn, err = proxy.SetupProxy(conn, addr, proxyURI, tlsConfig, isTLS, dial)
 	}
 
 	// conn must be nil when got error, so doesn't need to close it
@@ -1041,7 +1045,7 @@ func NewHostClient(c *ClientOptions) client.HostClient {
 
 type ClientOptions struct {
 	// Comma-separated list of upstream HTTP server host addresses,
-	// which are passed to Dial in a round-robin manner.
+	// which are passed to Dialer in a round-robin manner.
 	//
 	// Each address may contain port if default dialer is used.
 	// For example,
@@ -1060,8 +1064,8 @@ type ClientOptions struct {
 
 	// Callback for establishing new connection to the host.
 	//
-	// Default Dial is used if not set.
-	Dial client.DialFunc
+	// Default Dialer is used if not set.
+	Dialer network.Dialer
 
 	// Timeout for establishing new connections to hosts.
 	//
@@ -1072,7 +1076,7 @@ type ClientOptions struct {
 	// if set to true.
 	//
 	// This option is used only if default TCP dialer is used,
-	// i.e. if Dial is blank.
+	// i.e. if Dialer is blank.
 	//
 	// By default client connects only to ipv4 addresses,
 	// since unfortunately ipv6 remains broken in many networks worldwide :)
