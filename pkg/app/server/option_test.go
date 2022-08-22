@@ -56,7 +56,7 @@ func TestOptions(t *testing.T) {
 		WithALPN(true),
 		WithTraceLevel(stats.LevelDisabled),
 		WithRegistry(nil, info),
-		WithAutoRender(true),
+		WithAutoReloadRender(true, 5*time.Second),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
 	assert.DeepEqual(t, opt.IdleTimeout, time.Second)
@@ -80,7 +80,8 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.TraceLevel, stats.LevelDisabled)
 	assert.DeepEqual(t, opt.RegistryInfo, info)
 	assert.DeepEqual(t, opt.Registry, nil)
-	assert.DeepEqual(t, opt.AutoRender, true)
+	assert.DeepEqual(t, opt.AutoReloadRender, true)
+	assert.DeepEqual(t, opt.AutoReloadInterval, 5*time.Second)
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -105,6 +106,8 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.ReadBufferSize, 4096)
 	assert.DeepEqual(t, opt.ALPN, false)
 	assert.DeepEqual(t, opt.Registry, registry.NoopRegistry)
-	assert.DeepEqual(t, opt.AutoRender, false)
+	assert.DeepEqual(t, opt.AutoReloadRender, false)
 	assert.Assert(t, opt.RegistryInfo == nil)
+	assert.DeepEqual(t, opt.AutoReloadRender, false)
+	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
 }

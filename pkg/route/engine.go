@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -419,6 +420,9 @@ func getRemoteAddrFromCloser(conn io.Closer) string {
 }
 
 func (engine *Engine) Close() error {
+	if engine.htmlRender != nil {
+		engine.htmlRender.Close() //nolint:errcheck
+	}
 	return engine.transport.Close()
 }
 
@@ -754,32 +758,54 @@ func (engine *Engine) Use(middleware ...app.HandlerFunc) IRoutes {
 // LoadHTMLGlob loads HTML files identified by glob pattern
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLGlob(pattern string) {
-	left := engine.delims.Left
-	right := engine.delims.Right
-	templ := template.Must(template.New("").Delims(left, right).Funcs(engine.funcMap).ParseGlob(pattern))
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseGlob(pattern))
 
-	engine.SetHTMLTemplate(templ, "glob", []string{pattern})
+	if engine.options.AutoReloadRender {
+		files, err := filepath.Glob(pattern)
+		if err != nil {
+			hlog.Errorf("LoadHTMLGlob: %v", err)
+			return
+		}
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // LoadHTMLFiles loads a slice of HTML files
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLFiles(files ...string) {
-	templ := template.Must(template.New("").Delims(engine.delims.Left, engine.delims.Right).Funcs(engine.funcMap).ParseFiles(files...))
-	engine.SetHTMLTemplate(templ, "files", files)
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseFiles(files...))
+
+	if engine.options.AutoReloadRender {
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // SetHTMLTemplate associate a template with HTML renderer.
-func (engine *Engine) SetHTMLTemplate(templ *template.Template, temType string, paths []string) {
-	autoRender := engine.options.AutoRender
-	htmlProd := render.HTMLProduction{Template: templ.Funcs(engine.funcMap), AutoRender: autoRender}
+func (engine *Engine) SetHTMLTemplate(tmpl *template.Template) {
+	engine.htmlRender = render.HTMLProduction{Template: tmpl.Funcs(engine.funcMap)}
+}
 
-	if autoRender {
-		htmlProd.Delims = engine.delims
-		htmlProd.FuncMap = engine.funcMap
-		htmlProd.TemType = temType
-		htmlProd.Paths = paths
+// SetAutoReloadHTMLTemplate associate a template with HTML renderer.
+func (engine *Engine) SetAutoReloadHTMLTemplate(tmpl *template.Template, files []string) {
+	engine.htmlRender = &render.HTMLDebug{
+		Template:        tmpl,
+		Files:           files,
+		FuncMap:         engine.funcMap,
+		Delims:          engine.delims,
+		RefreshInterval: engine.options.AutoReloadInterval,
 	}
-	engine.htmlRender = htmlProd
 }
 
 // SetFuncMap sets the funcMap used for template.funcMap.

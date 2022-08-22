@@ -393,7 +393,7 @@ func (m *mockTransporter) Shutdown(ctx context.Context) error {
 
 func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.AutoRender = true
+	opt.AutoReloadRender = true
 	e := NewEngine(opt)
 	e.Delims("{[{", "}]}")
 	e.SetFuncMap(template.FuncMap{
@@ -414,7 +414,7 @@ func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
 
 func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.AutoRender = true
+	opt.AutoReloadRender = true
 	e := NewEngine(opt)
 	e.Delims("{[{", "}]}")
 	e.SetFuncMap(template.FuncMap{
