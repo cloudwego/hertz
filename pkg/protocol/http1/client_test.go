@@ -44,9 +44,11 @@ package http1
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,6 +57,7 @@ import (
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
@@ -71,8 +74,10 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Addr:               "foobar",
-			Dial:               mock.SlowReadDialer,
+			Addr: "foobar",
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.SlowReadDialer(addr)
+			}),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 50 * time.Millisecond,
 		},
@@ -197,4 +202,24 @@ func testContinueReadResponseBodyStream(t *testing.T, header, body string, maxBo
 		fmt.Printf("##########left: %s\n", left)
 		t.Fatalf("should left %d bytes in original reader. got %q", bytesLeftInReader, len(left))
 	}
+}
+
+func newSlowConnDialer(dialer func(network, addr string) (network.Conn, error)) network.Dialer {
+	return &mockDialer{customDialConn: dialer}
+}
+
+type mockDialer struct {
+	customDialConn func(network, addr string) (network.Conn, error)
+}
+
+func (m *mockDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
+	return m.customDialConn(network, address)
+}
+
+func (m *mockDialer) DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn net.Conn, err error) {
+	return nil, nil
+}
+
+func (m *mockDialer) AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn, error) {
+	return nil, nil
 }

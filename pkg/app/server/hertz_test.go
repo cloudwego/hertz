@@ -37,6 +37,8 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
+	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
@@ -610,4 +612,127 @@ func TestReusePorts(t *testing.T) {
 		assert.DeepEqual(t, 200, statusCode)
 		assert.DeepEqual(t, "{\"ping\":\"pong\"}", string(body))
 	}
+}
+
+func TestServiceRegisterFailed(t *testing.T) {
+	mockRegErr := errors.New("mock register error")
+	var rCount int32
+	var drCount int32
+	mockRegistry := MockRegistry{
+		RegisterFunc: func(info *registry.Info) error {
+			atomic.AddInt32(&rCount, 1)
+			return mockRegErr
+		},
+		DeregisterFunc: func(info *registry.Info) error {
+			atomic.AddInt32(&drCount, 1)
+			return nil
+		},
+	}
+	var opts []config.Option
+	opts = append(opts, WithRegistry(mockRegistry, nil))
+	opts = append(opts, WithHostPorts("127.0.0.1:9222"))
+	srv := New(opts...)
+	srv.Spin()
+	time.Sleep(2 * time.Second)
+	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
+}
+
+func TestServiceDeregisterFailed(t *testing.T) {
+	mockDeregErr := errors.New("mock deregister error")
+	var rCount int32
+	var drCount int32
+	mockRegistry := MockRegistry{
+		RegisterFunc: func(info *registry.Info) error {
+			atomic.AddInt32(&rCount, 1)
+			return nil
+		},
+		DeregisterFunc: func(info *registry.Info) error {
+			atomic.AddInt32(&drCount, 1)
+			return mockDeregErr
+		},
+	}
+	var opts []config.Option
+	opts = append(opts, WithRegistry(mockRegistry, nil))
+	opts = append(opts, WithHostPorts("127.0.0.1:9223"))
+	srv := New(opts...)
+	go srv.Spin()
+	time.Sleep(1 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
+	time.Sleep(1 * time.Second)
+	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
+	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
+}
+
+func TestServiceRegistryInfo(t *testing.T) {
+	registryInfo := &registry.Info{
+		Weight:      100,
+		Tags:        map[string]string{"aa": "bb"},
+		ServiceName: "hertz.api.test",
+	}
+	checkInfo := func(info *registry.Info) {
+		assert.Assert(t, info.Weight == registryInfo.Weight)
+		assert.Assert(t, info.ServiceName == "hertz.api.test")
+		assert.Assert(t, len(info.Tags) == len(registryInfo.Tags), info.Tags)
+		assert.Assert(t, info.Tags["aa"] == registryInfo.Tags["aa"], info.Tags)
+	}
+	var rCount int32
+	var drCount int32
+	mockRegistry := MockRegistry{
+		RegisterFunc: func(info *registry.Info) error {
+			checkInfo(info)
+			atomic.AddInt32(&rCount, 1)
+			return nil
+		},
+		DeregisterFunc: func(info *registry.Info) error {
+			checkInfo(info)
+			atomic.AddInt32(&drCount, 1)
+			return nil
+		},
+	}
+	var opts []config.Option
+	opts = append(opts, WithRegistry(mockRegistry, registryInfo))
+	opts = append(opts, WithHostPorts("127.0.0.1:9225"))
+	srv := New(opts...)
+	go srv.Spin()
+	time.Sleep(2 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
+	time.Sleep(2 * time.Second)
+	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
+	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
+}
+
+func TestServiceRegistryNoInitInfo(t *testing.T) {
+	checkInfo := func(info *registry.Info) {
+		assert.Assert(t, info == nil)
+	}
+	var rCount int32
+	var drCount int32
+	mockRegistry := MockRegistry{
+		RegisterFunc: func(info *registry.Info) error {
+			checkInfo(info)
+			atomic.AddInt32(&rCount, 1)
+			return nil
+		},
+		DeregisterFunc: func(info *registry.Info) error {
+			checkInfo(info)
+			atomic.AddInt32(&drCount, 1)
+			return nil
+		},
+	}
+	var opts []config.Option
+	opts = append(opts, WithRegistry(mockRegistry, nil))
+	opts = append(opts, WithHostPorts("127.0.0.1:9227"))
+	srv := New(opts...)
+	go srv.Spin()
+	time.Sleep(2 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
+	time.Sleep(2 * time.Second)
+	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
+	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
