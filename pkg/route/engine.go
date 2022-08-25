@@ -271,6 +271,13 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		}(i)
 	}
 
+	if opt := engine.options; opt != nil && opt.Registry != nil {
+		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+			hlog.Errorf("HERTZ: Deregister error=%v", err)
+			return err
+		}
+	}
+
 	// call transport shutdown
 	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
 		return err
