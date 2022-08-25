@@ -203,7 +203,7 @@ func TestRequestHeaderCookie(t *testing.T) {
 	h.SetCookie("привет", "мир")
 
 	if string(h.Cookie("foo")) != "bar" {
-		t.Fatalf("Unexpected cookie value %q. Exepcted %q", h.Cookie("foo"), "bar")
+		t.Fatalf("Unexpected cookie value %q. Expected %q", h.Cookie("foo"), "bar")
 	}
 	if string(h.Cookie("привет")) != "мир" {
 		t.Fatalf("Unexpected cookie value %q. Expected %q", h.Cookie("привет"), "мир")
@@ -226,7 +226,7 @@ func TestRequestHeaderCookie(t *testing.T) {
 	}
 
 	if !bytes.Equal(h1.Cookie("foo"), h.Cookie("foo")) {
-		t.Fatalf("Unexpected cookie value %q. Exepcted %q", h1.Cookie("foo"), h.Cookie("foo"))
+		t.Fatalf("Unexpected cookie value %q. Expected %q", h1.Cookie("foo"), h.Cookie("foo"))
 	}
 	h1.DelCookie("foo")
 	if len(h1.Cookie("foo")) > 0 {

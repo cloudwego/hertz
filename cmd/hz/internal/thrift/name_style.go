@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-package hertz
+package thrift
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.2.1"
-)
+import "github.com/cloudwego/thriftgo/generator/golang/styles"
+
+var NameStyle = styles.NewNamingStyle("thriftgo")

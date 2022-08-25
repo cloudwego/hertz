@@ -146,7 +146,7 @@ func checkPathValid(path string) (valid bool) {
 			}
 		}
 	}
-	return false
+	return true
 }
 
 // addRoute adds a node with the given handle to the path.

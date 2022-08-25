@@ -246,7 +246,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	}
 
 	insertImport := register.PkgAlias + " " + "\"" + register.Pkg + "\"\n"
-	if !bytes.Contains(file, []byte(insertImport)) {
+	if !bytes.Contains(file, []byte(register.Pkg)) {
 
 		subIndexImport := regImport.FindSubmatchIndex(file)
 		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
@@ -267,7 +267,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 
 		subIndexReg := regRegisterV3.FindSubmatchIndex(file)
 		if len(subIndexReg) != 2 || subIndexReg[0] < 1 {
-			return fmt.Errorf("wrong format %s: insert-point '%s' not found", string(file), insertPointPatternOld)
+			return fmt.Errorf("wrong format %s: insert-point '%s' not found", string(file), insertPointPatternNew)
 		}
 
 		bufReg := bytes.NewBuffer(nil)
@@ -331,9 +331,27 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 		if bytes.Contains(file, []byte(mw+"Mw")) {
 			continue
 		}
+		middlewareSingleTpl := pkgGen.tpls[middlewareSingleTplName]
+		if middlewareSingleTpl == nil {
+			return fmt.Errorf("tpl %s not found", middlewareSingleTplName)
+		}
+		data := make(map[string]string, 1)
+		data["MiddleWare"] = mw
+		middlewareFunc := bytes.NewBuffer(nil)
+		err = middlewareSingleTpl.Execute(middlewareFunc, data)
+		if err != nil {
+			return fmt.Errorf("execute template \"%s\" failed, %v", middlewareSingleTplName, err)
+		}
+
 		buf := bytes.NewBuffer(nil)
-		buf.Write(file)
-		buf.Write([]byte("func " + mw + "Mw() []app.HandlerFunc {\n\t// your code...\n\treturn nil\n}\n"))
+		_, err = buf.Write(file)
+		if err != nil {
+			return fmt.Errorf("write middleware \"%s\" failed, %v", mw, err)
+		}
+		_, err = buf.Write(middlewareFunc.Bytes())
+		if err != nil {
+			return fmt.Errorf("write middleware \"%s\" failed, %v", mw, err)
+		}
 		file = buf.Bytes()
 	}
 

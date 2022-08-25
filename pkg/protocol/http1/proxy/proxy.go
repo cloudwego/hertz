@@ -34,14 +34,13 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	reqI "github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	respI "github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
-func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfig *tls.Config, isTLS bool) (network.Conn, error) {
+func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfig *tls.Config, isTLS bool, dialer network.Dialer) (network.Conn, error) {
 	var err error
 	if bytes.Equal(proxyURI.Scheme(), bytestr.StrHTTPS) {
 		conn, err = dialer.AddTLS(conn, tlsConfig)

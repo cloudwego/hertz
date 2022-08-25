@@ -53,15 +53,14 @@ type ClientOptions struct {
 	// User-Agent header to be excluded from the Request.
 	NoDefaultUserAgentHeader bool
 
-	// Callback for establishing new connections to hosts.
-	//
-	// Default Dial is used if not set.
-	Dial func(addr string) (network.Conn, error)
+	// Dialer is the custom dialer used to establish connection.
+	// Default Dialer is used if not set.
+	Dialer network.Dialer
 
 	// Attempt to connect to both ipv4 and ipv6 addresses if set to true.
 	//
 	// This option is used only if default TCP dialer is used,
-	// i.e. if Dial is blank.
+	// i.e. if Dialer is blank.
 	//
 	// By default client connects only to ipv4 addresses,
 	// since unfortunately ipv6 remains broken in many networks worldwide :)

@@ -52,7 +52,8 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
-	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -270,11 +271,6 @@ func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
 	c.RetryIf = fn
 }
 
-// SetDialFunc is used to set custom dial func.
-func (c *Client) SetDialFunc(dial func(addr string) (network.Conn, error)) {
-	c.options.Dial = dial
-}
-
 // Get returns the status code and body of url.
 //
 // The contents of dst will be replaced by the body and returned, if the dst
@@ -485,7 +481,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 		}
 		hc, _ = c.clientFactory.NewHostClient()
 		hc.SetDynamicConfig(&client.DynamicConfig{
-			Addr:     h,
+			Addr:     utils.AddMissingPort(h, isTLS),
 			ProxyURI: proxyURI,
 			IsTLS:    isTLS,
 		})
@@ -547,6 +543,9 @@ func (c *Client) SetClientFactory(cf suite.ClientFactory) {
 // NewClient return a client with options
 func NewClient(opts ...config.ClientOption) (*Client, error) {
 	opt := config.NewClientOptions(opts)
+	if opt.Dialer == nil {
+		opt.Dialer = dialer.DefaultDialer()
+	}
 	c := &Client{
 		options: opt,
 	}
@@ -568,7 +567,7 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 	return &http1.ClientOptions{
 		Name:                          c.options.Name,
 		NoDefaultUserAgentHeader:      c.options.NoDefaultUserAgentHeader,
-		Dial:                          c.options.Dial,
+		Dialer:                        c.options.Dialer,
 		DialTimeout:                   c.options.DialTimeout,
 		DialDualStack:                 c.options.DialDualStack,
 		TLSConfig:                     c.options.TLSConfig,
