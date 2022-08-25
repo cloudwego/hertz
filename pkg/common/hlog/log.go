@@ -96,7 +96,7 @@ var strs = []string{
 	"[Fatal] ",
 }
 
-func (lv Level) toString() string {
+func (lv Level) ToString() string {
 	if lv >= LevelTrace && lv <= LevelFatal {
 		return strs[lv]
 	}

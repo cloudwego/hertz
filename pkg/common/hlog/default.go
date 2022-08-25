@@ -24,8 +24,11 @@ import (
 	"os"
 )
 
-var logger FullLogger = &defaultLogger{
-	stdlog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
+var logger = InitDefaultLogger()
+
+// InitDefaultLogger init a default logger and it implemented FullLogger interface
+func InitDefaultLogger() FullLogger {
+	return &defaultLogger{stdlog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds)}
 }
 
 // SetOutput sets the output of default logger. By default, it is stderr.
@@ -174,7 +177,7 @@ func (ll *defaultLogger) logf(lv Level, format *string, v ...interface{}) {
 	if ll.level > lv {
 		return
 	}
-	msg := lv.toString()
+	msg := lv.ToString()
 	if format != nil {
 		msg += fmt.Sprintf(*format, v...)
 	} else {
