@@ -57,16 +57,21 @@ type PackageReference struct {
 func getReferPkgMap(pkgMap map[string]string, incs []*parser.Include) (map[string]*PackageReference, error) {
 	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
+	pkgAliasMap := make(map[string]string, len(incs))
 	for _, inc := range incs {
 		pkg := getGoPackage(inc.Reference, pkgMap)
 		impt := inc.GetPath()
 		base := util.BaseNameAndTrim(impt)
 		pkgName := util.SplitPackageName(pkg, "")
-		pkgName, err = util.GetPackageUniqueName(pkgName)
-		if err != nil {
-			return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+		if pn, exist := pkgAliasMap[pkg]; exist {
+			pkgName = pn
+		} else {
+			pkgName, err = util.GetPackageUniqueName(pkgName)
+			pkgAliasMap[pkg] = pkgName
+			if err != nil {
+				return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+			}
 		}
-
 		out[base] = &PackageReference{base, impt, &model.Model{
 			FilePath:    inc.Path,
 			Package:     pkg,
