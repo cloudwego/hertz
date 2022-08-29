@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/config"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
@@ -28,6 +29,7 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
+	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
 
@@ -65,6 +67,13 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
+
+	err = plugin.initNameStyle()
+	if err != nil {
+		logs.Errorf("init naming style failed: %s", err.Error())
+		return meta.PluginError
+	}
+
 	options := CheckTagOption(plugin.args)
 
 	pkgInfo, err := plugin.getPackageInfo()
@@ -185,6 +194,25 @@ func (plugin *Plugin) parseArgs() (*config.Argument, error) {
 	return args, nil
 }
 
+// initNameStyle initializes the naming style based on the "naming_style" option for thrift.
+func (plugin *Plugin) initNameStyle() error {
+	if len(plugin.args.ThriftOptions) == 0 {
+		return nil
+	}
+	for _, opt := range plugin.args.ThriftOptions {
+		parts := strings.SplitN(opt, "=", 2)
+		if len(parts) == 2 && parts[0] == "naming_style" {
+			NameStyle = styles.NewNamingStyle(parts[1])
+			if NameStyle == nil {
+				return fmt.Errorf(fmt.Sprintf("do not support \"%s\" naming style", parts[1]))
+			}
+			break
+		}
+	}
+
+	return nil
+}
+
 func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 	req := plugin.req
 	args := plugin.args
@@ -202,8 +230,11 @@ func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 		Package:     pkg,
 		PackageName: util.SplitPackageName(pkg, ""),
 	}
-	rs := NewResolver(ast, main, pkgMap)
-	err := rs.LoadAll(ast)
+	rs, err := NewResolver(ast, main, pkgMap)
+	if err != nil {
+		return nil, fmt.Errorf("new thrift resolver failed, err:%v", err)
+	}
+	err = rs.LoadAll(ast)
 	if err != nil {
 		return nil, err
 	}

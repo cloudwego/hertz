@@ -43,11 +43,13 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -67,6 +69,7 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
+	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -93,9 +96,7 @@ func TestCloseIdleConnections(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
 	if _, _, err := c.Get(context.Background(), nil, "http://google.com"); err != nil {
 		t.Fatal(err)
@@ -139,9 +140,7 @@ func TestClientInvalidURI(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -175,9 +174,7 @@ func TestClientGetWithBody(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -220,9 +217,7 @@ func TestClientURLAuth(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	for up, expected := range cases {
 		req := protocol.AcquireRequest()
 		req.Header.SetMethod(consts.MethodGet)
@@ -254,9 +249,7 @@ func TestClientNilResp(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
 	req := protocol.AcquireRequest()
 	req.Header.SetMethod(consts.MethodGet)
@@ -279,9 +272,7 @@ func TestClientParseConn(t *testing.T) {
 	go engine.Run()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -322,9 +313,7 @@ func TestClientPostArgs(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
 		protocol.ReleaseRequest(req)
@@ -367,9 +356,7 @@ func TestClientHeaderCase(t *testing.T) {
 	}()
 	time.Sleep(time.Second)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}), WithDisableHeaderNamesNormalizing(true))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDisableHeaderNamesNormalizing(true))
 	code, body, err := c.Get(context.Background(), nil, "http://example.com")
 	if err != nil {
 		t.Error(err)
@@ -404,12 +391,10 @@ func TestClientReadTimeout(t *testing.T) {
 		ClientOptions: &http1.ClientOptions{
 			ReadTimeout:               time.Second * 4,
 			MaxIdempotentCallAttempts: 1,
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Dialer:                    standard.NewDialer(),
+			Addr:                      opt.Addr,
 		},
 	}
-	dialer.SetDialer(standard.NewDialer())
 
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
@@ -472,9 +457,7 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 500)
 
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
@@ -509,9 +492,7 @@ func TestClientSetUserAgent(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	userAgent := "I'm not hertz"
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}), WithName(userAgent))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithName(userAgent))
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
@@ -540,9 +521,7 @@ func TestClientNoUserAgent(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}), WithNoDefaultUserAgentHeader(true))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDialTimeout(1*time.Second), WithNoDefaultUserAgentHeader(true))
 
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
@@ -625,9 +604,7 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	// make sure that the client sends all the request headers and body.
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
 	var req protocol.Request
 	req.Header.SetMethod(consts.MethodPost)
@@ -670,9 +647,7 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 		engine.Close()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}), WithDisablePathNormalizing(true))
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDisablePathNormalizing(true))
 
 	urlWithEncodedPath := "http://example.com/encoded/Y%2BY%2FY%3D/stuff"
 
@@ -714,10 +689,8 @@ func TestHostClientPendingRequests(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foobar",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:   "foobar",
+			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 		},
 	}
 
@@ -807,10 +780,8 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foobar",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:     "foobar",
+			Dialer:   newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns: 1,
 		},
 	}
@@ -878,10 +849,8 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foobar",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:            "foobar",
+			Dialer:          newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConnDuration: 10 * time.Millisecond,
 		},
 	}
@@ -927,10 +896,9 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
 			Addr: "foo,bar,baz",
-			Dial: func(addr string) (network.Conn, error) {
+			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, func(network, addr string, timeout time.Duration, tlsConfig *tls.Config) {
 				dialsCount[addr]++
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			}),
 		},
 	}
 
@@ -993,10 +961,8 @@ func TestClientFollowRedirects(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "xxx",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:   "xxx",
+			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil),
 		},
 	}
 
@@ -1089,10 +1055,8 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foobar",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:               "foobar",
+			Dialer:             newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 200 * time.Millisecond,
 		},
@@ -1160,10 +1124,8 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foobar",
-			Dial: func(addr string) (network.Conn, error) {
-				return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-			},
+			Addr:               "foobar",
+			Dialer:             newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 10 * time.Millisecond,
 		},
@@ -1889,38 +1851,31 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	}
 }
 
-func TestClientDomainPort(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10021"
-	opt.Network = "unix"
-	engine := route.NewEngine(opt)
-	go engine.Run()
-	defer func() {
-		engine.Close()
-	}()
-	expectedAddrMap := map[string]struct{}{
-		"example1.com:443":  {},
-		"example2.com:8888": {},
-		"example3.com:80":   {},
-	}
-	time.Sleep(time.Millisecond * 500)
-	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
-		if _, ok := expectedAddrMap[addr]; !ok {
-			t.Fatalf("not expected addr:%s", addr)
-		}
-		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
-	}))
+type mockDialer struct {
+	network.Dialer
+	customDialerFunc func(network, address string, timeout time.Duration, tlsConfig *tls.Config)
+	network          string
+	address          string
+	timeout          time.Duration
+}
 
-	_, _, err := c.Get(context.Background(), nil, "https://example1.com")
-	if err != nil {
-		t.Fatal(err)
+func (m *mockDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
+	if m.customDialerFunc != nil {
+		m.customDialerFunc(network, address, timeout, tlsConfig)
 	}
-	_, _, err = c.Get(context.Background(), nil, "https://example2.com:8888")
-	if err != nil {
-		t.Fatal(err)
+	return m.Dialer.DialConnection(m.network, m.address, m.timeout, tlsConfig)
+}
+
+func newMockDialerWithCustomFunc(network, address string, timeout time.Duration, f func(network, address string, timeout time.Duration, tlsConfig *tls.Config)) network.Dialer {
+	dialer := standard.NewDialer()
+	if rand.Intn(2) == 0 {
+		dialer = netpoll.NewDialer()
 	}
-	_, _, err = c.Get(context.Background(), nil, "http://example3.com")
-	if err != nil {
-		t.Fatal(err)
+	return &mockDialer{
+		Dialer:           dialer,
+		customDialerFunc: f,
+		network:          network,
+		address:          address,
+		timeout:          timeout,
 	}
 }

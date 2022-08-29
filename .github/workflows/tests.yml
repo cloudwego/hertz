@@ -27,4 +27,7 @@ jobs:
           test -z "$(gofumpt -l -extra .)" 
 
       - name: Unit Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
+
+      - name: Codecov
+        run: bash <(curl -s https://codecov.io/bash)

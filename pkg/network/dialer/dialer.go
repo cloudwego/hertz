@@ -26,8 +26,14 @@ import (
 
 var defaultDialer network.Dialer
 
+// SetDialer is used to set the global default dialer.
+// Deprecated: use WithDialer instead.
 func SetDialer(dialer network.Dialer) {
 	defaultDialer = dialer
+}
+
+func DefaultDialer() network.Dialer {
+	return defaultDialer
 }
 
 func DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {

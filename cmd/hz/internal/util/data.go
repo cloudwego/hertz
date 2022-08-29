@@ -22,7 +22,10 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 )
 
 func CopyStringSlice(from, to *[]string) {
@@ -147,7 +150,26 @@ func UnpackArgs(args []string, c interface{}) error {
 			}
 			x.SetString(values[0])
 		case reflect.Slice:
-
+			if len(values) != 1 {
+				return fmt.Errorf("field %s can't be assigned multi values: %v", n, values)
+			}
+			ss := strings.Split(values[0], ";")
+			if x.Type().Elem().Kind() == reflect.Int {
+				n := reflect.MakeSlice(x.Type(), len(ss), len(ss))
+				for i, s := range ss {
+					val, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return err
+					}
+					n.Index(i).SetInt(val)
+				}
+				x.Set(n)
+			} else {
+				for _, s := range ss {
+					val := reflect.Append(x, reflect.ValueOf(s))
+					x.Set(val)
+				}
+			}
 		case reflect.Map:
 			if len(values) != 1 {
 				return fmt.Errorf("field %s can't be assigned multi values: %v", n, values)
@@ -341,4 +363,50 @@ func SubDir(root, subPkg string) string {
 		return ImportToPath(subPkg, "")
 	}
 	return filepath.Join(root, ImportToPath(subPkg, ""))
+}
+
+var (
+	uniquePackageName    = map[string]bool{}
+	uniqueMiddlewareName = map[string]bool{}
+)
+
+// GetPackageUniqueName can get a non-repeating variable name for package alias
+func GetPackageUniqueName(name string) (string, error) {
+	name, err := getUniqueName(name, uniquePackageName)
+	if err != nil {
+		return "", fmt.Errorf("can not generate unique name for package '%s', err: %v", name, err)
+	}
+
+	return name, nil
+}
+
+// GetMiddlewareUniqueName can get a non-repeating variable name for middleware name
+func GetMiddlewareUniqueName(name string) (string, error) {
+	name, err := getUniqueName(name, uniqueMiddlewareName)
+	if err != nil {
+		return "", fmt.Errorf("can not generate routing group for path '%s', err: %v", name, err)
+	}
+
+	return name, nil
+}
+
+// getUniqueName can get a non-repeating variable name
+func getUniqueName(name string, uniqueNameSet map[string]bool) (string, error) {
+	uniqueName := name
+	if _, exist := uniqueNameSet[uniqueName]; exist {
+		for i := 0; i < 10000; i++ {
+			uniqueName = uniqueName + fmt.Sprintf("%d", i)
+			if _, exist := uniqueNameSet[uniqueName]; !exist {
+				logs.Infof("There is a package name with the same name, change %s to %s", name, uniqueName)
+				break
+			}
+			uniqueName = name
+			if i == 9999 {
+				return "", fmt.Errorf("there is too many same package for %s", name)
+			}
+		}
+	}
+	uniqueNameSet[uniqueName] = true
+
+	return uniqueName, nil
 }

@@ -94,6 +94,8 @@ type hijackConn struct {
 
 type CtxCallback func(ctx context.Context)
 
+type CtxErrCallback func(ctx context.Context) error
+
 // RouteInfo represents a request route's specification which contains method and path and its handler.
 type RouteInfo struct {
 	Method      string
@@ -177,7 +179,10 @@ type Engine struct {
 	// Indicates the engine status (Init/Running/Shutdown/Closed).
 	status uint32
 
-	// Hook functions get triggered sequentially before engine start to shutdown
+	// Hook functions get triggered sequentially when engine start
+	OnRun []CtxErrCallback
+
+	// Hook functions get triggered simultaneously when engine shutdown
 	OnShutdown []CtxCallback
 }
 
@@ -252,7 +257,7 @@ func (engine *Engine) NewContext() *app.RequestContext {
 //	one request (in hand or next incoming), idleTimeout or ExitWaitTime
 // 4. Exit
 func (engine *Engine) Shutdown(ctx context.Context) (err error) {
-	if engine.status != statusRunning {
+	if atomic.LoadUint32(&engine.status) != statusRunning {
 		return errStatusNotRunning
 	}
 	if !atomic.CompareAndSwapUint32(&engine.status, statusRunning, statusShutdown) {
@@ -264,6 +269,13 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		go func(index int) {
 			engine.OnShutdown[index](ctx)
 		}(i)
+	}
+
+	if opt := engine.options; opt != nil && opt.Registry != nil {
+		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+			hlog.Errorf("HERTZ: Deregister error=%v", err)
+			return err
+		}
 	}
 
 	// call transport shutdown
@@ -282,6 +294,14 @@ func (engine *Engine) Run() (err error) {
 		return errAlreadyRunning
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
+
+	// trigger hooks if any
+	ctx := context.Background()
+	for i := range engine.OnRun {
+		if err = engine.OnRun[i](ctx); err != nil {
+			return err
+		}
+	}
 
 	return engine.listenAndServe()
 }
