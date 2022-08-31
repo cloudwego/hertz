@@ -65,8 +65,8 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
@@ -391,7 +391,7 @@ func TestClientReadTimeout(t *testing.T) {
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
 			ReadTimeout: time.Second * 4,
-			RetryConfig: &retry.RetryConfig{MaxIdempotentCallAttempts: 1},
+			RetryConfig: &retry.Config{MaxIdempotentCallAttempts: 1},
 			Dialer:      standard.NewDialer(),
 			Addr:        opt.Addr,
 		},
@@ -1892,26 +1892,21 @@ func TestClientRetry(t *testing.T) {
 	go engine.Run()
 	time.Sleep(time.Millisecond * 500)
 
-	client, err := NewClient(WithDialTimeout(2 * time.Second))
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-	startTime := time.Now().UnixNano()
-	retryCfg, err := retry.NewRetryConfig(
-		retry.WithMaxIdempotentCallAttempts(3),
-		retry.WithDelay(1*time.Second),
-		retry.WithMaxDelay(10*time.Second),
-		retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
-		retry.WithRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
-			return regexp.MustCompile("connection has been closed").MatchString(fmt.Sprintln(err))
-		}),
+	client, err := NewClient(
+		WithDialTimeout(2*time.Second),
+		WithRetryConfig(
+			retry.WithMaxIdempotentCallAttempts(3),
+			retry.WithDelay(1*time.Second),
+			retry.WithMaxDelay(10*time.Second),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
+		),
 	)
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
-	client.SetRetryConfig(retryCfg)
+	startTime := time.Now().UnixNano()
+
 	_, resp, err := client.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
 	if err != nil {
 		if time.Duration(time.Now().UnixNano()-startTime) > 8*time.Second && time.Duration(time.Now().UnixNano()-startTime) < 9*time.Second {

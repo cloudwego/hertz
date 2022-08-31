@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -102,6 +103,7 @@ type ClientOptions struct {
 	// By default path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
+	RetryConfig            *retry.Config
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {

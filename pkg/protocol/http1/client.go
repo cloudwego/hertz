@@ -56,7 +56,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
-	"github.com/cloudwego/hertz/pkg/common/config/retry"
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/timer"
@@ -316,14 +316,17 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	var (
 		err                error
 		shouldRetry        bool
-		attempts           uint              = 0
-		maxAttempts        uint              = 1
-		isRequestRetryable retry.RetryIfFunc = nil
+		attempts           uint               = 0
+		maxAttempts        uint               = 1
+		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
 	)
 	retrycfg := c.ClientOptions.RetryConfig
 	if retrycfg != nil {
 		maxAttempts = retrycfg.MaxIdempotentCallAttempts
-		isRequestRetryable = retrycfg.RetryIf
+	}
+
+	if c.ClientOptions.RetryIfFunc != nil {
+		isRequestRetryable = c.ClientOptions.RetryIfFunc
 	}
 
 	atomic.AddInt32(&c.pendingRequests, 1)
@@ -1155,5 +1158,7 @@ type ClientOptions struct {
 	ProxyURI *protocol.URI
 
 	// All configurations related to retry
-	RetryConfig *retry.RetryConfig
+	RetryConfig *retry.Config
+
+	RetryIfFunc client.RetryIfFunc
 }

@@ -18,49 +18,42 @@ package retry
 
 import "time"
 
-// RetryOption is the only struct that can be used to set RetryConfig.
-type RetryOption struct {
-	F func(o *RetryConfig)
+// Option is the only struct that can be used to set Retry Config.
+type Option struct {
+	F func(o *Config)
 }
 
 // WithMaxIdempotentCallAttempts sets MaxIdempotentCallAttempts.
-func WithMaxIdempotentCallAttempts(maxIdempotentCallAttempts uint) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
+func WithMaxIdempotentCallAttempts(maxIdempotentCallAttempts uint) Option {
+	return Option{F: func(o *Config) {
 		o.MaxIdempotentCallAttempts = maxIdempotentCallAttempts
 	}}
 }
 
 // WithDelay sets MaxIdempotentCallAttempts.
-func WithDelay(delay time.Duration) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
+func WithDelay(delay time.Duration) Option {
+	return Option{F: func(o *Config) {
 		o.Delay = delay
 	}}
 }
 
 // WithMaxDelay sets MaxIdempotentCallAttempts.
-func WithMaxDelay(maxDelay time.Duration) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
+func WithMaxDelay(maxDelay time.Duration) Option {
+	return Option{F: func(o *Config) {
 		o.MaxDelay = maxDelay
 	}}
 }
 
-// WithRetryIf sets MaxIdempotentCallAttempts.
-func WithRetryIf(retryIf RetryIfFunc) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
-		o.RetryIf = retryIf
-	}}
-}
-
 // WithDelayPolicy sets MaxIdempotentCallAttempts.
-func WithDelayPolicy(delayPolicy DelayPolicyFunc) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
+func WithDelayPolicy(delayPolicy DelayPolicyFunc) Option {
+	return Option{F: func(o *Config) {
 		o.DelayPolicy = delayPolicy
 	}}
 }
 
 // WithMaxJitter sets MaxIdempotentCallAttempts.
-func WithMaxJitter(maxJitter time.Duration) RetryOption {
-	return RetryOption{F: func(o *RetryConfig) {
+func WithMaxJitter(maxJitter time.Duration) Option {
+	return Option{F: func(o *Config) {
 		o.MaxJitter = maxJitter
 	}}
 }

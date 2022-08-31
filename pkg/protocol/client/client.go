@@ -44,6 +44,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"sync"
 	"time"
 
@@ -79,6 +80,7 @@ type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
 }
 
+// HostClientConfig TODO no used any more, to be removed
 type HostClientConfig struct {
 	DynamicConfig
 
@@ -106,6 +108,36 @@ type HostClientConfig struct {
 	MaxConnWaitTimeout  time.Duration
 }
 
+// DefaultRetryIf Default retry condition, to be optimized
+func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
+	if !req.IsBodyStream() {
+		return true
+	}
+	// Retry non-idempotent requests if the server closes
+	// the connection before sending the response.
+	//
+	// This case is possible if the server closes the idle
+	// keep-alive connection on timeout.
+	//
+	// Apache and nginx usually do this.
+	if !isIdempotent(req, resp, err) && err == io.EOF {
+		return true
+	}
+	// Retry the response in the range of 500,
+	// because 5xx is usually not a permanent error,
+	// which may be related to the interruption and downtime of the server.
+	// Give the server a certain backoff time to recover.
+	// This will also catch invalid response codes, such as 0, etc
+	if resp.StatusCode() == 0 || (resp.StatusCode()) >= 500 && resp.StatusCode() != 501 {
+		return true
+	}
+	return false
+}
+
+func isIdempotent(req *protocol.Request, resp *protocol.Response, err error) bool {
+	return req.Header.IsGet() || req.Header.IsHead() || req.Header.IsPut() || req.Header.IsDelete()
+}
+
 // DynamicConfig is config set which will be confirmed when starts a request.
 type DynamicConfig struct {
 	Addr     string
@@ -114,9 +146,8 @@ type DynamicConfig struct {
 }
 
 // RetryIfFunc signature of retry if function
-//
-// Request argument passed to RetryIfFunc, if there are any request errors.
-type RetryIfFunc func(request *protocol.Request) bool
+// Judge whether to retry by request,response or error
+type RetryIfFunc func(req *protocol.Request, resp *protocol.Response, err error) bool
 
 type clientURLResponse struct {
 	statusCode int

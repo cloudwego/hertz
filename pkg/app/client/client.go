@@ -51,7 +51,6 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/config/retry"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
@@ -242,8 +241,8 @@ type Client struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
 
-	// RetryConfig All configurations related to retry
-	RetryConfig *retry.RetryConfig
+	// RetryIfFunc sets the retry decision function. If nil, the client.DefaultRetryIf will be applied.
+	RetryIfFunc client.RetryIfFunc
 
 	clientFactory suite.ClientFactory
 
@@ -257,16 +256,16 @@ func (c *Client) GetOptions() *config.ClientOptions {
 	return c.options
 }
 
+func (c *Client) SetRetryIfFunc(retryIf client.RetryIfFunc) {
+	c.RetryIfFunc = retryIf
+}
+
 // SetProxy is used to set client proxy.
 //
 // Don't SetProxy twice for a client.
 // If you want to use another proxy, please create another client and set proxy to it.
 func (c *Client) SetProxy(p protocol.Proxy) {
 	c.Proxy = p
-}
-
-func (c *Client) SetRetryConfig(retryConfig *retry.RetryConfig) {
-	c.RetryConfig = retryConfig
 }
 
 // Get returns the status code and body of url.
@@ -579,6 +578,7 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		DisablePathNormalizing:        c.options.DisablePathNormalizing,
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
 		ResponseBodyStream:            c.options.ResponseBodyStream,
-		RetryConfig:                   c.RetryConfig,
+		RetryConfig:                   c.options.RetryConfig,
+		RetryIfFunc:                   c.RetryIfFunc,
 	}
 }
