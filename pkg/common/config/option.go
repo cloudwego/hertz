@@ -71,6 +71,12 @@ type Options struct {
 	Registry registry.Registry
 	// RegistryInfo is base info used for service registry.
 	RegistryInfo *registry.Info
+	// Enable automatically HTML template reloading mechanism.
+	AutoReloadRender bool
+	// If AutoReloadInterval is set to 0(default).
+	// The HTML template will reload according to files' changing event
+	// otherwise it will reload after AutoReloadInterval.
+	AutoReloadInterval time.Duration
 }
 
 func (o *Options) Apply(opts []Option) {
