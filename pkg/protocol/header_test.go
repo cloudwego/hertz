@@ -42,13 +42,14 @@
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
-
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -191,6 +192,22 @@ func TestResponseHeaderDelClientCookie(t *testing.T) {
 		t.Fatalf("unexpected cookie value: %q. Expecting empty value", c.Value())
 	}
 	ReleaseCookie(c)
+}
+
+func TestCheckWriteHeaderCode(t *testing.T) {
+	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+	hlog.SetOutput(buffer)
+	checkWriteHeaderCode(99)
+	assert.True(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	buffer.Reset()
+	checkWriteHeaderCode(600)
+	assert.True(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	buffer.Reset()
+	checkWriteHeaderCode(100)
+	assert.False(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	buffer.Reset()
+	checkWriteHeaderCode(599)
+	assert.False(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
 }
 
 func TestResponseHeaderAdd(t *testing.T) {
