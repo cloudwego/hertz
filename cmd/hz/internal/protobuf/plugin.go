@@ -202,6 +202,17 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 		return nil
 	}
 
+	if args.CmdType == meta.CmdModel {
+		resp := gen.Response()
+		// plugin stop working
+		err = plugin.Response(resp)
+		if err != nil {
+			return fmt.Errorf("write response failed: %s", err.Error())
+		}
+
+		return nil
+	}
+
 	files := gen.Request.ProtoFile
 	maps := make(map[string]*descriptorpb.FileDescriptorProto, len(files))
 	for _, file := range files {
