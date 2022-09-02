@@ -61,6 +61,7 @@ type Argument struct {
 	SnakeName            bool
 	Excludes             []string
 	NoRecurse            bool
+	HandlerByMethod      bool
 
 	CustomizeLayout  string
 	CustomizePackage string

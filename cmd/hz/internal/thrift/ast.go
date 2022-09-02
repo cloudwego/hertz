@@ -70,6 +70,17 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 			if len(rs) > 1 {
 				return nil, fmt.Errorf("too many 'api.XXX' annotations: %s", rs)
 			}
+
+			var handlerOutDir string
+			genPaths := getAnnotation(m.Annotations, ApiGenPath)
+			if len(genPaths) == 0 {
+				handlerOutDir = ""
+			} else if len(genPaths) > 1 {
+				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
+			} else {
+				handlerOutDir = genPaths[0]
+			}
+
 			hmethod, path := util.GetFirstKV(rs)
 			if len(path) != 1 || path[0] == "" {
 				return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
@@ -103,6 +114,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 				ReturnTypeName:  respName,
 				Path:            path[0],
 				Serializer:      sr,
+				OutputDir:       handlerOutDir,
 				// Annotations:     m.Annotations,
 			}
 			refs := resolver.ExportReferred(false, true)

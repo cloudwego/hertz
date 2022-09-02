@@ -90,6 +90,10 @@ func (plugin *Plugin) Run() int {
 	options := CheckTagOption(plugin.args)
 
 	pkgInfo, err := plugin.getPackageInfo()
+	if err != nil {
+		logs.Errorf("get http package info failed: %s", err.Error())
+		return meta.PluginError
+	}
 
 	cf, _ := util.GetColonPair(args.CustomizePackage)
 	pkg, err := args.GetGoPackage()
@@ -126,8 +130,9 @@ func (plugin *Plugin) Run() int {
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
 		},
-		ProjPackage: pkg,
-		Options:     options,
+		ProjPackage:     pkg,
+		Options:         options,
+		HandlerByMethod: args.HandlerByMethod,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)

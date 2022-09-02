@@ -23,6 +23,7 @@ import (
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator"
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
+	"github.com/cloudwego/hertz/cmd/hz/internal/protobuf/api"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util"
 	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 	"github.com/jhump/protoreflect/desc"
@@ -121,6 +122,13 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 			}
 			path := vpath.(string)
 
+			var handlerOutDir string
+			genPath := checkFirstOption(api.E_HandlerPath, m.GetOptions())
+			handlerOutDir, ok := genPath.(string)
+			if !ok || len(handlerOutDir) == 0 {
+				handlerOutDir = ""
+			}
+
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
 			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + sb.Name
@@ -145,6 +153,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 				HTTPMethod: hmethod,
 				Path:       path,
 				Serializer: serializer,
+				OutputDir:  handlerOutDir,
 			}
 
 			goOptMapAlias := make(map[string]string, 1)

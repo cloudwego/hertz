@@ -123,6 +123,7 @@ func Init() *cli.App {
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
 	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}:{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}:)", Destination: &globalArgs.CustomizePackage}
+	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
 
 	// app
 	app := cli.NewApp()
@@ -164,6 +165,7 @@ func Init() *cli.App {
 				&excludeFilesFlag,
 				&customLayout,
 				&customPackage,
+				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
 			},
@@ -191,6 +193,7 @@ func Init() *cli.App {
 				&snakeNameFlag,
 				&excludeFilesFlag,
 				&customPackage,
+				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
 			},
