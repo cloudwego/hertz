@@ -228,3 +228,19 @@ func testURIFullURI(t *testing.T, scheme, host, path, hash string, args *Args, e
 		t.Fatalf("Unexpected URI: %q. Expected %q", uri, expectedURI)
 	}
 }
+
+func TestParsePath(t *testing.T) {
+	t.Parallel()
+
+	testParsePath(t, "/../../../../../foo", "/foo")
+	testParsePath(t, "/..\\..\\..\\..\\..\\foo", "/foo")
+}
+
+func testParsePath(t *testing.T, path, expectedPath string) {
+	var u URI
+	u.Parse(nil, []byte(path))
+	parsedPath := u.Path()
+	if string(parsedPath) != expectedPath {
+		t.Fatalf("Unexpected Path: %q. Expected %q", parsedPath, expectedPath)
+	}
+}
