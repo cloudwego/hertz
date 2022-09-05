@@ -234,6 +234,7 @@ func TestParsePath(t *testing.T) {
 
 	testParsePath(t, "/../../../../../foo", "/foo")
 	testParsePath(t, "/..\\..\\..\\..\\..\\foo", "/foo")
+	testParsePath(t, "/..%5c..%5cfoo", "/foo")
 }
 
 func testParsePath(t *testing.T, path, expectedPath string) {

@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"path/filepath"
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -480,18 +481,21 @@ func splitHostURI(host, uri []byte) ([]byte, []byte, []byte) {
 }
 
 func normalizePath(dst, src []byte) []byte {
-	// replace all backslashes with forward slashes
-	for {
-		n := bytes.Index(src, bytestr.StrBackSlash)
-		if n < 0 {
-			break
-		}
-		src[n] = '/'
-	}
-
 	dst = dst[:0]
 	dst = addLeadingSlash(dst, src)
 	dst = decodeArgAppendNoPlus(dst, src)
+
+	// Windows server need to replace all backslashes with
+	// forward slashes to avoid path traversal attacks.
+	if filepath.Separator == '\\' {
+		for {
+			n := bytes.IndexByte(dst, '\\')
+			if n < 0 {
+				break
+			}
+			dst[n] = '/'
+		}
+	}
 
 	// remove duplicate slashes
 	b := dst
