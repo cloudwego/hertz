@@ -79,9 +79,15 @@ type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
 }
 
-// DefaultRetryIf Default retry condition, to be optimized
+// DefaultRetryIf Default retry condition, mainly used for idempotent requests.
+// If this cannot be satisfied, you can implement your own retry condition.
 func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
-	if !req.IsBodyStream() {
+	// cannot retry if the request body is not rewindable
+	if req.IsBodyStream() {
+		return false
+	}
+
+	if isIdempotent(req, resp, err) {
 		return true
 	}
 	// Retry non-idempotent requests if the server closes
@@ -91,17 +97,10 @@ func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) b
 	// keep-alive connection on timeout.
 	//
 	// Apache and nginx usually do this.
-	if !isIdempotent(req, resp, err) && err == io.EOF {
+	if err == io.EOF {
 		return true
 	}
-	// Retry the response in the range of 500,
-	// because 5xx is usually not a permanent error,
-	// which may be related to the interruption and downtime of the server.
-	// Give the server a certain backoff time to recover.
-	// This will also catch invalid response codes, such as 0, etc
-	if resp.StatusCode() == 0 || (resp.StatusCode()) >= 500 && resp.StatusCode() != 501 {
-		return true
-	}
+
 	return false
 }
 

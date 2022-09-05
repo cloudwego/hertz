@@ -328,30 +328,41 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
 	var (
 		err                error
-		shouldRetry        bool
+		canIdempotentRetry bool
+		isDefaultRetryFunc                    = true
 		attempts           uint               = 0
 		maxAttempts        uint               = 1
 		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
 	)
-	retrycfg := c.ClientOptions.RetryConfig
-	if retrycfg != nil {
-		maxAttempts = retrycfg.MaxAttemptTimes
+	retryCfg := c.ClientOptions.RetryConfig
+	if retryCfg != nil {
+		maxAttempts = retryCfg.MaxAttemptTimes
 	}
 
 	if c.ClientOptions.RetryIfFunc != nil {
 		isRequestRetryable = c.ClientOptions.RetryIfFunc
+		// if the user has provided a custom retry function, the canIdempotentRetry has no meaning anymore.
+		// User will have full control over the retry logic through the custom retry function.
+		isDefaultRetryFunc = false
 	}
 
 	atomic.AddInt32(&c.pendingRequests, 1)
 
 	for {
-
-		shouldRetry, err = c.do(req, resp)
-		attempts++
-		if attempts >= maxAttempts {
+		canIdempotentRetry, err = c.do(req, resp)
+		if err == nil {
 			break
 		}
-		if err == nil || !shouldRetry {
+
+		if isDefaultRetryFunc {
+			// canIdempotentRetry only makes sense if the user hasn't provided a custom retry function.
+			if !canIdempotentRetry {
+				break
+			}
+		}
+
+		attempts++
+		if attempts >= maxAttempts {
 			break
 		}
 
@@ -360,10 +371,9 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 			break
 		}
 
-		wait := retry.Delay(attempts, err, retrycfg)
+		wait := retry.Delay(attempts, err, retryCfg)
 		// Retry after wait time
 		time.Sleep(wait)
-
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
 
@@ -389,13 +399,13 @@ func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, e
 		resp = protocol.AcquireResponse()
 	}
 
-	retry, err := c.doNonNilReqResp(req, resp)
+	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
 
 	if nilResp {
 		protocol.ReleaseResponse(resp)
 	}
 
-	return retry, err
+	return canIdempotentRetry, err
 }
 
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
@@ -420,6 +430,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		req.URI().DisablePathNormalizing = true
 	}
 	cc, err := c.acquireConn()
+	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
 	}
@@ -440,6 +451,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		currentTime := time.Now()
 		if err = conn.SetWriteDeadline(currentTime.Add(c.WriteTimeout)); err != nil {
 			c.closeConn(cc)
+			// try another connection if retry is enabled
 			return true, err
 		}
 	}
@@ -468,6 +480,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if err == nil {
 		err = zw.Flush()
 	}
+	// error happened when writing request, close the connection, and try another connection if retry is enabled
 	if err != nil {
 		c.closeConn(cc)
 		return true, err
@@ -478,6 +491,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
 		if err = conn.SetReadTimeout(c.ReadTimeout); err != nil {
 			c.closeConn(cc)
+			// try another connection if retry is enabled
 			return true, err
 		}
 	}
