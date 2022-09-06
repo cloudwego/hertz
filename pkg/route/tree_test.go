@@ -471,6 +471,7 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/no/a",
 		"/no/b",
 		"/api/hello/:name",
+		"/user/:name/*id",
 	}
 	for _, route := range routes {
 		recv := catchPanic(func() {
@@ -496,6 +497,7 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/admin/config/",
 		"/admin/config/permissions/",
 		"/doc/",
+		"/user/name",
 	}
 	v := make(param.Params, 0, 10)
 	for _, route := range tsrRoutes {
