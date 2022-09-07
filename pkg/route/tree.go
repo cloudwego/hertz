@@ -394,7 +394,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		}
 
 		if search == nilString {
-			if cd := cn.findChild('/'); cd != nil && cd.handlers != nil {
+			if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 				res.tsr = true
 			}
 		}

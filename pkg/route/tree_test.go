@@ -461,7 +461,7 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/1/:id/",
 		"/1/:id/2",
 		"/aa",
-		"/a/",
+		"/a/*b",
 		"/admin",
 		"/admin/:category",
 		"/admin/:category/:page",
