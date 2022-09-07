@@ -461,7 +461,7 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/1/:id/",
 		"/1/:id/2",
 		"/aa",
-		"/a/*b",
+		"/a/",
 		"/admin",
 		"/admin/:category",
 		"/admin/:category/:page",
@@ -472,6 +472,13 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/no/b",
 		"/api/hello/:name",
 		"/user/:name/*id",
+		"/resource",
+		"/r/*id",
+		"/book/biz/:name",
+		"/book/biz/abc",
+		"/book/biz/abc/bar",
+		"/book/:page/:name",
+		"/book/hello/:name/biz/",
 	}
 	for _, route := range routes {
 		recv := catchPanic(func() {
@@ -498,6 +505,10 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/admin/config/permissions/",
 		"/doc/",
 		"/user/name",
+		"/r",
+		"/book/hello/a/biz",
+		"/book/biz/foo/",
+		"/book/biz/abc/bar/",
 	}
 	v := make(param.Params, 0, 10)
 	for _, route := range tsrRoutes {
@@ -516,6 +527,10 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 		"/_",
 		"/_/",
 		"/api/world/abc",
+		"/book",
+		"/book/",
+		"/book/hello/a/abc",
+		"/book/biz/abc/biz",
 	}
 	for _, route := range noTsrRoutes {
 		value := tree.find(route, &v, false)

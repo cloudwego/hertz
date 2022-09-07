@@ -361,7 +361,8 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 				searchIndex = searchIndex + len(cn.prefix)
 			} else {
 				// not equal
-				if (len(cn.prefix) == len(search)+1) && (cn.prefix[len(search)]) == '/' && (cn.handlers != nil || cn.anyChild != nil) {
+				if (len(cn.prefix) == len(search)+1) &&
+					(cn.prefix[len(search)]) == '/' && cn.prefix[:len(search)] == search && (cn.handlers != nil || cn.anyChild != nil) {
 					res.tsr = true
 				}
 				// No matching prefix, let's backtrack to the first possible alternative node of the decision path
