@@ -58,7 +58,12 @@ func lookupTool(idlType string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get executable path: %s", err)
 	}
-	dir := filepath.Dir(path)
+	gopath, err := util.GetGOPATH()
+	if err != nil {
+		return "", err
+	}
+	// softlink the plugin to "$GOPATH/bin"
+	dir := gopath + string(os.PathSeparator) + "bin"
 	if tool == meta.TpCompilerProto {
 		pgh, err := exec.LookPath(meta.ProtocPluginName)
 		linkName := filepath.Join(dir, meta.ProtocPluginName)
