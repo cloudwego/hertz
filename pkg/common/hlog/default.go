@@ -25,7 +25,16 @@ import (
 )
 
 var logger FullLogger = &defaultLogger{
-	stdlog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
+	stdlog:    log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
+	calldepth: 4,
+}
+
+// New create a new logger.
+func New() FullLogger {
+	return &defaultLogger{
+		stdlog:    log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
+		calldepth: 3,
+	}
 }
 
 // SetOutput sets the output of default logger. By default, it is stderr.
@@ -158,8 +167,9 @@ func CtxTracef(ctx context.Context, format string, v ...interface{}) {
 }
 
 type defaultLogger struct {
-	stdlog *log.Logger
-	level  Level
+	stdlog    *log.Logger
+	level     Level
+	calldepth int
 }
 
 func (ll *defaultLogger) SetOutput(w io.Writer) {
@@ -168,6 +178,10 @@ func (ll *defaultLogger) SetOutput(w io.Writer) {
 
 func (ll *defaultLogger) SetLevel(lv Level) {
 	ll.level = lv
+}
+
+func (ll *defaultLogger) SetCallerSkip(callerSkip int) {
+	ll.calldepth += callerSkip
 }
 
 func (ll *defaultLogger) logf(lv Level, format *string, v ...interface{}) {
@@ -180,7 +194,7 @@ func (ll *defaultLogger) logf(lv Level, format *string, v ...interface{}) {
 	} else {
 		msg += fmt.Sprint(v...)
 	}
-	ll.stdlog.Output(4, msg)
+	ll.stdlog.Output(ll.calldepth, msg)
 	if lv == LevelFatal {
 		os.Exit(1)
 	}

@@ -60,6 +60,7 @@ type CtxLogger interface {
 type Control interface {
 	SetLevel(Level)
 	SetOutput(io.Writer)
+	SetCallerSkip(int)
 }
 
 // FullLogger is the combination of Logger, FormatLogger, CtxLogger and Control.
