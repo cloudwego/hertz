@@ -43,7 +43,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"sync"
 	"time"
@@ -78,34 +77,6 @@ type HostClient interface {
 
 type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
-}
-
-// HostClientConfig TODO no used any more, to be removed
-type HostClientConfig struct {
-	DynamicConfig
-
-	Name string
-
-	NoDefaultUserAgentHeader      bool
-	DialDualStack                 bool
-	DisableHeaderNamesNormalizing bool
-	DisablePathNormalizing        bool
-	IsTLS                         bool
-
-	TLSConfig *tls.Config
-
-	MaxConns                  int
-	MaxIdempotentCallAttempts int
-	MaxResponseBodySize       int
-
-	ResponseBodyStream bool
-
-	DialTimeout         time.Duration
-	MaxIdleConnDuration time.Duration
-	MaxConnDuration     time.Duration
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	MaxConnWaitTimeout  time.Duration
 }
 
 // DefaultRetryIf Default retry condition, to be optimized
