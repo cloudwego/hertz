@@ -24,8 +24,8 @@ import (
 
 // Config All configurations related to retry
 type Config struct {
-	// The maximum number of idempotent call retries, including the initial call
-	MaxIdempotentCallAttempts uint
+	// The maximum number of call attempt times, including the initial call
+	MaxAttemptTimes uint
 
 	// Initial retry delay time
 	Delay time.Duration

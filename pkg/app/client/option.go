@@ -128,11 +128,11 @@ func WithDisablePathNormalizing(isDisablePathNormalizing bool) config.ClientOpti
 
 func WithRetryConfig(opts ...retry.Option) config.ClientOption {
 	retryCfg := &retry.Config{
-		MaxIdempotentCallAttempts: consts.DefaultMaxIdempotentCallAttempts,
-		Delay:                     1 * time.Millisecond,
-		MaxDelay:                  100 * time.Millisecond,
-		MaxJitter:                 20 * time.Millisecond,
-		DelayPolicy:               retry.CombineDelay(retry.DefaultDelay),
+		MaxAttemptTimes: consts.DefaultMaxRetryTimes,
+		Delay:           1 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		MaxJitter:       20 * time.Millisecond,
+		DelayPolicy:     retry.CombineDelay(retry.DefaultDelay),
 	}
 	retryCfg.Apply(opts)
 

@@ -23,35 +23,35 @@ type Option struct {
 	F func(o *Config)
 }
 
-// WithMaxIdempotentCallAttempts sets MaxIdempotentCallAttempts.
-func WithMaxIdempotentCallAttempts(maxIdempotentCallAttempts uint) Option {
+// WithMaxAttemptTimes set WithMaxAttemptTimes , including the first call.
+func WithMaxAttemptTimes(maxAttemptTimes uint) Option {
 	return Option{F: func(o *Config) {
-		o.MaxIdempotentCallAttempts = maxIdempotentCallAttempts
+		o.MaxAttemptTimes = maxAttemptTimes
 	}}
 }
 
-// WithDelay sets MaxIdempotentCallAttempts.
-func WithDelay(delay time.Duration) Option {
+// WithInitDelay set init Delay.
+func WithInitDelay(delay time.Duration) Option {
 	return Option{F: func(o *Config) {
 		o.Delay = delay
 	}}
 }
 
-// WithMaxDelay sets MaxIdempotentCallAttempts.
+// WithMaxDelay set MaxDelay.
 func WithMaxDelay(maxDelay time.Duration) Option {
 	return Option{F: func(o *Config) {
 		o.MaxDelay = maxDelay
 	}}
 }
 
-// WithDelayPolicy sets MaxIdempotentCallAttempts.
+// WithDelayPolicy set DelayPolicy.
 func WithDelayPolicy(delayPolicy DelayPolicyFunc) Option {
 	return Option{F: func(o *Config) {
 		o.DelayPolicy = delayPolicy
 	}}
 }
 
-// WithMaxJitter sets MaxIdempotentCallAttempts.
+// WithMaxJitter set MaxJitter.
 func WithMaxJitter(maxJitter time.Duration) Option {
 	return Option{F: func(o *Config) {
 		o.MaxJitter = maxJitter

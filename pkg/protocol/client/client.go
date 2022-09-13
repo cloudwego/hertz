@@ -146,7 +146,7 @@ type DynamicConfig struct {
 }
 
 // RetryIfFunc signature of retry if function
-// Judge whether to retry by request,response or error
+// Judge whether to retry by request,response or error , return true is retry
 type RetryIfFunc func(req *protocol.Request, resp *protocol.Response, err error) bool
 
 type clientURLResponse struct {
