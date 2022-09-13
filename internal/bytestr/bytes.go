@@ -28,6 +28,7 @@ var (
 )
 
 var (
+	StrBackSlash        = []byte("\\")
 	StrSlash            = []byte("/")
 	StrSlashSlash       = []byte("//")
 	StrSlashDotDot      = []byte("/..")
