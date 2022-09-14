@@ -74,13 +74,13 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Addr: "foobar",
 			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 50 * time.Millisecond,
 		},
+		Addr: "foobar",
 	}
 
 	var errTimeoutCount uint32

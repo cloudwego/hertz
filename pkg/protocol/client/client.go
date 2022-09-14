@@ -43,7 +43,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"sync"
 	"time"
 
@@ -77,34 +76,6 @@ type HostClient interface {
 
 type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
-}
-
-type HostClientConfig struct {
-	DynamicConfig
-
-	Name string
-
-	NoDefaultUserAgentHeader      bool
-	DialDualStack                 bool
-	DisableHeaderNamesNormalizing bool
-	DisablePathNormalizing        bool
-	IsTLS                         bool
-
-	TLSConfig *tls.Config
-
-	MaxConns                  int
-	MaxIdempotentCallAttempts int
-	MaxResponseBodySize       int
-
-	RetryIf            RetryIfFunc
-	ResponseBodyStream bool
-
-	DialTimeout         time.Duration
-	MaxIdleConnDuration time.Duration
-	MaxConnDuration     time.Duration
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	MaxConnWaitTimeout  time.Duration
 }
 
 // DynamicConfig is config set which will be confirmed when starts a request.

@@ -392,8 +392,8 @@ func TestClientReadTimeout(t *testing.T) {
 			ReadTimeout:               time.Second * 4,
 			MaxIdempotentCallAttempts: 1,
 			Dialer:                    standard.NewDialer(),
-			Addr:                      opt.Addr,
 		},
+		Addr: opt.Addr,
 	}
 
 	req := protocol.AcquireRequest()
@@ -689,9 +689,9 @@ func TestHostClientPendingRequests(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:   "foobar",
 			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 		},
+		Addr: "foobar",
 	}
 
 	pendingRequests := c.PendingRequests()
@@ -780,10 +780,10 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:     "foobar",
 			Dialer:   newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns: 1,
 		},
+		Addr: "foobar",
 	}
 
 	for i := 0; i < 5; i++ {
@@ -849,10 +849,10 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:            "foobar",
 			Dialer:          newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConnDuration: 10 * time.Millisecond,
 		},
+		Addr: "foobar",
 	}
 
 	for i := 0; i < 5; i++ {
@@ -895,11 +895,11 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 	dialsCount := make(map[string]int)
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr: "foo,bar,baz",
 			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, func(network, addr string, timeout time.Duration, tlsConfig *tls.Config) {
 				dialsCount[addr]++
 			}),
 		},
+		Addr: "foo,bar,baz",
 	}
 
 	for i := 0; i < 9; i++ {
@@ -961,9 +961,9 @@ func TestClientFollowRedirects(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:   "xxx",
 			Dialer: newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil),
 		},
+		Addr: "xxx",
 	}
 
 	for i := 0; i < 10; i++ {
@@ -1055,11 +1055,11 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:               "foobar",
 			Dialer:             newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 200 * time.Millisecond,
 		},
+		Addr: "foobar",
 	}
 
 	for i := 0; i < 5; i++ {
@@ -1124,11 +1124,11 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			Addr:               "foobar",
 			Dialer:             newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil),
 			MaxConns:           1,
 			MaxConnWaitTimeout: 10 * time.Millisecond,
 		},
+		Addr: "foobar",
 	}
 
 	var errNoFreeConnsCount uint32
