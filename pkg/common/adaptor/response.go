@@ -17,8 +17,12 @@
 package adaptor
 
 import (
+	"bytes"
+	"context"
 	"net/http"
 
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -87,4 +91,29 @@ func GetCompatResponseWriter(resp *protocol.Response) http.ResponseWriter {
 
 	c.header = h
 	return c
+}
+
+// NewHertzHTTPHandler wraps net/http handler to hertz request handler,
+// so it can be passed to hertz server
+func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		req, err := GetCompatRequest(c.GetRequest())
+		if err != nil {
+			hlog.CtxErrorf(ctx, "")
+		}
+		rw := &compatResponse{h: c.GetResponse()}
+		rw.h.Header.SetNoDefaultContentType(true)
+		h.ServeHTTP(rw, req.WithContext(ctx))
+		body := rw.h.Body()
+		if _, ok := rw.header["Content-Type"]; ok {
+			c.Response.Header = rw.h.Header
+			c.Response.SetBodyStream(bytes.NewBuffer(body), len(body))
+		} else {
+			l := 512
+			if len(body) < 512 {
+				l = len(body)
+			}
+			c.Response.Header.Set("Content-Type", http.DetectContentType(body[:l]))
+		}
+	}
 }
