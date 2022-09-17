@@ -93,27 +93,67 @@ func GetCompatResponseWriter(resp *protocol.Response) http.ResponseWriter {
 	return c
 }
 
-// NewHertzHTTPHandler wraps net/http handler to hertz request handler,
+// NewHertzHTTPHandlerFunc wraps net/http handler to hertz app.HandlerFunc,
 // so it can be passed to hertz server
+//
+// While this function may be used for easy switching from net/http to hertz,
+// it has the following drawbacks comparing to using manually written hertz
+// request handler:
+//
+//   - net/http -> hertz handler conversion has some overhead,
+//     so the returned handler will be always slower than manually written
+//     hertz handler.
+//
+// So it is advisable using this function only for quick net/http -> hertz switching.
+// Then manually convert net/http handlers to hertz handlers
+func NewHertzHTTPHandlerFunc(h http.HandlerFunc) app.HandlerFunc {
+	return NewHertzHTTPHandler(h)
+}
+
+// NewHertzHTTPHandler wraps net/http handler to hertz app.HandlerFunc,
+// so it can be passed to hertz server
+//
+// While this function may be used for easy switching from net/http to hertz,
+// it has the following drawbacks comparing to using manually written hertz
+// request handler:
+//
+//   - net/http -> hertz handler conversion has some overhead,
+//     so the returned handler will be always slower than manually written
+//     hertz handler.
+//
+// So it is advisable using this function only for quick net/http -> hertz switching.
+// Then manually convert net/http handlers to hertz handlers
 func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		req, err := GetCompatRequest(c.GetRequest())
 		if err != nil {
-			hlog.CtxErrorf(ctx, "")
+			hlog.CtxErrorf(ctx, "HERTZ: Get request error: %v", err)
 		}
 		rw := &compatResponse{h: c.GetResponse()}
 		rw.h.Header.SetNoDefaultContentType(true)
 		h.ServeHTTP(rw, req.WithContext(ctx))
+		c.SetStatusCode(rw.h.StatusCode())
+
+		haveContentType := false
+		for k, vv := range rw.header {
+			if k == "Content-Type" {
+				haveContentType = true
+			}
+			for _, v := range vv {
+				c.Response.Header.Add(k, v)
+			}
+		}
 		body := rw.h.Body()
-		if _, ok := rw.header["Content-Type"]; ok {
-			c.Response.Header = rw.h.Header
-			c.Response.SetBodyStream(bytes.NewBuffer(body), len(body))
-		} else {
+		if !haveContentType {
+			// From net/http.ResponseWriter.Write:
+			// If the Header does not contain a Content-Type line, Write adds a Content-Type set
+			// to the result of passing the initial 512 bytes of written data to DetectContentType.
 			l := 512
 			if len(body) < 512 {
 				l = len(body)
 			}
 			c.Response.Header.Set("Content-Type", http.DetectContentType(body[:l]))
 		}
+		c.Response.SetBodyStream(bytes.NewBuffer(body), len(body))
 	}
 }
