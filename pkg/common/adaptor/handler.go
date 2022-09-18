@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
