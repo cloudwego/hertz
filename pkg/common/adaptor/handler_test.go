@@ -84,7 +84,7 @@ func TestNewHertzHandler(t *testing.T) {
 		w.Header().Set("Header1", "value1")
 		w.Header().Set("Header2", "value2")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("<!doctype html><html>")) //nolint:errcheck
+		w.Write(body)
 	}
 	hertzH := NewHertzHTTPHandler(http.HandlerFunc(nethttpH))
 	hertzH = setContextValueMiddleware(hertzH, expectedContextKey, expectedContextValue)
