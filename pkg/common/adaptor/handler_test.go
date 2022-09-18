@@ -17,62 +17,100 @@
 package adaptor
 
 import (
-	"bytes"
-	"io"
+	"context"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"reflect"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
-	"github.com/cloudwego/hertz/pkg/common/ut"
-	"github.com/cloudwego/hertz/pkg/route"
+	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
-func TestNewHertzHTTPHandler(t *testing.T) {
-	var headers []ut.Header
-	opt := config.NewOptions([]config.Option{})
-	engine := route.NewEngine(opt)
+func TestNewHertzHandler(t *testing.T) {
+	t.Parallel()
 
-	expectedValue := "success"
-	expectedKey := "Authorization"
-	expectedJson := []byte("{\"hi\":\"version1\"}")
-	expectedContentLength := len(expectedJson)
-	expectedCode := 200
+	expectedMethod := consts.MethodPost
+	expectedProto := "HTTP/1.1"
+	expectedProtoMajor := 1
+	expectedProtoMinor := 1
+	expectedRequestURI := "http://foobar.com/foo/bar?baz=123"
+	expectedBody := "<!doctype html><html>"
+	expectedContentLength := len(expectedBody)
+	expectedHost := "foobar.com"
+	expectedHeader := map[string]string{
+		"Foo-Bar":         "baz",
+		"Abc":             "defg",
+		"XXX-Remote-Addr": "123.43.4543.345",
+	}
+	expectedURL, err := url.ParseRequestURI(expectedRequestURI)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedContextKey := "contextKey"
+	expectedContextValue := "contextValue"
+	expectedContentType := "text/html; charset=utf-8"
 
+	callsCount := 0
 	nethttpH := func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		assert.DeepEqual(t, r.Header.Get("Test1"), "test")
-		w.Header().Set(expectedKey, expectedValue)
-		w.Write(expectedJson)
-	}
-	nethttpH2 := func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		body, _ := io.ReadAll(r.Body)
+		callsCount++
+		assert.Assertf(t, r.Method == expectedMethod, "unexpected method %q. Expecting %q", r.Method, expectedMethod)
+		assert.Assertf(t, r.Proto == expectedProto, "unexpected proto %q. Expecting %q", r.Proto, expectedProto)
+		assert.Assertf(t, r.ProtoMajor == expectedProtoMajor, "unexpected protoMajor %d. Expecting %d", r.ProtoMajor, expectedProtoMajor)
+		assert.Assertf(t, r.ProtoMinor == expectedProtoMinor, "unexpected protoMinor %d. Expecting %d", r.ProtoMinor, expectedProtoMinor)
+		assert.Assertf(t, r.RequestURI == expectedRequestURI, "unexpected requestURI %q. Expecting %q", r.RequestURI, expectedRequestURI)
+		assert.Assertf(t, r.ContentLength == int64(expectedContentLength), "unexpected contentLength %d. Expecting %d", r.ContentLength, expectedContentLength)
+		assert.Assertf(t, len(r.TransferEncoding) == 0, "unexpected transferEncoding %q. Expecting []", r.TransferEncoding)
+		assert.Assertf(t, r.Host == expectedHost, "unexpected host %q. Expecting %q", r.Host, expectedHost)
+		body, err := ioutil.ReadAll(r.Body)
 		r.Body.Close()
-		w.Write(body)
+		if err != nil {
+			t.Fatalf("unexpected error when reading request body: %v", err)
+		}
+		assert.Assertf(t, string(body) == expectedBody, "unexpected body %q. Expecting %q", body, expectedBody)
+		assert.Assertf(t, reflect.DeepEqual(r.URL, expectedURL), "unexpected URL: %#v. Expecting %#v", r.URL, expectedURL)
+		assert.Assertf(t, r.Context().Value(expectedContextKey) == expectedContextValue,
+			"unexpected context value for key %q. Expecting %q, in fact: %v", expectedContextKey,
+			expectedContextValue, r.Context().Value(expectedContextKey))
+		for k, expectedV := range expectedHeader {
+			v := r.Header.Get(k)
+			if v != expectedV {
+				t.Fatalf("unexpected header value %q for key %q. Expecting %q", v, k, expectedV)
+			}
+		}
+		w.Header().Set("Header1", "value1")
+		w.Header().Set("Header2", "value2")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("<!doctype html><html>")) //nolint:errcheck
 	}
-
-	engine.GET("/get", NewHertzHTTPHandlerFunc(nethttpH))
-	engine.POST("/post", NewHertzHTTPHandlerFunc(nethttpH2))
-	headers = []ut.Header{
-		{Key: "Content-Type", Value: "application/json"},
-		{Key: "Test1", Value: "test"},
+	hertzH := NewHertzHTTPHandler(http.HandlerFunc(nethttpH))
+	hertzH = setContextValueMiddleware(hertzH, expectedContextKey, expectedContextValue)
+	var ctx app.RequestContext
+	var req protocol.Request
+	req.Header.SetMethod(expectedMethod)
+	req.SetRequestURI(expectedRequestURI)
+	req.Header.SetHost(expectedHost)
+	req.BodyWriter().Write([]byte(expectedBody)) // nolint:errcheck
+	for k, v := range expectedHeader {
+		req.Header.Set(k, v)
 	}
+	req.CopyTo(&ctx.Request)
+	hertzH(context.Background(), &ctx)
+	assert.Assertf(t, callsCount == 1, "unexpected callsCount: %d. Expecting 1", callsCount)
+	resp := &ctx.Response
+	assert.Assertf(t, resp.StatusCode() == http.StatusBadRequest, "unexpected statusCode: %d. Expecting %d", resp.StatusCode(), http.StatusBadRequest)
+	assert.Assertf(t, string(resp.Header.Peek("Header1")) == "value1", "unexpected header value: %q. Expecting %q", resp.Header.Peek("Header1"), "value1")
+	assert.Assertf(t, string(resp.Header.Peek("Header2")) == "value2", "unexpected header value: %q. Expecting %q", resp.Header.Peek("Header2"), "value2")
+	assert.Assertf(t, string(resp.Body()) == expectedBody, "unexpected response body %q. Expecting %q", resp.Body(), expectedBody)
+	assert.Assertf(t, string(resp.Header.Peek("Content-Type")) == expectedContentType, "unexpected content-type %q. Expecting %q", string(resp.Header.Peek("Content-Type")), expectedContentType)
+}
 
-	w := ut.PerformRequest(engine, "GET", "/get", nil, headers...)
-	res := w.Result()
-	assert.DeepEqual(t, expectedCode, res.StatusCode())
-	assert.DeepEqual(t, expectedJson, res.Body())
-	assert.DeepEqual(t, expectedValue, res.Header.Get(expectedKey))
-	assert.DeepEqual(t, expectedContentLength, res.Header.ContentLength())
-
-	w2 := ut.PerformRequest(engine, "POST", "/post", &ut.Body{
-		Body: bytes.NewBuffer(expectedJson),
-		Len:  len(expectedJson),
-	}, headers...)
-	res2 := w2.Result()
-
-	assert.DeepEqual(t, expectedCode, res2.StatusCode())
-	assert.DeepEqual(t, expectedJson, res2.Body())
-	assert.DeepEqual(t, expectedContentLength, res2.Header.ContentLength())
+func setContextValueMiddleware(next app.HandlerFunc, key string, value interface{}) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		c.Set(key, value)
+		next(ctx, c)
+	}
 }

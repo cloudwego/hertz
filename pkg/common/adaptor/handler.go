@@ -19,12 +19,12 @@ package adaptor
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net/http"
+
+	"github.com/cloudwego/hertz/internal/bytesconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // NewHertzHTTPHandlerFunc wraps net/http handler to hertz app.HandlerFunc,
@@ -61,15 +61,20 @@ func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		req, err := GetCompatRequest(c.GetRequest())
 		if err != nil {
-			hlog.CtxErrorf(ctx, "HERTZ: Cannot parse requestURI %s: %v", c.Request.URI().RequestURI(), err)
-			c.AbortWithError(consts.StatusBadGateway, fmt.Errorf("internal Server Error: %v", err))
+			hlog.CtxErrorf(ctx, "HERTZ: Get request error: %v", err)
+			c.String(http.StatusInternalServerError, "Internal Server Error")
 			return
 		}
+		req.RequestURI = bytesconv.B2s(c.Request.RequestURI())
 		rw := &compatResponse{h: c.GetResponse()}
 		rw.h.Header.SetNoDefaultContentType(true)
-		h.ServeHTTP(rw, req.WithContext(ctx))
-		c.SetStatusCode(rw.h.StatusCode())
+		c.ForEachKey(func(k string, v interface{}) {
+			ctx = context.WithValue(ctx, k, v)
+		})
 
+		h.ServeHTTP(rw, req.WithContext(ctx))
+
+		c.SetStatusCode(rw.h.StatusCode())
 		haveContentType := false
 		for k, vv := range rw.header {
 			if k == "Content-Type" {
