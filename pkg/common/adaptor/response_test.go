@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/ut"
 	"github.com/cloudwego/hertz/pkg/route"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewHertzHTTPHandler(t *testing.T) {
@@ -38,10 +38,10 @@ func TestNewHertzHTTPHandler(t *testing.T) {
 	}
 	w := ut.PerformRequest(engine, "GET", "/get", nil, headers...)
 	res := w.Result()
-	assert.Equal(t, expectedCode, res.StatusCode())
-	assert.Equal(t, expectedJson, res.Body())
-	assert.Equal(t, expectedValue, res.Header.Get(expectedKey))
-	assert.Equal(t, expectedContentLength, res.Header.ContentLength())
+	assert.DeepEqual(t, expectedCode, res.StatusCode())
+	assert.DeepEqual(t, expectedJson, res.Body())
+	assert.DeepEqual(t, expectedValue, res.Header.Get(expectedKey))
+	assert.DeepEqual(t, expectedContentLength, res.Header.ContentLength())
 
 	w2 := ut.PerformRequest(engine, "POST", "/post", &ut.Body{
 		Body: bytes.NewBuffer(expectedJson),
@@ -49,7 +49,7 @@ func TestNewHertzHTTPHandler(t *testing.T) {
 	}, headers...)
 	res2 := w2.Result()
 
-	assert.Equal(t, expectedCode, res2.StatusCode())
-	assert.Equal(t, expectedJson, res2.Body())
-	assert.Equal(t, expectedContentLength, res2.Header.ContentLength())
+	assert.DeepEqual(t, expectedCode, res2.StatusCode())
+	assert.DeepEqual(t, expectedJson, res2.Body())
+	assert.DeepEqual(t, expectedContentLength, res2.Header.ContentLength())
 }
