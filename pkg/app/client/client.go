@@ -45,6 +45,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -538,6 +540,30 @@ func (c *Client) mCleaner() {
 
 func (c *Client) SetClientFactory(cf suite.ClientFactory) {
 	c.clientFactory = cf
+}
+
+// GetDialerName returns the name of the dialer
+func (c *Client) GetDialerName() (dName string, err error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			dName = "unknown"
+		}
+	}()
+
+	opt := c.GetOptions()
+	if opt == nil || opt.Dialer == nil {
+		return "", fmt.Errorf("abnormal process: there is no client options or dialer")
+	}
+
+	dName = reflect.TypeOf(opt.Dialer).String()
+	dSlice := strings.Split(dName, ".")
+	dName = dSlice[0]
+	if dName[0] == '*' {
+		dName = dName[1:]
+	}
+
+	return
 }
 
 // NewClient return a client with options

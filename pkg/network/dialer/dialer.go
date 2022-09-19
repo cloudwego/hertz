@@ -19,8 +19,6 @@ package dialer
 import (
 	"crypto/tls"
 	"net"
-	"reflect"
-	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/network"
@@ -50,22 +48,4 @@ func DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.
 // tunnel, this function establishes a nested TLS session inside the encrypted channel.
 func AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn, error) {
 	return defaultDialer.AddTLS(conn, tlsConfig)
-}
-
-// GetDialerName returns the name of the dialer
-func GetDialerName() (dName string) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			dName = "unknown"
-		}
-	}()
-
-	dName = reflect.TypeOf(defaultDialer).String()
-	dSlice := strings.Split(dName, ".")
-	dName = dSlice[0]
-	if dName[0] == '*' {
-		dName = dName[1:]
-	}
-	return
 }
