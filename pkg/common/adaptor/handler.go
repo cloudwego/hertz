@@ -21,11 +21,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // NewHertzHTTPHandlerFunc wraps net/http handler to hertz app.HandlerFunc,
