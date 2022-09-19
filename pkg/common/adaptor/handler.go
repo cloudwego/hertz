@@ -21,6 +21,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -32,6 +34,9 @@ import (
 // While this function may be used for easy switching from net/http to hertz,
 // it has the following drawbacks comparing to using manually written hertz
 // request handler:
+//
+//   - A lot of useful functionality provided by hertz is missing
+//     from net/http handler.
 //
 //   - net/http -> hertz handler conversion has some overhead,
 //     so the returned handler will be always slower than manually written
@@ -50,6 +55,9 @@ func NewHertzHTTPHandlerFunc(h http.HandlerFunc) app.HandlerFunc {
 // it has the following drawbacks comparing to using manually written hertz
 // request handler:
 //
+//   - A lot of useful functionality provided by hertz is missing
+//     from net/http handler.
+//
 //   - net/http -> hertz handler conversion has some overhead,
 //     so the returned handler will be always slower than manually written
 //     hertz handler.
@@ -61,7 +69,7 @@ func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 		req, err := GetCompatRequest(c.GetRequest())
 		if err != nil {
 			hlog.CtxErrorf(ctx, "HERTZ: Get request error: %v", err)
-			c.String(http.StatusInternalServerError, "Internal Server Error")
+			c.String(http.StatusInternalServerError, consts.StatusMessage(http.StatusInternalServerError))
 			return
 		}
 		req.RequestURI = bytesconv.B2s(c.Request.RequestURI())
@@ -76,7 +84,7 @@ func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 		c.SetStatusCode(rw.h.StatusCode())
 		haveContentType := false
 		for k, vv := range rw.header {
-			if k == "Content-Type" {
+			if k == consts.HeaderContentType {
 				haveContentType = true
 			}
 			for _, v := range vv {
@@ -92,7 +100,7 @@ func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 			if len(body) < 512 {
 				l = len(body)
 			}
-			c.Response.Header.Set("Content-Type", http.DetectContentType(body[:l]))
+			c.Response.Header.Set(consts.HeaderContentType, http.DetectContentType(body[:l]))
 		}
 		c.Response.SetBodyStream(bytes.NewBuffer(body), len(body))
 	}
