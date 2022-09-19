@@ -105,7 +105,12 @@ func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) b
 }
 
 func isIdempotent(req *protocol.Request, resp *protocol.Response, err error) bool {
-	return req.Header.IsGet() || req.Header.IsHead() || req.Header.IsPut() || req.Header.IsDelete()
+	return req.Header.IsGet() ||
+		req.Header.IsHead() ||
+		req.Header.IsPut() ||
+		req.Header.IsDelete() ||
+		req.Header.IsOptions() ||
+		req.Header.IsTrace()
 }
 
 // DynamicConfig is config set which will be confirmed when starts a request.

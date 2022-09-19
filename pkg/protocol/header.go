@@ -1057,6 +1057,16 @@ func (h *RequestHeader) IsGet() bool {
 	return bytes.Equal(h.Method(), bytestr.StrGet)
 }
 
+// IsOptions returns true if request method is Options.
+func (h *RequestHeader) IsOptions() bool {
+	return bytes.Equal(h.Method(), bytestr.StrOptions)
+}
+
+// IsTrace returns true if request method is Trace.
+func (h *RequestHeader) IsTrace() bool {
+	return bytes.Equal(h.Method(), bytestr.StrTrace)
+}
+
 // SetHostBytes sets Host header value.
 func (h *RequestHeader) SetHostBytes(host []byte) {
 	h.host = append(h.host[:0], host...)

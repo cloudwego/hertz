@@ -55,7 +55,7 @@ func (o *Config) Apply(opts []Option) {
 type DelayPolicyFunc func(attempts uint, err error, retryConfig *Config) time.Duration
 
 // DefaultDelayPolicy is a DelayPolicyFunc which keep 0 delay in all iterations
-func DefaultDelayPolicy(attempts uint, err error, retryConfig *Config) time.Duration {
+func DefaultDelayPolicy(_ uint, _ error, _ *Config) time.Duration {
 	return 0 * time.Millisecond
 }
 
