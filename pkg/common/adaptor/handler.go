@@ -17,7 +17,6 @@
 package adaptor
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 
@@ -72,35 +71,21 @@ func NewHertzHTTPHandler(h http.Handler) app.HandlerFunc {
 			return
 		}
 		req.RequestURI = bytesconv.B2s(c.Request.RequestURI())
-		rw := &compatResponse{h: c.GetResponse()}
-		rw.h.Header.SetNoDefaultContentType(true)
+		rw := GetCompatResponseWriter(&c.Response)
 		c.ForEachKey(func(k string, v interface{}) {
 			ctx = context.WithValue(ctx, k, v)
 		})
-
 		h.ServeHTTP(rw, req.WithContext(ctx))
-
-		c.SetStatusCode(rw.h.StatusCode())
-		haveContentType := false
-		for k, vv := range rw.header {
-			if k == consts.HeaderContentType {
-				haveContentType = true
-			}
-			for _, v := range vv {
-				c.Response.Header.Add(k, v)
-			}
-		}
-		body := rw.h.Body()
-		if !haveContentType {
-			// From net/http.ResponseWriter.Write:
-			// If the Header does not contain a Content-Type line, Write adds a Content-Type set
-			// to the result of passing the initial 512 bytes of written data to DetectContentType.
+		body := c.Response.Body()
+		// From net/http.ResponseWriter.Write:
+		// If the Header does not contain a Content-Type line, Write adds a Content-Type set
+		// to the result of passing the initial 512 bytes of written data to DetectContentType.
+		if len(c.GetHeader(consts.HeaderContentType)) == 0 {
 			l := 512
 			if len(body) < 512 {
 				l = len(body)
 			}
 			c.Response.Header.Set(consts.HeaderContentType, http.DetectContentType(body[:l]))
 		}
-		c.Response.SetBodyStream(bytes.NewBuffer(body), len(body))
 	}
 }
