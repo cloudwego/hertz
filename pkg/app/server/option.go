@@ -277,3 +277,14 @@ func WithRegistry(r registry.Registry, info *registry.Info) config.Option {
 		o.RegistryInfo = info
 	}}
 }
+
+// WithAutoReloadRender sets the config of auto reload render.
+// If auto reload render is enabled:
+// 1. interval = 0 means reload render according to file watch mechanism.(recommended)
+// 2. interval > 0 means reload render every interval.
+func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AutoReloadRender = b
+		o.AutoReloadInterval = interval
+	}}
+}
