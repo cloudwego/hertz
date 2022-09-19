@@ -251,7 +251,7 @@ func (engine *Engine) NewContext() *app.RequestContext {
 
 // Shutdown starts the server's graceful exit by next steps:
 //
-// 1. Trigger OnShutdown hooks concurrently, but don't wait them
+// 1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
 // 2. Close the net listener, which means new connection won't be accepted
 // 3. Wait all connections get closed:
 // 	One connection gets closed after reaching out the shorter time of processing
@@ -265,12 +265,21 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	ch := make(chan struct{})
 	// trigger hooks if any
-	for i := range engine.OnShutdown {
-		go func(index int) {
-			engine.OnShutdown[index](ctx)
-		}(i)
-	}
+	go engine.executeOnShutdownHooks(ctx, ch)
+
+	defer func() {
+		// ensure that the hook is executed until wait timeout or finish
+		select {
+		case <-ctx.Done():
+			hlog.Infof("HERTZ: Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+			return
+		case <-ch:
+			hlog.Info("HERTZ: Execute OnShutdownHooks finish")
+			return
+		}
+	}()
 
 	if opt := engine.options; opt != nil && opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
@@ -283,7 +292,21 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
 		return err
 	}
+
 	return
+}
+
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+	wg := sync.WaitGroup{}
+	for i := range engine.OnShutdown {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			engine.OnShutdown[index](ctx)
+		}(i)
+	}
+	wg.Wait()
+	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {
