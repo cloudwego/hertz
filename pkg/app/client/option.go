@@ -132,7 +132,7 @@ func WithRetryConfig(opts ...retry.Option) config.ClientOption {
 		Delay:           1 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
 		MaxJitter:       20 * time.Millisecond,
-		DelayPolicy:     retry.CombineDelay(retry.DefaultDelay),
+		DelayPolicy:     retry.CombineDelay(retry.DefaultDelayPolicy),
 	}
 	retryCfg.Apply(opts)
 

@@ -1898,7 +1898,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithMaxAttemptTimes(3),
 			retry.WithInitDelay(100*time.Millisecond),
 			retry.WithMaxDelay(10*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
 		),
 	)
 	client.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
@@ -1913,9 +1913,9 @@ func TestClientRetry(t *testing.T) {
 	if err != nil {
 		// first delay 100+200ms , second delay 100+400ms
 		if time.Duration(time.Now().UnixNano()-startTime) > 800*time.Millisecond && time.Duration(time.Now().UnixNano()-startTime) < 2*time.Second {
-			t.Logf("Retry triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
-			t.Logf("Retry not triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry not triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else {
 			t.Fatal(err)
 		}
@@ -1927,7 +1927,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(500*time.Millisecond),
 			retry.WithMaxJitter(1*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.RandomDelay)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
 		),
 	)
 	if err != nil {
@@ -1940,11 +1940,11 @@ func TestClientRetry(t *testing.T) {
 	startTime = time.Now().UnixNano()
 	_, resp, err = client2.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
 	if err != nil {
-		// delay 500ms+rand([0,1))s
-		if time.Duration(time.Now().UnixNano()-startTime) > 500*time.Millisecond && time.Duration(time.Now().UnixNano()-startTime) < 2500*time.Millisecond {
-			t.Logf("Retry triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+		// delay max{500ms+rand([0,1))s,100ms}. Because if the MaxDelay is not set, we will use the default MaxDelay of 100ms
+		if time.Duration(time.Now().UnixNano()-startTime) > 100*time.Millisecond && time.Duration(time.Now().UnixNano()-startTime) < 1100*time.Millisecond {
+			t.Logf("Retry triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
-			t.Logf("Retry not triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry not triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else {
 			t.Fatal(err)
 		}
@@ -1957,7 +1957,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithInitDelay(100*time.Millisecond),
 			retry.WithMaxDelay(5*time.Second),
 			retry.WithMaxJitter(1*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay, retry.RandomDelay)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
 		),
 	)
 	if err != nil {
@@ -1972,9 +1972,9 @@ func TestClientRetry(t *testing.T) {
 	if err != nil {
 		// delay 100ms+200ms+rand([0,1))s
 		if time.Duration(time.Now().UnixNano()-startTime) > 300*time.Millisecond && time.Duration(time.Now().UnixNano()-startTime) < 2300*time.Millisecond {
-			t.Logf("Retry triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
-			t.Logf("Retry not triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry not triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else {
 			t.Fatal(err)
 		}
@@ -1987,7 +1987,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithInitDelay(1*time.Second),
 			retry.WithMaxDelay(10*time.Second),
 			retry.WithMaxJitter(5*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelay, retry.BackOffDelay, retry.RandomDelay)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
 		),
 	)
 	if err != nil {
@@ -2002,9 +2002,9 @@ func TestClientRetry(t *testing.T) {
 	_, resp, err = client4.Get(context.Background(), nil, "http://127.0.0.1:1234/ping")
 	if err != nil {
 		if time.Duration(time.Now().UnixNano()-startTime) > 1*time.Second && time.Duration(time.Now().UnixNano()-startTime) < 9*time.Second {
-			t.Logf("Retry triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else if time.Duration(time.Now().UnixNano()-startTime) < 1*time.Second { // Compatible without triggering retry
-			t.Logf("Retry not triggered : resp=%v\terr=%v\n", string(resp), fmt.Sprintln(err))
+			t.Logf("Retry not triggered : delay=%dms\tresp=%v\terr=%v\n", time.Duration(time.Now().UnixNano()-startTime)/(1*time.Millisecond), string(resp), fmt.Sprintln(err))
 		} else {
 			t.Fatal(err)
 		}

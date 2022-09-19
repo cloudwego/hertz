@@ -40,7 +40,7 @@ type Config struct {
 	// This field is pending. A callback at each retry
 	// retryCallback RetryFunc
 
-	// Delay strategy, which can combine multiple delay strategies. such as CombineDelay(BackOffDelay, RandomDelay) or BackOffDelay,etc
+	// Delay strategy, which can combine multiple delay strategies. such as CombineDelay(BackOffDelayPolicy, RandomDelayPolicy) or BackOffDelayPolicy,etc
 	DelayPolicy DelayPolicyFunc
 }
 
@@ -59,18 +59,18 @@ func DefaultDelayPolicy(attempts uint, err error, retryConfig *Config) time.Dura
 	return 0 * time.Millisecond
 }
 
-// FixedDelay is a DelayPolicyFunc which keeps delay the same through all iterations
-func FixedDelay(_ uint, _ error, retryConfig *Config) time.Duration {
+// FixedDelayPolicy is a DelayPolicyFunc which keeps delay the same through all iterations
+func FixedDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 	return retryConfig.Delay
 }
 
-// RandomDelay is a DelayPolicyFunc which picks a random delay up toRetryConfig.MaxJitter
-func RandomDelay(_ uint, _ error, retryConfig *Config) time.Duration {
+// RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up toRetryConfig.MaxJitter
+func RandomDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 	return time.Duration(rand.Int63n(int64(retryConfig.MaxJitter)))
 }
 
-// BackOffDelay is a DelayPolicyFunc which exponentially increases delay between consecutive retries
-func BackOffDelay(attempts uint, _ error, retryConfig *Config) time.Duration {
+// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries
+func BackOffDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
 	// 1 << 63 would overflow signed int64 (time.Duration), thus 62.
 	const max uint = 62
 	if attempts > max {
