@@ -340,6 +340,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
+	hlog.Infof("HERTZ: Using network library=%s", GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
