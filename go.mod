@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/go-tagexpr/v2 v2.9.2
 	github.com/bytedance/gopkg v0.0.0-20220413063733-65bf48ffb3a7
 	github.com/bytedance/sonic v1.3.5
-	github.com/cloudwego/netpoll v0.2.4
+	github.com/cloudwego/netpoll v0.2.6
 	github.com/fsnotify/fsnotify v1.5.4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad

@@ -69,17 +69,22 @@ type PackageReference struct {
 func getReferPkgMap(pkgMap map[string]string, incs []*descriptorpb.FileDescriptorProto) (map[string]*PackageReference, error) {
 	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
+	pkgAliasMap := make(map[string]string, len(incs))
 	for _, inc := range incs {
 		pkg := getGoPackage(inc, pkgMap)
 		path := inc.GetName()
 		base := util.BaseName(path, ".proto")
 		fileName := inc.GetName()
 		pkgName := util.BaseName(pkg, "")
-		pkgName, err = util.GetPackageUniqueName(pkgName)
-		if err != nil {
-			return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+		if pn, exist := pkgAliasMap[pkg]; exist {
+			pkgName = pn
+		} else {
+			pkgName, err = util.GetPackageUniqueName(pkgName)
+			pkgAliasMap[pkg] = pkgName
+			if err != nil {
+				return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+			}
 		}
-
 		out[fileName] = &PackageReference{base, path, &model.Model{
 			FilePath:    path,
 			Package:     pkg,

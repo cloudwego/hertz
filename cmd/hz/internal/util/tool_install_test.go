@@ -14,10 +14,23 @@
  * limitations under the License.
  */
 
-package hertz
+package util
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.3.1"
-)
+import "testing"
+
+func TestQueryVersion(t *testing.T) {
+	lowVersion := "v0.1.0"
+	equalVersion := "v0.2.0"
+	highVersion := "v0.3.0"
+
+	if ShouldUpdate(lowVersion, ThriftgoMiniVersion) {
+	}
+
+	if ShouldUpdate(equalVersion, ThriftgoMiniVersion) {
+		t.Fatal("should not be updated")
+	}
+
+	if ShouldUpdate(highVersion, ThriftgoMiniVersion) {
+		t.Fatal("should not be updated")
+	}
+}
