@@ -1,0 +1,32 @@
+syntax = "proto2";
+
+package test;
+
+option go_package = "cloudwego.hertz.hz";
+
+import "api.proto";
+
+message MultiTagReq {
+  // basic feature
+  optional string QueryTag = 1 [(api.query)="query"];
+  optional string RawBodyTag = 2 [(api.raw_body)="raw_body"];
+  optional string PathTag = 3 [(api.path)="path"];
+  optional string FormTag = 4 [(api.form)="form"];
+  optional string CookieTag = 5 [(api.cookie)="cookie"];
+  optional string HeaderTag = 6 [(api.header)="header"];
+  optional string BodyTag = 7 [(api.body)="body"];
+  optional string GoTag = 8 [(api.go_tag)="json:\"json\" query:\"query\" form:\"form\" header:\"header\" goTag:\"tag\""];
+  optional string VdTag = 9 [(api.vd)="$!='?'"];
+  optional string DefaultTag = 10;
+
+  // optional / required
+  required string ReqQuery = 11 [(api.query)="query"];
+  optional string OptQuery = 12 [(api.query)="query"];
+  required string ReqBody = 13 [(api.body)="body"];
+  optional string OptBody = 14 [(api.body)="body"];
+  required string ReqGoTag = 15 [(api.go_tag)="json:\"json\""];
+  optional string OptGoTag = 16 [(api.go_tag)="json:\"json\""];
+
+  // gotag cover feature
+  required string QueryGoTag = 17 [(api.query)="query", (api.go_tag)="query:\"queryTag\""];
+}
