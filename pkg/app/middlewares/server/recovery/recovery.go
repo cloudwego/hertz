@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -43,7 +42,7 @@ func Recovery() app.HandlerFunc {
 			if err := recover(); err != nil {
 				stack := stack(3)
 
-				hlog.CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
+				ctx.GetLogger().CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
 					timeFormat(time.Now()), err, stack)
 				ctx.AbortWithStatus(consts.StatusInternalServerError)
 			}

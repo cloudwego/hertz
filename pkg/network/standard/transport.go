@@ -46,6 +46,7 @@ type transport struct {
 	tls              *tls.Config
 	listenConfig     *net.ListenConfig
 	lock             sync.Mutex
+	logger           hlog.FullLogger
 }
 
 func (t *transport) serve() (err error) {
@@ -64,7 +65,7 @@ func (t *transport) serve() (err error) {
 		conn, err := t.ln.Accept()
 		var c network.Conn
 		if err != nil {
-			hlog.Errorf("HERTZ: Error=%s", err.Error())
+			t.logger.Errorf("HERTZ: Error=%s", err.Error())
 			return err
 		}
 		if t.tls != nil {
@@ -100,7 +101,7 @@ func (t *transport) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// For transporter switch
+// NewTransporter For transporter switch standard network library
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transport{
 		readBufferSize:   options.ReadBufferSize,
@@ -110,5 +111,6 @@ func NewTransporter(options *config.Options) network.Transporter {
 		readTimeout:      options.ReadTimeout,
 		tls:              options.TLS,
 		listenConfig:     options.ListenConfig,
+		logger:           options.Logger,
 	}
 }

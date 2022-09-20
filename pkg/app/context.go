@@ -59,6 +59,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -108,6 +109,8 @@ type RequestContext struct {
 
 	// enableTrace defines whether enable trace.
 	enableTrace bool
+
+	logger hlog.FullLogger
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -116,6 +119,17 @@ func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
 
 func (ctx *RequestContext) SetTraceInfo(t traceinfo.TraceInfo) {
 	ctx.traceInfo = t
+}
+
+func (ctx *RequestContext) GetLogger() hlog.FullLogger {
+	if ctx.logger == nil {
+		return hlog.DefaultLogger()
+	}
+	return ctx.logger
+}
+
+func (ctx *RequestContext) SetLogger(l hlog.FullLogger) {
+	ctx.logger = l
 }
 
 func (ctx *RequestContext) IsEnableTrace() bool {
@@ -660,6 +674,7 @@ func (ctx *RequestContext) ResetWithoutConn() {
 func (ctx *RequestContext) Reset() {
 	ctx.ResetWithoutConn()
 	ctx.conn = nil
+	ctx.logger = nil
 }
 
 func (ctx *RequestContext) Redirect(statusCode int, uri []byte) {

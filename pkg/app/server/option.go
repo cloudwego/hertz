@@ -21,6 +21,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
+
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
@@ -286,5 +288,12 @@ func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.AutoReloadRender = b
 		o.AutoReloadInterval = interval
+	}}
+}
+
+// WithLogger sets local logger
+func WithLogger(l hlog.FullLogger) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.Logger = l
 	}}
 }

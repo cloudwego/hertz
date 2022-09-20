@@ -26,7 +26,6 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -67,20 +66,20 @@ func (h *Hertz) Spin() {
 	}
 
 	if err := signalWaiter(errCh); err != nil {
-		hlog.Errorf("HERTZ: Receive close signal: error=%v", err)
+		h.GetLogger().Errorf("HERTZ: Receive close signal: error=%v", err)
 		if err := h.Engine.Close(); err != nil {
-			hlog.Errorf("HERTZ: Close error=%v", err)
+			h.GetLogger().Errorf("HERTZ: Close error=%v", err)
 		}
 		return
 	}
 
-	hlog.Infof("HERTZ: Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
+	h.GetLogger().Infof("HERTZ: Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), h.GetOptions().ExitWaitTimeout)
 	defer cancel()
 
 	if err := h.Shutdown(ctx); err != nil {
-		hlog.Errorf("HERTZ: Shutdown error=%v", err)
+		h.GetLogger().Errorf("HERTZ: Shutdown error=%v", err)
 	}
 }
 
@@ -124,7 +123,7 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 			// delay register 1s
 			time.Sleep(1 * time.Second)
 			if err := opt.Registry.Register(opt.RegistryInfo); err != nil {
-				hlog.Errorf("HERTZ: Register error=%v", err)
+				h.GetLogger().Errorf("HERTZ: Register error=%v", err)
 				// pass err to errChan
 				errChan <- err
 			}

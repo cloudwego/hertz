@@ -132,7 +132,7 @@ func (b *BalancerFactory) GetInstance(ctx context.Context, req *protocol.Request
 	atomic.StoreInt32(&cacheRes.expire, 0)
 	ins := b.balancer.Pick(cacheRes.res.Load().(discovery.Result))
 	if ins == nil {
-		hlog.Errorf("HERTZ: null instance. serviceName: %s, options: %v", string(req.Host()), req.Options())
+		hlog.CtxErrorf(ctx, "HERTZ: null instance. serviceName: %s, options: %v", string(req.Host()), req.Options())
 		return nil, errors.NewPublic("instance not found")
 	}
 	return ins, nil

@@ -40,9 +40,10 @@ type transporter struct {
 	listener         net.Listener
 	eventLoop        netpoll.EventLoop
 	listenConfig     *net.ListenConfig
+	logger           hlog.FullLogger
 }
 
-// For transporter switch
+// NewTransporter For transporter switch netpoll network library
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transporter{
 		network:          options.Network,
@@ -52,6 +53,7 @@ func NewTransporter(options *config.Options) network.Transporter {
 		listener:         nil,
 		eventLoop:        nil,
 		listenConfig:     options.ListenConfig,
+		logger:           options.Logger,
 	}
 }
 
@@ -88,7 +90,7 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 	}
 
 	// Start Server
-	hlog.Infof("HERTZ: HTTP server listening on address=%s", t.listener.Addr().String())
+	t.logger.Infof("HERTZ: HTTP server listening on address=%s", t.listener.Addr().String())
 	t.RLock()
 	err = t.eventLoop.Serve(t.listener)
 	t.RUnlock()

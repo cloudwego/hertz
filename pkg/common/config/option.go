@@ -21,6 +21,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
+
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 )
 
@@ -77,6 +79,9 @@ type Options struct {
 	// The HTML template will reload according to files' changing event
 	// otherwise it will reload after AutoReloadInterval.
 	AutoReloadInterval time.Duration
+
+	// logger is used to print framework log and separate from global logger
+	Logger hlog.FullLogger
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -198,6 +203,9 @@ func NewOptions(opts []Option) *Options {
 		TraceLevel: new(interface{}),
 
 		Registry: registry.NoopRegistry,
+
+		// set global logger to init
+		Logger: hlog.DefaultLogger(),
 	}
 	options.Apply(opts)
 	return options
