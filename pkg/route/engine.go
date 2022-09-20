@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -250,7 +251,7 @@ func (engine *Engine) NewContext() *app.RequestContext {
 
 // Shutdown starts the server's graceful exit by next steps:
 //
-// 1. Trigger OnShutdown hooks concurrently, but don't wait them
+// 1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
 // 2. Close the net listener, which means new connection won't be accepted
 // 3. Wait all connections get closed:
 // 	One connection gets closed after reaching out the shorter time of processing
@@ -264,18 +265,48 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	ch := make(chan struct{})
 	// trigger hooks if any
-	for i := range engine.OnShutdown {
-		go func(index int) {
-			engine.OnShutdown[index](ctx)
-		}(i)
+	go engine.executeOnShutdownHooks(ctx, ch)
+
+	defer func() {
+		// ensure that the hook is executed until wait timeout or finish
+		select {
+		case <-ctx.Done():
+			hlog.Infof("HERTZ: Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+			return
+		case <-ch:
+			hlog.Info("HERTZ: Execute OnShutdownHooks finish")
+			return
+		}
+	}()
+
+	if opt := engine.options; opt != nil && opt.Registry != nil {
+		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+			hlog.Errorf("HERTZ: Deregister error=%v", err)
+			return err
+		}
 	}
 
 	// call transport shutdown
 	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
 		return err
 	}
+
 	return
+}
+
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+	wg := sync.WaitGroup{}
+	for i := range engine.OnShutdown {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			engine.OnShutdown[index](ctx)
+		}(i)
+	}
+	wg.Wait()
+	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {
@@ -332,6 +363,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
+	hlog.Infof("HERTZ: Using network library=%s", GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
@@ -412,6 +444,9 @@ func getRemoteAddrFromCloser(conn io.Closer) string {
 }
 
 func (engine *Engine) Close() error {
+	if engine.htmlRender != nil {
+		engine.htmlRender.Close() //nolint:errcheck
+	}
 	return engine.transport.Close()
 }
 
@@ -747,23 +782,54 @@ func (engine *Engine) Use(middleware ...app.HandlerFunc) IRoutes {
 // LoadHTMLGlob loads HTML files identified by glob pattern
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLGlob(pattern string) {
-	left := engine.delims.Left
-	right := engine.delims.Right
-	templ := template.Must(template.New("").Delims(left, right).Funcs(engine.funcMap).ParseGlob(pattern))
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseGlob(pattern))
 
-	engine.SetHTMLTemplate(templ)
+	if engine.options.AutoReloadRender {
+		files, err := filepath.Glob(pattern)
+		if err != nil {
+			hlog.Errorf("LoadHTMLGlob: %v", err)
+			return
+		}
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // LoadHTMLFiles loads a slice of HTML files
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLFiles(files ...string) {
-	templ := template.Must(template.New("").Delims(engine.delims.Left, engine.delims.Right).Funcs(engine.funcMap).ParseFiles(files...))
-	engine.SetHTMLTemplate(templ)
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseFiles(files...))
+
+	if engine.options.AutoReloadRender {
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // SetHTMLTemplate associate a template with HTML renderer.
-func (engine *Engine) SetHTMLTemplate(templ *template.Template) {
-	engine.htmlRender = render.HTMLProduction{Template: templ.Funcs(engine.funcMap)}
+func (engine *Engine) SetHTMLTemplate(tmpl *template.Template) {
+	engine.htmlRender = render.HTMLProduction{Template: tmpl.Funcs(engine.funcMap)}
+}
+
+// SetAutoReloadHTMLTemplate associate a template with HTML renderer.
+func (engine *Engine) SetAutoReloadHTMLTemplate(tmpl *template.Template, files []string) {
+	engine.htmlRender = &render.HTMLDebug{
+		Template:        tmpl,
+		Files:           files,
+		FuncMap:         engine.funcMap,
+		Delims:          engine.delims,
+		RefreshInterval: engine.options.AutoReloadInterval,
+	}
 }
 
 // SetFuncMap sets the funcMap used for template.funcMap.

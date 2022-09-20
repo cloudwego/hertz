@@ -43,8 +43,13 @@ package render
 
 import (
 	"html/template"
+	"log"
+	"sync"
+	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/fsnotify/fsnotify"
 )
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering.
@@ -59,12 +64,12 @@ type Delims struct {
 type HTMLRender interface {
 	// Instance returns an HTML instance.
 	Instance(string, interface{}) Render
+	Close() error
 }
 
 // HTMLProduction contains template reference and its delims.
 type HTMLProduction struct {
 	Template *template.Template
-	Delims   Delims
 }
 
 // HTML contains template reference and its name with given interface object.
@@ -85,6 +90,10 @@ func (r HTMLProduction) Instance(name string, data interface{}) Render {
 	}
 }
 
+func (r HTMLProduction) Close() error {
+	return nil
+}
+
 // Render (HTML) executes template and writes its result with custom ContentType for response.
 func (r HTML) Render(resp *protocol.Response) error {
 	r.WriteContentType(resp)
@@ -98,4 +107,106 @@ func (r HTML) Render(resp *protocol.Response) error {
 // WriteContentType (HTML) writes HTML ContentType.
 func (r HTML) WriteContentType(resp *protocol.Response) {
 	writeContentType(resp, htmlContentType)
+}
+
+type HTMLDebug struct {
+	sync.Once
+	Template        *template.Template
+	RefreshInterval time.Duration
+	updateTimeStamp time.Time
+
+	Files   []string
+	FuncMap template.FuncMap
+	Delims  Delims
+
+	reloadCh chan struct{}
+	watcher  *fsnotify.Watcher
+}
+
+func (h *HTMLDebug) Instance(name string, data interface{}) Render {
+	h.Do(func() {
+		h.startChecker()
+	})
+
+	select {
+	case <-h.reloadCh:
+		h.reload()
+	default:
+	}
+
+	return HTML{
+		Template: h.Template,
+		Name:     name,
+		Data:     data,
+	}
+}
+
+func (h *HTMLDebug) Close() error {
+	if h.watcher == nil {
+		return nil
+	}
+	return h.watcher.Close()
+}
+
+func (h *HTMLDebug) reload() {
+	h.Template = template.Must(template.New("").
+		Delims(h.Delims.Left, h.Delims.Right).
+		Funcs(h.FuncMap).
+		ParseFiles(h.Files...))
+}
+
+func (h *HTMLDebug) startChecker() {
+	h.reloadCh = make(chan struct{})
+
+	if h.RefreshInterval > 0 {
+		go func() {
+			hlog.Debugf("HERTZ[HTMLDebug]: HTML template reloader started with interval %v", h.RefreshInterval)
+			for {
+				n := time.Now()
+				if n.UTC().Sub(h.updateTimeStamp.UTC()) > h.RefreshInterval {
+					hlog.Debugf("HERTZ[HTMLDebug]: triggering HTML template reloader")
+					h.reloadCh <- struct{}{}
+					hlog.Debugf("HERTZ[HTMLDebug]: HTML template has been reloaded, next reload in %v", h.RefreshInterval)
+					h.updateTimeStamp = time.Now()
+				}
+			}
+		}()
+		return
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	h.watcher = watcher
+	for _, f := range h.Files {
+		err := watcher.Add(f)
+		hlog.Debugf("HERTZ[HTMLDebug]: watching file: %s", f)
+		if err != nil {
+			hlog.Errorf("HERTZ[HTMLDebug]: add watching file: %s, error happened: %v", f, err)
+		}
+
+	}
+
+	go func() {
+		hlog.Debugf("HERTZ[HTMLDebug]: HTML template reloader started with file watcher")
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					hlog.Debugf("HERTZ[HTMLDebug]: modified file: %s, html render template will be reloaded at the next rendering", event.Name)
+					h.reloadCh <- struct{}{}
+					hlog.Debugf("HERTZ[HTMLDebug]: HTML template has been reloaded")
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				hlog.Errorf("HERTZ: error happened when watching the rendering files: %v", err)
+			}
+		}
+	}()
 }

@@ -57,7 +57,6 @@ func Default(opts ...config.Option) *Hertz {
 func (h *Hertz) Spin() {
 	errCh := make(chan error)
 	h.initOnRunHooks(errCh)
-	h.initOnShutdownHooks()
 	go func() {
 		errCh <- h.Run()
 	}()
@@ -131,15 +130,5 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 			}
 		}()
 		return nil
-	})
-}
-
-func (h *Hertz) initOnShutdownHooks() {
-	opt := h.GetOptions()
-	// add deregister func to shutdownHooks
-	h.OnShutdown = append(h.OnShutdown, func(ctx context.Context) {
-		if err := opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.Errorf("HERTZ: Deregister error=%v", err)
-		}
 	})
 }

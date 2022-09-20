@@ -66,22 +66,28 @@ type PackageReference struct {
 	Referred    bool
 }
 
-func getReferPkgMap(pkgMap map[string]string, incs []*descriptorpb.FileDescriptorProto) map[string]*PackageReference {
+func getReferPkgMap(pkgMap map[string]string, incs []*descriptorpb.FileDescriptorProto) (map[string]*PackageReference, error) {
+	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
 	for _, inc := range incs {
 		pkg := getGoPackage(inc, pkgMap)
 		path := inc.GetName()
 		base := util.BaseName(path, ".proto")
-		// space := inc.GetPackage()
 		fileName := inc.GetName()
+		pkgName := util.BaseName(pkg, "")
+		pkgName, err = util.GetPackageUniqueName(pkgName)
+		if err != nil {
+			return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+		}
+
 		out[fileName] = &PackageReference{base, path, &model.Model{
 			FilePath:    path,
 			Package:     pkg,
-			PackageName: util.BaseName(pkg, ""),
+			PackageName: pkgName,
 		}, inc, false}
 	}
 
-	return out
+	return out, nil
 }
 
 type FileInfos struct {
@@ -146,7 +152,10 @@ func NewResolver(ast *descriptorpb.FileDescriptorProto, files FileInfos, model *
 			return nil, fmt.Errorf("%s not found", dep)
 		}
 	}
-	pm := getReferPkgMap(pkgMap, incs)
+	pm, err := getReferPkgMap(pkgMap, incs)
+	if err != nil {
+		return nil, fmt.Errorf("get package map failed, err: %v", err)
+	}
 	return &Resolver{
 		root:    make(NameSpace),
 		deps:    make(map[string]NameSpace),

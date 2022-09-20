@@ -460,18 +460,10 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	startCleaner := false
 
 	c.mLock.Lock()
+
 	m := c.m
 	if isTLS {
 		m = c.ms
-	}
-
-	if m == nil {
-		m = make(map[string]client.HostClient)
-		if isTLS {
-			c.ms = m
-		} else {
-			c.m = m
-		}
 	}
 
 	h := string(host)
@@ -574,6 +566,8 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 	}
 	c := &Client{
 		options: opt,
+		m:       make(map[string]client.HostClient),
+		ms:      make(map[string]client.HostClient),
 	}
 
 	return c, nil

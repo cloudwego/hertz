@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -226,5 +227,22 @@ func testURIFullURI(t *testing.T, scheme, host, path, hash string, args *Args, e
 	uri := u.FullURI()
 	if string(uri) != expectedURI {
 		t.Fatalf("Unexpected URI: %q. Expected %q", uri, expectedURI)
+	}
+}
+
+func TestParsePathWindows(t *testing.T) {
+	t.Parallel()
+
+	testParsePathWindows(t, "/../../../../../foo", "/foo")
+	testParsePathWindows(t, "/..\\..\\..\\..\\..\\foo", "/foo")
+	testParsePathWindows(t, "/..%5c..%5cfoo", "/foo")
+}
+
+func testParsePathWindows(t *testing.T, path, expectedPath string) {
+	var u URI
+	u.Parse(nil, []byte(path))
+	parsedPath := u.Path()
+	if filepath.Separator == '\\' && string(parsedPath) != expectedPath {
+		t.Fatalf("Unexpected Path: %q. Expected %q", parsedPath, expectedPath)
 	}
 }
