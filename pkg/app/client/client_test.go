@@ -2009,6 +2009,8 @@ func TestClientRetry(t *testing.T) {
 			t.Fatal(err)
 		}
 		return
+	}
+}
 
 func TestClientDialerName(t *testing.T) {
 	client, _ := NewClient()

@@ -37,9 +37,6 @@ type Config struct {
 	// The maximum jitter time, which takes effect when the delay policy is configured as RandomDelay
 	MaxJitter time.Duration
 
-	// This field is pending. A callback at each retry
-	// retryCallback RetryFunc
-
 	// Delay strategy, which can combine multiple delay strategies. such as CombineDelay(BackOffDelayPolicy, RandomDelayPolicy) or BackOffDelayPolicy,etc
 	DelayPolicy DelayPolicyFunc
 }
