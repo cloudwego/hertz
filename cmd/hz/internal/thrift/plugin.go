@@ -178,6 +178,7 @@ func (plugin *Plugin) handleRequest() error {
 		return fmt.Errorf("unmarshal request failed: %s", err.Error())
 	}
 	plugin.req = req
+
 	return nil
 }
 
@@ -285,13 +286,6 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				hasBodyTag := false
-				for _, t := range f.Annotations {
-					if t.Key == AnnotationBody {
-						hasBodyTag = true
-						break
-					}
-				}
 				field := model.Field{}
 				err := injectTags(f, &field, true, false)
 				if err != nil {
@@ -300,9 +294,6 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 				tags := field.Tags
 				var tagString string
 				for idx, tag := range tags {
-					if tag.Key == "json" && !hasBodyTag {
-						continue
-					}
 					if idx == 0 {
 						tagString += " " + tag.Key + ":\"" + tag.Value + ":\"" + " "
 					} else if idx == len(tags)-1 {
@@ -333,13 +324,6 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				hasBodyTag := false
-				for _, t := range f.Annotations {
-					if t.Key == AnnotationBody {
-						hasBodyTag = true
-						break
-					}
-				}
 				field := model.Field{}
 				err := injectTags(f, &field, true, false)
 				if err != nil {
@@ -348,9 +332,6 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 				tags := field.Tags
 				var tagString string
 				for idx, tag := range tags {
-					if tag.Key == "json" && !hasBodyTag {
-						continue
-					}
 					if idx == 0 {
 						tagString += " " + tag.Key + ":\"" + tag.Value + "\"" + " "
 					} else if idx == len(tags)-1 {

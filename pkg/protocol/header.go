@@ -52,6 +52,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -447,7 +448,17 @@ func (h *RequestHeader) SetHost(host string) {
 
 // SetStatusCode sets response status code.
 func (h *ResponseHeader) SetStatusCode(statusCode int) {
+	checkWriteHeaderCode(statusCode)
 	h.statusCode = statusCode
+}
+
+func checkWriteHeaderCode(code int) {
+	// For now, we only emit a warning for bad codes.
+	// In the future we might block things over 599 or under 100
+	if code < 100 || code > 599 {
+		hlog.Warnf("Invalid StatusCode code %v, status code should not be under 100 or over 599.\n"+
+			"For more info: https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes", code)
+	}
 }
 
 func (h *ResponseHeader) ResetSkipNormalize() {

@@ -94,6 +94,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 		atomic.StoreUint32(&testint2, 2)
 	})
 	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
+		time.Sleep(2 * time.Second)
 		atomic.StoreUint32(&testint3, 3)
 	})
 
@@ -196,7 +197,6 @@ func TestHertz_Spin(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("[%v]end SIGHUP\n", time.Now())
-
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
