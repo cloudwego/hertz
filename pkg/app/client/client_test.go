@@ -1886,8 +1886,19 @@ func TestClientDialerName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if dName != "netpoll" {
+	// Depending on the operating system,
+	// the default dialer has a different network library, either "netpoll" or "standard"
+	if !(dName == "netpoll" || dName == "standard") {
 		t.Errorf("expected 'netpoll', but get %s", dName)
+	}
+
+	client, _ = NewClient(WithDialer(netpoll.NewDialer()))
+	dName, err = client.GetDialerName()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dName != "netpoll" {
+		t.Errorf("expected 'standard', but get %s", dName)
 	}
 
 	client, _ = NewClient(WithDialer(standard.NewDialer()))
