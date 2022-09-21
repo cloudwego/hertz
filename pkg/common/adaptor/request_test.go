@@ -57,7 +57,7 @@ func TestCompatResponse_WriteHeader(t *testing.T) {
 	h.POST("/test2", func(c context.Context, ctx *app.RequestContext) {
 		req, _ := GetCompatRequest(&ctx.Request)
 		resp := GetCompatResponseWriter(&ctx.Response)
-		handlerAndCheck(t, resp, req, testHeader, testBody, 0)
+		handlerAndCheck(t, resp, req, testHeader, testBody)
 	})
 
 	go h.Spin()
@@ -99,7 +99,7 @@ func makeACall(t *testing.T, method, url string, header http.Header, body string
 	assert.DeepEqual(t, expectCookieValue, cookie.Value())
 }
 
-func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Request, wantHeader http.Header, wantBody string, statusCode int) {
+func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Request, wantHeader http.Header, wantBody string, statusCode ...int) {
 	reqHeader := request.Header
 	for k, v := range wantHeader {
 		if reqHeader[k] == nil {
@@ -121,10 +121,10 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 		respHeader[k] = v
 	}
 
-	// When the incoming status code is 0, the execution of this code is skipped
+	// When the incoming status code is nil, the execution of this code is skipped
 	// and the status code is set to 200
-	if statusCode != 0 {
-		writer.WriteHeader(statusCode)
+	if statusCode != nil {
+		writer.WriteHeader(statusCode[0])
 	}
 
 	_, err = writer.Write([]byte("test"))
