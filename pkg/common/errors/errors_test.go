@@ -130,3 +130,12 @@ Error #03: third
 	assert.Nil(t, errs.JSON())
 	assert.DeepEqual(t, "", errs.String())
 }
+
+func TestErrorFormat(t *testing.T) {
+	err := Newf(ErrorTypeAny, nil, "caused by %s", "reason")
+	assert.DeepEqual(t, New(errors.New("caused by reason"), ErrorTypeAny, nil), err)
+	publicErr := NewPublicf("caused by %s", "reason")
+	assert.DeepEqual(t, New(errors.New("caused by reason"), ErrorTypePublic, nil), publicErr)
+	privateErr := NewPrivatef("caused by %s", "reason")
+	assert.DeepEqual(t, New(errors.New("caused by reason"), ErrorTypePrivate, nil), privateErr)
+}
