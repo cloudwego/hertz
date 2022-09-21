@@ -273,17 +273,17 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		// ensure that the hook is executed until wait timeout or finish
 		select {
 		case <-ctx.Done():
-			hlog.Infof("HERTZ: Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+			hlog.SystemLogger().Infof("Execute OnShutdownHooks timeout: error=%v", ctx.Err())
 			return
 		case <-ch:
-			hlog.Info("HERTZ: Execute OnShutdownHooks finish")
+			hlog.SystemLogger().Info("Execute OnShutdownHooks finish")
 			return
 		}
 	}()
 
 	if opt := engine.options; opt != nil && opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.Errorf("HERTZ: Deregister error=%v", err)
+			hlog.SystemLogger().Errorf("Deregister error=%v", err)
 			return err
 		}
 	}
@@ -363,7 +363,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
-	hlog.Infof("HERTZ: Using network library=%s", GetTransporterName())
+	hlog.SystemLogger().Infof("Using network library=%s", GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
@@ -383,7 +383,7 @@ func (engine *Engine) getNextProto(conn network.Conn) (proto string, err error) 
 	if tlsConn, ok := conn.(network.ConnTLSer); ok {
 		if engine.options.ReadTimeout > 0 {
 			if err := conn.SetReadTimeout(engine.options.ReadTimeout); err != nil {
-				hlog.Errorf("HERTZ: BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
+				hlog.SystemLogger().Errorf("BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
 			}
 		}
 		err = tlsConn.Handshake()
@@ -431,7 +431,7 @@ func errProcess(conn io.Closer, err error) {
 		}
 	}
 	// other errors
-	hlog.Errorf("HERTZ: Error=%s, remoteAddr=%s", err.Error(), rip)
+	hlog.SystemLogger().Errorf("Error=%s, remoteAddr=%s", err.Error(), rip)
 }
 
 func getRemoteAddrFromCloser(conn io.Closer) string {
@@ -477,7 +477,7 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 		if bytes.Equal(buf, bytestr.StrClientPreface) && engine.protocolServers[suite.HTTP2] != nil {
 			return engine.protocolServers[suite.HTTP2].Serve(c, conn)
 		}
-		hlog.Warnf("HERTZ: HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
+		hlog.SystemLogger().Warnf("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 	}
 
 	// ALPN path
@@ -569,7 +569,7 @@ func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain
 	if handlerName == "" {
 		handlerName = utils.NameOfFunction(handlers.Last())
 	}
-	hlog.Debugf("HERTZ: Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
+	hlog.SystemLogger().Debugf("Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
 }
 
 func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) {
@@ -793,7 +793,7 @@ func (engine *Engine) LoadHTMLGlob(pattern string) {
 	if engine.options.AutoReloadRender {
 		files, err := filepath.Glob(pattern)
 		if err != nil {
-			hlog.Errorf("LoadHTMLGlob: %v", err)
+			hlog.SystemLogger().Errorf("LoadHTMLGlob: %v", err)
 			return
 		}
 		engine.SetAutoReloadHTMLTemplate(tmpl, files)

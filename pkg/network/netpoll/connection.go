@@ -76,7 +76,7 @@ func (c *Conn) Flush() error {
 
 func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
 	if errors.Is(err, netpoll.ErrConnClosed) {
-		hlog.Warnf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
+		hlog.SystemLogger().Warnf("Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
 		return true
 	}
 	return false

@@ -461,7 +461,7 @@ func checkWriteHeaderCode(code int) {
 	// For now, we only emit a warning for bad codes.
 	// In the future we might block things over 599 or under 100
 	if code < 100 || code > 599 {
-		hlog.Warnf("Invalid StatusCode code %v, status code should not be under 100 or over 599.\n"+
+		hlog.SystemLogger().Warnf("Invalid StatusCode code %v, status code should not be under 100 or over 599.\n"+
 			"For more info: https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes", code)
 	}
 }

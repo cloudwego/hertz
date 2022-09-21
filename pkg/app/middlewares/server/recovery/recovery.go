@@ -43,7 +43,7 @@ func Recovery() app.HandlerFunc {
 			if err := recover(); err != nil {
 				stack := stack(3)
 
-				hlog.CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
+				hlog.SystemLogger().CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
 					timeFormat(time.Now()), err, stack)
 				ctx.AbortWithStatus(consts.StatusInternalServerError)
 			}
