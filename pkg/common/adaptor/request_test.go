@@ -26,6 +26,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestCompatResponse_WriteHeader(t *testing.T) {
@@ -38,6 +39,7 @@ func TestCompatResponse_WriteHeader(t *testing.T) {
 	testHeader["Key1"] = []string{"value1"}
 	testHeader["Key2"] = []string{"value2", "value22"}
 	testHeader["Key3"] = []string{"value3", "value33", "value333"}
+	testHeader[consts.HeaderSetCookie] = []string{"cookie"}
 
 	testBody = "test body"
 
@@ -109,6 +111,12 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 	for k, v := range reqHeader {
 		respHeader[k] = v
 	}
+
+	_, err = writer.Write(nil)
+	if err != nil {
+		t.Fatalf("Write body error: %s", err)
+	}
+
 	writer.WriteHeader(statusCode)
 	_, err = writer.Write([]byte("test"))
 	if err != nil {
