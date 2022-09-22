@@ -99,6 +99,11 @@ func makeACall(t *testing.T, method, url string, header http.Header, body string
 	assert.DeepEqual(t, expectCookieValue, cookie.Value())
 }
 
+// handlerAndCheck is designed to handle the program and check the header
+//
+// "..." is used in the type of statusCode, which is a syntactic sugar in Go.
+// In this way, the statusCode can be made an optional parameter,
+// and there is no need to pass in some meaningless numbers to judge some special cases.
 func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Request, wantHeader http.Header, wantBody string, statusCode ...int) {
 	reqHeader := request.Header
 	for k, v := range wantHeader {
