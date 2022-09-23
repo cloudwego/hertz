@@ -56,6 +56,7 @@ type Options struct {
 	DisablePreParseMultipartForm bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
+	DebugPrintRoute              bool
 	Network                      string
 	Addr                         string
 	ExitWaitTimeout              time.Duration
@@ -150,6 +151,10 @@ func NewOptions(opts []Option) *Options {
 		// The default is to automatically read request bodies of Expect 100 Continue requests
 		// like they are normal requests
 		DisablePreParseMultipartForm: false,
+
+		// Print logs of the routes by default
+		// Will not be printed when set to False
+		DebugPrintRoute: true,
 
 		// "tcp", "udp", "unix"(unix domain socket)
 		Network: defaultNetwork,

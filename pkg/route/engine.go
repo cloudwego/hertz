@@ -572,6 +572,10 @@ func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain
 	hlog.Debugf("HERTZ: Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
 }
 
+func debugPrintRouteEnable(opt *config.Options) bool {
+	return opt.DebugPrintRoute
+}
+
 func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) {
 	if len(path) == 0 {
 		panic("path should not be ''")
@@ -580,7 +584,10 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 	utils.Assert(method != "", "HTTP method can not be empty")
 	utils.Assert(len(handlers) > 0, "there must be at least one handler")
 
-	debugPrintRoute(method, path, handlers)
+	if debugPrintRouteEnable(engine.options) {
+		debugPrintRoute(method, path, handlers)
+	}
+
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
 		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}
