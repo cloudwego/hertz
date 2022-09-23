@@ -24,34 +24,6 @@ import (
 	"os"
 )
 
-var logger FullLogger = &defaultLogger{
-	stdlog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
-}
-
-// SetOutput sets the output of default logger. By default, it is stderr.
-func SetOutput(w io.Writer) {
-	logger.SetOutput(w)
-}
-
-// SetLevel sets the level of logs below which logs will not be output.
-// The default log level is LevelTrace.
-// Note that this method is not concurrent-safe.
-func SetLevel(lv Level) {
-	logger.SetLevel(lv)
-}
-
-// DefaultLogger return the default logger for hertz.
-func DefaultLogger() FullLogger {
-	return logger
-}
-
-// SetLogger sets the default logger.
-// Note that this method is not concurrent-safe and must not be called
-// after the use of DefaultLogger and global functions in this package.
-func SetLogger(v FullLogger) {
-	logger = v
-}
-
 // Fatal calls the default logger's Fatal method and then os.Exit(1).
 func Fatal(v ...interface{}) {
 	logger.Fatal(v...)
@@ -160,6 +132,7 @@ func CtxTracef(ctx context.Context, format string, v ...interface{}) {
 type defaultLogger struct {
 	stdlog *log.Logger
 	level  Level
+	depth  int
 }
 
 func (ll *defaultLogger) SetOutput(w io.Writer) {
@@ -180,7 +153,7 @@ func (ll *defaultLogger) logf(lv Level, format *string, v ...interface{}) {
 	} else {
 		msg += fmt.Sprint(v...)
 	}
-	ll.stdlog.Output(4, msg)
+	ll.stdlog.Output(ll.depth, msg)
 	if lv == LevelFatal {
 		os.Exit(1)
 	}

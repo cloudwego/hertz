@@ -546,7 +546,7 @@ func getCookieKey(dst, src []byte) []byte {
 func warnIfInvalid(value []byte) bool {
 	for i := range value {
 		if bytesconv.ValidCookieValueTable[value[i]] == 0 {
-			hlog.Warnf("HERTZ: Invalid byte %q in Cookie.Value, "+
+			hlog.SystemLogger().Warnf("Invalid byte %q in Cookie.Value, "+
 				"it may cause compatibility problems with user agents", value[i])
 			return false
 		}

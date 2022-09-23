@@ -198,16 +198,16 @@ func TestCheckWriteHeaderCode(t *testing.T) {
 	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
 	hlog.SetOutput(buffer)
 	checkWriteHeaderCode(99)
-	assert.True(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	assert.True(t, strings.Contains(buffer.String(), "[Warn] HERTZ: Invalid StatusCode code"))
 	buffer.Reset()
 	checkWriteHeaderCode(600)
-	assert.True(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	assert.True(t, strings.Contains(buffer.String(), "[Warn] HERTZ: Invalid StatusCode code"))
 	buffer.Reset()
 	checkWriteHeaderCode(100)
-	assert.False(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	assert.False(t, strings.Contains(buffer.String(), "[Warn] HERTZ: Invalid StatusCode code"))
 	buffer.Reset()
 	checkWriteHeaderCode(599)
-	assert.False(t, strings.Contains(buffer.String(), "[Warn] Invalid StatusCode code"))
+	assert.False(t, strings.Contains(buffer.String(), "[Warn] HERTZ: Invalid StatusCode code"))
 }
 
 func TestResponseHeaderAdd(t *testing.T) {
