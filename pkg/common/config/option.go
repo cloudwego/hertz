@@ -56,7 +56,7 @@ type Options struct {
 	DisablePreParseMultipartForm bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
-	DebugPrintRoute              bool
+	DisablePrintRoute            bool
 	Network                      string
 	Addr                         string
 	ExitWaitTimeout              time.Duration
@@ -152,9 +152,9 @@ func NewOptions(opts []Option) *Options {
 		// like they are normal requests
 		DisablePreParseMultipartForm: false,
 
-		// Print logs of the routes by default
-		// Will not be printed when set to False
-		DebugPrintRoute: true,
+		// Routes info printing is not disabled by default
+		// Disabled when set to True
+		DisablePrintRoute: false,
 
 		// "tcp", "udp", "unix"(unix domain socket)
 		Network: defaultNetwork,
