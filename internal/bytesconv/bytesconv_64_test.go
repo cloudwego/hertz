@@ -46,8 +46,9 @@ package bytesconv
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestWriteHexInt(t *testing.T) {

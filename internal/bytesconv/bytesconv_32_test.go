@@ -46,8 +46,9 @@ package bytesconv
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestWriteHexInt(t *testing.T) {
@@ -88,7 +89,7 @@ func TestReadHexInt(t *testing.T) {
 
 func TestParseUint(t *testing.T) {
 	t.Parallel()
-	
+
 	for _, v := range []struct {
 		s string
 		i int

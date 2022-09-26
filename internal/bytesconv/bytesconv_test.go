@@ -70,7 +70,7 @@ func TestLowercaseBytes(t *testing.T) {
 	}
 }
 
-//The test converts byte slice to a string without memory allocation.
+// The test converts byte slice to a string without memory allocation.
 func TestB2s(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestB2s(t *testing.T) {
 	}
 }
 
-//The test converts string to a byte slice without memory allocation.
+// The test converts string to a byte slice without memory allocation.
 func TestS2b(t *testing.T) {
 	t.Parallel()
 
@@ -102,7 +102,7 @@ func TestS2b(t *testing.T) {
 	}
 }
 
-//common test function for 32bit and 64bit
+// common test function for 32bit and 64bit
 func testWriteHexInt(t *testing.T, n int, expectedS string) {
 	w := bytebufferpool.Get()
 	zw := network.NewWriter(w)
@@ -116,7 +116,7 @@ func testWriteHexInt(t *testing.T, n int, expectedS string) {
 	assert.DeepEqual(t, s, expectedS)
 }
 
-//common test function for 32bit and 64bit
+// common test function for 32bit and 64bit
 func testReadHexInt(t *testing.T, s string, expectedN int) {
 	zr := mock.NewZeroCopyReader(s)
 	n, err := ReadHexInt(zr)
@@ -130,7 +130,7 @@ func TestAppendQuotedPath(t *testing.T) {
 	t.Parallel()
 
 	// Test all characters
-	var pathSegment = make([]byte, 256)
+	pathSegment := make([]byte, 256)
 	for i := 0; i < 256; i++ {
 		pathSegment[i] = byte(i)
 	}
