@@ -288,3 +288,11 @@ func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
 		o.AutoReloadInterval = interval
 	}}
 }
+
+// WithDisablePrintRoute sets whether disable debugPrintRoute
+// If we don't set it, it will default to false
+func WithDisablePrintRoute(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisablePrintRoute = b
+	}}
+}
