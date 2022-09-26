@@ -42,8 +42,9 @@
 package protocol
 
 import (
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestArgsDeleteAll(t *testing.T) {
@@ -106,7 +107,7 @@ func TestArgsParseBytes(t *testing.T) {
 	ta1.Add("q3", "")
 	var a1 Args
 	a1.ParseBytes([]byte("q1=foo&q1=bar&q2=123&q3="))
-	assert.DeepEqual(t, ta1, a1)
+	assert.DeepEqual(t, &ta1, &a1)
 
 	var ta2 Args
 	ta2.Add("?", "foo")
@@ -115,7 +116,7 @@ func TestArgsParseBytes(t *testing.T) {
 	ta2.Add("=", "=")
 	var a2 Args
 	a2.ParseBytes([]byte("%3F=foo&%26=bar&%26=%3F&%3D=%3D"))
-	assert.DeepEqual(t, ta2, a2)
+	assert.DeepEqual(t, &ta2, &a2)
 }
 
 func TestArgsVisitAll(t *testing.T) {
