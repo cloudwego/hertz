@@ -50,7 +50,7 @@ func TestAppendDate(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s := AppendHTTPDate(nil, c.date)
-			assert.DeepEqual(t, c.dateStr, string(s))
+			assert.DeepEqual(t, c.dateStr, B2s(s))
 		})
 	}
 }
@@ -112,7 +112,7 @@ func testWriteHexInt(t *testing.T, n int, expectedS string) {
 	if err := zw.Flush(); err != nil {
 		t.Fatalf("unexpected error when flushing hex %x: %v", n, err)
 	}
-	s := string(w.B)
+	s := B2s(w.B)
 	assert.DeepEqual(t, s, expectedS)
 }
 
@@ -141,11 +141,11 @@ func TestAppendQuotedPath(t *testing.T) {
 		{"//"},
 		{"/foo/bar"},
 		{"*"},
-		{"/foo/" + string(pathSegment)},
+		{"/foo/" + B2s(pathSegment)},
 	} {
 		u := url.URL{Path: s.path}
 		expectedS := u.EscapedPath()
-		res := string(AppendQuotedPath(nil, []byte(s.path)))
+		res := B2s(AppendQuotedPath(nil, S2b(s.path)))
 		assert.DeepEqual(t, expectedS, res)
 	}
 }
@@ -158,8 +158,8 @@ func TestAppendQuotedArg(t *testing.T) {
 	for i := 0; i < 256; i++ {
 		allcases[i] = byte(i)
 	}
-	res := string(AppendQuotedArg(nil, allcases))
-	expect := url.QueryEscape(string(allcases))
+	res := B2s(AppendQuotedArg(nil, allcases))
+	expect := url.QueryEscape(B2s(allcases))
 	assert.DeepEqual(t, expect, res)
 }
 
@@ -176,7 +176,7 @@ func TestParseHTTPDate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v. t=%q", err, v.t)
 		}
-		t2, err := ParseHTTPDate([]byte(t1.Format(time.RFC1123)))
+		t2, err := ParseHTTPDate(S2b(t1.Format(time.RFC1123)))
 		if err != nil {
 			t.Fatalf("unexpected error: %v. t=%q", err, v.t)
 		}

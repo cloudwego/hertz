@@ -105,7 +105,7 @@ func TestParseUint(t *testing.T) {
 		// Max supported value: 2 ** 64 / 2 - 1
 		{"9223372036854775807", 9223372036854775807},
 	} {
-		n, err := ParseUint([]byte(v.s))
+		n, err := ParseUint(S2b(v.s))
 		if err != nil {
 			t.Errorf("unexpected error: %v. s=%q", err, v.s)
 		}
@@ -125,6 +125,6 @@ func TestAppendUint(t *testing.T) {
 	} {
 		expectedS := fmt.Sprintf("%d", s.n)
 		s := AppendUint(nil, s.n)
-		assert.DeepEqual(t, expectedS, string(s))
+		assert.DeepEqual(t, expectedS, B2s(s))
 	}
 }
