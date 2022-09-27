@@ -42,7 +42,6 @@
 package protocol
 
 import (
-	"fmt"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -53,12 +52,11 @@ import (
 func TestURI_Username1(t *testing.T) {
 	var req Request
 	uri := req.URI()
+	req.SetRequestURI("http://user:pass@example.com/foo/bar")
 	user1 := string(uri.username)
-	fmt.Printf("1--- uri:%s user:%s\n", uri.RequestURI(), user1)
 	req.Header.SetRequestURIBytes([]byte("/foo/bar"))
 	uri = req.URI()
 	user2 := string(uri.username)
-	fmt.Printf("2--- uri:%s user:%s\n", uri.RequestURI(), user2)
 	assert.DeepEqual(t, user1, user2)
 }
 
