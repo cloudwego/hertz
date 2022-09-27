@@ -51,8 +51,8 @@ import (
 
 func TestURI_Username1(t *testing.T) {
 	var req Request
-	uri := req.URI()
 	req.SetRequestURI("http://user:pass@example.com/foo/bar")
+	uri := req.URI()
 	user1 := string(uri.username)
 	req.Header.SetRequestURIBytes([]byte("/foo/bar"))
 	uri = req.URI()
