@@ -1883,15 +1883,6 @@ func newMockDialerWithCustomFunc(network, address string, timeout time.Duration,
 
 func TestClientRetry(t *testing.T) {
 	t.Parallel()
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10036"
-	engine := route.NewEngine(opt)
-	engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.SetBodyString("pong")
-	})
-	go engine.Run()
-	time.Sleep(time.Millisecond * 500)
-
 	client, err := NewClient(
 		WithDialTimeout(2*time.Second),
 		WithRetryConfig(

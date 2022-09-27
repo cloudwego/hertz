@@ -103,7 +103,9 @@ type ClientOptions struct {
 	// By default path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
-	RetryConfig            *retry.Config
+
+	// all configurations related to retry
+	RetryConfig *retry.Config
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {
