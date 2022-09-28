@@ -23,13 +23,13 @@ import (
 	"github.com/bytedance/go-tagexpr/v2/binding"
 	"github.com/bytedance/go-tagexpr/v2/binding/gjson"
 	"github.com/bytedance/go-tagexpr/v2/validator"
-	"github.com/bytedance/sonic"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 func init() {
-	binding.ResetJSONUnmarshaler(sonic.Unmarshal)
+	binding.ResetJSONUnmarshaler(hjson.Unmarshal)
 }
 
 var defaultBinder = binding.Default()

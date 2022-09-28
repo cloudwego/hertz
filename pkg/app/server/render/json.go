@@ -45,7 +45,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/bytedance/sonic"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
@@ -55,7 +55,7 @@ type JSONMarshaler func(v interface{}) ([]byte, error)
 var jsonMarshalFunc JSONMarshaler
 
 func init() {
-	ResetJSONMarshal(sonic.Marshal)
+	ResetJSONMarshal(hjson.Marshal)
 }
 
 func ResetJSONMarshal(fn JSONMarshaler) {
