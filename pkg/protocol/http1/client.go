@@ -56,6 +56,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/timer"
@@ -325,21 +326,39 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
-	var err error
-	var retry bool
-
-	maxAttempts := c.MaxIdempotentCallAttempts
-	isRequestRetryable := isIdempotent
-	if c.RetryIf != nil {
-		isRequestRetryable = c.RetryIf
+	var (
+		err                error
+		canIdempotentRetry bool
+		isDefaultRetryFunc                    = true
+		attempts           uint               = 0
+		maxAttempts        uint               = 1
+		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
+	)
+	retryCfg := c.ClientOptions.RetryConfig
+	if retryCfg != nil {
+		maxAttempts = retryCfg.MaxAttemptTimes
 	}
-	attempts := 0
+
+	if c.ClientOptions.RetryIfFunc != nil {
+		isRequestRetryable = c.ClientOptions.RetryIfFunc
+		// if the user has provided a custom retry function, the canIdempotentRetry has no meaning anymore.
+		// User will have full control over the retry logic through the custom retry function.
+		isDefaultRetryFunc = false
+	}
 
 	atomic.AddInt32(&c.pendingRequests, 1)
+
 	for {
-		retry, err = c.do(req, resp)
-		if err == nil || !retry {
+		canIdempotentRetry, err = c.do(req, resp)
+		if err == nil {
 			break
+		}
+
+		if isDefaultRetryFunc {
+			// canIdempotentRetry only makes sense if the user hasn't provided a custom retry function.
+			if !canIdempotentRetry {
+				break
+			}
 		}
 
 		attempts++
@@ -347,23 +366,14 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 			break
 		}
 
-		if req.IsBodyStream() {
+		// Check whether this request should be retried
+		if !isRequestRetryable(req, resp, err) {
 			break
 		}
 
-		if !isRequestRetryable(req) {
-			// Retry non-idempotent requests if the server closes
-			// the connection before sending the response.
-			//
-			// This case is possible if the server closes the idle
-			// keep-alive connection on timeout.
-			//
-			// Apache and nginx usually do this.
-			if err != io.EOF {
-				break
-			}
-		}
-
+		wait := retry.Delay(attempts, err, retryCfg)
+		// Retry after wait time
+		time.Sleep(wait)
 	}
 	atomic.AddInt32(&c.pendingRequests, -1)
 
@@ -382,10 +392,6 @@ func (c *HostClient) PendingRequests() int {
 	return int(atomic.LoadInt32(&c.pendingRequests))
 }
 
-func isIdempotent(req *protocol.Request) bool {
-	return req.Header.IsGet() || req.Header.IsHead() || req.Header.IsPut()
-}
-
 func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	nilResp := false
 	if resp == nil {
@@ -393,13 +399,13 @@ func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, e
 		resp = protocol.AcquireResponse()
 	}
 
-	ok, err := c.doNonNilReqResp(req, resp)
+	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
 
 	if nilResp {
 		protocol.ReleaseResponse(resp)
 	}
 
-	return ok, err
+	return canIdempotentRetry, err
 }
 
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
@@ -424,6 +430,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		req.URI().DisablePathNormalizing = true
 	}
 	cc, err := c.acquireConn()
+	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
 	}
@@ -444,6 +451,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		currentTime := time.Now()
 		if err = conn.SetWriteDeadline(currentTime.Add(c.WriteTimeout)); err != nil {
 			c.closeConn(cc)
+			// try another connection if retry is enabled
 			return true, err
 		}
 	}
@@ -472,6 +480,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if err == nil {
 		err = zw.Flush()
 	}
+	// error happened when writing request, close the connection, and try another connection if retry is enabled
 	if err != nil {
 		c.closeConn(cc)
 		return true, err
@@ -482,6 +491,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
 		if err = conn.SetReadTimeout(c.ReadTimeout); err != nil {
 			c.closeConn(cc)
+			// try another connection if retry is enabled
 			return true, err
 		}
 	}
@@ -1108,11 +1118,6 @@ type ClientOptions struct {
 	// after DefaultMaxIdleConnDuration.
 	MaxIdleConnDuration time.Duration
 
-	// Maximum number of attempts for idempotent calls
-	//
-	// DefaultMaxIdempotentCallAttempts is used if not set.
-	MaxIdempotentCallAttempts int
-
 	// Maximum duration for full response reading (including body).
 	//
 	// By default response read timeout is unlimited.
@@ -1161,11 +1166,11 @@ type ClientOptions struct {
 	// By default will not wait, return errNoFreeConns immediately
 	MaxConnWaitTimeout time.Duration
 
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf client.RetryIfFunc
-
 	// ResponseBodyStream enables response body streaming
 	ResponseBodyStream bool
+
+	// All configurations related to retry
+	RetryConfig *retry.Config
+
+	RetryIfFunc client.RetryIfFunc
 }

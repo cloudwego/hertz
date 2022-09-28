@@ -159,7 +159,8 @@ func testResponseReadError(t *testing.T, resp *protocol.Response, response strin
 }
 
 func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
-	expectedContentType, expectedBody, expectedTrailer string) {
+	expectedContentType, expectedBody, expectedTrailer string,
+) {
 	zr := mock.NewZeroCopyReader(response)
 	err := Read(resp, zr)
 	if err != nil {
@@ -436,7 +437,8 @@ func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStat
 }
 
 func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, body string,
-	expectedStatusCode int, expectedContentType, expectedServerName string) {
+	expectedStatusCode int, expectedContentType, expectedServerName string,
+) {
 	var resp protocol.Response
 	resp.SetStatusCode(statusCode)
 	resp.Header.Set("Content-Type", contentType)
@@ -479,7 +481,8 @@ func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, 
 }
 
 func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string, skipBody bool,
-	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string) {
+	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string,
+) {
 	zr := mock.NewZeroCopyReader(s)
 	resp.SkipBody = skipBody
 	err := Read(resp, zr)
