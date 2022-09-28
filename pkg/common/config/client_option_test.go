@@ -31,7 +31,6 @@ func TestDefaultClientOptions(t *testing.T) {
 	assert.DeepEqual(t, consts.DefaultDialTimeout, options.DialTimeout)
 	assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, options.MaxConnsPerHost)
 	assert.DeepEqual(t, consts.DefaultMaxIdleConnDuration, options.MaxIdleConnDuration)
-	assert.DeepEqual(t, consts.DefaultMaxIdempotentCallAttempts, options.MaxIdempotentCallAttempts)
 	assert.DeepEqual(t, true, options.KeepAlive)
 }
 
