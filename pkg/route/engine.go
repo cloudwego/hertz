@@ -580,7 +580,10 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 	utils.Assert(method != "", "HTTP method can not be empty")
 	utils.Assert(len(handlers) > 0, "there must be at least one handler")
 
-	debugPrintRoute(method, path, handlers)
+	if !engine.options.DisablePrintRoute {
+		debugPrintRoute(method, path, handlers)
+	}
+
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
 		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}

@@ -47,6 +47,7 @@ func TestOptions(t *testing.T) {
 		WithStreamBody(false),
 		WithHostPorts(":8888"),
 		WithMaxRequestBodySize(2),
+		WithDisablePrintRoute(true),
 		WithNetwork("unix"),
 		WithExitWaitTime(time.Second),
 		WithMaxKeepBodySize(500),
@@ -71,6 +72,7 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 2)
+	assert.DeepEqual(t, opt.DisablePrintRoute, true)
 	assert.DeepEqual(t, opt.Network, "unix")
 	assert.DeepEqual(t, opt.ExitWaitTimeout, time.Second)
 	assert.DeepEqual(t, opt.MaxKeepBodySize, 500)
@@ -99,6 +101,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 4*1024*1024)
+	assert.DeepEqual(t, opt.DisablePrintRoute, false)
 	assert.DeepEqual(t, opt.Network, "tcp")
 	assert.DeepEqual(t, opt.ExitWaitTimeout, time.Second*5)
 	assert.DeepEqual(t, opt.MaxKeepBodySize, 4*1024*1024)
