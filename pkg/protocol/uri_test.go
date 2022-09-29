@@ -49,35 +49,30 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
-func TestURI_Username1(t *testing.T) {
+func TestURI_Username(t *testing.T) {
 	var req Request
 	req.SetRequestURI("http://user:pass@example.com/foo/bar")
-	uri := req.URI()
-	user1 := string(uri.username)
-	req.Header.SetRequestURIBytes([]byte("/foo/bar"))
-	uri = req.URI()
-	user2 := string(uri.username)
-	assert.DeepEqual(t, user1, user2)
-}
-
-func TestURI_Username2(t *testing.T) {
-	u := AcquireURI()
-	defer ReleaseURI(u)
-
-	expectUser1 := "user1"
-	expectUser2 := "user2"
-
-	u.SetUsername(expectUser1)
+	u := req.URI()
 	user1 := string(u.Username())
-	assert.DeepEqual(t, expectUser1, user1)
-	u.SetUsername(expectUser2)
+	req.Header.SetRequestURIBytes([]byte("/foo/bar"))
+	u = req.URI()
 	user2 := string(u.Username())
-	assert.DeepEqual(t, expectUser2, user2)
+	assert.DeepEqual(t, user1, user2)
 
-	u.SetUsernameBytes([]byte(user1))
-	assert.DeepEqual(t, expectUser1, user1)
-	u.SetUsernameBytes([]byte(user2))
-	assert.DeepEqual(t, expectUser2, user2)
+	expectUser3 := "user3"
+	expectUser4 := "user4"
+
+	u.SetUsername(expectUser3)
+	user3 := string(u.Username())
+	assert.DeepEqual(t, expectUser3, user3)
+	u.SetUsername(expectUser4)
+	user4 := string(u.Username())
+	assert.DeepEqual(t, expectUser4, user4)
+
+	u.SetUsernameBytes([]byte(user3))
+	assert.DeepEqual(t, expectUser3, user3)
+	u.SetUsernameBytes([]byte(user4))
+	assert.DeepEqual(t, expectUser4, user4)
 }
 
 func TestURI_Password(t *testing.T) {
