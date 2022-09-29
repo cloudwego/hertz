@@ -67,4 +67,7 @@ const (
 
 	// DefaultMaxIdempotentCallAttempts is the default idempotent calls attempts count.
 	DefaultMaxIdempotentCallAttempts = 1
+
+	// DefaultMaxRetryTimes is the default call times of retry
+	DefaultMaxRetryTimes = 1
 )

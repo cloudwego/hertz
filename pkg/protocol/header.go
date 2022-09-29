@@ -424,6 +424,11 @@ func (h *RequestHeader) IsPost() bool {
 	return bytes.Equal(h.Method(), bytestr.StrPost)
 }
 
+// IsDelete returns true if request method is DELETE.
+func (h *RequestHeader) IsDelete() bool {
+	return bytes.Equal(h.Method(), bytestr.StrDelete)
+}
+
 // IsConnect returns true if request method is CONNECT.
 func (h *RequestHeader) IsConnect() bool {
 	return bytes.Equal(h.Method(), bytestr.StrConnect)
@@ -1061,6 +1066,16 @@ func (h *RequestHeader) Method() []byte {
 // IsGet returns true if request method is GET.
 func (h *RequestHeader) IsGet() bool {
 	return bytes.Equal(h.Method(), bytestr.StrGet)
+}
+
+// IsOptions returns true if request method is Options.
+func (h *RequestHeader) IsOptions() bool {
+	return bytes.Equal(h.Method(), bytestr.StrOptions)
+}
+
+// IsTrace returns true if request method is Trace.
+func (h *RequestHeader) IsTrace() bool {
+	return bytes.Equal(h.Method(), bytestr.StrTrace)
 }
 
 // SetHostBytes sets Host header value.
