@@ -18,6 +18,8 @@ package standard
 
 import (
 	"bytes"
+	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -231,8 +233,48 @@ func TestWriteLogic(t *testing.T) {
 	}
 }
 
+func TestInitializeConn(t *testing.T) {
+	c := mockConn{
+		localAddr: &mockAddr{
+			network: "tcp",
+			address: "192.168.0.10:80",
+		},
+		remoteAddr: &mockAddr{
+			network: "tcp",
+			address: "192.168.0.20:80",
+		},
+	}
+	conn := newConn(&c, 8192)
+	// check the assignment
+	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetWriteDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(1)*time.Second))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(-1)*time.Second))
+	assert.DeepEqual(t, errors.New("conn: method not supported"), conn.Close())
+	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.10:80"}, conn.LocalAddr())
+	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.20:80"}, conn.RemoteAddr())
+}
+
+func TestInitializeTLSConn(t *testing.T) {
+	c := mockConn{}
+	tlsConn := newTLSConn(&c, 8192).(*TLSConn)
+	assert.DeepEqual(t, errors.New("conn: method not supported"), tlsConn.Handshake())
+	assert.DeepEqual(t, tls.ConnectionState{}, tlsConn.ConnectionState())
+}
+
 type mockConn struct {
-	buffer bytes.Buffer
+	buffer     bytes.Buffer
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+func (m *mockConn) Handshake() error {
+	return errors.New("conn: method not supported")
+}
+
+func (m *mockConn) ConnectionState() tls.ConnectionState {
+	return tls.ConnectionState{}
 }
 
 func (m mockConn) Read(b []byte) (n int, err error) {
@@ -243,7 +285,6 @@ func (m mockConn) Read(b []byte) (n int, err error) {
 	if len(b) < 1024 {
 		return 100, nil
 	}
-
 	if len(b) < 5000 {
 		return 4096, nil
 	}
@@ -255,26 +296,42 @@ func (m *mockConn) Write(b []byte) (n int, err error) {
 	return m.buffer.Write(b)
 }
 
-func (m mockConn) Close() error {
-	panic("implement me")
+func (m *mockConn) Close() error {
+	return errors.New("conn: method not supported")
 }
 
-func (m mockConn) LocalAddr() net.Addr {
-	panic("implement me")
+func (m *mockConn) LocalAddr() net.Addr {
+	return m.localAddr
 }
 
-func (m mockConn) RemoteAddr() net.Addr {
-	panic("implement me")
+func (m *mockConn) RemoteAddr() net.Addr {
+	return m.remoteAddr
 }
 
-func (m mockConn) SetDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetDeadline(deadline time.Time) error {
+	if err := m.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
+	return m.SetWriteDeadline(deadline)
 }
 
-func (m mockConn) SetReadDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetReadDeadline(deadline time.Time) error {
+	return errors.New("conn: read deadline not supported")
 }
 
-func (m mockConn) SetWriteDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetWriteDeadline(deadline time.Time) error {
+	return errors.New("conn: write deadline not supported")
+}
+
+type mockAddr struct {
+	network string
+	address string
+}
+
+func (m *mockAddr) Network() string {
+	return m.network
+}
+
+func (m *mockAddr) String() string {
+	return m.address
 }
