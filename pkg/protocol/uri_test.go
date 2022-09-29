@@ -153,7 +153,6 @@ func TestURI_Path(t *testing.T) {
 	assert.DeepEqual(t, expectPath2, path2)
 	u.SetPathBytes([]byte(path3))
 	assert.DeepEqual(t, expectPath3, path3)
-
 }
 
 func TestURI_Scheme(t *testing.T) {
@@ -400,7 +399,7 @@ func TestParseHostWithStr(t *testing.T) {
 	testParseHostWithStr(t, ":password", "", "")
 }
 
-func testParseHostWithStr(t *testing.T, host string, expectUsername string, expectPassword string) {
+func testParseHostWithStr(t *testing.T, host, expectUsername, expectPassword string) {
 	var u URI
 	u.Parse([]byte(host), nil)
 	assert.DeepEqual(t, expectUsername, string(u.Username()))
