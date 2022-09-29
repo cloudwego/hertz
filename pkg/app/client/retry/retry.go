@@ -63,11 +63,17 @@ func FixedDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 
 // RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up toRetryConfig.MaxJitter
 func RandomDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
+	if retryConfig.MaxJitter <= 0 {
+		return 0 * time.Millisecond
+	}
 	return time.Duration(rand.Int63n(int64(retryConfig.MaxJitter)))
 }
 
 // BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries
 func BackOffDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
+	if retryConfig.Delay <= 0 {
+		return 0 * time.Millisecond
+	}
 	// 1 << 63 would overflow signed int64 (time.Duration), thus 62.
 	const max uint = 62
 	if attempts > max {
@@ -96,6 +102,10 @@ func CombineDelay(delays ...DelayPolicyFunc) DelayPolicyFunc {
 
 // Delay generate the delay time required for the current retry
 func Delay(attempts uint, err error, retryConfig *Config) time.Duration {
+	if retryConfig.DelayPolicy == nil {
+		return 0 * time.Millisecond
+	}
+
 	delayTime := retryConfig.DelayPolicy(attempts, err, retryConfig)
 	if retryConfig.MaxDelay > 0 && delayTime > retryConfig.MaxDelay {
 		delayTime = retryConfig.MaxDelay
