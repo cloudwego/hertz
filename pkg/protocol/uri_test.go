@@ -119,8 +119,8 @@ func TestURI_QueryString(t *testing.T) {
 	u := AcquireURI()
 	defer ReleaseURI(u)
 
-	expectQueryString1 := "string1"
-	expectQueryString2 := "string2"
+	expectQueryString1 := "key1=value1&key2=value2"
+	expectQueryString2 := "key3=value3&key4=value4"
 
 	u.SetQueryString(expectQueryString1)
 	queryString1 := string(u.QueryString())
