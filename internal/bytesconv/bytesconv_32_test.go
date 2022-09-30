@@ -94,20 +94,39 @@ func TestParseUint(t *testing.T) {
 		s string
 		i int
 	}{
-		//errEmptyInt "empty integer"
-		//{"", -1},
 		{"0", 0},
 		{"123", 123},
 		{"123456789", 123456789},
-
-		// Max supported value: 2 ** 32 / 2 - 1
 		{"2147483647", 2147483647},
 	} {
 		n, err := ParseUint(S2b(v.s))
 		if err != nil {
-			t.Errorf("unexpected error: %v. s=%q", err, v.s)
+			t.Errorf("unexpected error: %v. s=%q n=%v", err, v.s, n)
 		}
 		assert.DeepEqual(t, n, v.i)
+	}
+}
+
+func TestParseUintError(t *testing.T) {
+	t.Parallel()
+
+	for _, v := range []struct {
+		s string
+	}{
+		{""},
+		{"cloudwego123"},
+		{"1234.545"},
+		{"-2147483648"},
+		{"2147483648"},
+		{"4294967295"},
+	} {
+		n, err := ParseUint(S2b(v.s))
+		if err == nil {
+			t.Fatalf("Expecting error when parsing %q. obtained %d", v.s, n)
+		}
+		if n >= 0 {
+			t.Fatalf("Unexpected n=%d when parsing %q. Expected negative num", n, v.s)
+		}
 	}
 }
 
