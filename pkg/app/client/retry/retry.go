@@ -18,8 +18,9 @@ package retry
 
 import (
 	"math"
-	"math/rand"
 	"time"
+
+	"github.com/bytedance/gopkg/lang/fastrand"
 )
 
 // Config All configurations related to retry
@@ -61,13 +62,19 @@ func FixedDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 	return retryConfig.Delay
 }
 
-// RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up toRetryConfig.MaxJitter
+// RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up to RetryConfig.MaxJitter, if the retryConfig.MaxJitter less than or equal to 0, the final delay is 0
 func RandomDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
-	return time.Duration(rand.Int63n(int64(retryConfig.MaxJitter)))
+	if retryConfig.MaxJitter <= 0 {
+		return 0 * time.Millisecond
+	}
+	return time.Duration(fastrand.Int63n(int64(retryConfig.MaxJitter)))
 }
 
-// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries
+// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries, if the retryConfig.Delay less than or equal to 0, the final delay is 0
 func BackOffDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
+	if retryConfig.Delay <= 0 {
+		return 0 * time.Millisecond
+	}
 	// 1 << 63 would overflow signed int64 (time.Duration), thus 62.
 	const max uint = 62
 	if attempts > max {
@@ -94,8 +101,12 @@ func CombineDelay(delays ...DelayPolicyFunc) DelayPolicyFunc {
 	}
 }
 
-// Delay generate the delay time required for the current retry
+// Delay generate the delay time required for the current retry config, if the retryConfig.DelayPolicy == nil, the final delay is 0
 func Delay(attempts uint, err error, retryConfig *Config) time.Duration {
+	if retryConfig.DelayPolicy == nil {
+		return 0 * time.Millisecond
+	}
+
 	delayTime := retryConfig.DelayPolicy(attempts, err, retryConfig)
 	if retryConfig.MaxDelay > 0 && delayTime > retryConfig.MaxDelay {
 		delayTime = retryConfig.MaxDelay
