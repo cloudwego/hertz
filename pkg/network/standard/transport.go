@@ -60,6 +60,7 @@ func (t *transport) serve() (err error) {
 	if err != nil {
 		return err
 	}
+	hlog.Infof("HERTZ: HTTP server listening on address=%s", t.ln.Addr().String())
 	for {
 		conn, err := t.ln.Accept()
 		var c network.Conn
