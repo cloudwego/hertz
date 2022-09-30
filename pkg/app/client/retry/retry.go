@@ -62,18 +62,16 @@ func FixedDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 	return retryConfig.Delay
 }
 
-// RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up toRetryConfig.MaxJitter
+// RandomDelayPolicy is a DelayPolicyFunc which picks a random delay up to RetryConfig.MaxJitter,if the MaxJitter <= 0 then return 0 , prevent random number generator panic
 func RandomDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
-	// When the MaxJitter <= 0 return 0 , prevent random number generator panic
 	if retryConfig.MaxJitter <= 0 {
 		return 0 * time.Millisecond
 	}
 	return time.Duration(fastrand.Int63n(int64(retryConfig.MaxJitter)))
 }
 
-// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries
+// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries,if the InitDelay <= 0 then return 0 , prevent negative number left shift
 func BackOffDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
-	// When the MaxJitter <= 0 return 0 , prevent negative number left shift
 	if retryConfig.Delay <= 0 {
 		return 0 * time.Millisecond
 	}
@@ -103,9 +101,8 @@ func CombineDelay(delays ...DelayPolicyFunc) DelayPolicyFunc {
 	}
 }
 
-// Delay generate the delay time required for the current retry
+// Delay generate the delay time required for the current retry config , if retryConfig.DelayPolicy == nil then return 0 , prevent nil pointer panic
 func Delay(attempts uint, err error, retryConfig *Config) time.Duration {
-	// Directly return 0 if retryConfig.DelayPolicy is nil , prevent nil pointer panic
 	if retryConfig.DelayPolicy == nil {
 		return 0 * time.Millisecond
 	}
