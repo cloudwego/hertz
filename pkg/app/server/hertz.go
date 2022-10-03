@@ -27,6 +27,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/protocol/http2"
+	"github.com/cloudwego/hertz/pkg/protocol/http2/factory"
+	"github.com/cloudwego/hertz/pkg/protocol/suite"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -42,6 +45,14 @@ func New(opts ...config.Option) *Hertz {
 	h := &Hertz{
 		Engine: route.NewEngine(options),
 	}
+
+	if options.H2C || (options.TLS != nil && options.ALPN) {
+		h.AddProtocol(suite.HTTP2, factory.NewServerFactory(&http2.Option{
+			DisableKeepalive: h.GetOptions().DisableKeepalive,
+			ReadTimeout:      h.GetOptions().ReadTimeout,
+		}))
+	}
+
 	return h
 }
 

@@ -60,7 +60,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/factory"
+	h1factory "github.com/cloudwego/hertz/pkg/protocol/http1/factory"
+	"github.com/cloudwego/hertz/pkg/protocol/http2"
+	h2factory "github.com/cloudwego/hertz/pkg/protocol/http2/factory"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
@@ -468,7 +470,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if hc == nil {
 		if c.clientFactory == nil {
 			// load http1 client by default
-			c.clientFactory = factory.NewClientFactory(newHttp1OptionFromClient(c))
+			c.clientFactory = h1factory.NewClientFactory(newHttp1OptionFromClient(c))
 		}
 		hc, _ = c.clientFactory.NewHostClient()
 		hc.SetDynamicConfig(&client.DynamicConfig{
@@ -567,6 +569,10 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 		ms:      make(map[string]client.HostClient),
 	}
 
+	if opt.ALPN || opt.H2C {
+		c.SetClientFactory(h2factory.NewClientFactory(newHttp2OptionFromClient(c)))
+	}
+
 	return c, nil
 }
 
@@ -600,5 +606,23 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		ResponseBodyStream:            c.options.ResponseBodyStream,
 		RetryConfig:                   c.options.RetryConfig,
 		RetryIfFunc:                   c.RetryIfFunc,
+	}
+}
+
+func newHttp2OptionFromClient(c *Client) *http2.ClientOption {
+	return &http2.ClientOption{
+		NoDefaultUserAgentHeader:   c.GetOptions().NoDefaultUserAgentHeader,
+		Dialer:                     c.GetOptions().Dialer,
+		DialTimeout:                c.GetOptions().DialTimeout,
+		TLSConfig:                  c.GetOptions().TLSConfig,
+		MaxIdleConnDuration:        c.GetOptions().MaxIdleConnDuration,
+		ResponseBodyStream:         c.GetOptions().ResponseBodyStream,
+		KeepAlive:                  c.GetOptions().KeepAlive,
+		MaxHeaderListSize:          c.GetOptions().MaxHeaderListSize,
+		AllowHTTP:                  c.GetOptions().H2C,
+		ReadIdleTimeout:            c.GetOptions().ReadIdleTimeout,
+		PingTimeout:                c.GetOptions().PingTimeout,
+		WriteByteTimeout:           c.GetOptions().WriteByteTimeout,
+		StrictMaxConcurrentStreams: c.GetOptions().StrictMaxConcurrentStreams,
 	}
 }

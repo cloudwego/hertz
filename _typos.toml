@@ -1,7 +1,12 @@
 # Typo check: https://github.com/crate-ci/typos
 
 [files]
-extend-exclude = ["go.sum"]
+extend-exclude = [
+    "go.sum",
+    "pkg/protocol/http2/ciphers.go",
+    "pkg/protocol/http2/ciphers_test.go",
+    "pkg/protocol/http2/testdata/draft-ietf-httpbis-http2.xml",
+]
 
 [default.extend-identifiers]
 # *sigh* this just isn't worth the cost of fixing
@@ -17,3 +22,6 @@ referer = "referer"
 HeaderReferer = "HeaderReferer"
 expectedReferer = "expectedReferer"
 Referer = "Referer"
+henc = "henc"
+6ba0 = "6ba0"
+5ba9 = "5ba9"

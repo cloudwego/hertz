@@ -331,10 +331,6 @@ func (engine *Engine) Run() (err error) {
 }
 
 func (engine *Engine) Init() error {
-	if !h2Enable(engine.options) {
-		engine.protocolSuite.Delete(suite.HTTP2)
-	}
-
 	// add built-in http1 server by default
 	if !engine.HasServer(suite.HTTP1) {
 		engine.AddProtocol(suite.HTTP1, factory.NewServerFactory(newHttp1OptionFromEngine(engine)))
@@ -557,10 +553,6 @@ func initTrace(engine *Engine) stats.Level {
 		traceLevel = tl
 	}
 	return traceLevel
-}
-
-func h2Enable(opt *config.Options) bool {
-	return opt.H2C || (opt.TLS != nil && opt.ALPN)
 }
 
 func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain) {

@@ -70,4 +70,7 @@ const (
 
 	// DefaultMaxRetryTimes is the default call times of retry
 	DefaultMaxRetryTimes = 1
+
+	// DefaultPingTimeout is the default ping timeout
+	DefaultPingTimeout = 15 * time.Second
 )

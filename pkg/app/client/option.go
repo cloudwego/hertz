@@ -140,3 +140,45 @@ func WithRetryConfig(opts ...retry.Option) config.ClientOption {
 		o.RetryConfig = retryCfg
 	}}
 }
+
+// WithALPN sets whether enable ALPN. Temporarily it decides whether enable H2.
+func WithALPN(alpn bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.ALPN = alpn
+	}}
+}
+
+// WithMaxHeaderListSize sets max header list size.
+func WithMaxHeaderListSize(maxHeaderListSize uint32) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.MaxHeaderListSize = maxHeaderListSize
+	}}
+}
+
+// WithReadIdleTimeout sets read idle timeout.
+func WithReadIdleTimeout(readIdleTimeout time.Duration) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.ReadIdleTimeout = readIdleTimeout
+	}}
+}
+
+// WithWriteByteTimeout sets whether enable H2C.
+func WithWriteByteTimeout(writeByteTimeout time.Duration) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.WriteByteTimeout = writeByteTimeout
+	}}
+}
+
+// WithH2C sets whether enable H2C.
+func WithH2C(h2c bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.H2C = h2c
+	}}
+}
+
+// WithStrictMaxConcurrentStreams sets max concurrent streams strictly.
+func WithStrictMaxConcurrentStreams(strictMaxConcurrentStreams bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.StrictMaxConcurrentStreams = strictMaxConcurrentStreams
+	}}
+}

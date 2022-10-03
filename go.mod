@@ -9,7 +9,8 @@ require (
 	github.com/cloudwego/netpoll v0.2.6
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/tidwall/gjson v1.13.0 // indirect
+	golang.org/x/net v0.0.0-20220927171203-f486391704dc
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 	google.golang.org/protobuf v1.27.1
 )

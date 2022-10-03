@@ -43,6 +43,12 @@ func TestClientOptions(t *testing.T) {
 			retry.WithMaxJitter(1*time.Second),
 			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
 		),
+		WithH2C(true),
+		WithALPN(true),
+		WithStrictMaxConcurrentStreams(true),
+		WithWriteByteTimeout(time.Second),
+		WithReadIdleTimeout(time.Second),
+		WithMaxHeaderListSize(1024),
 	})
 	assert.DeepEqual(t, 100*time.Millisecond, opt.DialTimeout)
 	assert.DeepEqual(t, 128, opt.MaxConnsPerHost)
@@ -57,4 +63,10 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.RetryConfig.MaxDelay)
 	assert.DeepEqual(t, 1*time.Second, opt.RetryConfig.MaxJitter)
 	assert.DeepEqual(t, fmt.Sprint(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)), fmt.Sprint(opt.RetryConfig.DelayPolicy))
+	assert.DeepEqual(t, true, opt.H2C)
+	assert.DeepEqual(t, true, opt.ALPN)
+	assert.DeepEqual(t, true, opt.StrictMaxConcurrentStreams)
+	assert.DeepEqual(t, time.Second, opt.WriteByteTimeout)
+	assert.DeepEqual(t, time.Second, opt.ReadIdleTimeout)
+	assert.DeepEqual(t, 1024, int(opt.MaxHeaderListSize))
 }
