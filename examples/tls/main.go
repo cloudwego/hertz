@@ -79,13 +79,13 @@ func main() {
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(res)
 	}()
-	req.SetMethod(consts.MethodGet)                            // 设置请求方法
-	req.Header.SetContentTypeBytes([]byte("application/json")) // 设置请求header
-	req.SetRequestURI("https://localhost:8443/ping")           // 设置请求url
+	req.SetMethod(consts.MethodGet)
+	req.Header.SetContentTypeBytes([]byte("application/json"))
+	req.SetRequestURI("https://localhost:8443/ping")
 	err = c.Do(context.Background(), req, res)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	fmt.Printf("%v\n", string(res.Body())) // 读取响应body
+	fmt.Printf("%v\n", string(res.Body()))
 	time.Sleep(time.Second)
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	h2config "github.com/cloudwego/hertz/pkg/protocol/http2/config"
 )
 
 // WithDialTimeout sets dial timeout.
@@ -148,27 +149,6 @@ func WithALPN(alpn bool) config.ClientOption {
 	}}
 }
 
-// WithMaxHeaderListSize sets max header list size.
-func WithMaxHeaderListSize(maxHeaderListSize uint32) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.MaxHeaderListSize = maxHeaderListSize
-	}}
-}
-
-// WithReadIdleTimeout sets read idle timeout.
-func WithReadIdleTimeout(readIdleTimeout time.Duration) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.ReadIdleTimeout = readIdleTimeout
-	}}
-}
-
-// WithWriteByteTimeout sets whether enable H2C.
-func WithWriteByteTimeout(writeByteTimeout time.Duration) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.WriteByteTimeout = writeByteTimeout
-	}}
-}
-
 // WithH2C sets whether enable H2C.
 func WithH2C(h2c bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
@@ -176,9 +156,12 @@ func WithH2C(h2c bool) config.ClientOption {
 	}}
 }
 
-// WithStrictMaxConcurrentStreams sets max concurrent streams strictly.
-func WithStrictMaxConcurrentStreams(strictMaxConcurrentStreams bool) config.ClientOption {
+// WithHTTP2Option sets HTTP2 options.
+func WithHTTP2Option(opts ...h2config.Option) config.ClientOption {
+	http2Config := h2config.New()
+	http2Config.Apply(opts)
+
 	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.StrictMaxConcurrentStreams = strictMaxConcurrentStreams
+		o.H2Config = http2Config
 	}}
 }

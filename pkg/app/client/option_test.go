@@ -24,6 +24,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	h2config "github.com/cloudwego/hertz/pkg/protocol/http2/config"
 )
 
 func TestClientOptions(t *testing.T) {
@@ -45,10 +46,13 @@ func TestClientOptions(t *testing.T) {
 		),
 		WithH2C(true),
 		WithALPN(true),
-		WithStrictMaxConcurrentStreams(true),
-		WithWriteByteTimeout(time.Second),
-		WithReadIdleTimeout(time.Second),
-		WithMaxHeaderListSize(1024),
+		WithHTTP2Option(
+			h2config.WithPingTimeout(time.Minute),
+			h2config.WithStrictMaxConcurrentStreams(true),
+			h2config.WithWriteByteTimeout(time.Second),
+			h2config.WithReadIdleTimeout(time.Second),
+			h2config.WithMaxHeaderListSize(1024),
+		),
 	})
 	assert.DeepEqual(t, 100*time.Millisecond, opt.DialTimeout)
 	assert.DeepEqual(t, 128, opt.MaxConnsPerHost)
@@ -65,8 +69,9 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, fmt.Sprint(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)), fmt.Sprint(opt.RetryConfig.DelayPolicy))
 	assert.DeepEqual(t, true, opt.H2C)
 	assert.DeepEqual(t, true, opt.ALPN)
-	assert.DeepEqual(t, true, opt.StrictMaxConcurrentStreams)
-	assert.DeepEqual(t, time.Second, opt.WriteByteTimeout)
-	assert.DeepEqual(t, time.Second, opt.ReadIdleTimeout)
-	assert.DeepEqual(t, 1024, int(opt.MaxHeaderListSize))
+	assert.DeepEqual(t, true, opt.H2Config.StrictMaxConcurrentStreams)
+	assert.DeepEqual(t, time.Second, opt.H2Config.WriteByteTimeout)
+	assert.DeepEqual(t, time.Second, opt.H2Config.ReadIdleTimeout)
+	assert.DeepEqual(t, time.Minute, opt.H2Config.PingTimeout)
+	assert.DeepEqual(t, 1024, int(opt.H2Config.MaxHeaderListSize))
 }

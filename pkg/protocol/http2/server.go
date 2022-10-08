@@ -274,7 +274,6 @@ func (s *Server) Serve(ctx context.Context, c network.Conn) error {
 	// Write deadlines are set per stream in serverConn.newStream.
 	// Disarm the net.Conn write deadline here.
 
-	// 现在的Server 没有WriteTimeout设置，所以这里不进行设置
 	//if sc.engine.WriteTimeout != 0 {
 	//	sc.conn.SetWriteDeadline(time.Time{})
 	//}

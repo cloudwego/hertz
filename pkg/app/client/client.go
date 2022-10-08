@@ -50,6 +50,8 @@ import (
 	"sync"
 	"time"
 
+	h2config "github.com/cloudwego/hertz/pkg/protocol/http2/config"
+
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -610,6 +612,11 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 }
 
 func newHttp2OptionFromClient(c *Client) *http2.ClientOption {
+	h2Options := c.options.H2Config
+	if h2Options == nil {
+		h2Options = h2config.New()
+	}
+
 	return &http2.ClientOption{
 		NoDefaultUserAgentHeader:   c.GetOptions().NoDefaultUserAgentHeader,
 		Dialer:                     c.GetOptions().Dialer,
@@ -618,11 +625,11 @@ func newHttp2OptionFromClient(c *Client) *http2.ClientOption {
 		MaxIdleConnDuration:        c.GetOptions().MaxIdleConnDuration,
 		ResponseBodyStream:         c.GetOptions().ResponseBodyStream,
 		KeepAlive:                  c.GetOptions().KeepAlive,
-		MaxHeaderListSize:          c.GetOptions().MaxHeaderListSize,
+		MaxHeaderListSize:          h2Options.MaxHeaderListSize,
 		AllowHTTP:                  c.GetOptions().H2C,
-		ReadIdleTimeout:            c.GetOptions().ReadIdleTimeout,
-		PingTimeout:                c.GetOptions().PingTimeout,
-		WriteByteTimeout:           c.GetOptions().WriteByteTimeout,
-		StrictMaxConcurrentStreams: c.GetOptions().StrictMaxConcurrentStreams,
+		ReadIdleTimeout:            h2Options.ReadIdleTimeout,
+		PingTimeout:                h2Options.PingTimeout,
+		WriteByteTimeout:           h2Options.WriteByteTimeout,
+		StrictMaxConcurrentStreams: h2Options.StrictMaxConcurrentStreams,
 	}
 }

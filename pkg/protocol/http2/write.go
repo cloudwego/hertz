@@ -289,7 +289,9 @@ func (w *writePushPromise) writeFrame(ctx writeContext) error {
 	encKV(enc, ":scheme", w.url.Scheme)
 	encKV(enc, ":authority", w.url.Host)
 	encKV(enc, ":path", w.url.RequestURI())
-	// encodeHeaders(enc, w.h, nil) // TODO, 现在不支持Push, 所以暂时不支持
+
+	// TODO Since it doesn't support push, so temporarily not supported
+	// encodeHeaders(enc, w.h, nil)
 
 	headerBlock := buf.Bytes()
 	if len(headerBlock) == 0 {

@@ -29,6 +29,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	h2config "github.com/cloudwego/hertz/pkg/protocol/http2/config"
 )
 
 func runClient() {
@@ -36,7 +37,12 @@ func runClient() {
 		client.WithALPN(true),
 		client.WithDialer(standard.NewDialer()),
 		client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}),
+		client.WithHTTP2Option(
+			h2config.WithMaxHeaderListSize(1024),
+			h2config.WithPingTimeout(time.Second*15),
+		),
 	)
+
 	v, _ := json.Marshal(map[string]string{
 		"hello": "world",
 	})
