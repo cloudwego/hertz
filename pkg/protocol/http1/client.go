@@ -919,7 +919,7 @@ func dialAddr(addr string, dial network.Dialer, dialDualStack bool, tlsConfig *t
 	var conn network.Conn
 	var err error
 	if dial == nil {
-		hlog.Warnf("HERTZ: HostClient: no dialer specified, trying to use default dialer")
+		hlog.SystemLogger().Warnf("HostClient: no dialer specified, trying to use default dialer")
 		dial = dialer.DefaultDialer()
 	}
 	dialFunc := dial.DialConnection

@@ -67,6 +67,6 @@ func (ctl *Controller) HasTracer() bool {
 
 func (ctl *Controller) tryRecover() {
 	if err := recover(); err != nil {
-		hlog.Warnf("HERTZ: Panic happened during tracer call. This doesn't affect the http call, but may lead to lack of monitor data such as metrics and logs: %s, %s", err, string(debug.Stack()))
+		hlog.SystemLogger().Warnf("Panic happened during tracer call. This doesn't affect the http call, but may lead to lack of monitor data such as metrics and logs: %s, %s", err, string(debug.Stack()))
 	}
 }

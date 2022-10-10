@@ -88,7 +88,7 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 	}
 
 	// Start Server
-	hlog.Infof("HERTZ: HTTP server listening on address=%s", t.listener.Addr().String())
+	hlog.SystemLogger().Infof("HTTP server listening on address=%s", t.listener.Addr().String())
 	t.RLock()
 	err = t.eventLoop.Serve(t.listener)
 	t.RUnlock()
