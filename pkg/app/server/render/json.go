@@ -49,7 +49,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-// customize json.Marshal as you like
+// JSONMarshaler customize json.Marshal as you like
 type JSONMarshaler func(v interface{}) ([]byte, error)
 
 var jsonMarshalFunc JSONMarshaler
@@ -66,7 +66,7 @@ func ResetStdJSONMarshal() {
 	ResetJSONMarshal(json.Marshal)
 }
 
-// JSON contains the given interface object.
+// JSONRender JSON contains the given interface object.
 type JSONRender struct {
 	Data interface{}
 }
@@ -111,5 +111,31 @@ func (r PureJSON) Render(resp *protocol.Response) (err error) {
 
 // WriteContentType (JSON) writes JSON ContentType.
 func (r PureJSON) WriteContentType(resp *protocol.Response) {
+	writeContentType(resp, jsonContentType)
+}
+
+// IndentedJSON contains the given interface object.
+type IndentedJSON struct {
+	Data interface{}
+}
+
+// Render (IndentedJSON) marshals the given interface object and writes it with custom ContentType.
+func (r IndentedJSON) Render(resp *protocol.Response) (err error) {
+	writeContentType(resp, jsonContentType)
+	jsonBytes, err := jsonMarshalFunc(r.Data)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	err = json.Indent(&buf, jsonBytes, "", "    ")
+	if err != nil {
+		return err
+	}
+	resp.AppendBody(buf.Bytes())
+	return nil
+}
+
+// WriteContentType (JSON) writes JSON ContentType.
+func (r IndentedJSON) WriteContentType(resp *protocol.Response) {
 	writeContentType(resp, jsonContentType)
 }
