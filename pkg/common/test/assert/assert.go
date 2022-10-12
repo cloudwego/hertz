@@ -19,7 +19,6 @@ package assert
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"reflect"
 	"testing"
 )
@@ -117,7 +116,7 @@ func NotPanic(t testing.TB, fn func()) {
 }
 
 func VerifyTrailer(t *testing.T, r io.Reader, expectedTrailer string) {
-	trailer, err := ioutil.ReadAll(r)
+	trailer, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("Cannot read trailer: %s", err)
 	}

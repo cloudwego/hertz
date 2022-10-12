@@ -47,7 +47,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -184,7 +184,7 @@ func testContinueReadResponseBodyStream(t *testing.T, header, body string, maxBo
 		t.Fatalf("should read %d from stream body, but got %d", firstRead, sR)
 	}
 
-	leftB, _ := ioutil.ReadAll(r.BodyStream())
+	leftB, _ := io.ReadAll(r.BodyStream())
 	if len(leftB) != leftBytes {
 		t.Fatalf("should left %d bytes from stream body, but left %d", leftBytes, len(leftB))
 	}
