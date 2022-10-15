@@ -70,6 +70,7 @@ func TestSetNoHTTP11(t *testing.T) {
 	rh := ResponseHeader{}
 	rh.SetNoHTTP11(true)
 	assert.True(t, rh.noHTTP11)
+
 	rh.SetNoHTTP11(false)
 	assert.False(t, rh.noHTTP11)
 	assert.True(t, rh.IsHTTP11())
@@ -77,10 +78,10 @@ func TestSetNoHTTP11(t *testing.T) {
 	h := RequestHeader{}
 	h.SetNoHTTP11(true)
 	assert.True(t, h.noHTTP11)
+
 	h.SetNoHTTP11(false)
 	assert.False(t, h.noHTTP11)
 	assert.True(t, h.IsHTTP11())
-
 }
 
 func TestResponseHeaderSetContentType(t *testing.T) {
