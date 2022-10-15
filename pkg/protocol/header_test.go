@@ -337,6 +337,7 @@ func TestResponseHeaderResetConnectionClose(t *testing.T) {
 		t.Fatalf("ResetConnectionClose do not work,Connection: %q", hv)
 	}
 }
+
 func TestRequestHeaderResetConnectionClose(t *testing.T) {
 	h := RequestHeader{}
 	h.Set(consts.HeaderConnection, "close")
