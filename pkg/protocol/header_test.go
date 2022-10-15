@@ -194,7 +194,6 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.Set(consts.HeaderServer, "aaabbb")
 	h.Set(consts.HeaderContentLength, "1123")
 	h.SetHost("foobar")
-	h.UserAgent()
 	h.SetCookie("foo", "bar")
 
 	h.del([]byte("Foo-Bar"))
