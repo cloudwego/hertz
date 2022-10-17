@@ -19,6 +19,7 @@ package server
 import (
 	"crypto/tls"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
@@ -148,6 +149,16 @@ func WithDisablePreParseMultipartForm(b bool) config.Option {
 func WithHostPorts(hp string) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.Addr = hp
+	}}
+}
+
+// WithBasePath sets basePath
+func WithBasePath(basePath string) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		if !strings.HasSuffix(basePath, "/") {
+			basePath = basePath + "/"
+		}
+		o.BasePath = basePath
 	}}
 }
 
