@@ -18,26 +18,48 @@ package hlog
 
 import (
 	"context"
+	"log"
+	"os"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
+func initTestSysLogger() {
+	sysLogger = &systemLogger{
+		&defaultLogger{
+			stdlog: log.New(os.Stderr, "", 0),
+			depth:  4,
+		},
+		systemLogPrefix,
+	}
+}
+
 func TestSysLogger(t *testing.T) {
+	initTestSysLogger()
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	sysLogger.Trace("trace work")
 	sysLogger.Debug("received work order")
 	sysLogger.Info("starting work")
 	sysLogger.Notice("something happens in work")
 	sysLogger.Warn("work may fail")
 	sysLogger.Error("work failed")
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] trace work\n"+
+		"[Debug] received work order\n"+
+		"[Info] starting work\n"+
+		"[Notice] something happens in work\n"+
+		"[Warn] work may fail\n"+
+		"[Error] work failed\n", string(w.b))
 }
 
 func TestSysFormatLogger(t *testing.T) {
+	initTestSysLogger()
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	work := "work"
 	sysLogger.Tracef("trace %s", work)
 	sysLogger.Debugf("received %s order", work)
@@ -45,16 +67,20 @@ func TestSysFormatLogger(t *testing.T) {
 	sysLogger.Noticef("something happens in %s", work)
 	sysLogger.Warnf("%s may fail", work)
 	sysLogger.Errorf("%s failed", work)
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] HERTZ: trace work\n"+
+		"[Debug] HERTZ: received work order\n"+
+		"[Info] HERTZ: starting work\n"+
+		"[Notice] HERTZ: something happens in work\n"+
+		"[Warn] HERTZ: work may fail\n"+
+		"[Error] HERTZ: work failed\n", string(w.b))
 }
 
 func TestSysCtxLogger(t *testing.T) {
+	initTestSysLogger()
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	ctx := context.Background()
 	work := "work"
 	sysLogger.CtxTracef(ctx, "trace %s", work)
@@ -63,11 +89,11 @@ func TestSysCtxLogger(t *testing.T) {
 	sysLogger.CtxNoticef(ctx, "something happens in %s", work)
 	sysLogger.CtxWarnf(ctx, "%s may fail", work)
 	sysLogger.CtxErrorf(ctx, "%s failed", work)
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] HERTZ: trace work\n"+
+		"[Debug] HERTZ: received work order\n"+
+		"[Info] HERTZ: starting work\n"+
+		"[Notice] HERTZ: something happens in work\n"+
+		"[Warn] HERTZ: work may fail\n"+
+		"[Error] HERTZ: work failed\n", string(w.b))
 }

@@ -25,23 +25,49 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
+func initTestLogger() {
+	logger = &defaultLogger{
+		stdlog: log.New(os.Stderr, "", 0),
+		depth:  4,
+	}
+}
+
+type byteSliceWriter struct {
+	b []byte
+}
+
+func (w *byteSliceWriter) Write(p []byte) (int, error) {
+	w.b = append(w.b, p...)
+	return len(p), nil
+}
+
 func TestDefaultLogger(t *testing.T) {
+	initTestLogger()
+
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	Trace("trace work")
 	Debug("received work order")
 	Info("starting work")
 	Notice("something happens in work")
 	Warn("work may fail")
 	Error("work failed")
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] trace work\n"+
+		"[Debug] received work order\n"+
+		"[Info] starting work\n"+
+		"[Notice] something happens in work\n"+
+		"[Warn] work may fail\n"+
+		"[Error] work failed\n", string(w.b))
 }
 
 func TestDefaultFormatLogger(t *testing.T) {
+	initTestLogger()
+
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	work := "work"
 	Tracef("trace %s", work)
 	Debugf("received %s order", work)
@@ -49,16 +75,21 @@ func TestDefaultFormatLogger(t *testing.T) {
 	Noticef("something happens in %s", work)
 	Warnf("%s may fail", work)
 	Errorf("%s failed", work)
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] trace work\n"+
+		"[Debug] received work order\n"+
+		"[Info] starting work\n"+
+		"[Notice] something happens in work\n"+
+		"[Warn] work may fail\n"+
+		"[Error] work failed\n", string(w.b))
 }
 
 func TestCtxLogger(t *testing.T) {
+	initTestLogger()
+
+	var w byteSliceWriter
+	SetOutput(&w)
+
 	ctx := context.Background()
 	work := "work"
 	CtxTracef(ctx, "trace %s", work)
@@ -67,13 +98,13 @@ func TestCtxLogger(t *testing.T) {
 	CtxNoticef(ctx, "something happens in %s", work)
 	CtxWarnf(ctx, "%s may fail", work)
 	CtxErrorf(ctx, "%s failed", work)
-	// Output:
-	// [Trace] trace work
-	// [Debug] received work order
-	// [Info] starting work
-	// [Notice] something happens in work
-	// [Warn] work may fail
-	// [Error] work failed
+
+	assert.DeepEqual(t, "[Trace] trace work\n"+
+		"[Debug] received work order\n"+
+		"[Info] starting work\n"+
+		"[Notice] something happens in work\n"+
+		"[Warn] work may fail\n"+
+		"[Error] work failed\n", string(w.b))
 }
 
 func TestSetLevel(t *testing.T) {
