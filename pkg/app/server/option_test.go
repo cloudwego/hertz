@@ -46,6 +46,7 @@ func TestOptions(t *testing.T) {
 		WithDisablePreParseMultipartForm(true),
 		WithStreamBody(false),
 		WithHostPorts(":8888"),
+		WithBasePath("/"),
 		WithMaxRequestBodySize(2),
 		WithDisablePrintRoute(true),
 		WithNetwork("unix"),
@@ -73,6 +74,7 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.DisablePreParseMultipartForm, true)
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
+	assert.DeepEqual(t, opt.BasePath, "/")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 2)
 	assert.DeepEqual(t, opt.DisablePrintRoute, true)
 	assert.DeepEqual(t, opt.Network, "unix")
@@ -104,6 +106,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.DisablePreParseMultipartForm, false)
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
+	assert.DeepEqual(t, opt.BasePath, "/")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 4*1024*1024)
 	assert.DeepEqual(t, opt.GetOnly, false)
 	assert.DeepEqual(t, opt.DisableKeepalive, false)

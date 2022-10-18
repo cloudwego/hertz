@@ -152,9 +152,13 @@ func WithHostPorts(hp string) config.Option {
 	}}
 }
 
-// WithBasePath sets basePath
+// WithBasePath sets basePath.Must be "/" prefix and suffix,If not the default concatenate "/"
 func WithBasePath(basePath string) config.Option {
 	return config.Option{F: func(o *config.Options) {
+		//Must be "/" prefix and suffix,If not the default concatenate "/"
+		if !strings.HasPrefix(basePath, "/") {
+			basePath = "/" + basePath
+		}
 		if !strings.HasSuffix(basePath, "/") {
 			basePath = basePath + "/"
 		}
