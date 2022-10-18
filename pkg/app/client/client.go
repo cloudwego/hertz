@@ -243,8 +243,8 @@ type Client struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
 
-	// RetryIfFunc sets the retry decision function. If nil, the client.DefaultRetryIf will be applied.
-	RetryIfFunc client.RetryIfFunc
+	// RetryIf sets the retry decision function. If nil, the client.DefaultRetryIf will be applied.
+	RetryIf client.RetryIf
 
 	clientFactory suite.ClientFactory
 
@@ -258,8 +258,8 @@ func (c *Client) GetOptions() *config.ClientOptions {
 	return c.options
 }
 
-func (c *Client) SetRetryIfFunc(retryIf client.RetryIfFunc) {
-	c.RetryIfFunc = retryIf
+func (c *Client) SetRetryIf(retryIf client.RetryIf) {
+	c.RetryIf = retryIf
 }
 
 // SetProxy is used to set client proxy.
@@ -599,6 +599,6 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
 		ResponseBodyStream:            c.options.ResponseBodyStream,
 		RetryConfig:                   c.options.RetryConfig,
-		RetryIfFunc:                   c.RetryIfFunc,
+		RetryIf:                       c.RetryIf,
 	}
 }

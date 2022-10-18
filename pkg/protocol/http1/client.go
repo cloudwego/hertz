@@ -329,18 +329,18 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	var (
 		err                error
 		canIdempotentRetry bool
-		isDefaultRetryFunc                    = true
-		attempts           uint               = 0
-		maxAttempts        uint               = 1
-		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
+		isDefaultRetryFunc                = true
+		attempts           uint           = 0
+		maxAttempts        uint           = 1
+		isRequestRetryable client.RetryIf = client.DefaultRetryIf
 	)
 	retryCfg := c.ClientOptions.RetryConfig
 	if retryCfg != nil {
 		maxAttempts = retryCfg.MaxAttemptTimes
 	}
 
-	if c.ClientOptions.RetryIfFunc != nil {
-		isRequestRetryable = c.ClientOptions.RetryIfFunc
+	if c.ClientOptions.RetryIf != nil {
+		isRequestRetryable = c.ClientOptions.RetryIf
 		// if the user has provided a custom retry function, the canIdempotentRetry has no meaning anymore.
 		// User will have full control over the retry logic through the custom retry function.
 		isDefaultRetryFunc = false
@@ -1172,5 +1172,5 @@ type ClientOptions struct {
 	// All configurations related to retry
 	RetryConfig *retry.Config
 
-	RetryIfFunc client.RetryIfFunc
+	RetryIf client.RetryIf
 }

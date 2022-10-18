@@ -120,9 +120,9 @@ type DynamicConfig struct {
 	IsTLS    bool
 }
 
-// RetryIfFunc signature of retry if function
+// RetryIf signature of retry if function
 // Judge whether to retry by request,response or error , return true is retry
-type RetryIfFunc func(req *protocol.Request, resp *protocol.Response, err error) bool
+type RetryIf func(req *protocol.Request, resp *protocol.Response, err error) bool
 
 type clientURLResponse struct {
 	statusCode int

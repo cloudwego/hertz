@@ -1892,7 +1892,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
 		),
 	)
-	client.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+	client.SetRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 		return err != nil
 	})
 	if err != nil {
@@ -1925,7 +1925,7 @@ func TestClientRetry(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	client2.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+	client2.SetRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 		return err != nil
 	})
 	startTime = time.Now().UnixNano()
@@ -1955,7 +1955,7 @@ func TestClientRetry(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	client3.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+	client3.SetRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 		return err != nil
 	})
 	startTime = time.Now().UnixNano()
@@ -1985,8 +1985,8 @@ func TestClientRetry(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	/* If the retryIfFunc is not set , idempotent logic is used by default */
-	//client4.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+	/* If the retryIf is not set , idempotent logic is used by default */
+	//client4.SetRetryIf(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 	//	return err != nil
 	//})
 	startTime = time.Now().UnixNano()
