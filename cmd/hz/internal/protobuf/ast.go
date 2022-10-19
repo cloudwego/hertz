@@ -31,7 +31,9 @@ import (
 
 var BaseProto = descriptorpb.FileDescriptorProto{}
 
-// getGoPackage  get option go_package
+// getGoPackage get option go_package
+// If pkgMap is specified, the specified value is used as the go_package;
+// If go package is not specified, then the value of package is used as go_package.
 func getGoPackage(f *descriptorpb.FileDescriptorProto, pkgMap map[string]string) string {
 	if f.Options == nil {
 		f.Options = new(descriptorpb.FileOptions)
@@ -39,7 +41,7 @@ func getGoPackage(f *descriptorpb.FileDescriptorProto, pkgMap map[string]string)
 	if f.Options.GoPackage == nil {
 		f.Options.GoPackage = new(string)
 	}
-	goPkg := *f.Options.GoPackage
+	goPkg := f.Options.GetGoPackage()
 
 	// if go_package has ";", for example go_package="/a/b/c;d", we will use "/a/b/c" as go_package
 	if strings.Contains(goPkg, ";") {
