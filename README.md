@@ -52,6 +52,31 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 - [Netpoll](https://github.com/cloudwego/netpoll): A high-performance network library. Hertz integrated by default.
 - [Hertz-Contrib](https://github.com/hertz-contrib): A partial extension library of Hertz, which users can integrate into Hertz through options according to their needs.
 - [Example](https://github.com/cloudwego/hertz-examples): Use examples of Hertz.
+## Extensions
+
+| Extensions                                                                | Description                                                                                                                                                             |
+|---------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [websocket](https://github.com/hertz-contrib/websocket)                   | Enable Hertz to support the websocket protocol.                                                                                                                         |
+| [pprof](https://github.com/hertz-contrib/pprof)                           | Extension for Hertz integration with pprof.                                                                                                                             |
+| [sessions](https://github.com/hertz-contrib/sessions)                     | The session middleware with multi-state store support.                                                                                                                  |
+| [obs-opentelemetry](https://github.com/hertz-contrib/obs-opentelemetry)   | Hertz's opentelemetry extension that supports Metric, Logger, Tracing and works out of the box.                                                                         |
+| [registry](https://github.com/hertz-contrib/registry)                     | Provides service registry and discovery functions. So far, the supported service discovery extensions are nacos, consul, etcd, eureka, polaris, servicecomb, zookeeper. |
+| [keyauth](https://github.com/hertz-contrib/keyauth)                       | Provides token-based authentication.                                                                                                                                    |
+| [secure](https://github.com/hertz-contrib/secure)                         | The secure middleware with multiple configuration items.                                                                                                                |
+| [sentry](https://github.com/hertz-contrib/hertzsentry)                    | The sentry extension provides some unified interfaces to help users perform real-time error monitoring.                                                                 |
+| [requestid](https://github.com/hertz-contrib/requestid)                   | Add the requestid to the response using the X-Request-ID header, and if the X-Request-ID value is sent in the request header, pass it back to the caller.               |
+| [limiter](https://github.com/hertz-contrib/limiter)                       | Provides a current limiter based on the bbr algorithm.                                                                                                                  |
+| [jwt](https://github.com/hertz-contrib/jwt)                               | Authentication middleware, which provides functions to generate tokens and refresh tokens.                                                                              |
+| [autotls](https://github.com/hertz-contrib/autotls)                       | Make Hertz support Let's Encrypt.                                                                                                                                       |
+| [monitor-prometheus](https://github.com/hertz-contrib/monitor-prometheus) | Provides service monitoring based on prometheus.                                                                                                                        |
+| [i18n](https://github.com/hertz-contrib/i18n)                             | Helps translate Hertz programs into multi programming languages.                                                                                                        |
+| [reverseproxy](https://github.com/hertz-contrib/reverseproxy)             | Implement a reverse proxy.                                                                                                                                              |
+| [opensergo](https://github.com/hertz-contrib/opensergo)                   | The opensergo extension.                                                                                                                                                |
+| [gzip](https://github.com/hertz-contrib/gzip)                             | A gzip extension with multiple options.                                                                                                                                 |
+| [cors](https://github.com/hertz-contrib/cors)                             | Provides cross-domain resource sharing support.                                                                                                                         |
+| [swagger](https://github.com/hertz-contrib/swagger)                       | Automatically generate RESTful API documentation with swagger 2.0.                                                                                                      |
+| [tracer](https://github.com/hertz-contrib/tracer)                         | Link tracing based on opentracing.                                                                                                                                      |
+
 ## Blogs
 - [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
 ## Contributing
