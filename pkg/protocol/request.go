@@ -158,11 +158,11 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 //
 // The caller must do one of the following actions if MayContinue returns true:
 //
-//     - Either send StatusExpectationFailed response if request headers don't
-//       satisfy the caller.
-//     - Or send StatusContinue response before reading request body
-//       with ContinueReadBody.
-//     - Or close the connection.
+// - Either send StatusExpectationFailed response if request headers don't
+// satisfy the caller.
+// - Or send StatusContinue response before reading request body
+// with ContinueReadBody.
+// - Or close the connection.
 func (req *Request) MayContinue() bool {
 	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
 }

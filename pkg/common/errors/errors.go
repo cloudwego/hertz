@@ -149,10 +149,10 @@ func (msg *Error) JSON() interface{} {
 
 // Errors returns an array will all the error messages.
 // Example:
-// 		c.Error(errors.New("first"))
-// 		c.Error(errors.New("second"))
-// 		c.Error(errors.New("third"))
-// 		c.Errors.Errors() // == []string{"first", "second", "third"}
+// c.Error(errors.New("first"))
+// c.Error(errors.New("second"))
+// c.Error(errors.New("third"))
+// c.Errors.Errors() // == []string{"first", "second", "third"}
 func (a ErrorChain) Errors() []string {
 	if len(a) == 0 {
 		return nil
