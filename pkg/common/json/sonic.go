@@ -1,7 +1,3 @@
-//go:build (linux || windows || darwin) && amd64
-// +build linux windows darwin
-// +build amd64
-
 /*
  * Copyright 2022 CloudWeGo Authors
  *
@@ -17,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+//go:build (linux || windows || darwin) && amd64
+// +build linux windows darwin
+// +build amd64
 
 package json
 

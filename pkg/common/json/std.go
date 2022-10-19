@@ -1,6 +1,3 @@
-//go:build stdjson || !(amd64 && (linux || windows || darwin))
-// +build stdjson !amd64 !linux,!windows,!darwin
-
 /*
  * Copyright 2022 CloudWeGo Authors
  *
@@ -16,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+//go:build stdjson || !(amd64 && (linux || windows || darwin))
+// +build stdjson !amd64 !linux,!windows,!darwin
 
 package json
 
