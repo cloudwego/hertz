@@ -64,7 +64,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 | [Keyauth](https://github.com/hertz-contrib/keyauth)                       | 提供基于 token 的身份验证。                                                                          |
 | [Secure](https://github.com/hertz-contrib/secure)                         | 具有多配置项的 Secure 中间件。                                                                        |
 | [Sentry](https://github.com/hertz-contrib/hertzsentry)                    | Sentry 拓展提供了一些统一的接口来帮助用户进行实时的错误监控。                                                         |
-| [Requestid](https://github.com/hertz-contrib/requestid)                   | 使用 X-Request-ID 标头向响应中添加 request id，如果在请求标头中发送 X-Request-ID 值，则将其传递回调用方。                   |
+| [Requestid](https://github.com/hertz-contrib/requestid)                   | 在 response 中添加 request id。                                                                 |
 | [Limiter](https://github.com/hertz-contrib/limiter)                       | 提供了基于 bbr 算法的限流器。                                                                          |
 | [Jwt](https://github.com/hertz-contrib/jwt)                               | Jwt 拓展。                                                                                    |
 | [Autotls](https://github.com/hertz-contrib/autotls)                       | 为 Hertz 支持 Let's Encrypt 。                                                                 |
