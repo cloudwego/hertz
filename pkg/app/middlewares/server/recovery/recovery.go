@@ -25,8 +25,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 var (
@@ -36,16 +34,18 @@ var (
 	slash     = []byte("/")
 )
 
-// Recovery returns a middleware that recovers from any panic and writes a 500 if there was one.
-func Recovery() app.HandlerFunc {
+// Recovery returns a middleware that recovers from any panic.
+// By default, it will print the time, content, and stack information of the error and write a 500.
+// Overriding the Config configuration, you can customize the error printing logic.
+func Recovery(opts ...Option) app.HandlerFunc {
+	cfg := newOptions(opts...)
+
 	return func(c context.Context, ctx *app.RequestContext) {
 		defer func() {
 			if err := recover(); err != nil {
 				stack := stack(3)
 
-				hlog.SystemLogger().CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
-					timeFormat(time.Now()), err, stack)
-				ctx.AbortWithStatus(consts.StatusInternalServerError)
+				cfg.recoveryHandler(c, ctx, err, stack)
 			}
 		}()
 		ctx.Next(c)
