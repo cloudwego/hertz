@@ -14,31 +14,24 @@
  * limitations under the License.
  */
 
-package main
+package util
 
-import (
-	"os"
+import "testing"
 
-	"github.com/cloudwego/hertz/cmd/hz/internal_pkg/app"
-	"github.com/cloudwego/hertz/cmd/hz/internal_pkg/util/logs"
-)
+func TestQueryVersion(t *testing.T) {
+	lowVersion := "v0.1.0"
+	equalVersion := "v0.2.0"
+	highVersion := "v0.3.0"
 
-func main() {
-	// run in plugin mode
-	app.PluginMode()
+	if !ShouldUpdate(lowVersion, ThriftgoMiniVersion) {
+		t.Fatal("should be updated")
+	}
 
-	// run in normal mode
-	Run()
-}
+	if ShouldUpdate(equalVersion, ThriftgoMiniVersion) {
+		t.Fatal("should not be updated")
+	}
 
-func Run() {
-	defer func() {
-		logs.Flush()
-	}()
-
-	cli := app.Init()
-	err := cli.Run(os.Args)
-	if err != nil {
-		logs.Errorf("%v\n", err)
+	if ShouldUpdate(highVersion, ThriftgoMiniVersion) {
+		t.Fatal("should not be updated")
 	}
 }
