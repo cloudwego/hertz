@@ -262,6 +262,14 @@ func (c *Client) SetRetryIfFunc(retryIf client.RetryIfFunc) {
 	c.RetryIfFunc = retryIf
 }
 
+// Deprecated: use SetRetryIfFunc instead of SetRetryIf
+func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
+	f := func(req *protocol.Request, resp *protocol.Response, err error) bool {
+		return fn(req)
+	}
+	c.SetRetryIfFunc(f)
+}
+
 // SetProxy is used to set client proxy.
 //
 // Don't SetProxy twice for a client.
