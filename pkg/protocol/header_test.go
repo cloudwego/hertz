@@ -159,9 +159,7 @@ func TestResponseHeaderGet(t *testing.T) {
 	rightVal := "yyy"
 	h.Set("xxx", rightVal)
 	val := h.Get("xxx")
-	if val != rightVal {
-		t.Fatalf("Unexpected %v. Expected %v", val, rightVal)
-	}
+	assert.DeepEqual(t, val, rightVal)
 }
 
 func TestRequestHeaderVisitAll(t *testing.T) {
