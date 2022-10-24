@@ -92,6 +92,43 @@ func TestRequestContinueReadBody(t *testing.T) {
 	}
 }
 
+func TestRequestReadNoBody(t *testing.T) {
+	t.Parallel()
+
+	var r protocol.Request
+
+	s := "GET / HTTP/1.1\r\n\r\n"
+
+	zr := mock.NewZeroCopyReader(s)
+	if err := Read(&r, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	r.SetHost("foobar")
+	headerStr := r.Header.String()
+	if strings.Contains(headerStr, "Content-Length: ") {
+		t.Fatalf("unexpected Content-Length")
+	}
+}
+
+func TestRequestReadNoBodyStreaming(t *testing.T) {
+	t.Parallel()
+
+	var r protocol.Request
+	r.Header.InitContentLengthWithValue(-2)
+
+	s := "GET / HTTP/1.1\r\n\r\n"
+
+	zr := mock.NewZeroCopyReader(s)
+	if err := ContinueReadBodyStream(&r, zr, 2048, true); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	r.SetHost("foobar")
+	headerStr := r.Header.String()
+	if strings.Contains(headerStr, "Content-Length: ") {
+		t.Fatalf("unexpected Content-Length")
+	}
+}
+
 func TestMethodAndPathAndQueryString(t *testing.T) {
 	s := "PUT /foo/bar?query=1 HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
