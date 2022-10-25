@@ -110,13 +110,32 @@ func TestRequestReadNoBody(t *testing.T) {
 	}
 }
 
+func TestRequestRead(t *testing.T) {
+	t.Parallel()
+
+	var r protocol.Request
+
+	s := "POST / HTTP/1.1\r\n\r\n"
+
+	zr := mock.NewZeroCopyReader(s)
+	if err := Read(&r, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	r.SetHost("foobar")
+	headerStr := r.Header.String()
+	if !strings.Contains(headerStr, "Content-Length: ") {
+		t.Fatalf("unexpected Content-Length")
+	}
+}
+
 func TestRequestReadNoBodyStreaming(t *testing.T) {
 	t.Parallel()
 
 	var r protocol.Request
-	r.Header.InitContentLengthWithValue(-2)
+	r.Header.SetContentLength(-2)
+	r.Header.SetMethod("GET")
 
-	s := "GET / HTTP/1.1\r\n\r\n"
+	s := ""
 
 	zr := mock.NewZeroCopyReader(s)
 	if err := ContinueReadBodyStream(&r, zr, 2048, true); err != nil {
@@ -125,6 +144,26 @@ func TestRequestReadNoBodyStreaming(t *testing.T) {
 	r.SetHost("foobar")
 	headerStr := r.Header.String()
 	if strings.Contains(headerStr, "Content-Length: ") {
+		t.Fatalf("unexpected Content-Length")
+	}
+}
+
+func TestRequestReadStreaming(t *testing.T) {
+	t.Parallel()
+
+	var r protocol.Request
+	r.Header.SetContentLength(-2)
+	r.Header.SetMethod("POST")
+
+	s := ""
+
+	zr := mock.NewZeroCopyReader(s)
+	if err := ContinueReadBodyStream(&r, zr, 2048, true); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	r.SetHost("foobar")
+	headerStr := r.Header.String()
+	if !strings.Contains(headerStr, "Content-Length: ") {
 		t.Fatalf("unexpected Content-Length")
 	}
 }
