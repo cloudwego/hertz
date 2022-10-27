@@ -19,7 +19,11 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 - 高性能
 
   Hertz 默认使用自研的高性能网络库 Netpoll，在一些特殊场景相较于 go net，Hertz 在 QPS、时延上均具有一定优势。关于性能数据，可参考下图 Echo 数据。
-  ![Performance](images/performance.png)
+  
+  四个框架的对比:
+  ![Performance](images/performance-4.png)
+  三个框架的时延对比:
+  ![Performance](images/performance-3.png)
   关于详细的性能数据，可参考 [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark)。
 - 高扩展性
 
