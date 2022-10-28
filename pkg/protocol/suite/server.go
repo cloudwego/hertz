@@ -59,7 +59,7 @@ type ServerMap map[string]protocol.Server
 
 func (c *Config) Add(protocol string, factory ServerFactory) {
 	if fac := c.configMap[protocol]; fac != nil {
-		hlog.Warnf("HERTZ: ServerFactory of protocol: %s will be overridden by customized function", protocol)
+		hlog.SystemLogger().Warnf("ServerFactory of protocol: %s will be overridden by customized function", protocol)
 	}
 	c.configMap[protocol] = factory
 }

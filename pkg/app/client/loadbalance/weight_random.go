@@ -59,7 +59,7 @@ func (wb *weightedBalancer) calcWeightInfo(e discovery.Result) *weightInfo {
 			w.weightSum += weight
 			cnt++
 		} else {
-			hlog.Warnf("HERTZ: Invalid weight=%d on instance address=%s", weight, e.Instances[idx].Address())
+			hlog.SystemLogger().Warnf("Invalid weight=%d on instance address=%s", weight, e.Instances[idx].Address())
 		}
 	}
 

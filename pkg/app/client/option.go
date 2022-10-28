@@ -20,9 +20,11 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // WithDialTimeout sets dial timeout.
@@ -64,13 +66,6 @@ func WithMaxConnWaitTimeout(t time.Duration) config.ClientOption {
 func WithKeepAlive(b bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.KeepAlive = b
-	}}
-}
-
-// WithMaxIdempotentCallAttempts sets maximum number of attempts for idempotent calls.
-func WithMaxIdempotentCallAttempts(n int) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.MaxIdempotentCallAttempts = n
 	}}
 }
 
@@ -128,5 +123,20 @@ func WithNoDefaultUserAgentHeader(isNoDefaultUserAgentHeader bool) config.Client
 func WithDisablePathNormalizing(isDisablePathNormalizing bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.DisablePathNormalizing = isDisablePathNormalizing
+	}}
+}
+
+func WithRetryConfig(opts ...retry.Option) config.ClientOption {
+	retryCfg := &retry.Config{
+		MaxAttemptTimes: consts.DefaultMaxRetryTimes,
+		Delay:           1 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		MaxJitter:       20 * time.Millisecond,
+		DelayPolicy:     retry.CombineDelay(retry.DefaultDelayPolicy),
+	}
+	retryCfg.Apply(opts)
+
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.RetryConfig = retryCfg
 	}}
 }

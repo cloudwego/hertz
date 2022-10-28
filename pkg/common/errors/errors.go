@@ -222,3 +222,15 @@ func NewPublic(err string) *Error {
 func NewPrivate(err string) *Error {
 	return New(errors.New(err), ErrorTypePrivate, nil)
 }
+
+func Newf(t ErrorType, meta interface{}, format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), t, meta)
+}
+
+func NewPublicf(format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), ErrorTypePublic, nil)
+}
+
+func NewPrivatef(format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), ErrorTypePrivate, nil)
+}

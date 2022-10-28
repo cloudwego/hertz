@@ -160,13 +160,13 @@ func (h *HTMLDebug) startChecker() {
 
 	if h.RefreshInterval > 0 {
 		go func() {
-			hlog.Debugf("HERTZ[HTMLDebug]: HTML template reloader started with interval %v", h.RefreshInterval)
+			hlog.SystemLogger().Debugf("[HTMLDebug] HTML template reloader started with interval %v", h.RefreshInterval)
 			for {
 				n := time.Now()
 				if n.UTC().Sub(h.updateTimeStamp.UTC()) > h.RefreshInterval {
-					hlog.Debugf("HERTZ[HTMLDebug]: triggering HTML template reloader")
+					hlog.SystemLogger().Debugf("[HTMLDebug] triggering HTML template reloader")
 					h.reloadCh <- struct{}{}
-					hlog.Debugf("HERTZ[HTMLDebug]: HTML template has been reloaded, next reload in %v", h.RefreshInterval)
+					hlog.SystemLogger().Debugf("[HTMLDebug] HTML template has been reloaded, next reload in %v", h.RefreshInterval)
 					h.updateTimeStamp = time.Now()
 				}
 			}
@@ -181,15 +181,15 @@ func (h *HTMLDebug) startChecker() {
 	h.watcher = watcher
 	for _, f := range h.Files {
 		err := watcher.Add(f)
-		hlog.Debugf("HERTZ[HTMLDebug]: watching file: %s", f)
+		hlog.SystemLogger().Debugf("[HTMLDebug] watching file: %s", f)
 		if err != nil {
-			hlog.Errorf("HERTZ[HTMLDebug]: add watching file: %s, error happened: %v", f, err)
+			hlog.SystemLogger().Errorf("[HTMLDebug] add watching file: %s, error happened: %v", f, err)
 		}
 
 	}
 
 	go func() {
-		hlog.Debugf("HERTZ[HTMLDebug]: HTML template reloader started with file watcher")
+		hlog.SystemLogger().Debugf("[HTMLDebug] HTML template reloader started with file watcher")
 		for {
 			select {
 			case event, ok := <-watcher.Events:
@@ -197,15 +197,15 @@ func (h *HTMLDebug) startChecker() {
 					return
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					hlog.Debugf("HERTZ[HTMLDebug]: modified file: %s, html render template will be reloaded at the next rendering", event.Name)
+					hlog.SystemLogger().Debugf("[HTMLDebug] modified file: %s, html render template will be reloaded at the next rendering", event.Name)
 					h.reloadCh <- struct{}{}
-					hlog.Debugf("HERTZ[HTMLDebug]: HTML template has been reloaded")
+					hlog.SystemLogger().Debugf("[HTMLDebug] HTML template has been reloaded")
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				hlog.Errorf("HERTZ: error happened when watching the rendering files: %v", err)
+				hlog.SystemLogger().Errorf("error happened when watching the rendering files: %v", err)
 			}
 		}
 	}()

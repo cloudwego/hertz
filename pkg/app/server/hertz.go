@@ -67,20 +67,20 @@ func (h *Hertz) Spin() {
 	}
 
 	if err := signalWaiter(errCh); err != nil {
-		hlog.Errorf("HERTZ: Receive close signal: error=%v", err)
+		hlog.SystemLogger().Errorf("Receive close signal: error=%v", err)
 		if err := h.Engine.Close(); err != nil {
-			hlog.Errorf("HERTZ: Close error=%v", err)
+			hlog.SystemLogger().Errorf("Close error=%v", err)
 		}
 		return
 	}
 
-	hlog.Infof("HERTZ: Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
+	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), h.GetOptions().ExitWaitTimeout)
 	defer cancel()
 
 	if err := h.Shutdown(ctx); err != nil {
-		hlog.Errorf("HERTZ: Shutdown error=%v", err)
+		hlog.SystemLogger().Errorf("Shutdown error=%v", err)
 	}
 }
 
@@ -124,7 +124,7 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 			// delay register 1s
 			time.Sleep(1 * time.Second)
 			if err := opt.Registry.Register(opt.RegistryInfo); err != nil {
-				hlog.Errorf("HERTZ: Register error=%v", err)
+				hlog.SystemLogger().Errorf("Register error=%v", err)
 				// pass err to errChan
 				errChan <- err
 			}

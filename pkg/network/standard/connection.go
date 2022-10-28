@@ -163,6 +163,11 @@ func (c *Conn) Close() error {
 	return c.c.Close()
 }
 
+// CloseNoResetBuffer closes the connection without reset buffer.
+func (c *Conn) CloseNoResetBuffer() error {
+	return c.c.Close()
+}
+
 // LocalAddr returns the local address of the connection.
 func (c *Conn) LocalAddr() net.Addr {
 	return c.c.LocalAddr()
