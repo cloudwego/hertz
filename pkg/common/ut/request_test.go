@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/route"
@@ -115,4 +116,14 @@ func createChunkedBody(body []byte) []byte {
 		chunkSize++
 	}
 	return append(b, []byte("0\r\n\r\n")...)
+}
+
+func TestPerformBizServerRequest(t *testing.T) {
+	h := server.Default()
+	h.GET("/ping", Ping)
+	w := PerformBizServerRequest(h, "GET", "/ping", &Body{bytes.NewBufferString("1"), 1},
+		Header{"Connection", "close"})
+	resp := w.Result()
+	assert.DeepEqual(t, 201, resp.StatusCode())
+	assert.DeepEqual(t, "{\"message\":\"pong\"}", string(resp.Body()))
 }

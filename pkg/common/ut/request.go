@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
 )
@@ -87,4 +88,9 @@ func PerformRequest(engine *route.Engine, method, url string, body *Body, header
 	w.Write(ctx.Response.Body())
 	w.Flush()
 	return w
+}
+
+func PerformBizServerRequest(bizServer *server.Hertz, method, url string, body *Body, headers ...Header) *ResponseRecorder {
+	engine := bizServer.Engine
+	return PerformRequest(engine, method, url, body, headers...)
 }
