@@ -58,29 +58,29 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 - [Example](https://github.com/cloudwego/hertz-examples): Hertz 使用例子
 ## 相关拓展
 
-| 拓展                                                         | 描述                                                                                         |
-| ------------------------------------------------------------ |--------------------------------------------------------------------------------------------|
-| [Websocket](https://github.com/hertz-contrib/websocket)      | 使 Hertz 支持 Websocket 协议。                                                                   |
-| [Pprof](https://github.com/hertz-contrib/pprof)              | Hertz 集成 Pprof 的扩展。                                                                        |
-| [Sessions](https://github.com/hertz-contrib/sessions)        | 具有多状态存储支持的 Session 中间件。                                                                    |
-| [Obs-opentelemetry](https://github.com/hertz-contrib/obs-opentelemetry) | Hertz 的 Opentelemetry 扩展，支持 Metric、Logger、Tracing并且达到开箱即用。                                 |
-| [Registry](https://github.com/hertz-contrib/registry)        | 提供服务注册与发现功能。到现在为止，支持的服务发现拓展有 nacos， consul， etcd， eureka， polaris， servicecomb， zookeeper。 |
-| [Keyauth](https://github.com/hertz-contrib/keyauth)          | 提供基于 token 的身份验证。                                                                          |
-| [Secure](https://github.com/hertz-contrib/secure)            | 具有多配置项的 Secure 中间件。                                                                        |
-| [Sentry](https://github.com/hertz-contrib/hertzsentry)       | Sentry 拓展提供了一些统一的接口来帮助用户进行实时的错误监控。                                                         |
-| [Requestid](https://github.com/hertz-contrib/requestid)      | 在 response 中添加 request id。                                                                 |
-| [Limiter](https://github.com/hertz-contrib/limiter)          | 提供了基于 bbr 算法的限流器。                                                                          |
-| [Jwt](https://github.com/hertz-contrib/jwt)                  | Jwt 拓展。                                                                                    |
-| [Autotls](https://github.com/hertz-contrib/autotls)          | 为 Hertz 支持 Let's Encrypt 。                                                                 |
-| [Monitor-prometheus](https://github.com/hertz-contrib/monitor-prometheus) | 提供基于 Prometheus 服务监控功能。                                                                    |
-| [I18n](https://github.com/hertz-contrib/i18n)                | 可帮助将 Hertz 程序翻译成多种语言。                                                                      |
-| [Reverseproxy](https://github.com/hertz-contrib/reverseproxy) | 实现反向代理。                                                                                    |
-| [Opensergo](https://github.com/hertz-contrib/opensergo)      | Opensergo 扩展。                                                                              |
-| [Gzip](https://github.com/hertz-contrib/gzip)                | 含多个可选项的 Gzip 拓展。                                                                           |
-| [Cors](https://github.com/hertz-contrib/cors)                | 提供跨域资源共享支持。                                                                                |
-| [Swagger](https://github.com/hertz-contrib/swagger)          | 使用 Swagger 2.0 自动生成 RESTful API 文档。                                                        |
-| [Tracer](https://github.com/hertz-contrib/tracer)            | 基于 Opentracing 的链路追踪。                                                                      |
-| [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery) | Hertz 的异常恢复中间件。                                                                            |
+| 拓展                                                                                                 | 描述                                                                                         |
+|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| [Websocket](https://github.com/hertz-contrib/websocket)                                            | 使 Hertz 支持 Websocket 协议。                                                                   |
+| [Pprof](https://github.com/hertz-contrib/pprof)                                                    | Hertz 集成 Pprof 的扩展。                                                                        |
+| [Sessions](https://github.com/hertz-contrib/sessions)                                              | 具有多状态存储支持的 Session 中间件。                                                                    |
+| [Obs-opentelemetry](https://github.com/hertz-contrib/obs-opentelemetry)                            | Hertz 的 Opentelemetry 扩展，支持 Metric、Logger、Tracing并且达到开箱即用。                                 |
+| [Registry](https://github.com/hertz-contrib/registry)                                              | 提供服务注册与发现功能。到现在为止，支持的服务发现拓展有 nacos， consul， etcd， eureka， polaris， servicecomb， zookeeper。 |
+| [Keyauth](https://github.com/hertz-contrib/keyauth)                                                | 提供基于 token 的身份验证。                                                                          |
+| [Secure](https://github.com/hertz-contrib/secure)                                                  | 具有多配置项的 Secure 中间件。                                                                        |
+| [Sentry](https://github.com/hertz-contrib/hertzsentry)                                             | Sentry 拓展提供了一些统一的接口来帮助用户进行实时的错误监控。                                                         |
+| [Requestid](https://github.com/hertz-contrib/requestid)                                            | 在 response 中添加 request id。                                                                 |
+| [Limiter](https://github.com/hertz-contrib/limiter)                                                | 提供了基于 bbr 算法的限流器。                                                                          |
+| [Jwt](https://github.com/hertz-contrib/jwt)                                                        | Jwt 拓展。                                                                                    |
+| [Autotls](https://github.com/hertz-contrib/autotls)                                                | 为 Hertz 支持 Let's Encrypt 。                                                                 |
+| [Monitor-prometheus](https://github.com/hertz-contrib/monitor-prometheus)                          | 提供基于 Prometheus 服务监控功能。                                                                    |
+| [I18n](https://github.com/hertz-contrib/i18n)                                                      | 可帮助将 Hertz 程序翻译成多种语言。                                                                      |
+| [Reverseproxy](https://github.com/hertz-contrib/reverseproxy)                                      | 实现反向代理。                                                                                    |
+| [Opensergo](https://github.com/hertz-contrib/opensergo)                                            | Opensergo 扩展。                                                                              |
+| [Gzip](https://github.com/hertz-contrib/gzip)                                                      | 含多个可选项的 Gzip 拓展。                                                                           |
+| [Cors](https://github.com/hertz-contrib/cors)                                                      | 提供跨域资源共享支持。                                                                                |
+| [Swagger](https://github.com/hertz-contrib/swagger)                                                | 使用 Swagger 2.0 自动生成 RESTful API 文档。                                                        |
+| [Tracer](https://github.com/hertz-contrib/tracer)                                                  | 基于 Opentracing 的链路追踪。                                                                      |
+| [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery)    | Hertz 的异常恢复中间件。                                                                            |
 | [Basicauth](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/basic_auth) | Basicauth 中间件能够提供 HTTP 基本身份验证。                                                             |
 | [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | 在 Hertz 中使用 飞书。                                                                            |
 
