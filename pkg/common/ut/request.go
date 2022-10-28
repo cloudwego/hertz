@@ -90,6 +90,22 @@ func PerformRequest(engine *route.Engine, method, url string, body *Body, header
 	return w
 }
 
+// PerformBizServerRequest calls the PerformRequest function with only one difference. It use server as the first parameter,
+//
+// instead of engine.
+//
+// Using this function, we will not need to implement router's logic again in the UT file. The same logic is already
+//
+// in the handler file.
+//
+// Every time the handler updates, there's no need to copy and pace biz logic code to UT again.
+//
+// Example usage:
+//
+// h := server.Default()
+// h.GET("/ping", handler.Ping) # here is your handler
+//
+// Pass this h to PerformBizServerRequest in the first place.
 func PerformBizServerRequest(bizServer *server.Hertz, method, url string, body *Body, headers ...Header) *ResponseRecorder {
 	engine := bizServer.Engine
 	return PerformRequest(engine, method, url, body, headers...)
