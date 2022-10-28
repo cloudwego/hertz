@@ -82,6 +82,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Tracer](https://github.com/hertz-contrib/tracer)            | Link tracing based on Opentracing.                           |
 | [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery) | Recovery middleware for Hertz.                               |
 | [Basicauth](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/basic_auth) | Basicauth middleware can provide HTTP basic authentication.  |
+| [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | Use Lark/Feishu with Hertz.                                                                                                                                             |
 
 ## Blogs
 - [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
