@@ -124,7 +124,11 @@ func TestRequestRead(t *testing.T) {
 	r.SetHost("foobar")
 	headerStr := r.Header.String()
 	if !strings.Contains(headerStr, "Content-Length: ") {
-		t.Fatalf("unexpected Content-Length")
+		t.Fatalf("should contain Content-Length")
+	}
+	cLen := r.Header.Peek(consts.HeaderContentLength)
+	if string(cLen) != "0" {
+		t.Fatalf("unexpected Content-Length: %s, Expecting 0", string(cLen))
 	}
 }
 
@@ -164,7 +168,11 @@ func TestRequestReadStreaming(t *testing.T) {
 	r.SetHost("foobar")
 	headerStr := r.Header.String()
 	if !strings.Contains(headerStr, "Content-Length: ") {
-		t.Fatalf("unexpected Content-Length")
+		t.Fatalf("should contain Content-Length")
+	}
+	cLen := r.Header.Peek(consts.HeaderContentLength)
+	if string(cLen) != "0" {
+		t.Fatalf("unexpected Content-Length: %s, Expecting 0", string(cLen))
 	}
 }
 
