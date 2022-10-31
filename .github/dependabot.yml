@@ -6,9 +6,6 @@ updates:
       - "dependencies"
     schedule:
       interval: "daily"
-    ignore:
-      - dependency-name: "github.com/cloudwego/netpoll"
-        versions: [ "0.3.x" ]
     allow:
       - dependency-name: "github.com/bytedance/sonic"
       - dependency-name: "github.com/cloudwego/netpoll"
