@@ -47,6 +47,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -879,6 +880,12 @@ func (ctx *RequestContext) PureJSON(code int, obj interface{}) {
 	ctx.Render(code, render.PureJSON{Data: obj})
 }
 
+// IndentedJSON serializes the given struct as pretty JSON (indented + endlines) into the response body.
+// It also sets the Content-Type as "application/json".
+func (ctx *RequestContext) IndentedJSON(code int, obj interface{}) {
+	ctx.Render(code, render.IndentedJSON{Data: obj})
+}
+
 // HTML renders the HTTP template specified by its file name.
 //
 // It also updates the HTTP code and sets the Content-Type as "text/html".
@@ -948,6 +955,40 @@ func (ctx *RequestContext) ContentType() []byte {
 // Cookie returns the value of the request cookie key.
 func (ctx *RequestContext) Cookie(key string) []byte {
 	return ctx.Request.Header.Cookie(key)
+}
+
+// SetCookie adds a Set-Cookie header to the Response's headers.
+//  Parameter introduce:
+//  name and value is used to set cookie's name and value, eg. Set-Cookie: name=value
+//  maxAge is use to set cookie's expiry date, eg. Set-Cookie: name=value; max-age=1
+//  path and domain is used to set the scope of a cookie, eg. Set-Cookie: name=value;domain=localhost; path=/;
+//  secure and httpOnly is used to sent cookies securely; eg. Set-Cookie: name=value;HttpOnly; secure;
+//  sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
+//
+//  For example:
+//  1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
+//  add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
+//  2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//  add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//  3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//  add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//  4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//  add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
+func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	if path == "" {
+		path = "/"
+	}
+	cookie := protocol.AcquireCookie()
+	defer protocol.ReleaseCookie(cookie)
+	cookie.SetKey(name)
+	cookie.SetValue(url.QueryEscape(value))
+	cookie.SetMaxAge(maxAge)
+	cookie.SetPath(path)
+	cookie.SetDomain(domain)
+	cookie.SetSecure(secure)
+	cookie.SetHTTPOnly(httpOnly)
+	cookie.SetSameSite(sameSite)
+	ctx.Response.Header.SetCookie(cookie)
 }
 
 // UserAgent returns the value of the request user_agent.

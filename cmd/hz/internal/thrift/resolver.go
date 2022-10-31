@@ -54,20 +54,32 @@ type PackageReference struct {
 	Referred    bool
 }
 
-func getReferPkgMap(pkgMap map[string]string, incs []*parser.Include) map[string]*PackageReference {
+func getReferPkgMap(pkgMap map[string]string, incs []*parser.Include) (map[string]*PackageReference, error) {
+	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
+	pkgAliasMap := make(map[string]string, len(incs))
 	for _, inc := range incs {
 		pkg := getGoPackage(inc.Reference, pkgMap)
 		impt := inc.GetPath()
 		base := util.BaseNameAndTrim(impt)
+		pkgName := util.SplitPackageName(pkg, "")
+		if pn, exist := pkgAliasMap[pkg]; exist {
+			pkgName = pn
+		} else {
+			pkgName, err = util.GetPackageUniqueName(pkgName)
+			pkgAliasMap[pkg] = pkgName
+			if err != nil {
+				return nil, fmt.Errorf("get package unique name failed, err: %v", err)
+			}
+		}
 		out[base] = &PackageReference{base, impt, &model.Model{
 			FilePath:    inc.Path,
 			Package:     pkg,
-			PackageName: util.SplitPackageName(pkg, ""),
+			PackageName: pkgName,
 		}, inc.Reference, false}
 	}
 
-	return out
+	return out, nil
 }
 
 type Symbol struct {
@@ -89,8 +101,11 @@ type Resolver struct {
 	refPkgs map[string]*PackageReference
 }
 
-func NewResolver(ast *parser.Thrift, model *model.Model, pkgMap map[string]string) *Resolver {
-	pm := getReferPkgMap(pkgMap, ast.GetIncludes())
+func NewResolver(ast *parser.Thrift, model *model.Model, pkgMap map[string]string) (*Resolver, error) {
+	pm, err := getReferPkgMap(pkgMap, ast.GetIncludes())
+	if err != nil {
+		return nil, fmt.Errorf("get package map failed, err: %v", err)
+	}
 	file := ast.GetFilename()
 	return &Resolver{
 		root:    make(NameSpace),
@@ -103,7 +118,7 @@ func NewResolver(ast *parser.Thrift, model *model.Model, pkgMap map[string]strin
 			Ast:         ast,
 			Referred:    false,
 		},
-	}
+	}, nil
 }
 
 func (resolver *Resolver) GetRefModel(includeBase string) (*model.Model, error) {

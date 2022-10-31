@@ -58,6 +58,9 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/netpoll"
+	"github.com/cloudwego/hertz/pkg/network/standard"
 )
 
 func TestNew_Engine(t *testing.T) {
@@ -349,6 +352,75 @@ func TestRenderHtml(t *testing.T) {
 		"formatAsDate": formatAsDate,
 	})
 	e.LoadHTMLGlob("../common/testdata/template/htmltemplate.html")
+	e.GET("/templateName", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(http.StatusOK, "htmltemplate.html", map[string]interface{}{
+			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),
+		})
+	})
+	rr := performRequest(e, "GET", "/templateName")
+	b, _ := ioutil.ReadAll(rr.Body)
+	assert.DeepEqual(t, 200, rr.Code)
+	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
+	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestTransporterName(t *testing.T) {
+	SetTransporter(netpoll.NewTransporter)
+	assert.DeepEqual(t, "netpoll", GetTransporterName())
+
+	SetTransporter(standard.NewTransporter)
+	assert.DeepEqual(t, "standard", GetTransporterName())
+
+	SetTransporter(func(options *config.Options) network.Transporter {
+		return &mockTransporter{}
+	})
+	assert.DeepEqual(t, "route", GetTransporterName())
+}
+
+type mockTransporter struct{}
+
+func (m *mockTransporter) ListenAndServe(onData network.OnData) (err error) {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Close() error {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Shutdown(ctx context.Context) error {
+	panic("implement me")
+}
+
+func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.AutoReloadRender = true
+	e := NewEngine(opt)
+	e.Delims("{[{", "}]}")
+	e.SetFuncMap(template.FuncMap{
+		"formatAsDate": formatAsDate,
+	})
+	e.LoadHTMLGlob("../common/testdata/template/htmltemplate.html")
+	e.GET("/templateName", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(http.StatusOK, "htmltemplate.html", map[string]interface{}{
+			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),
+		})
+	})
+	rr := performRequest(e, "GET", "/templateName")
+	b, _ := ioutil.ReadAll(rr.Body)
+	assert.DeepEqual(t, 200, rr.Code)
+	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
+	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.AutoReloadRender = true
+	e := NewEngine(opt)
+	e.Delims("{[{", "}]}")
+	e.SetFuncMap(template.FuncMap{
+		"formatAsDate": formatAsDate,
+	})
+	e.LoadHTMLFiles("../common/testdata/template/htmltemplate.html")
 	e.GET("/templateName", func(c context.Context, ctx *app.RequestContext) {
 		ctx.HTML(http.StatusOK, "htmltemplate.html", map[string]interface{}{
 			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),

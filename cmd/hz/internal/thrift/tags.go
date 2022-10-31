@@ -73,10 +73,10 @@ var (
 	BindingTags = map[string]string{
 		AnnotationPath:    "path",
 		AnnotationQuery:   "query",
-		AnnotationForm:    "form",
 		AnnotationHeader:  "header",
 		AnnotationCookie:  "cookie",
 		AnnotationBody:    "json",
+		AnnotationForm:    "form",
 		AnnotationRawBody: "raw_body",
 	}
 
@@ -152,6 +152,23 @@ func getAnnotations(input parser.Annotations, targets map[string]string) map[str
 
 func defaultBindingTags(f *parser.Field) []model.Tag {
 	out := make([]model.Tag, 3)
+	bindingTags := []string{
+		AnnotationQuery,
+		AnnotationForm,
+		AnnotationPath,
+		AnnotationHeader,
+		AnnotationCookie,
+		AnnotationBody,
+		AnnotationRawBody,
+	}
+
+	for _, tag := range bindingTags {
+		if v := getAnnotation(f.Annotations, tag); len(v) > 0 {
+			out[0] = jsonTag(f)
+			return out[:1]
+		}
+	}
+
 	if v := getAnnotation(f.Annotations, AnnotationBody); len(v) > 0 {
 		val := getJsonValue(f, v[0])
 		out[0] = tag("json", val)
@@ -230,7 +247,10 @@ func injectTags(f *parser.Field, gf *model.Field, needDefault, needGoTag bool) e
 		key := t.Key
 		tags.Remove(key)
 		if key == "json" {
+			formVal := t.Value
 			t.Value = getJsonValue(f, t.Value)
+			formVal = checkRequire(f, formVal)
+			tags = append(tags, tag("form", formVal))
 		} else {
 			t.Value = checkRequire(f, t.Value)
 		}
@@ -240,7 +260,10 @@ func injectTags(f *parser.Field, gf *model.Field, needDefault, needGoTag bool) e
 	// validator tags
 	tags = append(tags, annotationToTags(as, ValidatorTags)...)
 
-	// go.tags
+	// the tag defined by gotag with higher priority
+	checkGoTag(as, &tags)
+
+	// go.tags for compiler mode
 	if needGoTag {
 		rets := getAnnotation(as, AnnotationGoTag)
 		for _, v := range rets {
@@ -288,4 +311,22 @@ func checkRequire(f *parser.Field, val string) string {
 	}
 
 	return val
+}
+
+// checkGoTag removes the tag defined in gotag
+func checkGoTag(as parser.Annotations, tags *model.Tags) error {
+	rets := getAnnotation(as, AnnotationGoTag)
+	for _, v := range rets {
+		gts := util.SplitGoTags(v)
+		for _, gt := range gts {
+			sp := strings.SplitN(gt, ":", 2)
+			if len(sp) != 2 {
+				return fmt.Errorf("invalid go tag: %s", v)
+			}
+			key := sp[0]
+			tags.Remove(key)
+		}
+	}
+
+	return nil
 }

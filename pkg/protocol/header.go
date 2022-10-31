@@ -52,6 +52,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -423,6 +424,11 @@ func (h *RequestHeader) IsPost() bool {
 	return bytes.Equal(h.Method(), bytestr.StrPost)
 }
 
+// IsDelete returns true if request method is DELETE.
+func (h *RequestHeader) IsDelete() bool {
+	return bytes.Equal(h.Method(), bytestr.StrDelete)
+}
+
 // IsConnect returns true if request method is CONNECT.
 func (h *RequestHeader) IsConnect() bool {
 	return bytes.Equal(h.Method(), bytestr.StrConnect)
@@ -447,7 +453,17 @@ func (h *RequestHeader) SetHost(host string) {
 
 // SetStatusCode sets response status code.
 func (h *ResponseHeader) SetStatusCode(statusCode int) {
+	checkWriteHeaderCode(statusCode)
 	h.statusCode = statusCode
+}
+
+func checkWriteHeaderCode(code int) {
+	// For now, we only emit a warning for bad codes.
+	// In the future we might block things over 599 or under 100
+	if code < 100 || code > 599 {
+		hlog.SystemLogger().Warnf("Invalid StatusCode code %v, status code should not be under 100 or over 599.\n"+
+			"For more info: https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes", code)
+	}
 }
 
 func (h *ResponseHeader) ResetSkipNormalize() {
@@ -1054,6 +1070,16 @@ func (h *RequestHeader) Method() []byte {
 // IsGet returns true if request method is GET.
 func (h *RequestHeader) IsGet() bool {
 	return bytes.Equal(h.Method(), bytestr.StrGet)
+}
+
+// IsOptions returns true if request method is Options.
+func (h *RequestHeader) IsOptions() bool {
+	return bytes.Equal(h.Method(), bytestr.StrOptions)
+}
+
+// IsTrace returns true if request method is Trace.
+func (h *RequestHeader) IsTrace() bool {
+	return bytes.Equal(h.Method(), bytestr.StrTrace)
 }
 
 // SetHostBytes sets Host header value.

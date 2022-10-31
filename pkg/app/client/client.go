@@ -45,6 +45,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -241,10 +243,8 @@ type Client struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
 
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf func(request *protocol.Request) bool
+	// RetryIfFunc sets the retry decision function. If nil, the client.DefaultRetryIf will be applied.
+	RetryIfFunc client.RetryIfFunc
 
 	clientFactory suite.ClientFactory
 
@@ -258,17 +258,24 @@ func (c *Client) GetOptions() *config.ClientOptions {
 	return c.options
 }
 
+func (c *Client) SetRetryIfFunc(retryIf client.RetryIfFunc) {
+	c.RetryIfFunc = retryIf
+}
+
+// Deprecated: use SetRetryIfFunc instead of SetRetryIf
+func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
+	f := func(req *protocol.Request, resp *protocol.Response, err error) bool {
+		return fn(req)
+	}
+	c.SetRetryIfFunc(f)
+}
+
 // SetProxy is used to set client proxy.
 //
 // Don't SetProxy twice for a client.
 // If you want to use another proxy, please create another client and set proxy to it.
 func (c *Client) SetProxy(p protocol.Proxy) {
 	c.Proxy = p
-}
-
-// SetRetryIf is used to set RetryIf func.
-func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
-	c.RetryIf = fn
 }
 
 // Get returns the status code and body of url.
@@ -458,18 +465,10 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	startCleaner := false
 
 	c.mLock.Lock()
+
 	m := c.m
 	if isTLS {
 		m = c.ms
-	}
-
-	if m == nil {
-		m = make(map[string]client.HostClient)
-		if isTLS {
-			c.ms = m
-		} else {
-			c.m = m
-		}
 	}
 
 	h := string(host)
@@ -540,6 +539,30 @@ func (c *Client) SetClientFactory(cf suite.ClientFactory) {
 	c.clientFactory = cf
 }
 
+// GetDialerName returns the name of the dialer
+func (c *Client) GetDialerName() (dName string, err error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			dName = "unknown"
+		}
+	}()
+
+	opt := c.GetOptions()
+	if opt == nil || opt.Dialer == nil {
+		return "", fmt.Errorf("abnormal process: there is no client options or dialer")
+	}
+
+	dName = reflect.TypeOf(opt.Dialer).String()
+	dSlice := strings.Split(dName, ".")
+	dName = dSlice[0]
+	if dName[0] == '*' {
+		dName = dName[1:]
+	}
+
+	return
+}
+
 // NewClient return a client with options
 func NewClient(opts ...config.ClientOption) (*Client, error) {
 	opt := config.NewClientOptions(opts)
@@ -548,6 +571,8 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 	}
 	c := &Client{
 		options: opt,
+		m:       make(map[string]client.HostClient),
+		ms:      make(map[string]client.HostClient),
 	}
 
 	return c, nil
@@ -574,14 +599,14 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		MaxConns:                      c.options.MaxConnsPerHost,
 		MaxConnDuration:               c.options.MaxConnDuration,
 		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
-		MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
 		ReadTimeout:                   c.options.ReadTimeout,
 		WriteTimeout:                  c.options.WriteTimeout,
 		MaxResponseBodySize:           c.options.MaxResponseBodySize,
 		DisableHeaderNamesNormalizing: c.options.DisableHeaderNamesNormalizing,
 		DisablePathNormalizing:        c.options.DisablePathNormalizing,
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
-		RetryIf:                       c.RetryIf,
 		ResponseBodyStream:            c.options.ResponseBodyStream,
+		RetryConfig:                   c.options.RetryConfig,
+		RetryIfFunc:                   c.RetryIfFunc,
 	}
 }

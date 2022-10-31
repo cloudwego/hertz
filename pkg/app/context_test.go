@@ -59,6 +59,17 @@ func TestPureJson(t *testing.T) {
 	}
 }
 
+func TestIndentedJSON(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.IndentedJSON(consts.StatusOK, utils.H{
+		"foo":  "bar",
+		"html": "h1",
+	})
+	if string(ctx.Response.Body()) != "{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}" {
+		t.Fatalf("unexpected purejson: %#v, expected: %#v", string(ctx.Response.Body()), "{\n    \"foo\": \"bar\",\n    \"html\": \"<b>\"\n}")
+	}
+}
+
 func TestContext(t *testing.T) {
 	reqContext := NewContext(0)
 	reqContext.Set("testContextKey", "testValue")
@@ -918,4 +929,16 @@ func TestBindAndValidate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+}
+
+func TestRequestContext_SetCookie(t *testing.T) {
+	c := NewContext(0)
+	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteLaxMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_SetCookiePathEmpty(t *testing.T) {
+	c := NewContext(0)
+	c.SetCookie("user", "hertz", 1, "", "localhost", protocol.CookieSameSiteDisabled, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure", c.Response.Header.Get("Set-Cookie"))
 }

@@ -503,7 +503,7 @@ func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map
 	}
 	rs, err := NewResolver(ast, fileInfo, main, map[string]string{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new protobuf resolver failed, err:%v", err)
 	}
 	err = rs.LoadAll(ast)
 	if err != nil {

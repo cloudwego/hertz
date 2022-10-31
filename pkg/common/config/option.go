@@ -56,6 +56,7 @@ type Options struct {
 	DisablePreParseMultipartForm bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
+	DisablePrintRoute            bool
 	Network                      string
 	Addr                         string
 	ExitWaitTimeout              time.Duration
@@ -71,6 +72,12 @@ type Options struct {
 	Registry registry.Registry
 	// RegistryInfo is base info used for service registry.
 	RegistryInfo *registry.Info
+	// Enable automatically HTML template reloading mechanism.
+	AutoReloadRender bool
+	// If AutoReloadInterval is set to 0(default).
+	// The HTML template will reload according to files' changing event
+	// otherwise it will reload after AutoReloadInterval.
+	AutoReloadInterval time.Duration
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -144,6 +151,10 @@ func NewOptions(opts []Option) *Options {
 		// The default is to automatically read request bodies of Expect 100 Continue requests
 		// like they are normal requests
 		DisablePreParseMultipartForm: false,
+
+		// Routes info printing is not disabled by default
+		// Disabled when set to True
+		DisablePrintRoute: false,
 
 		// "tcp", "udp", "unix"(unix domain socket)
 		Network: defaultNetwork,

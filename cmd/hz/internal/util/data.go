@@ -24,6 +24,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/internal/util/logs"
 )
 
 func CopyStringSlice(from, to *[]string) {
@@ -361,4 +363,50 @@ func SubDir(root, subPkg string) string {
 		return ImportToPath(subPkg, "")
 	}
 	return filepath.Join(root, ImportToPath(subPkg, ""))
+}
+
+var (
+	uniquePackageName    = map[string]bool{}
+	uniqueMiddlewareName = map[string]bool{}
+)
+
+// GetPackageUniqueName can get a non-repeating variable name for package alias
+func GetPackageUniqueName(name string) (string, error) {
+	name, err := getUniqueName(name, uniquePackageName)
+	if err != nil {
+		return "", fmt.Errorf("can not generate unique name for package '%s', err: %v", name, err)
+	}
+
+	return name, nil
+}
+
+// GetMiddlewareUniqueName can get a non-repeating variable name for middleware name
+func GetMiddlewareUniqueName(name string) (string, error) {
+	name, err := getUniqueName(name, uniqueMiddlewareName)
+	if err != nil {
+		return "", fmt.Errorf("can not generate routing group for path '%s', err: %v", name, err)
+	}
+
+	return name, nil
+}
+
+// getUniqueName can get a non-repeating variable name
+func getUniqueName(name string, uniqueNameSet map[string]bool) (string, error) {
+	uniqueName := name
+	if _, exist := uniqueNameSet[uniqueName]; exist {
+		for i := 0; i < 10000; i++ {
+			uniqueName = uniqueName + fmt.Sprintf("%d", i)
+			if _, exist := uniqueNameSet[uniqueName]; !exist {
+				logs.Infof("There is a package name with the same name, change %s to %s", name, uniqueName)
+				break
+			}
+			uniqueName = name
+			if i == 9999 {
+				return "", fmt.Errorf("there is too many same package for %s", name)
+			}
+		}
+	}
+	uniqueNameSet[uniqueName] = true
+
+	return uniqueName, nil
 }

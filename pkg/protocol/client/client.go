@@ -43,7 +43,7 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
+	"io"
 	"sync"
 	"time"
 
@@ -79,32 +79,38 @@ type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
 }
 
-type HostClientConfig struct {
-	DynamicConfig
+// DefaultRetryIf Default retry condition, mainly used for idempotent requests.
+// If this cannot be satisfied, you can implement your own retry condition.
+func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
+	// cannot retry if the request body is not rewindable
+	if req.IsBodyStream() {
+		return false
+	}
 
-	Name string
+	if isIdempotent(req, resp, err) {
+		return true
+	}
+	// Retry non-idempotent requests if the server closes
+	// the connection before sending the response.
+	//
+	// This case is possible if the server closes the idle
+	// keep-alive connection on timeout.
+	//
+	// Apache and nginx usually do this.
+	if err == io.EOF {
+		return true
+	}
 
-	NoDefaultUserAgentHeader      bool
-	DialDualStack                 bool
-	DisableHeaderNamesNormalizing bool
-	DisablePathNormalizing        bool
-	IsTLS                         bool
+	return false
+}
 
-	TLSConfig *tls.Config
-
-	MaxConns                  int
-	MaxIdempotentCallAttempts int
-	MaxResponseBodySize       int
-
-	RetryIf            RetryIfFunc
-	ResponseBodyStream bool
-
-	DialTimeout         time.Duration
-	MaxIdleConnDuration time.Duration
-	MaxConnDuration     time.Duration
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	MaxConnWaitTimeout  time.Duration
+func isIdempotent(req *protocol.Request, resp *protocol.Response, err error) bool {
+	return req.Header.IsGet() ||
+		req.Header.IsHead() ||
+		req.Header.IsPut() ||
+		req.Header.IsDelete() ||
+		req.Header.IsOptions() ||
+		req.Header.IsTrace()
 }
 
 // DynamicConfig is config set which will be confirmed when starts a request.
@@ -115,9 +121,8 @@ type DynamicConfig struct {
 }
 
 // RetryIfFunc signature of retry if function
-//
-// Request argument passed to RetryIfFunc, if there are any request errors.
-type RetryIfFunc func(request *protocol.Request) bool
+// Judge whether to retry by request,response or error , return true is retry
+type RetryIfFunc func(req *protocol.Request, resp *protocol.Response, err error) bool
 
 type clientURLResponse struct {
 	statusCode int
