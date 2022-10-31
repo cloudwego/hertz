@@ -1,8 +1,11 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/go.mod"
+    directory: "/"
     labels:
-      - "Dependencies"
+      - "dependencies"
     schedule:
       interval: "daily"
+    allow:
+      - dependency-name: "github.com/bytedance/sonic"
+      - dependency-name: "github.com/cloudwego/netpoll"
