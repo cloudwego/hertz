@@ -262,13 +262,17 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret *Symbol, err error) 
 		return nil, fmt.Errorf("not found identifier %s", id)
 	}
 
+	var ref *PackageReference
 	if _, ok := resolver.deps[ret.Space]; ok {
-		ref := resolver.refPkgs[ret.Scope.GetName()]
+		ref = resolver.refPkgs[ret.Scope.GetName()]
 		if ref != nil {
 			ref.Referred = true
 			ret.Type.Scope = ref.Model
 		}
-	} else if ret.Scope == resolver.mainPkg.Ast {
+	}
+	// bugfix: root & dep file has the same package(namespace), the 'ret' will miss the namespace match for root.
+	// This results in a lack of dependencies in the generated handlers.
+	if ref == nil && ret.Scope == resolver.mainPkg.Ast {
 		resolver.mainPkg.Referred = true
 		ret.Type.Scope = resolver.mainPkg.Model
 	}
