@@ -85,6 +85,11 @@ type mockConn struct {
 	off int
 }
 
+func (m *mockConn) SetWriteTimeout(timeout time.Duration) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 // mockConn's methods is simplified for unit test
 // Peek returns the next n bytes without advancing the reader
 func (m *mockConn) Peek(n int) (b []byte, err error) {
