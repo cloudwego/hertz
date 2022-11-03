@@ -48,6 +48,15 @@ func WithReadTimeout(t time.Duration) config.Option {
 	}}
 }
 
+// WithWriteTimeout sets write timeout.
+//
+// Connection will be closed when write request timeout.
+func WithWriteTimeout(t time.Duration) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.WriteTimeout = t
+	}}
+}
+
 // WithIdleTimeout sets idle timeout.
 //
 // Close the connection when the successive request timeout (in keepalive mode).

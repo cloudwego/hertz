@@ -42,6 +42,7 @@ const (
 type Options struct {
 	KeepAliveTimeout             time.Duration
 	ReadTimeout                  time.Duration
+	WriteTimeout                 time.Duration
 	IdleTimeout                  time.Duration
 	RedirectTrailingSlash        bool
 	MaxRequestBodySize           int

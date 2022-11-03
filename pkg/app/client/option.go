@@ -140,3 +140,10 @@ func WithRetryConfig(opts ...retry.Option) config.ClientOption {
 		o.RetryConfig = retryCfg
 	}}
 }
+
+// WithWriteTimeout sets write timeout.
+func WithWriteTimeout(t time.Duration) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.WriteTimeout = t
+	}}
+}

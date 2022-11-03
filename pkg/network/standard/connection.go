@@ -44,6 +44,13 @@ type Conn struct {
 	maxSize      int      // history max malloc size
 }
 
+func (c *Conn) SetWriteTimeout(t time.Duration) error {
+	if t <= 0 {
+		return c.c.SetWriteDeadline(time.Time{})
+	}
+	return c.c.SetWriteDeadline(time.Now().Add(t))
+}
+
 func (c *Conn) SetReadTimeout(t time.Duration) error {
 	if t <= 0 {
 		return c.c.SetReadDeadline(time.Time{})

@@ -435,6 +435,11 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 
 type mockConn struct{}
 
+func (m *mockConn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (m *mockConn) ReadBinary(n int) (p []byte, err error) {
 	panic("implement me")
 }

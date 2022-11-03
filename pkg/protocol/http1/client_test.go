@@ -55,6 +55,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
+
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -222,4 +225,101 @@ func (m *mockDialer) DialTimeout(network, address string, timeout time.Duration,
 
 func (m *mockDialer) AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn, error) {
 	return nil, nil
+}
+
+type slowDialer struct {
+	*mockDialer
+}
+
+func (s *slowDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
+	time.Sleep(timeout)
+	return nil, errs.ErrDialTimeout
+}
+
+func TestReadTimeoutPriority(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.SlowReadDialer(addr)
+			}),
+			MaxConns:           1,
+			MaxConnWaitTimeout: 50 * time.Millisecond,
+			ReadTimeout:        time.Second * 3,
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithReadTimeout(time.Second * 1))
+	resp := protocol.AcquireResponse()
+
+	ch := make(chan error, 1)
+	go func() {
+		ch <- c.Do(context.Background(), req, resp)
+	}()
+	select {
+	case <-time.After(time.Second * 2):
+		t.Fatalf("should use readTimeout in request options")
+	case err := <-ch:
+		assert.DeepEqual(t, errs.ErrTimeout.Error(), err.Error())
+	}
+}
+
+func TestWriteTimeoutPriority(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.SlowWriteDialer(addr)
+			}),
+			MaxConns:           1,
+			MaxConnWaitTimeout: 50 * time.Millisecond,
+			WriteTimeout:       time.Second * 3,
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithWriteTimeout(time.Second * 1))
+	resp := protocol.AcquireResponse()
+
+	ch := make(chan error, 1)
+	go func() {
+		ch <- c.Do(context.Background(), req, resp)
+	}()
+	select {
+	case <-time.After(time.Second * 2000):
+		t.Fatalf("should use writeTimeout in request options")
+	case err := <-ch:
+		assert.DeepEqual(t, errs.ErrWriteTimeout.Error(), err.Error())
+	}
+}
+
+func TestDialTimeoutPriority(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer:             &slowDialer{},
+			MaxConns:           1,
+			MaxConnWaitTimeout: 50 * time.Millisecond,
+			DialTimeout:        time.Second * 3,
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithDialTimeout(time.Second * 1))
+	resp := protocol.AcquireResponse()
+
+	ch := make(chan error, 1)
+	go func() {
+		ch <- c.Do(context.Background(), req, resp)
+	}()
+	select {
+	case <-time.After(time.Second * 2000):
+		t.Fatalf("should use dialTimeout in request options")
+	case err := <-ch:
+		assert.DeepEqual(t, errs.ErrDialTimeout.Error(), err.Error())
+	}
 }
