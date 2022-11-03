@@ -22,7 +22,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
   
   四个框架的对比:
   ![Performance](images/performance-4.png)
-  三个框架的时延对比:
+  三个框架的对比:
   ![Performance](images/performance-3.png)
   关于详细的性能数据，可参考 [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark)。
 - 高扩展性
