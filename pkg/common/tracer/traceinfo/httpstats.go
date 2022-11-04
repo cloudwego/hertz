@@ -23,8 +23,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 )
 
+var _ HTTPStats = (*httpStats)(nil)
+
 var (
-	_           HTTPStats = (*httpStats)(nil)
 	eventPool   sync.Pool
 	once        sync.Once
 	maxEventNum int
