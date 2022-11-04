@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	_           HTTPStats = &httpStats{}
+	_           HTTPStats = (*httpStats)(nil)
 	eventPool   sync.Pool
 	once        sync.Once
 	maxEventNum int
