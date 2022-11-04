@@ -23,7 +23,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 
   Comparison of four frameworks:
   ![Performance](images/performance-4.png)
-  Latency comparison of three frameworks:
+  Comparison of three frameworks:
   ![Performance](images/performance-3.png)
   For detailed performance data, please refer to [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark).
 - High extensibility
