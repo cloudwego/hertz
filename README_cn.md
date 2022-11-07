@@ -105,6 +105,10 @@ Hertz 基于[Apache License 2.0](https://github.com/cloudwego/hertz/blob/main/LI
 - 微信: CloudWeGo community
 
   ![WechatGroup](images/wechat_group_cn.png)
+## 贡献者
+[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz)
+## Star 增长
+[![Stargazers](https://starchart.cc/cloudwego/hertz.svg)](https://github.com/cloudwego/hertz/stargazers)
 ## Landscapes
 
 <p align="center">
