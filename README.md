@@ -106,8 +106,6 @@ Hertz is distributed under the [Apache License, version 2.0](https://github.com/
 ![WechatGroup](images/wechat_group_cn.png)
 ## Contributors
 [![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz)
-## Stargazers
-[![Stargazers](https://starchart.cc/cloudwego/hertz.svg)](https://github.com/cloudwego/hertz/stargazers)
 ## Landscapes
 
 <p align="center">
