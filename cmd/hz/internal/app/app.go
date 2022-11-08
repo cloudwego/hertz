@@ -80,6 +80,22 @@ func Update(c *cli.Context) error {
 	return nil
 }
 
+func Model(c *cli.Context) error {
+	args, err := globalArgs.Parse(c, meta.CmdModel)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
+
+	err = triggerPlugin(args)
+	if err != nil {
+		return cli.Exit(err, meta.PluginError)
+	}
+
+	return nil
+}
+
 func Init() *cli.App {
 	// flags
 	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "turn on verbose mode", Destination: &globalArgs.Verbose}
@@ -168,6 +184,27 @@ func Init() *cli.App {
 				&customPackage,
 			},
 			Action: Update,
+		},
+		{
+			Name:  meta.CmdModel,
+			Usage: "Generate model code only",
+			Flags: []cli.Flag{
+				&idlFlag,
+				&moduleFlag,
+				&outDirFlag,
+				&modelDirFlag,
+
+				&includesFlag,
+				&thriftOptionsFlag,
+				&protoOptionsFlag,
+				&noRecurseFlag,
+
+				&jsonEnumStrFlag,
+				&unsetOmitemptyFlag,
+				&snakeNameFlag,
+				&excludeFilesFlag,
+			},
+			Action: Model,
 		},
 	}
 	return app

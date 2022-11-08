@@ -33,6 +33,7 @@ const WindowsOS = "windows"
 const (
 	CmdUpdate = "update"
 	CmdNew    = "new"
+	CmdModel  = "model"
 	// CmdClient = "client"
 )
 
