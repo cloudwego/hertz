@@ -107,7 +107,7 @@ Hertz is distributed under the [Apache License, version 2.0](https://github.com/
 ## Contributors
 Thank you for your contribution to Hertz!
 
-[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz)
+[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz/graphs/contributors)
 ## Landscapes
 
 <p align="center">
