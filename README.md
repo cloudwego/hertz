@@ -105,6 +105,10 @@ Hertz is distributed under the [Apache License, version 2.0](https://github.com/
 - WeChat: CloudWeGo community WeChat group.
 
 ![WechatGroup](images/wechat_group_cn.png)
+## Contributors
+Thank you for your contribution to Hertz!
+
+[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz/graphs/contributors)
 ## Landscapes
 
 <p align="center">
