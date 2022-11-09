@@ -51,13 +51,15 @@ type Argument struct {
 	Gopkg       string // $GOPATH/src/{{gopkg}}
 	ServiceName string // service name
 
-	JSONEnumStr    bool
-	UnsetOmitempty bool
-	ProtocOptions  []string // options to pass through to protoc
-	ThriftOptions  []string // options to pass through to thriftgo
-	SnakeName      bool
-	Excludes       []string
-	NoRecurse      bool
+	JSONEnumStr     bool
+	UnsetOmitempty  bool
+	ProtocOptions   []string // options to pass through to protoc
+	ThriftOptions   []string // options to pass through to thriftgo for go flag
+	ProtobufPlugins []string
+	ThriftPlugins   []string
+	SnakeName       bool
+	Excludes        []string
+	NoRecurse       bool
 
 	CustomizeLayout  string
 	CustomizePackage string
@@ -106,6 +108,8 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.RawOptPkg = c.StringSlice("option_package")
 	arg.ThriftOptions = c.StringSlice("thriftgo")
 	arg.ProtocOptions = c.StringSlice("protoc")
+	arg.ThriftPlugins = c.StringSlice("thrift-plugins")
+	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
 }
 
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
