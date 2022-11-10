@@ -64,11 +64,31 @@ import (
 )
 
 func TestNew_Engine(t *testing.T) {
+	defaultTransporter = standard.NewTransporter
 	opt := config.NewOptions([]config.Option{})
 	router := NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
 	assert.DeepEqual(t, "/", router.basePath)
 	assert.DeepEqual(t, router.engine, router)
 	assert.DeepEqual(t, 0, len(router.Handlers))
+}
+
+func TestNew_Engine_WithTransporter(t *testing.T) {
+	defaultTransporter = netpoll.NewTransporter
+	opt := config.NewOptions([]config.Option{})
+	router := NewEngine(opt)
+	assert.DeepEqual(t, "netpoll", router.GetTransporterName())
+
+	defaultTransporter = netpoll.NewTransporter
+	opt.TransporterNewer = standard.NewTransporter
+	router = NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
+	assert.DeepEqual(t, "netpoll", GetTransporterName())
+}
+
+func TestGetTransporterName(t *testing.T) {
+	name := getTransporterName(&fakeTransporter{})
+	assert.DeepEqual(t, "route", name)
 }
 
 func TestEngineUnescape(t *testing.T) {
@@ -522,5 +542,22 @@ func (m *mockConn) WriteBinary(b []byte) (n int, err error) {
 }
 
 func (m *mockConn) Flush() error {
+	panic("implement me")
+}
+
+type fakeTransporter struct{}
+
+func (f *fakeTransporter) Close() error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) Shutdown(ctx context.Context) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) ListenAndServe(onData network.OnData) error {
+	// TODO implement me
 	panic("implement me")
 }
