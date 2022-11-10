@@ -61,6 +61,10 @@ func (m *Conn) Release() error {
 func (m *Conn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
 	if err != nil || len(b) != i {
+		if m.readTimeout <= 0 {
+			// simulate timeout forever
+			select {}
+		}
 		time.Sleep(m.readTimeout)
 		return nil, errs.ErrTimeout
 	}

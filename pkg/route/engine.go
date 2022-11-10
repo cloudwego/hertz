@@ -954,7 +954,7 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
-	return &http1.Option{
+	opt := &http1.Option{
 		StreamRequestBody:            engine.options.StreamRequestBody,
 		GetOnly:                      engine.options.GetOnly,
 		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
@@ -970,4 +970,10 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		EnableTrace:                  engine.IsTraceEnable(),
 		HijackConnHandle:             engine.HijackConnHandle,
 	}
+	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
+	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
+	if opt.IdleTimeout == 0 && engine.GetTransporterName() == "standard" {
+		opt.IdleTimeout = -1
+	}
+	return opt
 }

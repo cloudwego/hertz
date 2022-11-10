@@ -257,6 +257,39 @@ func TestIdleTimeout01(t *testing.T) {
 	}
 }
 
+func TestIdleTimeout03(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.options.IdleTimeout = 0
+	engine.transport = standard.NewTransporter(engine.options)
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.Init()
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(50 * time.Millisecond)
+		ctx.String(200, "ok")
+	})
+
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n" +
+		"GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
+
+	ch := make(chan error)
+	startCh := make(chan error)
+	go func() {
+		<-startCh
+		ch <- engine.Serve(context.Background(), conn)
+	}()
+	close(startCh)
+	select {
+	case err := <-ch:
+		if !errors.Is(err, errs.ErrShortConnection) {
+			t.Errorf("err should be ErrShortConnection, but got %s", err)
+		}
+		return
+	case <-time.Tick(120 * time.Millisecond):
+		t.Errorf("timeout! should have been finished in 120ms...")
+	}
+}
+
 func TestEngine_Routes(t *testing.T) {
 	engine := NewEngine(config.NewOptions(nil))
 	engine.GET("/", handlerTest1)
