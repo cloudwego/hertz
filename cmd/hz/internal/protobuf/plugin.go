@@ -202,6 +202,17 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 		return nil
 	}
 
+	if args.CmdType == meta.CmdModel {
+		resp := gen.Response()
+		// plugin stop working
+		err = plugin.Response(resp)
+		if err != nil {
+			return fmt.Errorf("write response failed: %s", err.Error())
+		}
+
+		return nil
+	}
+
 	files := gen.Request.ProtoFile
 	maps := make(map[string]*descriptorpb.FileDescriptorProto, len(files))
 	for _, file := range files {
@@ -278,11 +289,18 @@ func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap ma
 	}
 }
 
+// fixModelPathAndPackage will modify the go_package to adapt the go_package of the hz,
+// for example adding the go module and model dir.
 func (plugin *Plugin) fixModelPathAndPackage(pkg string) (impt, path string) {
 	if strings.HasPrefix(pkg, plugin.Package) {
 		impt = util.ImportToPathAndConcat(pkg[len(plugin.Package):], "")
 	}
 	if plugin.ModelDir != "" && plugin.ModelDir != "." {
+		modelImpt := util.PathToImport(string(filepath.Separator)+plugin.ModelDir, "")
+		// trim model dir for go package
+		if strings.HasPrefix(impt, modelImpt) {
+			impt = impt[len(modelImpt):]
+		}
 		impt = util.PathToImport(plugin.ModelDir, "") + impt
 	}
 	path = util.ImportToPath(impt, "")

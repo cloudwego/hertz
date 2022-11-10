@@ -59,6 +59,17 @@ func TestPureJson(t *testing.T) {
 	}
 }
 
+func TestIndentedJSON(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.IndentedJSON(consts.StatusOK, utils.H{
+		"foo":  "bar",
+		"html": "h1",
+	})
+	if string(ctx.Response.Body()) != "{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}" {
+		t.Fatalf("unexpected purejson: %#v, expected: %#v", string(ctx.Response.Body()), "{\n    \"foo\": \"bar\",\n    \"html\": \"<b>\"\n}")
+	}
+}
+
 func TestContext(t *testing.T) {
 	reqContext := NewContext(0)
 	reqContext.Set("testContextKey", "testValue")

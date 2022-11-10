@@ -18,8 +18,10 @@ package protobuf
 
 import (
 	"io/ioutil"
+	"strings"
 	"testing"
 
+	"github.com/cloudwego/hertz/cmd/hz/internal/meta"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -43,4 +45,54 @@ func TestPlugin_Handle(t *testing.T) {
 
 	plu.Handle(req, args)
 	plu.recvWarningLogger()
+}
+
+func TestFixModelPathAndPackage(t *testing.T) {
+	plu := &Plugin{}
+	plu.Package = "cloudwego/hertz"
+	plu.ModelDir = meta.ModelDir
+	// default model dir
+	ret1 := [][]string{
+		{"a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
+		{"biz/model/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
+		{"cloudwego/hertz/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
+		{"cloudwego/hertz/biz/model/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
+	}
+	for _, r := range ret1 {
+		tmp := r[0]
+		if !strings.Contains(tmp, plu.Package) {
+			if strings.HasPrefix(tmp, "/") {
+				tmp = plu.Package + tmp
+			} else {
+				tmp = plu.Package + "/" + tmp
+			}
+		}
+		result, _ := plu.fixModelPathAndPackage(tmp)
+		if result != r[1] {
+			t.Fatalf("want go package: %s, but get: %s", r[1], result)
+		}
+	}
+
+	plu.ModelDir = "model_test"
+	// customized model dir
+	ret2 := [][]string{
+		{"a/b/c", "cloudwego/hertz/model_test/a/b/c"},
+		{"model_test/a/b/c", "cloudwego/hertz/model_test/a/b/c"},
+		{"cloudwego/hertz/a/b/c", "cloudwego/hertz/model_test/a/b/c"},
+		{"cloudwego/hertz/model_test/a/b/c", "cloudwego/hertz/model_test/a/b/c"},
+	}
+	for _, r := range ret2 {
+		tmp := r[0]
+		if !strings.Contains(tmp, plu.Package) {
+			if strings.HasPrefix(tmp, "/") {
+				tmp = plu.Package + tmp
+			} else {
+				tmp = plu.Package + "/" + tmp
+			}
+		}
+		result, _ := plu.fixModelPathAndPackage(tmp)
+		if result != r[1] {
+			t.Fatalf("want go package: %s, but get: %s", r[1], result)
+		}
+	}
 }

@@ -18,7 +18,6 @@ package recovery
 
 import (
 	"context"
-	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -34,8 +33,7 @@ type (
 )
 
 func defaultRecoveryHandler(c context.Context, ctx *app.RequestContext, err interface{}, stack []byte) {
-	hlog.SystemLogger().CtxErrorf(c, "[Recovery] %s panic recovered:\n%s\n%s\n",
-		timeFormat(time.Now()), err, stack)
+	hlog.SystemLogger().CtxErrorf(c, "[Recovery] err=%v\nstack=%s", err, stack)
 	ctx.AbortWithStatus(consts.StatusInternalServerError)
 }
 

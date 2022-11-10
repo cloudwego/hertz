@@ -880,6 +880,12 @@ func (ctx *RequestContext) PureJSON(code int, obj interface{}) {
 	ctx.Render(code, render.PureJSON{Data: obj})
 }
 
+// IndentedJSON serializes the given struct as pretty JSON (indented + endlines) into the response body.
+// It also sets the Content-Type as "application/json".
+func (ctx *RequestContext) IndentedJSON(code int, obj interface{}) {
+	ctx.Render(code, render.IndentedJSON{Data: obj})
+}
+
 // HTML renders the HTTP template specified by its file name.
 //
 // It also updates the HTTP code and sets the Content-Type as "text/html".

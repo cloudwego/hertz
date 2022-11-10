@@ -67,6 +67,19 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
+	if args.CmdType == meta.CmdModel {
+		res, err := plugin.GetResponse(nil, args.OutDir)
+		if err != nil {
+			logs.Errorf("get response failed: %s", err.Error())
+			return meta.PluginError
+		}
+		plugin.response(res)
+		if err != nil {
+			logs.Errorf("response failed: %s", err.Error())
+			return meta.PluginError
+		}
+		return 0
+	}
 
 	err = plugin.initNameStyle()
 	if err != nil {
@@ -131,7 +144,6 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("format file failed: %s", err.Error())
 		return meta.PluginError
 	}
-
 	res, err := plugin.GetResponse(files, sg.OutputDir)
 	if err != nil {
 		logs.Errorf("get response failed: %s", err.Error())

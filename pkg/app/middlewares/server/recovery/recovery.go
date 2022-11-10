@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"runtime"
-	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 )
@@ -111,9 +110,4 @@ func function(pc uintptr) []byte {
 	}
 	name = bytes.Replace(name, centerDot, dot, -1)
 	return name
-}
-
-func timeFormat(t time.Time) string {
-	timeString := t.Format("2006/01/02 - 15:04:05")
-	return timeString
 }

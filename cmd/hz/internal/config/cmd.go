@@ -169,6 +169,9 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 			"-g", thriftOpt,
 			"-p", "hertz:"+kas,
 		)
+		for _, p := range args.ThriftPlugins {
+			cmd.Args = append(cmd.Args, "-p", p)
+		}
 		if !args.NoRecurse {
 			cmd.Args = append(cmd.Args, "-r")
 		}
@@ -185,6 +188,19 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 			"--hertz_out="+args.OutDir,
 			"--hertz_opt="+kas,
 		)
+		for _, p := range args.ProtobufPlugins {
+			pluginParams := strings.Split(p, ":")
+			if len(pluginParams) != 3 {
+				logs.Warnf("Failed to get the correct protoc plugin parameters for %. "+
+					"Please specify the protoc plugin in the form of \"plugin_name:options:out_dir\"", p)
+				os.Exit(1)
+			}
+			// pluginParams[0] -> plugin name, pluginParams[1] -> plugin options, pluginParams[2] -> out_dir
+			cmd.Args = append(cmd.Args,
+				fmt.Sprintf("--%s_out=%s", pluginParams[0], pluginParams[2]),
+				fmt.Sprintf("--%s_opt=%s", pluginParams[0], pluginParams[1]),
+			)
+		}
 		for _, kv := range args.ProtocOptions {
 			cmd.Args = append(cmd.Args, "--"+kv)
 		}

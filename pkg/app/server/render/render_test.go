@@ -45,6 +45,7 @@ import (
 	"encoding/xml"
 	"testing"
 
+	"github.com/bytedance/sonic"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
@@ -158,4 +159,31 @@ func TestRenderXML(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("<map><foo>bar</foo></map>"), resp.Body())
 	assert.DeepEqual(t, []byte("application/xml; charset=utf-8"), resp.Header.Peek("Content-Type"))
+}
+
+func TestRenderIndentedJSON(t *testing.T) {
+	data := map[string]interface{}{
+		"foo":  "bar",
+		"html": "h1",
+	}
+	t.Run("TestHeader", func(t *testing.T) {
+		resp := &protocol.Response{}
+		(IndentedJSON{data}).WriteContentType(resp)
+		assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	})
+	t.Run("TestBody", func(t *testing.T) {
+		ResetStdJSONMarshal()
+		resp := &protocol.Response{}
+		err := (IndentedJSON{data}).Render(resp)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, []byte("{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}"), resp.Body())
+		assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+		ResetJSONMarshal(sonic.Marshal)
+	})
+	t.Run("TestError", func(t *testing.T) {
+		resp := &protocol.Response{}
+		ch := make(chan int)
+		err := (IndentedJSON{ch}).Render(resp)
+		assert.NotNil(t, err)
+	})
 }
