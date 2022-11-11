@@ -37,6 +37,7 @@ type transporter struct {
 	addr             string
 	keepAliveTimeout time.Duration
 	readTimeout      time.Duration
+	writeTimeout     time.Duration
 	listener         net.Listener
 	eventLoop        netpoll.EventLoop
 	listenConfig     *net.ListenConfig
@@ -49,6 +50,7 @@ func NewTransporter(options *config.Options) network.Transporter {
 		addr:             options.Addr,
 		keepAliveTimeout: options.KeepAliveTimeout,
 		readTimeout:      options.ReadTimeout,
+		writeTimeout:     options.WriteTimeout,
 		listener:         nil,
 		eventLoop:        nil,
 		listenConfig:     options.ListenConfig,
@@ -74,6 +76,9 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 		netpoll.WithIdleTimeout(t.keepAliveTimeout),
 		netpoll.WithOnPrepare(func(conn netpoll.Connection) context.Context {
 			conn.SetReadTimeout(t.readTimeout) // nolint:errcheck
+			if t.writeTimeout > 0 {
+				conn.SetWriteTimeout(t.writeTimeout)
+			}
 			return context.Background()
 		}),
 	}
