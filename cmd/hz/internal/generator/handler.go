@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/internal/generator/model"
@@ -111,23 +110,16 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return err
 	}
 
-	hertzImport := regexp.MustCompile(`import \(\n`)
 	// insert new imports
 	for alias, model := range handler.(Handler).Imports {
 		if bytes.Contains(file, []byte(model.Package)) {
 			continue
 		}
-
-		subIndexImport := hertzImport.FindSubmatchIndex(file)
-		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
-			return fmt.Errorf("\"import (\" not found in %s", string(file))
+		newFile, err := util.AddImport(filePath, alias, model.Package)
+		if err != nil {
+			return err
 		}
-
-		buf := bytes.NewBuffer(nil)
-		buf.Write(file[:subIndexImport[1]])
-		buf.WriteString("\n\t" + fmt.Sprintf("%s \"%s\"\n", alias, model.Package))
-		buf.Write(file[subIndexImport[1]:])
-		file = buf.Bytes()
+		file = []byte(newFile)
 	}
 
 	// insert new handler
