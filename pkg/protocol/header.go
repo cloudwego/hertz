@@ -875,11 +875,15 @@ func (h *RequestHeader) Reset() {
 	h.ResetSkipNormalize()
 }
 
+func (h *RequestHeader) SetByteRange(startPos, endPos int) {
+	h.SetByteRanges([]int{startPos}, []int{endPos})
+}
+
 // SetByteRange sets 'Range: bytes=startPos-endPos' header.
 //
 //     * If startPos is negative, then 'bytes=-startPos' value is set.
 //     * If endPos is negative, then 'bytes=startPos-' value is set.
-func (h *RequestHeader) SetByteRange(startPos, endPos []int) {
+func (h *RequestHeader) SetByteRanges(startPos, endPos []int) {
 	b := h.bufKV.value[:0]
 	b = append(b, bytestr.StrBytes...)
 	b = append(b, '=')

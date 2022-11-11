@@ -368,12 +368,11 @@ func testFSSingleByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string
 	endPos = append(endPos, end)
 
 	ctx.Request.SetRequestURI(filePath)
-	ctx.Request.Header.SetByteRange(startPos, endPos)
+	ctx.Request.Header.SetByteRanges(startPos, endPos)
 	h(context.Background(), &ctx)
 
 	bodySize := end - start + 1
 
-	// todo 代码优化
 	// test WriteTo(w io.Writer)
 	if fileSize > consts.MaxSmallFileSize {
 		reader, ok := ctx.Response.BodyStream().(*bigRangeReader)
@@ -437,7 +436,7 @@ func testFSSingleByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 	endPos = append(endPos, end)
 
 	ctx.Request.SetRequestURI(filePath)
-	ctx.Request.Header.SetByteRange(startPos, endPos)
+	ctx.Request.Header.SetByteRanges(startPos, endPos)
 	h(context.Background(), &ctx)
 
 	var r protocol.Response
@@ -524,7 +523,7 @@ func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string)
 		t.Fatalf("cannot read file %q: %s", filePath, err)
 	}
 
-	num := rand.Intn(20) + 2
+	num := rand.Intn(5) + 2
 
 	fileSize := len(expectedBody)
 	startPos, endPos := make([]int, 0), make([]int, 0)
@@ -540,7 +539,7 @@ func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string)
 	}
 
 	ctx.Request.SetRequestURI(filePath)
-	ctx.Request.Header.SetByteRange(startPos, endPos)
+	ctx.Request.Header.SetByteRanges(startPos, endPos)
 	h(context.Background(), &ctx)
 
 	var body string
@@ -582,7 +581,7 @@ func testFSMultiByteRangeOfWriteTo(t *testing.T, h HandlerFunc, filePath string)
 		req1 := &protocol.Request{}
 		req1.CopyTo(&ctx1.Request)
 		ctx1.Request.SetRequestURI(filePath)
-		ctx1.Request.Header.SetByteRange([]int{startPos[i]}, []int{endPos[i]})
+		ctx1.Request.Header.SetByteRanges([]int{startPos[i]}, []int{endPos[i]})
 		h(context.Background(), &ctx1)
 
 		var r1 protocol.Response
@@ -642,7 +641,7 @@ func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 		t.Fatalf("cannot read file %q: %s", filePath, err)
 	}
 
-	num := rand.Intn(50) + 2
+	num := rand.Intn(5) + 2
 
 	fileSize := len(expectedBody)
 	startPos, endPos := make([]int, 0), make([]int, 0)
@@ -658,7 +657,7 @@ func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 	}
 
 	ctx.Request.SetRequestURI(filePath)
-	ctx.Request.Header.SetByteRange(startPos, endPos)
+	ctx.Request.Header.SetByteRanges(startPos, endPos)
 	h(context.Background(), &ctx)
 
 	var r protocol.Response
@@ -695,7 +694,7 @@ func testFSMultiByteRangeOfRead(t *testing.T, h HandlerFunc, filePath string) {
 		req1 := &protocol.Request{}
 		req1.CopyTo(&ctx1.Request)
 		ctx1.Request.SetRequestURI(filePath)
-		ctx1.Request.Header.SetByteRange([]int{startPos[i]}, []int{endPos[i]})
+		ctx1.Request.Header.SetByteRanges([]int{startPos[i]}, []int{endPos[i]})
 		h(context.Background(), &ctx1)
 
 		var r1 protocol.Response
