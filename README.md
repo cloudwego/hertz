@@ -23,7 +23,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 
   Comparison of four frameworks:
   ![Performance](images/performance-4.png)
-  Latency comparison of three frameworks:
+  Comparison of three frameworks:
   ![Performance](images/performance-3.png)
   For detailed performance data, please refer to [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark).
 - High extensibility
@@ -64,7 +64,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Pprof](https://github.com/hertz-contrib/pprof)                                                    | Extension for Hertz integration with Pprof.                                                                                                                             |
 | [Sessions](https://github.com/hertz-contrib/sessions)                                              | Session middleware with multi-state store support.                                                                                                                      |
 | [Obs-opentelemetry](https://github.com/hertz-contrib/obs-opentelemetry)                            | Hertz's Opentelemetry extension that supports Metric, Logger, Tracing and works out of the box.                                                                         |
-| [Registry](https://github.com/hertz-contrib/registry)                                              | Provides service registry and discovery functions. So far, the supported service discovery extensions are nacos, consul, etcd, eureka, polaris, servicecomb, zookeeper. |
+| [Registry](https://github.com/hertz-contrib/registry)                                              | Provides service registry and discovery functions. So far, the supported service discovery extensions are nacos, consul, etcd, eureka, polaris, servicecomb, zookeeper, redis. |
 | [Keyauth](https://github.com/hertz-contrib/keyauth)                                                | Provides token-based authentication.                                                                                                                                    |
 | [Secure](https://github.com/hertz-contrib/secure)                                                  | Secure middleware with multiple configuration items.                                                                                                                    |
 | [Sentry](https://github.com/hertz-contrib/hertzsentry)                                             | Sentry extension provides some unified interfaces to help users perform real-time error monitoring.                                                                     |
@@ -83,6 +83,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery)    | Recovery middleware for Hertz.                                                                                                                                          |
 | [Basicauth](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/basic_auth) | Basicauth middleware can provide HTTP basic authentication.                                                                                                             |
 | [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | Use hertz handle Lark/Feishu card message and event callback.                                                                                                           |
+| [Logger](https://github.com/hertz-contrib/logger)                                                  | Logger extension for Hertz, which provides support for zap, logrus, zerologs logging frameworks.                                                                        |
 
 ## Blogs
 - [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
@@ -104,6 +105,10 @@ Hertz is distributed under the [Apache License, version 2.0](https://github.com/
 - WeChat: CloudWeGo community WeChat group.
 
 ![WechatGroup](images/wechat_group_cn.png)
+## Contributors
+Thank you for your contribution to Hertz!
+
+[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz/graphs/contributors)
 ## Landscapes
 
 <p align="center">

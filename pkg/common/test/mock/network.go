@@ -34,12 +34,26 @@ type Conn struct {
 	zw          network.ReadWriter
 }
 
+func (m *Conn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	panic("implement me")
+}
+
 type SlowReadConn struct {
 	*Conn
 }
 
+func (m *SlowReadConn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	panic("implement me")
+}
+
 func SlowReadDialer(addr string) (network.Conn, error) {
 	return NewSlowReadConn(""), nil
+}
+
+func SlowWriteDialer(addr string) (network.Conn, error) {
+	return NewSlowWriteConn(""), nil
 }
 
 func (m *Conn) ReadBinary(n int) (p []byte, err error) {
@@ -100,7 +114,7 @@ func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 	time.Sleep(100 * time.Millisecond)
 	if err != nil || len(b) != i {
 		time.Sleep(m.readTimeout)
-		return nil, errs.ErrTimeout
+		return nil, errs.ErrReadTimeout
 	}
 	return b, err
 }
@@ -117,6 +131,30 @@ func NewConn(source string) *Conn {
 
 func NewSlowReadConn(source string) *SlowReadConn {
 	return &SlowReadConn{NewConn(source)}
+}
+
+type SlowWriteConn struct {
+	*Conn
+	writeTimeout time.Duration
+}
+
+func (m *SlowWriteConn) SetWriteTimeout(t time.Duration) error {
+	m.writeTimeout = t
+	return nil
+}
+
+func NewSlowWriteConn(source string) *SlowWriteConn {
+	return &SlowWriteConn{NewConn(source), 0}
+}
+
+func (m *SlowWriteConn) Flush() error {
+	err := m.zw.Flush()
+	time.Sleep(100 * time.Millisecond)
+	if err == nil {
+		time.Sleep(m.writeTimeout)
+		return errs.ErrWriteTimeout
+	}
+	return err
 }
 
 func (m *Conn) Close() error {

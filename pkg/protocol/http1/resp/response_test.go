@@ -249,8 +249,7 @@ func TestResponseImmediateHeaderFlushChunked(t *testing.T) {
 
 	r.SetBodyStream(buf, -1)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})
@@ -293,8 +292,7 @@ func TestResponseImmediateHeaderFlushFixedLength(t *testing.T) {
 
 	r.SetBodyStream(buf, 3)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})
@@ -337,8 +335,7 @@ func TestResponseImmediateHeaderFlushFixedLengthWithFewerData(t *testing.T) {
 
 	r.SetBodyStream(buf, 3)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})

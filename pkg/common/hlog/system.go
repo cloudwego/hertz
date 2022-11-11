@@ -41,30 +41,37 @@ func (ll *systemLogger) SetLevel(lv Level) {
 }
 
 func (ll *systemLogger) Fatal(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Fatal(v...)
 }
 
 func (ll *systemLogger) Error(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Error(v...)
 }
 
 func (ll *systemLogger) Warn(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Warn(v...)
 }
 
 func (ll *systemLogger) Notice(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Notice(v...)
 }
 
 func (ll *systemLogger) Info(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Info(v...)
 }
 
 func (ll *systemLogger) Debug(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Debug(v...)
 }
 
 func (ll *systemLogger) Trace(v ...interface{}) {
+	v = append([]interface{}{ll.prefix}, v...)
 	ll.logger.Trace(v...)
 }
 

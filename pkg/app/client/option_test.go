@@ -43,6 +43,7 @@ func TestClientOptions(t *testing.T) {
 			retry.WithMaxJitter(1*time.Second),
 			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
 		),
+		WithWriteTimeout(time.Second),
 	})
 	assert.DeepEqual(t, 100*time.Millisecond, opt.DialTimeout)
 	assert.DeepEqual(t, 128, opt.MaxConnsPerHost)
@@ -51,6 +52,7 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.MaxConnWaitTimeout)
 	assert.DeepEqual(t, false, opt.KeepAlive)
 	assert.DeepEqual(t, 1*time.Second, opt.ReadTimeout)
+	assert.DeepEqual(t, 1*time.Second, opt.WriteTimeout)
 	assert.DeepEqual(t, true, opt.ResponseBodyStream)
 	assert.DeepEqual(t, uint(2), opt.RetryConfig.MaxAttemptTimes)
 	assert.DeepEqual(t, 100*time.Millisecond, opt.RetryConfig.Delay)

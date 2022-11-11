@@ -404,9 +404,11 @@ func expectRequestHeaderGet(t *testing.T, h *protocol.RequestHeader, key, expect
 
 func TestRequestHeader_PeekIfExists(t *testing.T) {
 	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nexists: \r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
-	zr := mock.NewZeroCopyReader(s)
 	rh := protocol.RequestHeader{}
-	ReadHeader(&rh, zr)
+	err := ReadHeader(&rh, mock.NewZeroCopyReader(s))
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.DeepEqual(t, []byte{}, rh.Peek("exists"))
 	assert.DeepEqual(t, []byte(nil), rh.Peek("non-exists"))
 }

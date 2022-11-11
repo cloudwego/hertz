@@ -93,7 +93,7 @@ var (
 )
 
 func CheckTagOption(args *config.Argument) []generator.Option {
-	ret := []generator.Option{}
+	var ret []generator.Option
 	if args == nil {
 		return ret
 	}

@@ -275,7 +275,11 @@ func ContinueReadBodyStream(req *protocol.Request, zr network.Reader, maxBodySiz
 		// the end of body is determined by connection close.
 		// So just ignore request body for requests without
 		// 'Content-Length' and 'Transfer-Encoding' headers.
-		req.Header.SetContentLength(0)
+
+		// refer to https://tools.ietf.org/html/rfc7230#section-3.3.2
+		if !req.Header.IgnoreBody() {
+			req.Header.SetContentLength(0)
+		}
 		return nil
 	}
 
@@ -339,7 +343,11 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		// the end of body is determined by connection close.
 		// So just ignore request body for requests without
 		// 'Content-Length' and 'Transfer-Encoding' headers.
-		req.Header.SetContentLength(0)
+
+		// refer to https://tools.ietf.org/html/rfc7230#section-3.3.2
+		if !req.Header.IgnoreBody() {
+			req.Header.SetContentLength(0)
+		}
 		return nil
 	}
 

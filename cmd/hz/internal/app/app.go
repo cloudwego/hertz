@@ -80,6 +80,22 @@ func Update(c *cli.Context) error {
 	return nil
 }
 
+func Model(c *cli.Context) error {
+	args, err := globalArgs.Parse(c, meta.CmdModel)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
+
+	err = triggerPlugin(args)
+	if err != nil {
+		return cli.Exit(err, meta.PluginError)
+	}
+
+	return nil
+}
+
 func Init() *cli.App {
 	// flags
 	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "turn on verbose mode", Destination: &globalArgs.Verbose}
@@ -97,6 +113,8 @@ func Init() *cli.App {
 	excludeFilesFlag := cli.StringSliceFlag{Name: "exclude_file", Aliases: []string{"E"}, Usage: "Specify the files that do not need to be updated."}
 	thriftOptionsFlag := cli.StringSliceFlag{Name: "thriftgo", Aliases: []string{"t"}, Usage: "Specify arguments for the thriftgo. ({flag}={value})"}
 	protoOptionsFlag := cli.StringSliceFlag{Name: "protoc", Aliases: []string{"p"}, Usage: "Specify arguments for the protoc. ({flag}={value})"}
+	thriftPluginsFlag := cli.StringSliceFlag{Name: "thrift-plugins", Usage: "Specify plugins for the thriftgo. ({plugin_name}:{options})"}
+	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
@@ -110,6 +128,8 @@ func Init() *cli.App {
 	app.Name = "hz"
 	app.Usage = "A idl parser and code generator for Hertz projects"
 	app.Version = meta.Version
+	// The default separator for multiple parameters is modified to ";"
+	app.SliceFlagSeparator = ";"
 
 	// global flags
 	app.Flags = []cli.Flag{
@@ -142,6 +162,8 @@ func Init() *cli.App {
 				&excludeFilesFlag,
 				&customLayout,
 				&customPackage,
+				&protoPluginsFlag,
+				&thriftPluginsFlag,
 			},
 			Action: New,
 		},
@@ -166,8 +188,31 @@ func Init() *cli.App {
 				&snakeNameFlag,
 				&excludeFilesFlag,
 				&customPackage,
+				&protoPluginsFlag,
+				&thriftPluginsFlag,
 			},
 			Action: Update,
+		},
+		{
+			Name:  meta.CmdModel,
+			Usage: "Generate model code only",
+			Flags: []cli.Flag{
+				&idlFlag,
+				&moduleFlag,
+				&outDirFlag,
+				&modelDirFlag,
+
+				&includesFlag,
+				&thriftOptionsFlag,
+				&protoOptionsFlag,
+				&noRecurseFlag,
+
+				&jsonEnumStrFlag,
+				&unsetOmitemptyFlag,
+				&snakeNameFlag,
+				&excludeFilesFlag,
+			},
+			Action: Model,
 		},
 	}
 	return app

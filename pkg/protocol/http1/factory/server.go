@@ -22,7 +22,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
-var _ suite.ServerFactory = &serverFactory{}
+var _ suite.ServerFactory = (*serverFactory)(nil)
 
 type serverFactory struct {
 	option *http1.Option

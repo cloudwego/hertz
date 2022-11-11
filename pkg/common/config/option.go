@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
+	"github.com/cloudwego/hertz/pkg/network"
 )
 
 // Option is the only struct that can be used to set Options.
@@ -42,6 +43,7 @@ const (
 type Options struct {
 	KeepAliveTimeout             time.Duration
 	ReadTimeout                  time.Duration
+	WriteTimeout                 time.Duration
 	IdleTimeout                  time.Duration
 	RedirectTrailingSlash        bool
 	MaxRequestBodySize           int
@@ -68,11 +70,15 @@ type Options struct {
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
 
+	// TransporterNewer is the function to create a transporter.
+	TransporterNewer func(opt *Options) network.Transporter
+
 	// Registry is used for service registry.
 	Registry registry.Registry
 	// RegistryInfo is base info used for service registry.
 	RegistryInfo *registry.Info
 	// Enable automatically HTML template reloading mechanism.
+
 	AutoReloadRender bool
 	// If AutoReloadInterval is set to 0(default).
 	// The HTML template will reload according to files' changing event
