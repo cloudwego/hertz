@@ -258,7 +258,7 @@ func m2s(mt model.Tag) (ret [2]string) {
 
 func reflectJsonTag(f protoreflect.FieldDescriptor) (ret model.Tag) {
 	ret.Key = "json"
-	ret.Value = checkSnakeName(f.JSONName())
+	ret.Value = checkSnakeName(f.Name())
 	if v := checkFirstOption(api.E_Body, f.Options()); v != nil {
 		ret.Value += ",string"
 	}
