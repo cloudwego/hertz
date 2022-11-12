@@ -253,6 +253,10 @@ func readBodyChunked(r network.Reader, maxBodySize int, dst []byte) ([]byte, err
 		if err != nil {
 			return dst, err
 		}
+		// If is end chunk, Read CRLF after reading trailer
+		if chunkSize == 0 {
+			return dst, nil
+		}
 		if maxBodySize > 0 && len(dst)+chunkSize > maxBodySize {
 			return dst, errBodyTooLarge
 		}
@@ -264,9 +268,6 @@ func readBodyChunked(r network.Reader, maxBodySize int, dst []byte) ([]byte, err
 			return dst, errBrokenChunk
 		}
 		dst = dst[:len(dst)-strCRLFLen]
-		if chunkSize == 0 {
-			return dst, nil
-		}
 	}
 }
 
@@ -293,7 +294,11 @@ func writeChunk(w network.Writer, b []byte) (err error) {
 	if _, err = w.WriteBinary(b); err != nil {
 		return err
 	}
-	w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
+
+	// if is end chunk, write CRLF after writing trailer
+	if n > 0 {
+		w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
+	}
 
 	err = w.Flush()
 	return
@@ -377,4 +382,44 @@ func stripSpace(b []byte) []byte {
 		b = b[:len(b)-1]
 	}
 	return b
+}
+
+func IsBadTrailer(key []byte) bool {
+	switch key[0] | 0x20 {
+	case 'a':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrAuthorization)
+	case 'c':
+		if len(key) > len(consts.HeaderContentType) && utils.CaseInsensitiveCompare(key[:8], bytestr.StrContentType[:8]) {
+			// skip compare prefix 'Content-'
+			return utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentEncoding[8:]) ||
+				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentLength[8:]) ||
+				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentType[8:]) ||
+				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentRange[8:])
+		}
+		return utils.CaseInsensitiveCompare(key, bytestr.StrConnection)
+	case 'e':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrExpect)
+	case 'h':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrHost)
+	case 'k':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrKeepAlive)
+	case 'm':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrMaxForwards)
+	case 'p':
+		if len(key) > len(consts.HeaderProxyConnection) && utils.CaseInsensitiveCompare(key[:6], bytestr.StrProxyConnection[:6]) {
+			// skip compare prefix 'Proxy-'
+			return utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyConnection[6:]) ||
+				utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyAuthenticate[6:]) ||
+				utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyAuthorization[6:])
+		}
+	case 'r':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrRange)
+	case 't':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrTE) ||
+			utils.CaseInsensitiveCompare(key, bytestr.StrTrailer) ||
+			utils.CaseInsensitiveCompare(key, bytestr.StrTransferEncoding)
+	case 'w':
+		return utils.CaseInsensitiveCompare(key, bytestr.StrWWWAuthenticate)
+	}
+	return false
 }

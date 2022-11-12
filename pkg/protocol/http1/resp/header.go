@@ -96,6 +96,12 @@ func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
 	return nil
 }
 
+// writeTrailer writes response trailer to w
+func WriteTrailer(h *protocol.ResponseHeader, w network.Writer) error {
+	_, err := w.WriteBinary(h.TrailerHeader())
+	return err
+}
+
 // ConnectionUpgrade returns true if 'Connection: Upgrade' header is set.
 func ConnectionUpgrade(h *protocol.ResponseHeader) bool {
 	return ext.HasHeaderValue(h.Peek(consts.HeaderConnection), bytestr.StrKeepAlive)
@@ -183,6 +189,10 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					}
 					continue
 				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
+					err = h.SetTrailerBytes(s.Value)
+					continue
+				}
 			}
 			h.AddArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
 		}
@@ -205,7 +215,7 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 		h.SetConnectionClose(!ext.HasHeaderValue(v, bytestr.StrKeepAlive))
 	}
 
-	return len(buf) - len(s.B), nil
+	return len(buf) - len(s.B), err
 }
 
 func parse(h *protocol.ResponseHeader, buf []byte) (int, error) {
@@ -250,4 +260,88 @@ func parseFirstLine(h *protocol.ResponseHeader, buf []byte) (int, error) {
 	}
 
 	return len(buf) - len(bNext), nil
+}
+
+func ReadTrailer(h *protocol.ResponseHeader, r network.Reader) error {
+	n := 1
+	for {
+		err := tryReadTrailer(h, r, n)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, errs.ErrNeedMore) {
+			h.ResetSkipNormalize()
+			return err
+		}
+		// No more data available on the wire, try block peek(by netpoll)
+		if n == r.Len() {
+			n++
+
+			continue
+		}
+		n = r.Len()
+	}
+}
+
+func tryReadTrailer(h *protocol.ResponseHeader, r network.Reader, n int) error {
+	b, err := r.Peek(n)
+	if len(b) == 0 {
+		// Return ErrTimeout on any timeout.
+		if err != nil && strings.Contains(err.Error(), "timeout") {
+			return errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read response header")
+		}
+
+		if n == 1 || err == io.EOF {
+			return io.EOF
+		}
+
+		return fmt.Errorf("error when reading request trailer: %w", err)
+	}
+	b = ext.MustPeekBuffered(r)
+	headersLen, errParse := parseTrailer(h, b)
+	if errParse != nil {
+		if err == io.EOF {
+			return err
+		}
+		return ext.HeaderError("response", err, errParse, b)
+	}
+	ext.MustDiscard(r, headersLen)
+	return nil
+}
+
+func parseTrailer(h *protocol.ResponseHeader, buf []byte) (int, error) {
+	// Skip any 0 length chunk.
+	if buf[0] == '0' {
+		skip := len(bytestr.StrCRLF) + 1
+		if len(buf) < skip {
+			return 0, io.EOF
+		}
+		buf = buf[skip:]
+	}
+
+	var s ext.HeaderScanner
+	s.B = buf
+	s.DisableNormalizing = h.IsDisableNormalizing()
+	var err error
+	for s.Next() {
+		if len(s.Key) > 0 {
+			if bytes.IndexByte(s.Key, ' ') != -1 || bytes.IndexByte(s.Key, '\t') != -1 {
+				err = fmt.Errorf("invalid trailer key %q", s.Key)
+				continue
+			}
+			// Forbidden by RFC 7230, section 4.1.2
+			if ext.IsBadTrailer(s.Key) {
+				err = fmt.Errorf("forbidden trailer key %q", s.Key)
+				continue
+			}
+			h.AddArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
+		}
+	}
+	if s.Err != nil {
+		return 0, s.Err
+	}
+	if err != nil {
+		return 0, err
+	}
+	return s.HLen, nil
 }
