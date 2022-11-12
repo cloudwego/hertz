@@ -17,37 +17,67 @@
 package consts
 
 const (
-	HeaderAuthorization = "Authorization"
-	HeaderHost          = "Host"
-	HeaderReferer       = "Referer"
-	HeaderContentType   = "Content-Type"
-	HeaderUserAgent     = "User-Agent"
-	HeaderExpect        = "Expect"
-	HeaderConnection    = "Connection"
-	HeaderContentLength = "Content-Length"
-	HeaderCookie        = "Cookie"
-	HeaderAltSvc        = "Alt-Svc"
-
-	HeaderServer           = "Server"
-	HeaderServerLower      = "server"
-	HeaderSetCookie        = "Set-Cookie"
-	HeaderSetCookieLower   = "set-cookie"
-	HeaderTransferEncoding = "Transfer-Encoding"
-	HeaderDate             = "Date"
-
-	HeaderRange        = "Range"
-	HeaderAcceptRanges = "Accept-Ranges"
-	HeaderContentRange = "Content-Range"
+	HeaderServerLower    = "server"
+	HeaderSetCookieLower = "set-cookie"
+	HeaderDate           = "Date"
 
 	HeaderIfModifiedSince = "If-Modified-Since"
 	HeaderLastModified    = "Last-Modified"
 
-	// Message body information
-	HeaderContentEncoding = "Content-Encoding"
-	HeaderAcceptEncoding  = "Accept-Encoding"
-
 	// Redirects
 	HeaderLocation = "Location"
+
+	// Transfer coding
+	HeaderTE      = "TE"
+	HeaderTrailer = "Trailer"
+
+	// Controls
+	HeaderCookie      = "Cookie"
+	HeaderExpect      = "Expect"
+	HeaderMaxForwards = "Max-Forwards"
+	HeaderSetCookie   = "Set-Cookie"
+
+	// Connection management
+	HeaderConnection      = "Connection"
+	HeaderKeepAlive       = "Keep-Alive"
+	HeaderProxyConnection = "Proxy-Connection"
+
+	// Authentication
+	HeaderAuthorization      = "Authorization"
+	HeaderProxyAuthenticate  = "Proxy-Authenticate"
+	HeaderProxyAuthorization = "Proxy-Authorization"
+	HeaderWWWAuthenticate    = "WWW-Authenticate"
+
+	// Range requests
+	HeaderAcceptRanges = "Accept-Ranges"
+	HeaderContentRange = "Content-Range"
+	HeaderIfRange      = "If-Range"
+	HeaderRange        = "Range"
+
+	// Response context
+	HeaderAllow  = "Allow"
+	HeaderServer = "Server"
+
+	// Request context
+	HeaderFrom           = "From"
+	HeaderHost           = "Host"
+	HeaderReferer        = "Referer"
+	HeaderReferrerPolicy = "Referrer-Policy"
+	HeaderUserAgent      = "User-Agent"
+
+	// Message body information
+	HeaderContentEncoding = "Content-Encoding"
+	HeaderContentLanguage = "Content-Language"
+	HeaderContentLength   = "Content-Length"
+	HeaderContentLocation = "Content-Location"
+	HeaderContentType     = "Content-Type"
+
+	// Content negotiation
+	HeaderAccept         = "Accept"
+	HeaderAcceptCharset  = "Accept-Charset"
+	HeaderAcceptEncoding = "Accept-Encoding"
+	HeaderAcceptLanguage = "Accept-Language"
+	HeaderAltSvc         = "Alt-Svc"
 
 	// Protocol
 	HTTP11 = "HTTP/1.1"
