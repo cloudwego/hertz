@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
@@ -32,12 +33,8 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	srcLen := int64(src.Len())
 	written, err := CopyBuffer(dst, src, buf)
 
-	if written != srcLen {
-		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
 }
 
 func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
@@ -48,12 +45,8 @@ func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
 	srcLen := int64(src.Len())
 	written, err := CopyBuffer(dst, src, nil)
 
-	if written != srcLen {
-		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
 }
 
 func TestIoutilCopyZeroAlloc(t *testing.T) {
