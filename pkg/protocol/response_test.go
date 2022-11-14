@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/cloudwego/hertz/pkg/common/compress"
 	"math"
 	"reflect"
 	"testing"
@@ -188,14 +189,15 @@ func TestResponseMustSkipBody(t *testing.T) {
 }
 
 func TestResponseBodyGunzip(t *testing.T) {
+	t.Parallel()
+	dst1 := []byte("")
+	src1 := []byte("hello")
+	res1 := compress.AppendGzipBytes(dst1, src1)
 	resp := Response{}
-	resp.SetBodyString("test111111test")
-	//resp.SetBody()
-	fmt.Println(resp.bodyRaw)
+	resp.SetBody(res1)
 	zipData, err := resp.BodyGunzip()
-	fmt.Println(err)
 	assert.Nil(t, err)
-	assert.True(t, len(zipData) < len(resp.bodyRaw))
+	assert.DeepEqual(t, zipData, src1)
 }
 
 func TestResponseSwapResponseBody(t *testing.T) {
