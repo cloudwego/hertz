@@ -94,6 +94,10 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
 
 		traceCtl = s.Core.GetTracer()
+
+		// Use a new variable to hold the standard context to avoid modify the initial
+		// context.
+		cc = c
 	)
 
 	defer func() {
@@ -102,7 +106,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			if !errors.Is(err, errs.ErrIdleTimeout) && !errors.Is(err, errs.ErrHijacked) {
 				ctx.GetTraceInfo().Stats().SetError(err)
 			}
-			traceCtl.DoFinish(c, ctx, err)
+			traceCtl.DoFinish(cc, ctx, err)
 		}
 
 		// Hijack may release and close the connection already
@@ -151,8 +155,9 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			// Reset the real read timeout for the coming request
 			ctx.GetConn().SetReadTimeout(s.ReadTimeout) //nolint:errcheck
 		}
+
 		if s.EnableTrace {
-			c = traceCtl.DoStart(c, ctx)
+			cc = traceCtl.DoStart(c, ctx)
 			internalStats.Record(ctx.GetTraceInfo(), stats.ReadHeaderStart, err)
 		}
 		// Read Headers
@@ -241,7 +246,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		//
 		// NOTE: All middlewares and business handler will be executed in this. And at this point, the request has been parsed
 		// and the route has been matched.
-		s.Core.ServeHTTP(c, ctx)
+		s.Core.ServeHTTP(cc, ctx)
 		if s.EnableTrace {
 			internalStats.Record(ctx.GetTraceInfo(), stats.ServerHandleFinish, err)
 		}
@@ -324,7 +329,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 		// general case
 		if s.EnableTrace {
-			traceCtl.DoFinish(c, ctx, err)
+			traceCtl.DoFinish(cc, ctx, err)
 		}
 
 		if connectionClose {
