@@ -113,9 +113,11 @@ func TestUtilsNormalizeHeaderKey(t *testing.T) {
 	contentTypeStr := []byte("Content-Type")
 	lowerContentTypeStr := []byte("content-type")
 	mixedContentTypeStr := []byte("conTENt-tYpE")
+	mixedContertTypeStrWithoutNormalizing := []byte("Content-type")
 	NormalizeHeaderKey(contentTypeStr, false)
 	NormalizeHeaderKey(lowerContentTypeStr, false)
 	NormalizeHeaderKey(mixedContentTypeStr, false)
+	NormalizeHeaderKey(lowerContentTypeStr, true)
 	if string(contentTypeStr) != "Content-Type" {
 		t.Fatalf("Unexpected normalizedHeader: %s", string(contentTypeStr))
 	}
@@ -124,6 +126,9 @@ func TestUtilsNormalizeHeaderKey(t *testing.T) {
 	}
 	if string(mixedContentTypeStr) != "Content-Type" {
 		t.Fatalf("Unexpected normalizedHeader: %s", string(mixedContentTypeStr))
+	}
+	if string(mixedContertTypeStrWithoutNormalizing) != "Content-type" {
+		t.Fatalf("Unexpected normalizedHeader(disabled): %s", string(mixedContertTypeStrWithoutNormalizing))
 	}
 }
 
@@ -143,8 +148,32 @@ func TestUtilsNextLine(t *testing.T) {
 		t.Fatalf("Unexpected %s", string(contentTypeStr))
 	}
 
+	multiHeaderStrWithoutReturn := []byte("Content-Type: application/x-www-form-urlencoded\nDate: Fri, 6 Aug 2021 11:00:31 GMT")
+	contentTypeStr, dateStr, hErr = NextLine(multiHeaderStrWithoutReturn)
+	if hErr != nil {
+		t.Fatalf("Unexpected error: %s", hErr)
+	}
+	if string(contentTypeStr) != "Content-Type: application/x-www-form-urlencoded" {
+		t.Fatalf("Unexpected %s", string(contentTypeStr))
+	}
+	if string(dateStr) != "Date: Fri, 6 Aug 2021 11:00:31 GMT" {
+		t.Fatalf("Unexpected %s", string(contentTypeStr))
+	}
+
+	singleHeaderStrWithFirstNewLine := []byte("\nContent-Type: application/x-www-form-urlencoded")
+	firstStr, secondStr, sErr := NextLine(singleHeaderStrWithFirstNewLine)
+	if sErr != nil {
+		t.Fatalf("Unexpected error: %s", sErr)
+	}
+	if string(firstStr) != "" {
+		t.Fatalf("Unexpected %s\n", string(firstStr))
+	}
+	if string(secondStr) != "Content-Type: application/x-www-form-urlencoded" {
+		t.Fatalf("Unexpected %s", string(secondStr))
+	}
+
 	singleHeaderStr := []byte("Content-Type: application/x-www-form-urlencoded")
-	firstStr, secondStr, sErr := NextLine(singleHeaderStr)
+	firstStr, secondStr, sErr = NextLine(singleHeaderStr)
 	if sErr == nil {
 		t.Fatalf("Unexpected nil. Expecting an error: ErrNeedMore")
 	}

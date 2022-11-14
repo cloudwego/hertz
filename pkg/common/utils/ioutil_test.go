@@ -40,6 +40,22 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	}
 }
 
+func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
+	var writeBuffer bytes.Buffer
+	src := bytes.NewBufferString("hertz is very good!!!")
+	dst := network.NewWriter(&writeBuffer)
+	// src.Len() will change, when use src.read(p []byte)
+	srcLen := int64(src.Len())
+	written, err := CopyBuffer(dst, src, nil)
+
+	if written != srcLen {
+		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
+	}
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+}
+
 func TestIoutilCopyZeroAlloc(t *testing.T) {
 	var writeBuffer bytes.Buffer
 	src := bytes.NewBufferString("hertz is very good!!!")
