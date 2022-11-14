@@ -44,11 +44,12 @@ package protocol
 import (
 	"bytes"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
-	"github.com/cloudwego/hertz/pkg/common/compress"
 	"math"
 	"reflect"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/cloudwego/hertz/pkg/common/compress"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
