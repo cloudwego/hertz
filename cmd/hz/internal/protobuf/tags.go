@@ -36,6 +36,7 @@ import (
 var (
 	jsonSnakeName  = false
 	unsetOmitempty = false
+	pbJsonTagStyle = false
 )
 
 func CheckTagOption(args *config.Argument) (ret []generator.Option) {
@@ -48,8 +49,11 @@ func CheckTagOption(args *config.Argument) (ret []generator.Option) {
 	if args.UnsetOmitempty {
 		unsetOmitempty = true
 	}
-	if args.JSONEnumStr {
+	if args.JsonEnumStr {
 		ret = append(ret, generator.OptionMarshalEnumToText)
+	}
+	if args.PbJsonTag {
+		pbJsonTagStyle = true
 	}
 	return ret
 }
@@ -258,7 +262,11 @@ func m2s(mt model.Tag) (ret [2]string) {
 
 func reflectJsonTag(f protoreflect.FieldDescriptor) (ret model.Tag) {
 	ret.Key = "json"
-	ret.Value = checkSnakeName(f.Name())
+	if pbJsonTagStyle {
+		ret.Value = checkSnakeName(string(f.Name()))
+	} else {
+		ret.Value = checkSnakeName(f.JSONName())
+	}
 	if v := checkFirstOption(api.E_Body, f.Options()); v != nil {
 		ret.Value += ",string"
 	}
