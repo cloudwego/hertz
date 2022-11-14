@@ -735,6 +735,13 @@ func (ctx *RequestContext) GetInt64(key string) (i64 int64) {
 	return
 }
 
+func (ctx *RequestContext) GetUint64(key string) (ui64 uint64) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui64, _ = val.(uint64)
+	}
+	return
+}
+
 // GetFloat64 returns the value associated with the key as a float64. Return 0.0 when type is error.
 func (ctx *RequestContext) GetFloat64(key string) (f64 float64) {
 	if val, ok := ctx.Get(key); ok && val != nil {
