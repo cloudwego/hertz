@@ -330,7 +330,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if connectionClose {
 			return errShortConnection
 		}
-
+		// Back to network layer to trigger.
+		// For now, only netpoll network mode has this feature.
 		if s.IdleTimeout == 0 {
 			return
 		}
