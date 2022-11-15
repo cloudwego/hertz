@@ -727,10 +727,50 @@ func (ctx *RequestContext) GetInt(key string) (i int) {
 	return
 }
 
+// GetInt32 returns the value associated with the key as an integer. Return int32(0) when type is error.
+func (ctx *RequestContext) GetInt32(key string) (i32 int32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		i32, _ = val.(int32)
+	}
+	return
+}
+
 // GetInt64 returns the value associated with the key as an integer. Return int64(0) when type is error.
 func (ctx *RequestContext) GetInt64(key string) (i64 int64) {
 	if val, ok := ctx.Get(key); ok && val != nil {
 		i64, _ = val.(int64)
+	}
+	return
+}
+
+// GetUint returns the value associated with the key as an unsigned integer. Return uint(0) when type is error.
+func (ctx *RequestContext) GetUint(key string) (ui uint) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui, _ = val.(uint)
+	}
+	return
+}
+
+// GetUint32 returns the value associated with the key as an unsigned integer. Return uint32(0) when type is error.
+func (ctx *RequestContext) GetUint32(key string) (ui32 uint32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui32, _ = val.(uint32)
+	}
+	return
+}
+
+// GetUint64 returns the value associated with the key as an unsigned integer. Return uint64(0) when type is error.
+func (ctx *RequestContext) GetUint64(key string) (ui64 uint64) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui64, _ = val.(uint64)
+	}
+	return
+}
+
+// GetFloat32 returns the value associated with the key as a float32. Return float32(0.0) when type is error.
+func (ctx *RequestContext) GetFloat32(key string) (f32 float32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		f32, _ = val.(float32)
 	}
 	return
 }
