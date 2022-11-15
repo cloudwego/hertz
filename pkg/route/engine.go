@@ -353,6 +353,10 @@ func (engine *Engine) Run() (err error) {
 }
 
 func (engine *Engine) Init() error {
+	if !h2Enable(engine.options) {
+		engine.protocolSuite.Delete(suite.HTTP2)
+	}
+
 	// add built-in http1 server by default
 	if !engine.HasServer(suite.HTTP1) {
 		engine.AddProtocol(suite.HTTP1, factory.NewServerFactory(newHttp1OptionFromEngine(engine)))
@@ -367,6 +371,7 @@ func (engine *Engine) Init() error {
 
 	if engine.alpnEnable() {
 		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP1)
+		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP2)
 	}
 
 	if !atomic.CompareAndSwapUint32(&engine.status, 0, statusInitialized) {
@@ -577,6 +582,10 @@ func initTrace(engine *Engine) stats.Level {
 		traceLevel = tl
 	}
 	return traceLevel
+}
+
+func h2Enable(opt *config.Options) bool {
+	return opt.H2C || (opt.TLS != nil && opt.ALPN)
 }
 
 func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain) {
