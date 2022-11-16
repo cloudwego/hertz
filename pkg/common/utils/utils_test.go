@@ -73,33 +73,22 @@ func TestUtilsNameOfFunction(t *testing.T) {
 	nameOfTestName := NameOfFunction(testName)
 	nameOfIsTrueString := NameOfFunction(IsTrueString)
 
-	if nameOfTestName != pathOfTestName {
-		t.Fatalf("Unexpected name: %s for testName", nameOfTestName)
-	}
-
-	if nameOfIsTrueString != pathOfIsTrueString {
-		t.Fatalf("Unexpected name: %s for IsTrueString", nameOfIsTrueString)
-	}
+	assert.DeepEqual(t, pathOfTestName, nameOfTestName)
+	assert.DeepEqual(t, pathOfIsTrueString, nameOfIsTrueString)
 }
 
 func TestUtilsCaseInsensitiveCompare(t *testing.T) {
 	lowerStr := []byte("content-length")
 	upperStr := []byte("Content-Length")
-	if !CaseInsensitiveCompare(lowerStr, upperStr) {
-		t.Fatalf("Unexpected false for %s and %s", string(lowerStr), string(upperStr))
-	}
+	assert.DeepEqual(t, true, CaseInsensitiveCompare(lowerStr, upperStr))
 
 	lessStr := []byte("content-type")
 	moreStr := []byte("content-length")
-	if CaseInsensitiveCompare(lessStr, moreStr) {
-		t.Fatalf("Unexpected true for %s and %s", string(lessStr), string(moreStr))
-	}
+	assert.DeepEqual(t, false, CaseInsensitiveCompare(lessStr, moreStr))
 
 	firstStr := []byte("content-type")
 	secondStr := []byte("contant-type")
-	if CaseInsensitiveCompare(firstStr, secondStr) {
-		t.Fatalf("Unexpected true for %s and %s", string(firstStr), string(secondStr))
-	}
+	assert.DeepEqual(t, false, CaseInsensitiveCompare(firstStr, secondStr))
 }
 
 // NormalizeHeaderKey can upper the first letter and lower the other letter in
@@ -114,18 +103,11 @@ func TestUtilsNormalizeHeaderKey(t *testing.T) {
 	NormalizeHeaderKey(lowerContentTypeStr, false)
 	NormalizeHeaderKey(mixedContentTypeStr, false)
 	NormalizeHeaderKey(lowerContentTypeStr, true)
-	if string(contentTypeStr) != "Content-Type" {
-		t.Fatalf("Unexpected normalizedHeader: %s", string(contentTypeStr))
-	}
-	if string(lowerContentTypeStr) != "Content-Type" {
-		t.Fatalf("Unexpected normalizedHeader: %s", string(lowerContentTypeStr))
-	}
-	if string(mixedContentTypeStr) != "Content-Type" {
-		t.Fatalf("Unexpected normalizedHeader: %s", string(mixedContentTypeStr))
-	}
-	if string(mixedContertTypeStrWithoutNormalizing) != "Content-type" {
-		t.Fatalf("Unexpected normalizedHeader(disabled): %s", string(mixedContertTypeStrWithoutNormalizing))
-	}
+
+	assert.DeepEqual(t, "Content-Type", string(contentTypeStr))
+	assert.DeepEqual(t, "Content-Type", string(lowerContentTypeStr))
+	assert.DeepEqual(t, "Content-Type", string(mixedContentTypeStr))
+	assert.DeepEqual(t, "Content-type", string(mixedContertTypeStrWithoutNormalizing))
 }
 
 // Cutting up the header Type.
@@ -134,31 +116,23 @@ func TestUtilsNormalizeHeaderKey(t *testing.T) {
 func TestUtilsNextLine(t *testing.T) {
 	multiHeaderStr := []byte("Content-Type: application/x-www-form-urlencoded\r\nDate: Fri, 6 Aug 2021 11:00:31 GMT")
 	contentTypeStr, dateStr, hErr := NextLine(multiHeaderStr)
-	if hErr != nil {
-		t.Fatalf("Unexpected error: %s", hErr)
-	}
-	if string(contentTypeStr) != "Content-Type: application/x-www-form-urlencoded" {
-		t.Fatalf("Unexpected %s", string(contentTypeStr))
-	}
-	if string(dateStr) != "Date: Fri, 6 Aug 2021 11:00:31 GMT" {
-		t.Fatalf("Unexpected %s", string(contentTypeStr))
-	}
+	assert.DeepEqual(t, nil, hErr)
+	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", string(contentTypeStr))
+	assert.DeepEqual(t, "Date: Fri, 6 Aug 2021 11:00:31 GMT", string(dateStr))
 
 	multiHeaderStrWithoutReturn := []byte("Content-Type: application/x-www-form-urlencoded\nDate: Fri, 6 Aug 2021 11:00:31 GMT")
 	contentTypeStr, dateStr, hErr = NextLine(multiHeaderStrWithoutReturn)
 	assert.DeepEqual(t, nil, hErr)
 	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", string(contentTypeStr))
-	assert.DeepEqual(t, "Date: Fri, 6 Aug 2021 11:00:31 GMT", string(dataStr))
+	assert.DeepEqual(t, "Date: Fri, 6 Aug 2021 11:00:31 GMT", string(dateStr))
 
 	singleHeaderStrWithFirstNewLine := []byte("\nContent-Type: application/x-www-form-urlencoded")
 	firstStr, secondStr, sErr := NextLine(singleHeaderStrWithFirstNewLine)
 	assert.DeepEqual(t, nil, sErr)
-	assert.DeepEqual(t, "", firstStr)
-	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", secondStr)
+	assert.DeepEqual(t, string(""), string(firstStr))
+	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", string(secondStr))
 
 	singleHeaderStr := []byte("Content-Type: application/x-www-form-urlencoded")
 	firstStr, secondStr, sErr = NextLine(singleHeaderStr)
-	assert.DeepEqual(t, nil, sErr)
-	assert.DeepEqual(t, nil, firstStr)
-	assert.DeepEqual(t, nil, secondStr)
+	assert.DeepEqual(t, errNeedMore, sErr)
 }
