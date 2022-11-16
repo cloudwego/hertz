@@ -94,6 +94,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 		atomic.StoreUint32(&testint2, 2)
 	})
 	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
+		time.Sleep(2 * time.Second)
 		atomic.StoreUint32(&testint3, 3)
 	})
 
@@ -196,7 +197,6 @@ func TestHertz_Spin(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("[%v]end SIGHUP\n", time.Now())
-
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
@@ -735,4 +735,31 @@ func TestServiceRegistryNoInitInfo(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
+}
+
+type testTracer struct{}
+
+func (t testTracer) Start(ctx context.Context, c *app.RequestContext) context.Context {
+	value := 0
+	if v := ctx.Value("testKey"); v != nil {
+		value = v.(int)
+		value++
+	}
+	return context.WithValue(ctx, "testKey", value)
+}
+
+func (t testTracer) Finish(ctx context.Context, c *app.RequestContext) {}
+
+func TestReuseCtx(t *testing.T) {
+	h := New(WithTracer(testTracer{}), WithHostPorts(":9228"))
+	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+		assert.DeepEqual(t, 0, ctx.Value("testKey").(int))
+	})
+
+	go h.Spin()
+	time.Sleep(time.Second)
+	for i := 0; i < 1000; i++ {
+		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9228/ping")
+		assert.Nil(t, err)
+	}
 }

@@ -19,7 +19,11 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 - 高性能
 
   Hertz 默认使用自研的高性能网络库 Netpoll，在一些特殊场景相较于 go net，Hertz 在 QPS、时延上均具有一定优势。关于性能数据，可参考下图 Echo 数据。
-  ![Performance](images/performance.png)
+  
+  四个框架的对比:
+  ![Performance](images/performance-4.png)
+  三个框架的对比:
+  ![Performance](images/performance-3.png)
   关于详细的性能数据，可参考 [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark)。
 - 高扩展性
 
@@ -52,8 +56,41 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 - [Netpoll](https://github.com/cloudwego/netpoll): 自研高性能网络库，Hertz 默认集成
 - [Hertz-Contrib](https://github.com/hertz-contrib): Hertz 扩展仓库，提供中间件、tracer 等能力
 - [Example](https://github.com/cloudwego/hertz-examples): Hertz 使用例子
+## 相关拓展
+
+| 拓展                                                                                                 | 描述                                                                                         |
+|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| [Websocket](https://github.com/hertz-contrib/websocket)                                            | 使 Hertz 支持 Websocket 协议。                                                                   |
+| [Pprof](https://github.com/hertz-contrib/pprof)                                                    | Hertz 集成 Pprof 的扩展。                                                                        |
+| [Sessions](https://github.com/hertz-contrib/sessions)                                              | 具有多状态存储支持的 Session 中间件。                                                                    |
+| [Obs-opentelemetry](https://github.com/hertz-contrib/obs-opentelemetry)                            | Hertz 的 Opentelemetry 扩展，支持 Metric、Logger、Tracing并且达到开箱即用。                                 |
+| [Registry](https://github.com/hertz-contrib/registry)                                              | 提供服务注册与发现功能。到现在为止，支持的服务发现拓展有 nacos， consul， etcd， eureka， polaris， servicecomb， zookeeper， redis。 |
+| [Keyauth](https://github.com/hertz-contrib/keyauth)                                                | 提供基于 token 的身份验证。                                                                          |
+| [Secure](https://github.com/hertz-contrib/secure)                                                  | 具有多配置项的 Secure 中间件。                                                                        |
+| [Sentry](https://github.com/hertz-contrib/hertzsentry)                                             | Sentry 拓展提供了一些统一的接口来帮助用户进行实时的错误监控。                                                         |
+| [Requestid](https://github.com/hertz-contrib/requestid)                                            | 在 response 中添加 request id。                                                                 |
+| [Limiter](https://github.com/hertz-contrib/limiter)                                                | 提供了基于 bbr 算法的限流器。                                                                          |
+| [Jwt](https://github.com/hertz-contrib/jwt)                                                        | Jwt 拓展。                                                                                    |
+| [Autotls](https://github.com/hertz-contrib/autotls)                                                | 为 Hertz 支持 Let's Encrypt 。                                                                 |
+| [Monitor-prometheus](https://github.com/hertz-contrib/monitor-prometheus)                          | 提供基于 Prometheus 服务监控功能。                                                                    |
+| [I18n](https://github.com/hertz-contrib/i18n)                                                      | 可帮助将 Hertz 程序翻译成多种语言。                                                                      |
+| [Reverseproxy](https://github.com/hertz-contrib/reverseproxy)                                      | 实现反向代理。                                                                                    |
+| [Opensergo](https://github.com/hertz-contrib/opensergo)                                            | Opensergo 扩展。                                                                              |
+| [Gzip](https://github.com/hertz-contrib/gzip)                                                      | 含多个可选项的 Gzip 拓展。                                                                           |
+| [Cors](https://github.com/hertz-contrib/cors)                                                      | 提供跨域资源共享支持。                                                                                |
+| [Swagger](https://github.com/hertz-contrib/swagger)                                                | 使用 Swagger 2.0 自动生成 RESTful API 文档。                                                        |
+| [Tracer](https://github.com/hertz-contrib/tracer)                                                  | 基于 Opentracing 的链路追踪。                                                                      |
+| [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery)    | Hertz 的异常恢复中间件。                                                                            |
+| [Basicauth](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/basic_auth) | Basicauth 中间件能够提供 HTTP 基本身份验证。                                                             |
+| [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | 在 Hertz 中处理 Lark/飞书的卡片消息和事件的回调。                                                            |
+| [Logger](https://github.com/hertz-contrib/logger)                                                  | Hertz 的日志拓展，提供了对 zap、logrus、zerologs 日志框架的支持。                                              |
+
 ## 相关文章
 - [字节跳动在 Go 网络库上的实践](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
+- [超大规模的企业级微服务 HTTP 框架 — Hertz 正式开源！](https://www.cloudwego.io/zh/blog/2022/06/21/%E8%B6%85%E5%A4%A7%E8%A7%84%E6%A8%A1%E7%9A%84%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%BE%AE%E6%9C%8D%E5%8A%A1-http-%E6%A1%86%E6%9E%B6-hertz-%E6%AD%A3%E5%BC%8F%E5%BC%80%E6%BA%90/)
+- [字节跳动开源 Go HTTP 框架 Hertz 设计实践](https://www.cloudwego.io/zh/blog/2022/06/21/%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E5%BC%80%E6%BA%90-go-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
+- [助力字节降本增效，大规模企业级 HTTP 框架 Hertz 设计实践](https://www.cloudwego.io/zh/blog/2022/09/27/%E5%8A%A9%E5%8A%9B%E5%AD%97%E8%8A%82%E9%99%8D%E6%9C%AC%E5%A2%9E%E6%95%88%E5%A4%A7%E8%A7%84%E6%A8%A1%E4%BC%81%E4%B8%9A%E7%BA%A7-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
+- [HTTP 框架 Hertz 实践入门：性能测试指南](https://www.cloudwego.io/zh/blog/2022/11/01/http-%E6%A1%86%E6%9E%B6-hertz-%E5%AE%9E%E8%B7%B5%E5%85%A5%E9%97%A8%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%8C%87%E5%8D%97/)
 ## 贡献代码
   [Contributing](https://github.com/cloudwego/hertz/blob/main/CONTRIBUTING.md)
 ## RoadMap
@@ -66,12 +103,17 @@ Hertz 基于[Apache License 2.0](https://github.com/cloudwego/hertz/blob/main/LI
 - Email: conduct@cloudwego.io
 - 如何成为 member: [COMMUNITY MEMBERSHIP](https://github.com/cloudwego/community/blob/main/COMMUNITY_MEMBERSHIP.md)
 - Issues: [Issues](https://github.com/cloudwego/hertz/issues)
+- Slack: 加入我们的 [Slack 频道](https://join.slack.com/t/cloudwego/shared_invite/zt-tmcbzewn-UjXMF3ZQsPhl7W3tEDZboA)
 - 飞书用户群（[注册飞书](https://www.larksuite.com/zh_cn/download)进群）
 
   ![LarkGroup](images/lark_group_cn.png)
 - 微信: CloudWeGo community
 
   ![WechatGroup](images/wechat_group_cn.png)
+## 贡献者
+感谢您对 Hertz 作出的贡献！
+
+[![Contributors](https://contrib.rocks/image?repo=cloudwego/hertz)](https://github.com/cloudwego/hertz/graphs/contributors)
 ## Landscapes
 
 <p align="center">

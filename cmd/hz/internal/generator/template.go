@@ -208,13 +208,21 @@ func (tg *TemplateGenerator) Persist() error {
 				return fmt.Errorf("mkdir %s failed, err: %v", abDir, err.Error())
 			}
 		}
-		file, err := os.OpenFile(abPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(0o755))
-		defer file.Close()
+
+		err = func() error {
+			file, err := os.OpenFile(abPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(0o755))
+			defer file.Close()
+			if err != nil {
+				return fmt.Errorf("open file '%s' failed, err: %v", abPath, err.Error())
+			}
+			if _, err = file.WriteString(data.Content); err != nil {
+				return fmt.Errorf("write file '%s' failed, err: %v", abPath, err.Error())
+			}
+
+			return nil
+		}()
 		if err != nil {
-			return fmt.Errorf("open file '%s' failed, err: %v", abPath, err.Error())
-		}
-		if _, err = file.WriteString(data.Content); err != nil {
-			return fmt.Errorf("write file '%s' failed, err: %v", abPath, err.Error())
+			return err
 		}
 	}
 

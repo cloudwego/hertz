@@ -59,6 +59,17 @@ func TestPureJson(t *testing.T) {
 	}
 }
 
+func TestIndentedJSON(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.IndentedJSON(consts.StatusOK, utils.H{
+		"foo":  "bar",
+		"html": "h1",
+	})
+	if string(ctx.Response.Body()) != "{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}" {
+		t.Fatalf("unexpected purejson: %#v, expected: %#v", string(ctx.Response.Body()), "{\n    \"foo\": \"bar\",\n    \"html\": \"<b>\"\n}")
+	}
+}
+
 func TestContext(t *testing.T) {
 	reqContext := NewContext(0)
 	reqContext.Set("testContextKey", "testValue")
@@ -730,7 +741,8 @@ func TestContextSetGetValues(t *testing.T) {
 	c.Set("string", "this is a string")
 	c.Set("int32", int32(-42))
 	c.Set("int64", int64(42424242424242))
-	c.Set("uint64", uint64(42))
+	c.Set("uint32", uint32(42))
+	c.Set("uint64", uint64(42424242424242))
 	c.Set("float32", float32(4.2))
 	c.Set("float64", 4.2)
 	var a interface{} = 1
@@ -739,7 +751,8 @@ func TestContextSetGetValues(t *testing.T) {
 	assert.DeepEqual(t, c.MustGet("string").(string), "this is a string")
 	assert.DeepEqual(t, c.MustGet("int32").(int32), int32(-42))
 	assert.DeepEqual(t, c.MustGet("int64").(int64), int64(42424242424242))
-	assert.DeepEqual(t, c.MustGet("uint64").(uint64), uint64(42))
+	assert.DeepEqual(t, c.MustGet("uint32").(uint32), uint32(42))
+	assert.DeepEqual(t, c.MustGet("uint64").(uint64), uint64(42424242424242))
 	assert.DeepEqual(t, c.MustGet("float32").(float32), float32(4.2))
 	assert.DeepEqual(t, c.MustGet("float64").(float64), 4.2)
 	assert.DeepEqual(t, c.MustGet("intInterface").(int), 1)
@@ -769,12 +782,52 @@ func TestContextGetInt(t *testing.T) {
 	assert.DeepEqual(t, 0, c.GetInt("string"))
 }
 
+func TestContextGetInt32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("int32", int32(-42))
+	assert.DeepEqual(t, int32(-42), c.GetInt32("int32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, int32(0), c.GetInt32("string"))
+}
+
 func TestContextGetInt64(t *testing.T) {
 	c := &RequestContext{}
 	c.Set("int64", int64(42424242424242))
 	assert.DeepEqual(t, int64(42424242424242), c.GetInt64("int64"))
 	c.Set("string", "this is a string")
 	assert.DeepEqual(t, int64(0), c.GetInt64("string"))
+}
+
+func TestContextGetUint(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint", uint(1))
+	assert.DeepEqual(t, uint(1), c.GetUint("uint"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint(0), c.GetUint("string"))
+}
+
+func TestContextGetUint32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint32", uint32(42))
+	assert.DeepEqual(t, uint32(42), c.GetUint32("uint32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint32(0), c.GetUint32("string"))
+}
+
+func TestContextGetUint64(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint64", uint64(42424242424242))
+	assert.DeepEqual(t, uint64(42424242424242), c.GetUint64("uint64"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint64(0), c.GetUint64("string"))
+}
+
+func TestContextGetFloat32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("float32", float32(4.2))
+	assert.DeepEqual(t, float32(4.2), c.GetFloat32("float32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, float32(0.0), c.GetFloat32("string"))
 }
 
 func TestContextGetFloat64(t *testing.T) {

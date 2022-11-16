@@ -231,20 +231,12 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		return fmt.Errorf("read register '%s' failed, err: %v", registerPath, err.Error())
 	}
 
-	insertImport := register.PkgAlias + " " + "\"" + register.Pkg + "\"\n"
 	if !bytes.Contains(file, []byte(register.Pkg)) {
-
-		subIndexImport := regImport.FindSubmatchIndex(file)
-		if len(subIndexImport) != 2 || subIndexImport[0] < 1 {
-			return fmt.Errorf("wrong format %s: 'import (' not found", string(file))
+		newFile, err := util.AddImport(registerPath, register.PkgAlias, register.Pkg)
+		if err != nil {
+			return err
 		}
-
-		bufImport := bytes.NewBuffer(nil)
-		bufImport.Write(file[:subIndexImport[1]])
-		bufImport.WriteString("\n\t" + insertImport)
-		bufImport.Write(file[subIndexImport[1]:])
-
-		file = bufImport.Bytes()
+		file = []byte(newFile)
 
 		insertReg := register.PkgAlias + ".Register(r)\n"
 		if bytes.Contains(file, []byte(insertReg)) {

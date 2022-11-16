@@ -26,7 +26,7 @@ import (
 )
 
 // Discovery will construct a middleware with BalancerFactory.
-func Discovery(resolver discovery.Resolver, opts ...ServiceDiscoveryOption) func(next client.Endpoint) client.Endpoint {
+func Discovery(resolver discovery.Resolver, opts ...ServiceDiscoveryOption) client.Middleware {
 	options := &ServiceDiscoveryOptions{
 		Balancer: loadbalance.NewWeightedBalancer(),
 		LbOpts:   loadbalance.DefaultLbOpts,

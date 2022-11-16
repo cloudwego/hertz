@@ -159,7 +159,8 @@ func testResponseReadError(t *testing.T, resp *protocol.Response, response strin
 }
 
 func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
-	expectedContentType, expectedBody, expectedTrailer string) {
+	expectedContentType, expectedBody, expectedTrailer string,
+) {
 	zr := mock.NewZeroCopyReader(response)
 	err := Read(resp, zr)
 	if err != nil {
@@ -248,8 +249,7 @@ func TestResponseImmediateHeaderFlushChunked(t *testing.T) {
 
 	r.SetBodyStream(buf, -1)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})
@@ -292,8 +292,7 @@ func TestResponseImmediateHeaderFlushFixedLength(t *testing.T) {
 
 	r.SetBodyStream(buf, 3)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})
@@ -336,8 +335,7 @@ func TestResponseImmediateHeaderFlushFixedLengthWithFewerData(t *testing.T) {
 
 	r.SetBodyStream(buf, 3)
 
-	b := []byte{}
-	w := bytes.NewBuffer(b)
+	w := bytes.NewBuffer([]byte{})
 	zw := netpoll.NewWriter(w)
 
 	waitForIt := make(chan struct{})
@@ -436,7 +434,8 @@ func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStat
 }
 
 func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, body string,
-	expectedStatusCode int, expectedContentType, expectedServerName string) {
+	expectedStatusCode int, expectedContentType, expectedServerName string,
+) {
 	var resp protocol.Response
 	resp.SetStatusCode(statusCode)
 	resp.Header.Set("Content-Type", contentType)
@@ -479,7 +478,8 @@ func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, 
 }
 
 func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string, skipBody bool,
-	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string) {
+	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string,
+) {
 	zr := mock.NewZeroCopyReader(s)
 	resp.SkipBody = skipBody
 	err := Read(resp, zr)

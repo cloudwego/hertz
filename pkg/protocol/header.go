@@ -52,6 +52,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -64,10 +65,11 @@ var (
 type RequestHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
-	disableNormalizing bool
-	noHTTP11           bool
-	protocol           string
-	connectionClose    bool
+	disableNormalizing   bool
+	noHTTP11             bool
+	protocol             string
+	connectionClose      bool
+	noDefaultContentType bool
 
 	// These two fields have been moved close to other bool fields
 	// for reducing RequestHeader object size.
@@ -368,7 +370,7 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	}
 
 	contentType := h.ContentType()
-	if len(contentType) == 0 && !h.IgnoreBody() {
+	if len(contentType) == 0 && !h.IgnoreBody() && !h.noDefaultContentType {
 		contentType = bytestr.StrPostArgsContentType
 	}
 	if len(contentType) > 0 {
@@ -423,6 +425,11 @@ func (h *RequestHeader) IsPost() bool {
 	return bytes.Equal(h.Method(), bytestr.StrPost)
 }
 
+// IsDelete returns true if request method is DELETE.
+func (h *RequestHeader) IsDelete() bool {
+	return bytes.Equal(h.Method(), bytestr.StrDelete)
+}
+
 // IsConnect returns true if request method is CONNECT.
 func (h *RequestHeader) IsConnect() bool {
 	return bytes.Equal(h.Method(), bytestr.StrConnect)
@@ -447,7 +454,17 @@ func (h *RequestHeader) SetHost(host string) {
 
 // SetStatusCode sets response status code.
 func (h *ResponseHeader) SetStatusCode(statusCode int) {
+	checkWriteHeaderCode(statusCode)
 	h.statusCode = statusCode
+}
+
+func checkWriteHeaderCode(code int) {
+	// For now, we only emit a warning for bad codes.
+	// In the future we might block things over 599 or under 100
+	if code < 100 || code > 599 {
+		hlog.SystemLogger().Warnf("Invalid StatusCode code %v, status code should not be under 100 or over 599.\n"+
+			"For more info: https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes", code)
+	}
 }
 
 func (h *ResponseHeader) ResetSkipNormalize() {
@@ -918,6 +935,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.disableNormalizing = h.disableNormalizing
 	dst.noHTTP11 = h.noHTTP11
 	dst.connectionClose = h.connectionClose
+	dst.noDefaultContentType = h.noDefaultContentType
 
 	dst.contentLength = h.contentLength
 	dst.contentLengthBytes = append(dst.contentLengthBytes[:0], h.contentLengthBytes...)
@@ -972,6 +990,14 @@ func (h *RequestHeader) SetContentTypeBytes(contentType []byte) {
 // ContentType returns Content-Type header value.
 func (h *RequestHeader) ContentType() []byte {
 	return h.contentType
+}
+
+// SetNoDefaultContentType controls the default Content-Type header behaviour.
+//
+// When set to false, the Content-Type header is sent with a default value if no Content-Type value is specified.
+// When set to true, no Content-Type header is sent if no Content-Type value is specified.
+func (h *RequestHeader) SetNoDefaultContentType(b bool) {
+	h.noDefaultContentType = b
 }
 
 // SetContentLength sets Content-Length header value.
@@ -1050,6 +1076,16 @@ func (h *RequestHeader) Method() []byte {
 // IsGet returns true if request method is GET.
 func (h *RequestHeader) IsGet() bool {
 	return bytes.Equal(h.Method(), bytestr.StrGet)
+}
+
+// IsOptions returns true if request method is Options.
+func (h *RequestHeader) IsOptions() bool {
+	return bytes.Equal(h.Method(), bytestr.StrOptions)
+}
+
+// IsTrace returns true if request method is Trace.
+func (h *RequestHeader) IsTrace() bool {
+	return bytes.Equal(h.Method(), bytestr.StrTrace)
 }
 
 // SetHostBytes sets Host header value.
@@ -1205,6 +1241,7 @@ func (h *RequestHeader) ResetSkipNormalize() {
 	h.noHTTP11 = false
 	h.connectionClose = false
 	h.protocol = ""
+	h.noDefaultContentType = false
 
 	h.contentLength = 0
 	h.contentLengthBytes = h.contentLengthBytes[:0]

@@ -1,3 +1,4 @@
 .idea
+.vscode
 pkg/app/fs.go.hertz.gz
 coverage.out

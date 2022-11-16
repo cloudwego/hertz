@@ -22,6 +22,8 @@ package netpoll
 import (
 	"errors"
 	"io"
+	"strings"
+	"syscall"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -75,8 +77,12 @@ func (c *Conn) Flush() error {
 }
 
 func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
-	if errors.Is(err, netpoll.ErrConnClosed) {
-		hlog.Warnf("HERTZ: Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
+	if errors.Is(err, netpoll.ErrConnClosed) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		// ignore flushing error when connection is closed or reset
+		if strings.Contains(err.Error(), "when flush") {
+			return true
+		}
+		hlog.SystemLogger().Debugf("Netpoll error=%s, remoteAddr=%s", err.Error(), rip)
 		return true
 	}
 	return false

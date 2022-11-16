@@ -76,6 +76,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
+const unknownTransporterName = "unknown"
+
 var (
 	defaultTransporter = standard.NewTransporter
 
@@ -199,15 +201,35 @@ func (engine *Engine) GetOptions() *config.Options {
 	return engine.options
 }
 
+// SetTransporter only sets the global default value for the transporter.
+// Use WithTransporter during engine creation to set the transporter for the engine.
 func SetTransporter(transporter func(options *config.Options) network.Transporter) {
 	defaultTransporter = transporter
 }
 
+func (engine *Engine) GetTransporterName() (tName string) {
+	return getTransporterName(engine.transport)
+}
+
+func getTransporterName(transporter network.Transporter) (tName string) {
+	defer func() {
+		err := recover()
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
+		}
+	}()
+	t := reflect.ValueOf(transporter).Type().String()
+	tName = strings.Split(strings.TrimPrefix(t, "*"), ".")[0]
+	return tName
+}
+
+// Deprecated: This only get the global default transporter - may not be the real one used by the engine.
+// Use engine.GetTransporterName for the real transporter used.
 func GetTransporterName() (tName string) {
 	defer func() {
 		err := recover()
-		if err != nil {
-			tName = "unknown"
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
 		}
 	}()
 	fName := runtime.FuncForPC(reflect.ValueOf(defaultTransporter).Pointer()).Name()
@@ -251,7 +273,7 @@ func (engine *Engine) NewContext() *app.RequestContext {
 
 // Shutdown starts the server's graceful exit by next steps:
 //
-// 1. Trigger OnShutdown hooks concurrently, but don't wait them
+// 1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
 // 2. Close the net listener, which means new connection won't be accepted
 // 3. Wait all connections get closed:
 // 	One connection gets closed after reaching out the shorter time of processing
@@ -265,16 +287,25 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	ch := make(chan struct{})
 	// trigger hooks if any
-	for i := range engine.OnShutdown {
-		go func(index int) {
-			engine.OnShutdown[index](ctx)
-		}(i)
-	}
+	go engine.executeOnShutdownHooks(ctx, ch)
+
+	defer func() {
+		// ensure that the hook is executed until wait timeout or finish
+		select {
+		case <-ctx.Done():
+			hlog.SystemLogger().Infof("Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+			return
+		case <-ch:
+			hlog.SystemLogger().Info("Execute OnShutdownHooks finish")
+			return
+		}
+	}()
 
 	if opt := engine.options; opt != nil && opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.Errorf("HERTZ: Deregister error=%v", err)
+			hlog.SystemLogger().Errorf("Deregister error=%v", err)
 			return err
 		}
 	}
@@ -283,7 +314,21 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
 		return err
 	}
+
 	return
+}
+
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+	wg := sync.WaitGroup{}
+	for i := range engine.OnShutdown {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			engine.OnShutdown[index](ctx)
+		}(i)
+	}
+	wg.Wait()
+	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {
@@ -340,6 +385,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
+	hlog.SystemLogger().Infof("Using network library=%s", engine.GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
@@ -359,7 +405,7 @@ func (engine *Engine) getNextProto(conn network.Conn) (proto string, err error) 
 	if tlsConn, ok := conn.(network.ConnTLSer); ok {
 		if engine.options.ReadTimeout > 0 {
 			if err := conn.SetReadTimeout(engine.options.ReadTimeout); err != nil {
-				hlog.Errorf("HERTZ: BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
+				hlog.SystemLogger().Errorf("BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
 			}
 		}
 		err = tlsConn.Handshake()
@@ -407,7 +453,7 @@ func errProcess(conn io.Closer, err error) {
 		}
 	}
 	// other errors
-	hlog.Errorf("HERTZ: Error=%s, remoteAddr=%s", err.Error(), rip)
+	hlog.SystemLogger().Errorf("Error=%s, remoteAddr=%s", err.Error(), rip)
 }
 
 func getRemoteAddrFromCloser(conn io.Closer) string {
@@ -453,7 +499,7 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 		if bytes.Equal(buf, bytestr.StrClientPreface) && engine.protocolServers[suite.HTTP2] != nil {
 			return engine.protocolServers[suite.HTTP2].Serve(c, conn)
 		}
-		hlog.Warnf("HERTZ: HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
+		hlog.SystemLogger().Warn("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 	}
 
 	// ALPN path
@@ -495,6 +541,9 @@ func NewEngine(opt *config.Options) *Engine {
 		protocolServers: make(map[string]protocol.Server),
 		enableTrace:     true,
 		options:         opt,
+	}
+	if opt.TransporterNewer != nil {
+		engine.transport = opt.TransporterNewer(opt)
 	}
 	engine.RouterGroup.engine = engine
 
@@ -545,7 +594,7 @@ func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain
 	if handlerName == "" {
 		handlerName = utils.NameOfFunction(handlers.Last())
 	}
-	hlog.Debugf("HERTZ: Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
+	hlog.SystemLogger().Debugf("Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
 }
 
 func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) {
@@ -556,7 +605,10 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 	utils.Assert(method != "", "HTTP method can not be empty")
 	utils.Assert(len(handlers) > 0, "there must be at least one handler")
 
-	debugPrintRoute(method, path, handlers)
+	if !engine.options.DisablePrintRoute {
+		debugPrintRoute(method, path, handlers)
+	}
+
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
 		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}
@@ -766,7 +818,7 @@ func (engine *Engine) LoadHTMLGlob(pattern string) {
 	if engine.options.AutoReloadRender {
 		files, err := filepath.Glob(pattern)
 		if err != nil {
-			hlog.Errorf("LoadHTMLGlob: %v", err)
+			hlog.SystemLogger().Errorf("LoadHTMLGlob: %v", err)
 			return
 		}
 		engine.SetAutoReloadHTMLTemplate(tmpl, files)
@@ -902,7 +954,7 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
-	return &http1.Option{
+	opt := &http1.Option{
 		StreamRequestBody:            engine.options.StreamRequestBody,
 		GetOnly:                      engine.options.GetOnly,
 		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
@@ -918,4 +970,10 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		EnableTrace:                  engine.IsTraceEnable(),
 		HijackConnHandle:             engine.HijackConnHandle,
 	}
+	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
+	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
+	if opt.IdleTimeout == 0 && engine.GetTransporterName() == "standard" {
+		opt.IdleTimeout = -1
+	}
+	return opt
 }

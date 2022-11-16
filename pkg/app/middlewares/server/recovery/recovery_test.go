@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestRecovery(t *testing.T) {
@@ -38,4 +39,21 @@ func TestRecovery(t *testing.T) {
 	if ctx.Response.StatusCode() != 500 {
 		t.Fatalf("unexpected %v. Expecting %v", ctx.Response.StatusCode(), 500)
 	}
+}
+
+func TestWithRecoveryHandler(t *testing.T) {
+	ctx := app.NewContext(0)
+	var hc app.HandlersChain
+	hc = append(hc, func(c context.Context, ctx *app.RequestContext) {
+		fmt.Println("this is test")
+		panic("test")
+	})
+	ctx.SetHandlers(hc)
+
+	Recovery(WithRecoveryHandler(newRecoveryHandler))(context.Background(), ctx)
+
+	if ctx.Response.StatusCode() != 501 {
+		t.Fatalf("unexpected %v. Expecting %v", ctx.Response.StatusCode(), 501)
+	}
+	assert.DeepEqual(t, "{\"msg\":\"test\"}", string(ctx.Response.Body()))
 }

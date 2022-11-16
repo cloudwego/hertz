@@ -38,27 +38,49 @@ func lookupTool(idlType string) (string, error) {
 	path, err := exec.LookPath(tool)
 	logs.Debugf("[DEBUG]path:%v", path)
 	if err != nil {
-		logs.Warnf("Failed to find %q from $PATH: %s. Try $GOPATH/bin/%s instead\n", path, err.Error(), tool)
-		p, err := exec.LookPath(tool)
+		goPath, err := util.GetGOPATH()
 		if err != nil {
-			return "", fmt.Errorf("failed to find %q from $PATH or $GOPATH/bin: %s", tool, err)
+			return "", fmt.Errorf("get 'GOPATH' failed for find %s : %v", tool, path)
 		}
-		path = filepath.Join(p, "bin", tool)
+		path = filepath.Join(goPath, "bin", tool)
 	}
 
 	isExist, err := util.PathExist(path)
 	if err != nil {
+		return "", fmt.Errorf("check '%s' path error: %v", path, err)
 	}
 
 	if !isExist {
-		return "", fmt.Errorf("%s is not installed, please install it first", tool)
+		if tool == meta.TpCompilerThrift {
+			// If thriftgo does not exist, the latest version will be installed automatically.
+			err := util.InstallAndCheckThriftgo()
+			if err != nil {
+				return "", fmt.Errorf("can't install '%s' automatically, please install it manually for https://github.com/cloudwego/thriftgo, err : %v", tool, err)
+			}
+		} else {
+			// todo: protoc automatic installation
+			return "", fmt.Errorf("%s is not installed, please install it first", tool)
+		}
+	}
+
+	if tool == meta.TpCompilerThrift {
+		// If thriftgo exists, the version is detected; if the version is lower than v0.2.0 then the latest version of thriftgo is automatically installed.
+		err := util.CheckAndUpdateThriftgo()
+		if err != nil {
+			return "", fmt.Errorf("update thriftgo version failed, please install it manually for https://github.com/cloudwego/thriftgo, err: %v", err)
+		}
 	}
 
 	exe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("failed to get executable path: %s", err)
 	}
-	dir := filepath.Dir(path)
+	gopath, err := util.GetGOPATH()
+	if err != nil {
+		return "", err
+	}
+	// softlink the plugin to "$GOPATH/bin"
+	dir := gopath + string(os.PathSeparator) + "bin"
 	if tool == meta.TpCompilerProto {
 		pgh, err := exec.LookPath(meta.ProtocPluginName)
 		linkName := filepath.Join(dir, meta.ProtocPluginName)
@@ -147,6 +169,9 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 			"-g", thriftOpt,
 			"-p", "hertz:"+kas,
 		)
+		for _, p := range args.ThriftPlugins {
+			cmd.Args = append(cmd.Args, "-p", p)
+		}
 		if !args.NoRecurse {
 			cmd.Args = append(cmd.Args, "-r")
 		}
@@ -163,6 +188,19 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 			"--hertz_out="+args.OutDir,
 			"--hertz_opt="+kas,
 		)
+		for _, p := range args.ProtobufPlugins {
+			pluginParams := strings.Split(p, ":")
+			if len(pluginParams) != 3 {
+				logs.Warnf("Failed to get the correct protoc plugin parameters for %. "+
+					"Please specify the protoc plugin in the form of \"plugin_name:options:out_dir\"", p)
+				os.Exit(1)
+			}
+			// pluginParams[0] -> plugin name, pluginParams[1] -> plugin options, pluginParams[2] -> out_dir
+			cmd.Args = append(cmd.Args,
+				fmt.Sprintf("--%s_out=%s", pluginParams[0], pluginParams[2]),
+				fmt.Sprintf("--%s_opt=%s", pluginParams[0], pluginParams[1]),
+			)
+		}
 		for _, kv := range args.ProtocOptions {
 			cmd.Args = append(cmd.Args, "--"+kv)
 		}
@@ -183,6 +221,6 @@ func (arg *Argument) GetThriftgoOptions() (string, error) {
 	if arg.JSONEnumStr {
 		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
 	}
-	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments"
+	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments,gen_json_tag=false"
 	return gas, nil
 }

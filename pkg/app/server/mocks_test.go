@@ -20,7 +20,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 )
 
-var _ registry.Registry = &MockRegistry{}
+var _ registry.Registry = (*MockRegistry)(nil)
 
 // MockRegistry is the mock implementation of registry.Registry interface.
 type MockRegistry struct {

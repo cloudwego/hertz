@@ -72,7 +72,7 @@ func TestBuilder(t *testing.T) {
 
 func TestBalancerCache(t *testing.T) {
 	count := 10
-	inss := []discovery.Instance{}
+	inss := make([]discovery.Instance, 0, count)
 	for i := 0; i < count; i++ {
 		inss = append(inss, discovery.NewInstance("tcp", fmt.Sprint(i), 10, nil))
 	}
