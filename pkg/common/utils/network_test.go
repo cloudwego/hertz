@@ -16,7 +16,11 @@
 
 package utils
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
+)
 
 func TestTLSRecordHeaderLooksLikeHTTP(t *testing.T) {
 	HeaderValueAndExpectedResult := [][]interface{}{
@@ -34,8 +38,6 @@ func TestTLSRecordHeaderLooksLikeHTTP(t *testing.T) {
 
 	for _, testCase := range HeaderValueAndExpectedResult {
 		value, expectedResult := testCase[0].([5]byte), testCase[1].(bool)
-		if result := TLSRecordHeaderLooksLikeHTTP(value); result != expectedResult {
-			t.Fatalf("Unexpected result with %s : %t. Excepting result: %t", value, result, expectedResult)
-		}
+		assert.DeepEqual(t, expectedResult, TLSRecordHeaderLooksLikeHTTP(value))
 	}
 }

@@ -43,6 +43,8 @@ package utils
 
 import (
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 // test assert func
@@ -55,15 +57,9 @@ func TestUtilsIsTrueString(t *testing.T) {
 	upperTrueStr := "trUe"
 	otherStr := "hertz"
 
-	if !IsTrueString(normalTrueStr) {
-		t.Fatalf("Unexpected false for %s.", normalTrueStr)
-	}
-	if !IsTrueString(upperTrueStr) {
-		t.Fatalf("Unexpected false for %s.", upperTrueStr)
-	}
-	if IsTrueString(otherStr) {
-		t.Fatalf("Unexpected true for %s.", otherStr)
-	}
+	assert.DeepEqual(t, true, IsTrueString(normalTrueStr))
+	assert.DeepEqual(t, true, IsTrueString(upperTrueStr))
+	assert.DeepEqual(t, false, IsTrueString(otherStr))
 }
 
 // used for TestUtilsNameOfFunction
@@ -150,34 +146,19 @@ func TestUtilsNextLine(t *testing.T) {
 
 	multiHeaderStrWithoutReturn := []byte("Content-Type: application/x-www-form-urlencoded\nDate: Fri, 6 Aug 2021 11:00:31 GMT")
 	contentTypeStr, dateStr, hErr = NextLine(multiHeaderStrWithoutReturn)
-	if hErr != nil {
-		t.Fatalf("Unexpected error: %s", hErr)
-	}
-	if string(contentTypeStr) != "Content-Type: application/x-www-form-urlencoded" {
-		t.Fatalf("Unexpected %s", string(contentTypeStr))
-	}
-	if string(dateStr) != "Date: Fri, 6 Aug 2021 11:00:31 GMT" {
-		t.Fatalf("Unexpected %s", string(contentTypeStr))
-	}
+	assert.DeepEqual(t, nil, hErr)
+	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", string(contentTypeStr))
+	assert.DeepEqual(t, "Date: Fri, 6 Aug 2021 11:00:31 GMT", string(dataStr))
 
 	singleHeaderStrWithFirstNewLine := []byte("\nContent-Type: application/x-www-form-urlencoded")
 	firstStr, secondStr, sErr := NextLine(singleHeaderStrWithFirstNewLine)
-	if sErr != nil {
-		t.Fatalf("Unexpected error: %s", sErr)
-	}
-	if string(firstStr) != "" {
-		t.Fatalf("Unexpected %s\n", string(firstStr))
-	}
-	if string(secondStr) != "Content-Type: application/x-www-form-urlencoded" {
-		t.Fatalf("Unexpected %s", string(secondStr))
-	}
+	assert.DeepEqual(t, nil, sErr)
+	assert.DeepEqual(t, "", firstStr)
+	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", secondStr)
 
 	singleHeaderStr := []byte("Content-Type: application/x-www-form-urlencoded")
 	firstStr, secondStr, sErr = NextLine(singleHeaderStr)
-	if sErr == nil {
-		t.Fatalf("Unexpected nil. Expecting an error: ErrNeedMore")
-	}
-	if firstStr != nil || secondStr != nil {
-		t.Fatalf("Unexpected string. Expecting: nil")
-	}
+	assert.DeepEqual(t, nil, sErr)
+	assert.DeepEqual(t, nil, firstStr)
+	assert.DeepEqual(t, nil, secondStr)
 }
