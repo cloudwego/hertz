@@ -65,10 +65,11 @@ var (
 type RequestHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
-	disableNormalizing bool
-	noHTTP11           bool
-	protocol           string
-	connectionClose    bool
+	disableNormalizing   bool
+	noHTTP11             bool
+	protocol             string
+	connectionClose      bool
+	noDefaultContentType bool
 
 	// These two fields have been moved close to other bool fields
 	// for reducing RequestHeader object size.
@@ -369,7 +370,7 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	}
 
 	contentType := h.ContentType()
-	if len(contentType) == 0 && !h.IgnoreBody() {
+	if len(contentType) == 0 && !h.IgnoreBody() && !h.noDefaultContentType {
 		contentType = bytestr.StrPostArgsContentType
 	}
 	if len(contentType) > 0 {
@@ -934,6 +935,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.disableNormalizing = h.disableNormalizing
 	dst.noHTTP11 = h.noHTTP11
 	dst.connectionClose = h.connectionClose
+	dst.noDefaultContentType = h.noDefaultContentType
 
 	dst.contentLength = h.contentLength
 	dst.contentLengthBytes = append(dst.contentLengthBytes[:0], h.contentLengthBytes...)
@@ -988,6 +990,14 @@ func (h *RequestHeader) SetContentTypeBytes(contentType []byte) {
 // ContentType returns Content-Type header value.
 func (h *RequestHeader) ContentType() []byte {
 	return h.contentType
+}
+
+// SetNoDefaultContentType controls the default Content-Type header behaviour.
+//
+// When set to false, the Content-Type header is sent with a default value if no Content-Type value is specified.
+// When set to true, no Content-Type header is sent if no Content-Type value is specified.
+func (h *RequestHeader) SetNoDefaultContentType(b bool) {
+	h.noDefaultContentType = b
 }
 
 // SetContentLength sets Content-Length header value.
@@ -1231,6 +1241,7 @@ func (h *RequestHeader) ResetSkipNormalize() {
 	h.noHTTP11 = false
 	h.connectionClose = false
 	h.protocol = ""
+	h.noDefaultContentType = false
 
 	h.contentLength = 0
 	h.contentLengthBytes = h.contentLengthBytes[:0]
