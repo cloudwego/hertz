@@ -51,16 +51,16 @@ type Argument struct {
 	Gopkg       string // $GOPATH/src/{{gopkg}}
 	ServiceName string // service name
 
-	JsonEnumStr     bool
-	UnsetOmitempty  bool
-	PbJsonTag       bool
-	ProtocOptions   []string // options to pass through to protoc
-	ThriftOptions   []string // options to pass through to thriftgo for go flag
-	ProtobufPlugins []string
-	ThriftPlugins   []string
-	SnakeName       bool
-	Excludes        []string
-	NoRecurse       bool
+	JSONEnumStr          bool
+	UnsetOmitempty       bool
+	ProtobufCamelJSONTag bool
+	ProtocOptions        []string // options to pass through to protoc
+	ThriftOptions        []string // options to pass through to thriftgo for go flag
+	ProtobufPlugins      []string
+	ThriftPlugins        []string
+	SnakeName            bool
+	Excludes             []string
+	NoRecurse            bool
 
 	CustomizeLayout  string
 	CustomizePackage string

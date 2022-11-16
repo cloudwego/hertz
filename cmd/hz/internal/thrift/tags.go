@@ -103,7 +103,7 @@ func CheckTagOption(args *config.Argument) []generator.Option {
 	if args.UnsetOmitempty {
 		unsetOmitempty = true
 	}
-	if args.JsonEnumStr {
+	if args.JSONEnumStr {
 		ret = append(ret, generator.OptionMarshalEnumToText)
 	}
 	return ret

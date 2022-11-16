@@ -34,9 +34,9 @@ import (
 )
 
 var (
-	jsonSnakeName  = false
-	unsetOmitempty = false
-	pbJsonTagStyle = false
+	jsonSnakeName             = false
+	unsetOmitempty            = false
+	protobufCamelJSONTagStyle = false
 )
 
 func CheckTagOption(args *config.Argument) (ret []generator.Option) {
@@ -49,11 +49,11 @@ func CheckTagOption(args *config.Argument) (ret []generator.Option) {
 	if args.UnsetOmitempty {
 		unsetOmitempty = true
 	}
-	if args.JsonEnumStr {
+	if args.JSONEnumStr {
 		ret = append(ret, generator.OptionMarshalEnumToText)
 	}
-	if args.PbJsonTag {
-		pbJsonTagStyle = true
+	if args.ProtobufCamelJSONTag {
+		protobufCamelJSONTagStyle = true
 	}
 	return ret
 }
@@ -262,10 +262,10 @@ func m2s(mt model.Tag) (ret [2]string) {
 
 func reflectJsonTag(f protoreflect.FieldDescriptor) (ret model.Tag) {
 	ret.Key = "json"
-	if pbJsonTagStyle {
-		ret.Value = checkSnakeName(string(f.Name()))
-	} else {
+	if protobufCamelJSONTagStyle {
 		ret.Value = checkSnakeName(f.JSONName())
+	} else {
+		ret.Value = checkSnakeName(string(f.Name()))
 	}
 	if v := checkFirstOption(api.E_Body, f.Options()); v != nil {
 		ret.Value += ",string"

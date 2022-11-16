@@ -353,6 +353,10 @@ func (engine *Engine) Run() (err error) {
 }
 
 func (engine *Engine) Init() error {
+	if !h2Enable(engine.options) {
+		engine.protocolSuite.Delete(suite.HTTP2)
+	}
+
 	// add built-in http1 server by default
 	if !engine.HasServer(suite.HTTP1) {
 		engine.AddProtocol(suite.HTTP1, factory.NewServerFactory(newHttp1OptionFromEngine(engine)))
@@ -367,6 +371,7 @@ func (engine *Engine) Init() error {
 
 	if engine.alpnEnable() {
 		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP1)
+		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP2)
 	}
 
 	if !atomic.CompareAndSwapUint32(&engine.status, 0, statusInitialized) {
@@ -577,6 +582,10 @@ func initTrace(engine *Engine) stats.Level {
 		traceLevel = tl
 	}
 	return traceLevel
+}
+
+func h2Enable(opt *config.Options) bool {
+	return opt.H2C || (opt.TLS != nil && opt.ALPN)
 }
 
 func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain) {
@@ -945,7 +954,7 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
-	return &http1.Option{
+	opt := &http1.Option{
 		StreamRequestBody:            engine.options.StreamRequestBody,
 		GetOnly:                      engine.options.GetOnly,
 		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
@@ -961,4 +970,10 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		EnableTrace:                  engine.IsTraceEnable(),
 		HijackConnHandle:             engine.HijackConnHandle,
 	}
+	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
+	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
+	if opt.IdleTimeout == 0 && engine.GetTransporterName() == "standard" {
+		opt.IdleTimeout = -1
+	}
+	return opt
 }
