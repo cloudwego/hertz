@@ -55,10 +55,7 @@ func TestIoutilCopyZeroAlloc(t *testing.T) {
 	dst := network.NewWriter(&writeBuffer)
 	srcLen := int64(src.Len())
 	written, err := CopyZeroAlloc(dst, src)
-	if written != srcLen {
-		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
+
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
 }

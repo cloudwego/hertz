@@ -16,15 +16,15 @@
 
 package utils
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
+)
 
 func TestNetAddr(t *testing.T) {
 	networkAddr := NewNetAddr("127.0.0.1", "127.0.0.1")
 
-	if networkAddr.Network() != "127.0.0.1" {
-		t.Fatalf("Unexpected network: %s. Excepting network: %s", networkAddr.Network(), "127.0.0.1")
-	}
-	if networkAddr.String() != "127.0.0.1" {
-		t.Fatalf("Unexpected address string: %s. Excepting address string: %s", networkAddr.String(), "127.0.0.1")
-	}
+	assert.DeepEqual(t, networkAddr.Network(), "127.0.0.1")
+	assert.DeepEqual(t, networkAddr.String(), "127.0.0.1")
 }
