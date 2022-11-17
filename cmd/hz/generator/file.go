@@ -14,31 +14,33 @@
  * limitations under the License.
  */
 
-package main
+package generator
 
 import (
-	"os"
+	"fmt"
+	"go/format"
+	"path/filepath"
+	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/app"
-	"github.com/cloudwego/hertz/cmd/hz/util/logs"
+	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
-func main() {
-	// run in plugin mode
-	app.PluginMode()
-
-	// run in normal mode
-	Run()
+type File struct {
+	Path        string
+	Content     string
+	NoRepeat    bool
+	FileTplName string
 }
 
-func Run() {
-	defer func() {
-		logs.Flush()
-	}()
-
-	cli := app.Init()
-	err := cli.Run(os.Args)
-	if err != nil {
-		logs.Errorf("%v\n", err)
+// Lint is used to statically analyze and format go code
+func (file *File) Lint() error {
+	name := filepath.Base(file.Path)
+	if strings.HasSuffix(name, ".go") {
+		out, err := format.Source(util.Str2Bytes(file.Content))
+		if err != nil {
+			return fmt.Errorf("lint file '%s' failed, err: %v", name, err.Error())
+		}
+		file.Content = util.Bytes2Str(out)
 	}
+	return nil
 }
