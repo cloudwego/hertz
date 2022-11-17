@@ -629,5 +629,6 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		ResponseBodyStream:            c.options.ResponseBodyStream,
 		RetryConfig:                   c.options.RetryConfig,
 		RetryIfFunc:                   c.RetryIfFunc,
+		StateObserve:                  c.options.HostClientStateObserve,
 	}
 }
