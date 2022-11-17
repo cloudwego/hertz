@@ -119,6 +119,7 @@ func Init() *cli.App {
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
+	protoCamelJSONTag := cli.BoolFlag{Name: "pb_camel_json_tag", Usage: "Convert Name style for json tag to camel(Only works protobuf).", Destination: &globalArgs.ProtobufCamelJSONTag}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
 	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}:{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}:)", Destination: &globalArgs.CustomizePackage}
@@ -158,6 +159,7 @@ func Init() *cli.App {
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
+				&protoCamelJSONTag,
 				&snakeNameFlag,
 				&excludeFilesFlag,
 				&customLayout,
@@ -185,6 +187,7 @@ func Init() *cli.App {
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
+				&protoCamelJSONTag,
 				&snakeNameFlag,
 				&excludeFilesFlag,
 				&customPackage,
@@ -209,6 +212,7 @@ func Init() *cli.App {
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
+				&protoCamelJSONTag,
 				&snakeNameFlag,
 				&excludeFilesFlag,
 			},
