@@ -366,8 +366,9 @@ func SubDir(root, subPkg string) string {
 }
 
 var (
-	uniquePackageName    = map[string]bool{}
-	uniqueMiddlewareName = map[string]bool{}
+	uniquePackageName        = map[string]bool{}
+	uniqueMiddlewareName     = map[string]bool{}
+	uniqueHandlerPackageName = map[string]bool{}
 )
 
 // GetPackageUniqueName can get a non-repeating variable name for package alias
@@ -385,6 +386,15 @@ func GetMiddlewareUniqueName(name string) (string, error) {
 	name, err := getUniqueName(name, uniqueMiddlewareName)
 	if err != nil {
 		return "", fmt.Errorf("can not generate routing group for path '%s', err: %v", name, err)
+	}
+
+	return name, nil
+}
+
+func GetHandlerPackageUniqueName(name string) (string, error) {
+	name, err := getUniqueName(name, uniqueHandlerPackageName)
+	if err != nil {
+		return "", fmt.Errorf("can not generate unique handler package name: '%s', err: %v", name, err)
 	}
 
 	return name, nil

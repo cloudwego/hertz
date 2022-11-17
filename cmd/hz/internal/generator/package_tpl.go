@@ -97,7 +97,9 @@ package {{$.PackageName}}
 import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 
-	{{range $k, $v := .HandlerPackages}}{{$k}} "{{$v}}"{{end}}
+    {{- range $k, $v := .HandlerPackages}}
+        {{$k}} "{{$v}}"
+    {{- end}}
 )
 
 /*

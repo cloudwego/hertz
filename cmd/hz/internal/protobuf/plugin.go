@@ -582,8 +582,9 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
 		},
-		ProjPackage: pkg,
-		Options:     options,
+		ProjPackage:     pkg,
+		Options:         options,
+		HandlerByMethod: args.HandlerByMethod,
 	}
 
 	if args.ModelBackend != "" {

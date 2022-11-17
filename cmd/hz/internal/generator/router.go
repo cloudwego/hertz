@@ -42,8 +42,10 @@ type RouterNode struct {
 	Path     string
 	Children childrenRouterInfo
 
-	Handler    string // {{HandlerPackage}}.{{HandlerName}}
-	HttpMethod string
+	Handler             string // {{HandlerPackage}}.{{HandlerName}}
+	HandlerPackage      string
+	HandlerPackageAlias string
+	HttpMethod          string
 }
 
 type RegisterDependency struct {
@@ -64,7 +66,7 @@ func (routerNode *RouterNode) Sort() {
 	sort.Sort(routerNode.Children)
 }
 
-func (routerNode *RouterNode) Update(method *HttpMethod, handlerType string) error {
+func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg string) error {
 	if method.Path == "" {
 		return fmt.Errorf("empty path for method '%s'", method.Name)
 	}
@@ -77,7 +79,7 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType string) err
 		return fmt.Errorf("path '%s' has been registered", method.Path)
 	}
 	name := util.ToVarName(paths[:last])
-	parent.Insert(name, method, handlerType, paths[last:])
+	parent.Insert(name, method, handlerType, paths[last:], handlerPkg)
 	parent.Sort()
 	return nil
 }
@@ -136,14 +138,36 @@ func (routerNode *RouterNode) DFS(i int, hook func(layer int, node *RouterNode) 
 	return nil
 }
 
-func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerType string, paths []string) {
+var handlerPkgMap map[string]string
+
+func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerType string, paths []string, handlerPkg string) {
 	cur := routerNode
 	for i, p := range paths {
 		c := &RouterNode{
 			Path: "/" + p,
 		}
 		if i == len(paths)-1 {
-			c.Handler = handlerType + "." + method.Name
+			// generate handler by method
+			if len(handlerPkg) != 0 {
+				// get a unique package alias for every handler
+				pkgAlias := filepath.Base(handlerPkg)
+				pkgAlias = util.ToVarName([]string{pkgAlias})
+				val, exist := handlerPkgMap[handlerPkg]
+				if !exist {
+					pkgAlias, _ = util.GetHandlerPackageUniqueName(pkgAlias)
+					if len(handlerPkgMap) == 0 {
+						handlerPkgMap = make(map[string]string, 10)
+					}
+					handlerPkgMap[handlerPkg] = pkgAlias
+				} else {
+					pkgAlias = val
+				}
+				c.HandlerPackageAlias = pkgAlias
+				c.Handler = pkgAlias + "." + method.Name
+				c.HandlerPackage = handlerPkg
+			} else { // generate handler by service
+				c.Handler = handlerType + "." + method.Name
+			}
 			c.HttpMethod = getHttpMethod(method.HTTPMethod)
 		}
 		if cur.Children == nil {
@@ -272,6 +296,19 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 		},
 		Router: root,
 	}
+
+	if pkgGen.HandlerByMethod {
+		handlerMap := make(map[string]string, 1)
+		hook := func(layer int, node *RouterNode) error {
+			if len(node.HandlerPackage) != 0 {
+				handlerMap[node.HandlerPackageAlias] = node.HandlerPackage
+			}
+			return nil
+		}
+		root.DFS(0, hook)
+		router.HandlerPackages = handlerMap
+	}
+
 	if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
 		return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
 	}

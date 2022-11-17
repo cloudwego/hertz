@@ -56,6 +56,7 @@ const (
 	ApiAny        = "api.any"
 	ApiPath       = "api.path"
 	ApiSerializer = "api.serializer"
+	ApiGenPath    = "api.handler_path"
 )
 
 var (
@@ -68,6 +69,10 @@ var (
 		ApiOptions: "OPTIONS",
 		ApiHEAD:    "HEAD",
 		ApiAny:     "ANY",
+	}
+
+	HttpMethodOptionAnnotations = map[string]string{
+		ApiGenPath: "handler_path",
 	}
 
 	BindingTags = map[string]string{
