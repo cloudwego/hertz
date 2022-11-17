@@ -70,8 +70,8 @@ func RandomDelayPolicy(_ uint, _ error, retryConfig *Config) time.Duration {
 	return time.Duration(fastrand.Int63n(int64(retryConfig.MaxJitter)))
 }
 
-// BackOffDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries, if the retryConfig.Delay less than or equal to 0, the final delay is 0
-func BackOffDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
+// ExponentialDelayPolicy is a DelayPolicyFunc which exponentially increases delay between consecutive retries, if the retryConfig.Delay less than or equal to 0, the final delay is 0
+func ExponentialDelayPolicy(attempts uint, _ error, retryConfig *Config) time.Duration {
 	if retryConfig.Delay <= 0 {
 		return 0 * time.Millisecond
 	}

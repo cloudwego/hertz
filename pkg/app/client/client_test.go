@@ -1889,7 +1889,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithMaxAttemptTimes(3),
 			retry.WithInitDelay(100*time.Millisecond),
 			retry.WithMaxDelay(10*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.ExponentialDelayPolicy)),
 		),
 	)
 	client.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
@@ -1918,7 +1918,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(500*time.Millisecond),
 			retry.WithMaxJitter(1*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.ExponentialDelayPolicy)),
 		),
 	)
 	if err != nil {
@@ -1948,7 +1948,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithInitDelay(100*time.Millisecond),
 			retry.WithMaxDelay(5*time.Second),
 			retry.WithMaxJitter(1*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.ExponentialDelayPolicy, retry.RandomDelayPolicy)),
 		),
 	)
 	if err != nil {
@@ -1978,7 +1978,7 @@ func TestClientRetry(t *testing.T) {
 			retry.WithInitDelay(1*time.Second),
 			retry.WithMaxDelay(10*time.Second),
 			retry.WithMaxJitter(5*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.ExponentialDelayPolicy, retry.RandomDelayPolicy)),
 		),
 	)
 	if err != nil {
