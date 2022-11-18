@@ -27,7 +27,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
-	"github.com/cloudwego/hertz/pkg/route"
 )
 
 // WithKeepAliveTimeout sets keep-alive timeout.
@@ -45,6 +44,15 @@ func WithKeepAliveTimeout(t time.Duration) config.Option {
 func WithReadTimeout(t time.Duration) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ReadTimeout = t
+	}}
+}
+
+// WithWriteTimeout sets write timeout.
+//
+// Connection will be closed when write request timeout.
+func WithWriteTimeout(t time.Duration) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.WriteTimeout = t
 	}}
 }
 
@@ -216,7 +224,7 @@ func WithExitWaitTime(timeout time.Duration) config.Option {
 // NOTE: If a tls server is started, it won't accept non-tls request.
 func WithTLS(cfg *tls.Config) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		route.SetTransporter(standard.NewTransporter)
+		o.TransporterNewer = standard.NewTransporter
 		o.TLS = cfg
 	}}
 }
@@ -231,7 +239,7 @@ func WithListenConfig(l *net.ListenConfig) config.Option {
 // WithTransport sets which network library to use.
 func WithTransport(transporter func(options *config.Options) network.Transporter) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		route.SetTransporter(transporter)
+		o.TransporterNewer = transporter
 	}}
 }
 

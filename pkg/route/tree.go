@@ -113,7 +113,7 @@ const (
 	nilString  = ""
 )
 
-func checkPathValid(path string) (valid bool) {
+func checkPathValid(path string) {
 	if path == nilString {
 		panic("empty path")
 	}
@@ -146,15 +146,16 @@ func checkPathValid(path string) (valid bool) {
 			}
 		}
 	}
-	return true
 }
 
 // addRoute adds a node with the given handle to the path.
 func (r *router) addRoute(path string, h app.HandlersChain) {
 	checkPathValid(path)
 
-	pnames := []string{} // Param names
-	ppath := path        // Pristine path
+	var (
+		pnames []string // Param names
+		ppath  = path   // Pristine path
+	)
 
 	if h == nil {
 		panic(fmt.Sprintf("Adding route without handler function: %v", path))

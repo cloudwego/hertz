@@ -57,6 +57,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
+	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/timer"
@@ -408,6 +409,33 @@ func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, e
 	return canIdempotentRetry, err
 }
 
+type requestConfig struct {
+	dialTimeout  time.Duration
+	readTimeout  time.Duration
+	writeTimeout time.Duration
+}
+
+func (c *HostClient) preHandleConfig(o *config.RequestOptions) requestConfig {
+	rc := requestConfig{
+		dialTimeout:  c.DialTimeout,
+		readTimeout:  c.ReadTimeout,
+		writeTimeout: c.WriteTimeout,
+	}
+	if o.ReadTimeout() > 0 {
+		rc.readTimeout = o.ReadTimeout()
+	}
+
+	if o.WriteTimeout() > 0 {
+		rc.writeTimeout = o.WriteTimeout()
+	}
+
+	if o.DialTimeout() > 0 {
+		rc.dialTimeout = o.DialTimeout()
+	}
+
+	return rc
+}
+
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
@@ -418,9 +446,10 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	atomic.StoreUint32(&c.lastUseTime, uint32(time.Now().Unix()-startTimeUnix))
 
+	rc := c.preHandleConfig(req.Options())
+
 	// Free up resources occupied by response before sending the request,
 	// so the GC may reclaim these resources (e.g. response body).
-
 	// backing up SkipBody in case it was set explicitly
 	customSkipBody := resp.SkipBody
 	resp.Reset()
@@ -429,7 +458,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
-	cc, err := c.acquireConn()
+	cc, err := c.acquireConn(rc.dialTimeout)
 	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
@@ -445,11 +474,8 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	resp.ParseNetAddr(conn)
 
-	if c.WriteTimeout > 0 {
-		// Set Deadline every time, since golang has fixed the performance issue
-		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		currentTime := time.Now()
-		if err = conn.SetWriteDeadline(currentTime.Add(c.WriteTimeout)); err != nil {
+	if rc.writeTimeout > 0 {
+		if err = conn.SetWriteTimeout(rc.writeTimeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
@@ -486,10 +512,10 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		return true, err
 	}
 
-	if c.ReadTimeout > 0 {
+	if rc.readTimeout > 0 {
 		// Set Deadline every time, since golang has fixed the performance issue
 		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		if err = conn.SetReadTimeout(c.ReadTimeout); err != nil {
+		if err = conn.SetReadTimeout(rc.readTimeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
@@ -543,7 +569,7 @@ func (c *HostClient) SetMaxConns(newMaxConns int) {
 	c.connsLock.Unlock()
 }
 
-func (c *HostClient) acquireConn() (cc *clientConn, err error) {
+func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err error) {
 	createConn := false
 	startCleaner := false
 
@@ -594,6 +620,11 @@ func (c *HostClient) acquireConn() (cc *clientConn, err error) {
 			}
 		}()
 
+		// Note: In the case of setting MaxConnWaitTimeout, if the number
+		// of connections in the connection pool exceeds the maximum
+		// number of connections and needs to establish a connection while
+		// waiting, the dialtimeout on the hostclient is used instead of
+		// the dialtimeout in request options.
 		c.queueForIdle(w)
 
 		select {
@@ -608,7 +639,7 @@ func (c *HostClient) acquireConn() (cc *clientConn, err error) {
 		go c.connsCleaner()
 	}
 
-	conn, err := c.dialHostHard()
+	conn, err := c.dialHostHard(dialTimeout)
 	if err != nil {
 		c.decConnsCount()
 		return nil, err
@@ -629,7 +660,7 @@ func (c *HostClient) queueForIdle(w *wantConn) {
 }
 
 func (c *HostClient) dialConnFor(w *wantConn) {
-	conn, err := c.dialHostHard()
+	conn, err := c.dialHostHard(c.DialTimeout)
 	if err != nil {
 		w.tryDeliver(nil, err)
 		c.decConnsCount()
@@ -858,7 +889,7 @@ func (c *HostClient) nextAddr() string {
 	return addr
 }
 
-func (c *HostClient) dialHostHard() (conn network.Conn, err error) {
+func (c *HostClient) dialHostHard(dialTimeout time.Duration) (conn network.Conn, err error) {
 	// attempt to dial all the available hosts before giving up.
 
 	c.addrsLock.Lock()
@@ -870,12 +901,11 @@ func (c *HostClient) dialHostHard() (conn network.Conn, err error) {
 		n = 1
 	}
 
-	timeout := c.DialTimeout
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(dialTimeout)
 	for n > 0 {
 		addr := c.nextAddr()
 		tlsConfig := c.cachedTLSConfig(addr)
-		conn, err = dialAddr(addr, c.Dialer, c.DialDualStack, tlsConfig, timeout, c.ProxyURI, c.IsTLS)
+		conn, err = dialAddr(addr, c.Dialer, c.DialDualStack, tlsConfig, dialTimeout, c.ProxyURI, c.IsTLS)
 		if err == nil {
 			return conn, nil
 		}
@@ -919,7 +949,7 @@ func dialAddr(addr string, dial network.Dialer, dialDualStack bool, tlsConfig *t
 	var conn network.Conn
 	var err error
 	if dial == nil {
-		hlog.SystemLogger().Warnf("HostClient: no dialer specified, trying to use default dialer")
+		hlog.SystemLogger().Warn("HostClient: no dialer specified, trying to use default dialer")
 		dial = dialer.DefaultDialer()
 	}
 	dialFunc := dial.DialConnection

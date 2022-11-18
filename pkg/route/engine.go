@@ -76,6 +76,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
+const unknownTransporterName = "unknown"
+
 var (
 	defaultTransporter = standard.NewTransporter
 
@@ -199,15 +201,35 @@ func (engine *Engine) GetOptions() *config.Options {
 	return engine.options
 }
 
+// SetTransporter only sets the global default value for the transporter.
+// Use WithTransporter during engine creation to set the transporter for the engine.
 func SetTransporter(transporter func(options *config.Options) network.Transporter) {
 	defaultTransporter = transporter
 }
 
+func (engine *Engine) GetTransporterName() (tName string) {
+	return getTransporterName(engine.transport)
+}
+
+func getTransporterName(transporter network.Transporter) (tName string) {
+	defer func() {
+		err := recover()
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
+		}
+	}()
+	t := reflect.ValueOf(transporter).Type().String()
+	tName = strings.Split(strings.TrimPrefix(t, "*"), ".")[0]
+	return tName
+}
+
+// Deprecated: This only get the global default transporter - may not be the real one used by the engine.
+// Use engine.GetTransporterName for the real transporter used.
 func GetTransporterName() (tName string) {
 	defer func() {
 		err := recover()
-		if err != nil {
-			tName = "unknown"
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
 		}
 	}()
 	fName := runtime.FuncForPC(reflect.ValueOf(defaultTransporter).Pointer()).Name()
@@ -363,7 +385,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
-	hlog.SystemLogger().Infof("Using network library=%s", GetTransporterName())
+	hlog.SystemLogger().Infof("Using network library=%s", engine.GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
@@ -477,7 +499,7 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 		if bytes.Equal(buf, bytestr.StrClientPreface) && engine.protocolServers[suite.HTTP2] != nil {
 			return engine.protocolServers[suite.HTTP2].Serve(c, conn)
 		}
-		hlog.SystemLogger().Warnf("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
+		hlog.SystemLogger().Warn("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 	}
 
 	// ALPN path
@@ -519,6 +541,9 @@ func NewEngine(opt *config.Options) *Engine {
 		protocolServers: make(map[string]protocol.Server),
 		enableTrace:     true,
 		options:         opt,
+	}
+	if opt.TransporterNewer != nil {
+		engine.transport = opt.TransporterNewer(opt)
 	}
 	engine.RouterGroup.engine = engine
 
@@ -929,7 +954,7 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
-	return &http1.Option{
+	opt := &http1.Option{
 		StreamRequestBody:            engine.options.StreamRequestBody,
 		GetOnly:                      engine.options.GetOnly,
 		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
@@ -945,4 +970,10 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		EnableTrace:                  engine.IsTraceEnable(),
 		HijackConnHandle:             engine.HijackConnHandle,
 	}
+	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
+	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
+	if opt.IdleTimeout == 0 && engine.GetTransporterName() == "standard" {
+		opt.IdleTimeout = -1
+	}
+	return opt
 }

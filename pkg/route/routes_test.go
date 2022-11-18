@@ -738,16 +738,16 @@ func checkUnusedParamValues(t *testing.T, ctx *app.RequestContext, expectParam m
 }
 
 var handlerFunc = func(route string) app.HandlersChain {
-	return app.HandlersChain{app.HandlerFunc(func(c context.Context, ctx *app.RequestContext) {
+	return app.HandlersChain{func(c context.Context, ctx *app.RequestContext) {
 		ctx.Set("path", route)
-	})}
+	}}
 }
 
 var handlerHelper = func(route, key string, value int) app.HandlersChain {
-	return app.HandlersChain{app.HandlerFunc(func(c context.Context, ctx *app.RequestContext) {
+	return app.HandlersChain{func(c context.Context, ctx *app.RequestContext) {
 		ctx.Set(key, value)
 		ctx.Set("path", route)
-	})}
+	}}
 }
 
 func getHelper(c *app.RequestContext, key string) interface{} {

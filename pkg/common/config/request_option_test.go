@@ -18,6 +18,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
@@ -29,10 +30,16 @@ func TestRequestOptions(t *testing.T) {
 		WithTag("c", "d"),
 		WithTag("e", "f"),
 		WithSD(true),
+		WithDialTimeout(time.Second),
+		WithReadTimeout(time.Second),
+		WithWriteTimeout(time.Second),
 	})
 	assert.DeepEqual(t, "b", opt.Tag("a"))
 	assert.DeepEqual(t, "d", opt.Tag("c"))
 	assert.DeepEqual(t, "f", opt.Tag("e"))
+	assert.DeepEqual(t, time.Second, opt.DialTimeout())
+	assert.DeepEqual(t, time.Second, opt.ReadTimeout())
+	assert.DeepEqual(t, time.Second, opt.WriteTimeout())
 	assert.True(t, opt.IsSD())
 }
 
@@ -52,6 +59,9 @@ func TestRequestOptionsWithDefaultOpts(t *testing.T) {
 	assert.False(t, opt.IsSD())
 	SetPreDefinedOpts()
 	assert.Nil(t, preDefinedOpts)
+	assert.DeepEqual(t, time.Duration(0), opt.WriteTimeout())
+	assert.DeepEqual(t, time.Duration(0), opt.ReadTimeout())
+	assert.DeepEqual(t, time.Duration(0), opt.DialTimeout())
 }
 
 // TestRequestOptions_CopyTo test request options copy to another one
