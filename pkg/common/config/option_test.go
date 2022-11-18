@@ -18,6 +18,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -30,6 +31,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, defaultKeepAliveTimeout, options.KeepAliveTimeout)
 	assert.DeepEqual(t, defaultReadTimeout, options.ReadTimeout)
 	assert.DeepEqual(t, defaultReadTimeout, options.IdleTimeout)
+	assert.DeepEqual(t, time.Duration(0), options.WriteTimeout)
 	assert.True(t, options.RedirectTrailingSlash)
 	assert.True(t, options.RedirectTrailingSlash)
 	assert.False(t, options.HandleMethodNotAllowed)

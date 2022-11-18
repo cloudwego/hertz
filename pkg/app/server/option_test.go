@@ -35,6 +35,7 @@ func TestOptions(t *testing.T) {
 	}
 	opt := config.NewOptions([]config.Option{
 		WithReadTimeout(time.Second),
+		WithWriteTimeout(time.Second),
 		WithIdleTimeout(time.Second),
 		WithKeepAliveTimeout(time.Second),
 		WithRedirectTrailingSlash(false),
@@ -63,6 +64,7 @@ func TestOptions(t *testing.T) {
 		WithAutoReloadRender(true, 5*time.Second),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
+	assert.DeepEqual(t, opt.WriteTimeout, time.Second)
 	assert.DeepEqual(t, opt.IdleTimeout, time.Second)
 	assert.DeepEqual(t, opt.KeepAliveTimeout, time.Second)
 	assert.DeepEqual(t, opt.RedirectTrailingSlash, false)

@@ -44,6 +44,7 @@ package protocol
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -517,4 +518,14 @@ func TestRequestHeaderDelAllCookies(t *testing.T) {
 	if len(hv) > 0 {
 		t.Fatalf("non-zero value: %q", hv)
 	}
+}
+
+func TestRequestHeaderSetNoDefaultContentType(t *testing.T) {
+	var h RequestHeader
+	h.SetMethod(http.MethodPost)
+	b := h.AppendBytes(nil)
+	assert.DeepEqual(t, b, []byte("POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n"))
+	h.SetNoDefaultContentType(true)
+	b = h.AppendBytes(nil)
+	assert.DeepEqual(t, b, []byte("POST / HTTP/1.1\r\n\r\n"))
 }

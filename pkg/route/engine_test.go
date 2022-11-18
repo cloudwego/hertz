@@ -64,11 +64,31 @@ import (
 )
 
 func TestNew_Engine(t *testing.T) {
+	defaultTransporter = standard.NewTransporter
 	opt := config.NewOptions([]config.Option{})
 	router := NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
 	assert.DeepEqual(t, "/", router.basePath)
 	assert.DeepEqual(t, router.engine, router)
 	assert.DeepEqual(t, 0, len(router.Handlers))
+}
+
+func TestNew_Engine_WithTransporter(t *testing.T) {
+	defaultTransporter = netpoll.NewTransporter
+	opt := config.NewOptions([]config.Option{})
+	router := NewEngine(opt)
+	assert.DeepEqual(t, "netpoll", router.GetTransporterName())
+
+	defaultTransporter = netpoll.NewTransporter
+	opt.TransporterNewer = standard.NewTransporter
+	router = NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
+	assert.DeepEqual(t, "netpoll", GetTransporterName())
+}
+
+func TestGetTransporterName(t *testing.T) {
+	name := getTransporterName(&fakeTransporter{})
+	assert.DeepEqual(t, "route", name)
 }
 
 func TestEngineUnescape(t *testing.T) {
@@ -234,6 +254,39 @@ func TestIdleTimeout01(t *testing.T) {
 		t.Errorf("cannot return this early! should wait for at least 1s...")
 	case <-time.Tick(1 * time.Second):
 		return
+	}
+}
+
+func TestIdleTimeout03(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.options.IdleTimeout = 0
+	engine.transport = standard.NewTransporter(engine.options)
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.Init()
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(50 * time.Millisecond)
+		ctx.String(200, "ok")
+	})
+
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n" +
+		"GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
+
+	ch := make(chan error)
+	startCh := make(chan error)
+	go func() {
+		<-startCh
+		ch <- engine.Serve(context.Background(), conn)
+	}()
+	close(startCh)
+	select {
+	case err := <-ch:
+		if !errors.Is(err, errs.ErrShortConnection) {
+			t.Errorf("err should be ErrShortConnection, but got %s", err)
+		}
+		return
+	case <-time.Tick(120 * time.Millisecond):
+		t.Errorf("timeout! should have been finished in 120ms...")
 	}
 }
 
@@ -435,6 +488,11 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 
 type mockConn struct{}
 
+func (m *mockConn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (m *mockConn) ReadBinary(n int) (p []byte, err error) {
 	panic("implement me")
 }
@@ -522,5 +580,22 @@ func (m *mockConn) WriteBinary(b []byte) (n int, err error) {
 }
 
 func (m *mockConn) Flush() error {
+	panic("implement me")
+}
+
+type fakeTransporter struct{}
+
+func (f *fakeTransporter) Close() error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) Shutdown(ctx context.Context) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) ListenAndServe(onData network.OnData) error {
+	// TODO implement me
 	panic("implement me")
 }

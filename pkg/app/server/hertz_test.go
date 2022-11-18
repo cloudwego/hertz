@@ -270,8 +270,7 @@ func Test_getServerName(t *testing.T) {
 }
 
 func TestServer_Run(t *testing.T) {
-	hertz := New()
-	hertz.GetOptions().Addr = "127.0.0.1:8888"
+	hertz := New(WithHostPorts("127.0.0.1:8888"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
@@ -500,7 +499,7 @@ func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStat
 
 func TestParamInconsist(t *testing.T) {
 	mapS := sync.Map{}
-	h := New(WithHostPorts(":10091"))
+	h := New(WithHostPorts("localhost:10091"))
 	h.GET("/:label", func(c context.Context, ctx *app.RequestContext) {
 		label := ctx.Param("label")
 		x, _ := mapS.LoadOrStore(label, label)
@@ -535,7 +534,7 @@ func TestParamInconsist(t *testing.T) {
 }
 
 func TestDuplicateReleaseBodyStream(t *testing.T) {
-	h := New(WithStreamBody(true), WithHostPorts(":10092"))
+	h := New(WithStreamBody(true), WithHostPorts("localhost:10092"))
 	h.POST("/test", func(ctx context.Context, c *app.RequestContext) {
 		stream := c.RequestBodyStream()
 		c.Response.SetBodyStream(stream, -1)
@@ -583,10 +582,10 @@ func TestReusePorts(t *testing.T) {
 			syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
 		})
 	}}
-	ha := New(WithHostPorts(":10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
-	hb := New(WithHostPorts(":10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
-	hc := New(WithHostPorts(":10093"), WithListenConfig(cfg))
-	hd := New(WithHostPorts(":10093"), WithListenConfig(cfg))
+	ha := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
+	hb := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
+	hc := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
+	hd := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
 	ha.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
 		ctx.JSON(200, utils.H{"ping": "pong"})
 	})
@@ -735,4 +734,31 @@ func TestServiceRegistryNoInitInfo(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
+}
+
+type testTracer struct{}
+
+func (t testTracer) Start(ctx context.Context, c *app.RequestContext) context.Context {
+	value := 0
+	if v := ctx.Value("testKey"); v != nil {
+		value = v.(int)
+		value++
+	}
+	return context.WithValue(ctx, "testKey", value)
+}
+
+func (t testTracer) Finish(ctx context.Context, c *app.RequestContext) {}
+
+func TestReuseCtx(t *testing.T) {
+	h := New(WithTracer(testTracer{}), WithHostPorts("localhost:9228"))
+	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+		assert.DeepEqual(t, 0, ctx.Value("testKey").(int))
+	})
+
+	go h.Spin()
+	time.Sleep(time.Second)
+	for i := 0; i < 1000; i++ {
+		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9228/ping")
+		assert.Nil(t, err)
+	}
 }

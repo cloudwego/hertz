@@ -47,12 +47,12 @@ func TestSysLogger(t *testing.T) {
 	sysLogger.Warn("work may fail")
 	sysLogger.Error("work failed")
 
-	assert.DeepEqual(t, "[Trace] trace work\n"+
-		"[Debug] received work order\n"+
-		"[Info] starting work\n"+
-		"[Notice] something happens in work\n"+
-		"[Warn] work may fail\n"+
-		"[Error] work failed\n", string(w.b))
+	assert.DeepEqual(t, "[Trace] HERTZ: trace work\n"+
+		"[Debug] HERTZ: received work order\n"+
+		"[Info] HERTZ: starting work\n"+
+		"[Notice] HERTZ: something happens in work\n"+
+		"[Warn] HERTZ: work may fail\n"+
+		"[Error] HERTZ: work failed\n", string(w.b))
 }
 
 func TestSysFormatLogger(t *testing.T) {

@@ -83,6 +83,7 @@ type Conn interface {
 
 	// SetReadTimeout should work for every Read process
 	SetReadTimeout(t time.Duration) error
+	SetWriteTimeout(t time.Duration) error
 }
 
 type ConnTLSer interface {
