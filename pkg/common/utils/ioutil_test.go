@@ -20,36 +20,48 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
 func TestIoutilCopyBuffer(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	src := bytes.NewBufferString("hertz is very good!!!")
+	str := string("hertz is very good!!!")
+	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	var buf []byte
 	// src.Len() will change, when use src.read(p []byte)
 	srcLen := int64(src.Len())
 	written, err := CopyBuffer(dst, src, buf)
 
-	if written != srcLen {
-		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
+}
+
+func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
+	var writeBuffer bytes.Buffer
+	str := string("hertz is very good!!!")
+	src := bytes.NewBufferString(str)
+	dst := network.NewWriter(&writeBuffer)
+	// src.Len() will change, when use src.read(p []byte)
+	srcLen := int64(src.Len())
+	written, err := CopyBuffer(dst, src, nil)
+
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
 
 func TestIoutilCopyZeroAlloc(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	src := bytes.NewBufferString("hertz is very good!!!")
+	str := string("hertz is very good!!!")
+	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	srcLen := int64(src.Len())
 	written, err := CopyZeroAlloc(dst, src)
-	if written != srcLen {
-		t.Fatalf("Unexpected written: %d. Expecting: %d", written, srcLen)
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
+
+	assert.DeepEqual(t, written, srcLen)
+	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
