@@ -380,7 +380,7 @@ func TestWithBasePath(t *testing.T) {
 	go engine.Run()
 	time.Sleep(200 * time.Microsecond)
 
-	s := "POST /hertz?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s := "POST hertz?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
 
 	ctx := app.NewContext(0)
@@ -391,7 +391,7 @@ func TestWithBasePath(t *testing.T) {
 	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
 	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
 
-	s = "POST /hertz/a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s = "POST hertz/a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr = mock.NewZeroCopyReader(s)
 
 	ctx = app.NewContext(0)
@@ -402,6 +402,7 @@ func TestWithBasePath(t *testing.T) {
 	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
 	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
 }
+
 func TestNotEnoughBodySize(t *testing.T) {
 	engine := New(WithMaxRequestBodySize(5), WithHostPorts("127.0.0.1:8889"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
