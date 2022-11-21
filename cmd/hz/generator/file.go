@@ -14,10 +14,33 @@
  * limitations under the License.
  */
 
-package hertz
+package generator
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.4.1"
+import (
+	"fmt"
+	"go/format"
+	"path/filepath"
+	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/util"
 )
+
+type File struct {
+	Path        string
+	Content     string
+	NoRepeat    bool
+	FileTplName string
+}
+
+// Lint is used to statically analyze and format go code
+func (file *File) Lint() error {
+	name := filepath.Base(file.Path)
+	if strings.HasSuffix(name, ".go") {
+		out, err := format.Source(util.Str2Bytes(file.Content))
+		if err != nil {
+			return fmt.Errorf("lint file '%s' failed, err: %v", name, err.Error())
+		}
+		file.Content = util.Bytes2Str(out)
+	}
+	return nil
+}
