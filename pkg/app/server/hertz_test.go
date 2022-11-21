@@ -205,6 +205,29 @@ func TestHertz_Spin(t *testing.T) {
 	<-ch2
 }
 
+func TestHertz_RunDefault(t *testing.T) {
+	hertz := Default(WithHostPorts("127.0.0.1:6669"))
+	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(time.Second)
+		path := ctx.Request.URI().PathOriginal()
+		ctx.SetBodyString(string(path))
+	})
+
+	testint := uint32(0)
+	hertz.Engine.OnShutdown = append(hertz.OnShutdown, func(ctx context.Context) {
+		atomic.StoreUint32(&testint, 1)
+	})
+
+	go hertz.Spin()
+	time.Sleep(100 * time.Millisecond)
+
+	hertz.Close()
+	resp, err := http.Get("http://127.0.0.1:6669/test")
+	assert.NotNil(t, err)
+	assert.Nil(t, resp)
+	assert.DeepEqual(t, uint32(0), atomic.LoadUint32(&testint))
+}
+
 func TestLoadHTMLGlob(t *testing.T) {
 	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8890"))
 	engine.Delims("{[{", "}]}")
