@@ -266,6 +266,27 @@ func TestReadTimeoutPriority(t *testing.T) {
 	}
 }
 
+func TestDoNonNilReqResp(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return &writeErrConn{
+						Conn: mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456"),
+					},
+					nil
+			}),
+		},
+	}
+	req := protocol.AcquireRequest()
+	resp := protocol.AcquireResponse()
+	req.SetHost("foobar")
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.False(t, retry)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 400)
+	assert.DeepEqual(t, resp.Body(), []byte("123456"))
+}
+
 func TestWriteTimeoutPriority(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
@@ -289,7 +310,7 @@ func TestWriteTimeoutPriority(t *testing.T) {
 		ch <- c.Do(context.Background(), req, resp)
 	}()
 	select {
-	case <-time.After(time.Second * 2000):
+	case <-time.After(time.Second * 2):
 		t.Fatalf("should use writeTimeout in request options")
 	case err := <-ch:
 		assert.DeepEqual(t, errs.ErrWriteTimeout.Error(), err.Error())
@@ -322,4 +343,13 @@ func TestDialTimeoutPriority(t *testing.T) {
 	case err := <-ch:
 		assert.DeepEqual(t, errs.ErrDialTimeout.Error(), err.Error())
 	}
+}
+
+// mockConn for getting error when write binary data.
+type writeErrConn struct {
+	network.Conn
+}
+
+func (w writeErrConn) WriteBinary(b []byte) (n int, err error) {
+	return 0, errs.ErrConnectionClosed
 }
