@@ -86,6 +86,7 @@ Content-Type: application/json
 }
 
 func TestParseMultipartForm(t *testing.T) {
+	t.Parallel()
 	s := strings.Replace(`--foo
 Content-Disposition: form-data; name="key"
 
