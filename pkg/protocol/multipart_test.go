@@ -150,7 +150,7 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add file error: %s", err)
 	}
-	f2, err := os.Open("./multipart.go")
+	f2, err := os.Open("./response.go")
 	if err != nil {
 		t.Fatalf("open file %s error: %s", f2.Name(), err)
 	}
@@ -161,7 +161,10 @@ func TestWriteMultipartFormFile(t *testing.T) {
 		t.Fatalf("get file state error: %s", err)
 	}
 	buf2 := make([]byte, fileInfo2.Size())
-	_, err = f1.ReadAt(buf2, 0)
+	_, err = f2.ReadAt(buf2, 0)
+	if err != nil {
+		t.Fatalf("read file to bytes error: %s", err)
+	}
 	assert.True(t, strings.Contains(bodyBuffer.String(), string(buf2)))
 
 	// test file not found
