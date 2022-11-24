@@ -44,8 +44,11 @@ package protocol
 import (
 	"bytes"
 	"mime/multipart"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestWriteMultipartForm(t *testing.T) {
@@ -76,4 +79,91 @@ Content-Type: application/json
 	if w.String() != s {
 		t.Fatalf("unexpected output %q", w.Bytes())
 	}
+
+	// boundary is too long
+	err = WriteMultipartForm(&w, form, s)
+	assert.NotNil(t, err)
+}
+
+func TestParseMultipartForm(t *testing.T) {
+	s := strings.Replace(`--foo
+Content-Disposition: form-data; name="key"
+
+value
+--foo--
+`, "\n", "\r\n", -1)
+	req1 := Request{}
+	req1.SetMultipartFormBoundary("foo")
+	err := ParseMultipartForm(strings.NewReader(s), &req1, 1024, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error %s", err)
+	}
+
+	req2 := Request{}
+	mr := multipart.NewReader(strings.NewReader(s), "foo")
+	form, err := mr.ReadForm(1024)
+	if err != nil {
+		t.Fatalf("form create error: %s", err)
+	}
+	SetMultipartFormWithBoundary(&req2, form, "foo")
+	assert.DeepEqual(t, &req1, &req2)
+
+	// set Boundary as " "
+	req1.SetMultipartFormBoundary(" ")
+	err = ParseMultipartForm(strings.NewReader(s), &req1, 1024, 1024)
+	assert.NotNil(t, err)
+}
+
+func TestWriteMultipartFormFile(t *testing.T) {
+	t.Parallel()
+	bodyBuffer := &bytes.Buffer{}
+	w := multipart.NewWriter(bodyBuffer)
+	f1, err := os.Open("./multipart.go")
+	if err != nil {
+		t.Fatalf("open file %s error: %s", f1.Name(), err)
+	}
+	defer f1.Close()
+
+	multipartFile := File{
+		Name:      f1.Name(),
+		ParamName: "multipartCode",
+		Reader:    f1,
+	}
+	err = WriteMultipartFormFile(w, multipartFile.ParamName, "multipart.go", multipartFile.Reader)
+	fileInfo1, err := f1.Stat() //获取文件属性
+	if err != nil {
+		t.Fatalf("get file state error: %s", err)
+	}
+	buf1 := make([]byte, fileInfo1.Size())
+	_, err = f1.ReadAt(buf1, 0)
+	if err != nil {
+		t.Fatalf("read file to bytes error: %s", err)
+	}
+	assert.True(t, strings.Contains(bodyBuffer.String(), string(buf1)))
+
+	// file not found
+	assert.NotNil(t, WriteMultipartFormFile(w, multipartFile.ParamName, "test.go", multipartFile.Reader))
+
+	// Test Add File Function
+	err = AddFile(w, "responseCode", "./response.go")
+	if err != nil {
+		t.Fatalf("add file error: %s", err)
+	}
+	f2, err := os.Open("./multipart.go")
+	if err != nil {
+		t.Fatalf("open file %s error: %s", f2.Name(), err)
+	}
+	defer f2.Close()
+
+	fileInfo2, err := f2.Stat()
+	if err != nil {
+		t.Fatalf("get file state error: %s", err)
+	}
+	buf2 := make([]byte, fileInfo2.Size())
+	_, err = f1.ReadAt(buf2, 0)
+	assert.True(t, strings.Contains(bodyBuffer.String(), string(buf2)))
+
+	// test file not found
+	err = AddFile(w, "responseCode", "./test.go")
+	assert.NotNil(t, err)
 }
