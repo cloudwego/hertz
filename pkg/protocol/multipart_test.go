@@ -119,6 +119,8 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	t.Parallel()
 	bodyBuffer := &bytes.Buffer{}
 	w := multipart.NewWriter(bodyBuffer)
+
+	// read multipart.go to buf1
 	f1, err := os.Open("./multipart.go")
 	if err != nil {
 		t.Fatalf("open file %s error: %s", f1.Name(), err)
@@ -135,6 +137,7 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get file state error: %s", err)
 	}
+
 	buf1 := make([]byte, fileInfo1.Size())
 	_, err = f1.ReadAt(buf1, 0)
 	if err != nil {
@@ -150,6 +153,8 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add file error: %s", err)
 	}
+
+	// read response.go to buf2
 	f2, err := os.Open("./response.go")
 	if err != nil {
 		t.Fatalf("open file %s error: %s", f2.Name(), err)
