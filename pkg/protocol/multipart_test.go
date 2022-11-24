@@ -103,7 +103,7 @@ value
 	mr := multipart.NewReader(strings.NewReader(s), "foo")
 	form, err := mr.ReadForm(1024)
 	if err != nil {
-		t.Fatalf("form create error: %s", err)
+		t.Fatalf("unexpected error: %s", err)
 	}
 	SetMultipartFormWithBoundary(&req2, form, "foo")
 	assert.DeepEqual(t, &req1, &req2)
@@ -130,7 +130,7 @@ func TestWriteMultipartFormFile(t *testing.T) {
 		Reader:    f1,
 	}
 	err = WriteMultipartFormFile(w, multipartFile.ParamName, "multipart.go", multipartFile.Reader)
-	fileInfo1, err := f1.Stat() //获取文件属性
+	fileInfo1, err := f1.Stat()
 	if err != nil {
 		t.Fatalf("get file state error: %s", err)
 	}
@@ -141,7 +141,7 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	}
 	assert.True(t, strings.Contains(bodyBuffer.String(), string(buf1)))
 
-	// file not found
+	// test file not found
 	assert.NotNil(t, WriteMultipartFormFile(w, multipartFile.ParamName, "test.go", multipartFile.Reader))
 
 	// Test Add File Function
