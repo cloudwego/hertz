@@ -47,7 +47,7 @@ type Conn struct {
 }
 
 func (c *Conn) ToHertzError(err error) error {
-	if errors.Is(err, io.ErrClosedPipe) || errors.Is(err, unix.ENOTCONN) {
+	if errors.Is(err, unix.EPIPE) || errors.Is(err, unix.ENOTCONN) {
 		return errs.ErrConnectionClosed
 	}
 	return err

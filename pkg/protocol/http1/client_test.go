@@ -287,6 +287,25 @@ func TestDoNonNilReqResp(t *testing.T) {
 	assert.DeepEqual(t, resp.Body(), []byte("123456"))
 }
 
+func TestDoNonNilReqResp1(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return &writeErrConn{
+						Conn: mock.NewConn(""),
+					},
+					nil
+			}),
+		},
+	}
+	req := protocol.AcquireRequest()
+	resp := protocol.AcquireResponse()
+	req.SetHost("foobar")
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.True(t, retry)
+	assert.NotNil(t, err)
+}
+
 func TestWriteTimeoutPriority(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
