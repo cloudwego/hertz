@@ -220,7 +220,9 @@ func doRequestFollowRedirectsBuffer(ctx context.Context, req *protocol.Request, 
 
 	statusCode, _, err = DoRequestFollowRedirects(ctx, req, resp, url, defaultMaxRedirectsCount, c)
 
-	body = bodyBuf.B
+	// In HTTP2 scenario, client use stream mode to create a request and its body is in body stream.
+	// In HTTP1, only client recv body exceed max body size and client is in stream mode can trig it.
+	body = resp.Body()
 	bodyBuf.B = oldBody
 	protocol.ReleaseResponse(resp)
 
