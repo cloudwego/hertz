@@ -133,6 +133,9 @@ func TestWriteMultipartFormFile(t *testing.T) {
 		Reader:    f1,
 	}
 	err = WriteMultipartFormFile(w, multipartFile.ParamName, "multipart.go", multipartFile.Reader)
+	if err != nil {
+		t.Fatalf("write multipart error: %s", err)
+	}
 	fileInfo1, err := f1.Stat()
 	if err != nil {
 		t.Fatalf("get file state error: %s", err)
