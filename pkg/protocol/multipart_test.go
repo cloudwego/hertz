@@ -53,7 +53,6 @@ import (
 
 func TestWriteMultipartForm(t *testing.T) {
 	t.Parallel()
-
 	var w bytes.Buffer
 	s := strings.Replace(`--foo
 Content-Disposition: form-data; name="key"
@@ -72,17 +71,19 @@ Content-Type: application/json
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if err := WriteMultipartForm(&w, form, "foo"); err != nil {
+	// boundary is too long
+	err = WriteMultipartForm(&w, form, s)
+	assert.NotNil(t, err)
+
+	// normal test
+	err = WriteMultipartForm(&w, form, "foo")
+	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	if w.String() != s {
 		t.Fatalf("unexpected output %q", w.Bytes())
 	}
-
-	// boundary is too long
-	err = WriteMultipartForm(&w, form, s)
-	assert.NotNil(t, err)
 }
 
 func TestParseMultipartForm(t *testing.T) {
