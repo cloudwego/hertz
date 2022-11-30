@@ -85,6 +85,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | Use hertz handle Lark/Feishu card message and event callback.                                                                                                                  |
 | [Logger](https://github.com/hertz-contrib/logger)                                                  | Logger extension for Hertz, which provides support for zap, logrus, zerologs logging frameworks.                                                                               |
 | [Csrf](https://github.com/hertz-contrib/csrf)                                                      | Csrf middleware is used to prevent cross-site request forgery attacks.                                                                                                         |
+| [Loadbalance](https://github.com/hertz-contrib/loadbalance)                                        | Provides load balancing algorithms for Hertz.                                                                                                                                  |
 
 ## Blogs
 - [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)

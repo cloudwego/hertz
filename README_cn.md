@@ -85,6 +85,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 | [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | 在 Hertz 中处理 Lark/飞书的卡片消息和事件的回调。                                                                   |
 | [Logger](https://github.com/hertz-contrib/logger)                                                  | Hertz 的日志拓展，提供了对 zap、logrus、zerologs 日志框架的支持。                                                     |
 | [Csrf](https://github.com/hertz-contrib/csrf)                                                      | Csrf 中间件用于防止跨站点请求伪造攻击。                                                                            |
+| [Loadbalance](https://github.com/hertz-contrib/loadbalance)                                        | 提供适用于 Hertz 的负载均衡算法。                                                                              |
 
 ## 相关文章
 - [字节跳动在 Go 网络库上的实践](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
