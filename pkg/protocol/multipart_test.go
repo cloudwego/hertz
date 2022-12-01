@@ -75,6 +75,11 @@ Content-Type: application/json
 	err = WriteMultipartForm(&w, form, s)
 	assert.NotNil(t, err)
 
+	// set Boundary as empty
+	assert.Panic(t, func() {
+		err = WriteMultipartForm(&w, form, "")
+	})
+
 	// normal test
 	err = WriteMultipartForm(&w, form, "foo")
 	if err != nil {
@@ -96,6 +101,9 @@ value
 `, "\n", "\r\n", -1)
 	req1 := Request{}
 	req1.SetMultipartFormBoundary("foo")
+	// test size 0
+	assert.NotNil(t, ParseMultipartForm(strings.NewReader(s), &req1, 0, 0))
+
 	err := ParseMultipartForm(strings.NewReader(s), &req1, 1024, 1024)
 	if err != nil {
 		t.Fatalf("unexpected error %s", err)
@@ -113,6 +121,10 @@ value
 	// set Boundary as " "
 	req1.SetMultipartFormBoundary(" ")
 	err = ParseMultipartForm(strings.NewReader(s), &req1, 1024, 1024)
+	assert.NotNil(t, err)
+
+	// set size 0
+	err = ParseMultipartForm(strings.NewReader(s), &req1, 0, 0)
 	assert.NotNil(t, err)
 }
 
@@ -133,10 +145,12 @@ func TestWriteMultipartFormFile(t *testing.T) {
 		ParamName: "multipartCode",
 		Reader:    f1,
 	}
-	err = WriteMultipartFormFile(w, multipartFile.ParamName, "multipart.go", multipartFile.Reader)
+
+	err = WriteMultipartFormFile(w, multipartFile.ParamName, f1.Name(), multipartFile.Reader)
 	if err != nil {
 		t.Fatalf("write multipart error: %s", err)
 	}
+
 	fileInfo1, err := f1.Stat()
 	if err != nil {
 		t.Fatalf("get file state error: %s", err)
@@ -178,5 +192,46 @@ func TestWriteMultipartFormFile(t *testing.T) {
 
 	// test file not found
 	err = AddFile(w, "responseCode", "./test.go")
+	assert.NotNil(t, err)
+
+	// test WriteMultipartFormFile without file name
+	bodyBuffer = &bytes.Buffer{}
+	w = multipart.NewWriter(bodyBuffer)
+	// read multipart.go to buf1
+	f3, err := os.Open("./multipart.go")
+	if err != nil {
+		t.Fatalf("open file %s error: %s", f3.Name(), err)
+	}
+	defer f3.Close()
+	err = WriteMultipartFormFile(w, "multipart", " ", f3)
+	if err != nil {
+		t.Fatalf("write multipart error: %s", err)
+	}
+	assert.False(t, strings.Contains(bodyBuffer.String(), f3.Name()))
+}
+
+func TestMarshalMultipartForm(t *testing.T) {
+	s := strings.Replace(`--foo
+Content-Disposition: form-data; name="key"
+
+value
+--foo
+Content-Disposition: form-data; name="file"; filename="test.json"
+Content-Type: application/json
+
+{"foo": "bar"}
+--foo--
+`, "\n", "\r\n", -1)
+	mr := multipart.NewReader(strings.NewReader(s), "foo")
+	form, err := mr.ReadForm(1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	bufs, err := MarshalMultipartForm(form, "foo")
+	assert.Nil(t, err)
+	assert.DeepEqual(t, s, string(bufs))
+
+	// set boundary invalid
+	bufs, err = MarshalMultipartForm(form, " ")
 	assert.NotNil(t, err)
 }
