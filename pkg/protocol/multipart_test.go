@@ -232,6 +232,6 @@ Content-Type: application/json
 	assert.DeepEqual(t, s, string(bufs))
 
 	// set boundary invalid
-	bufs, err = MarshalMultipartForm(form, " ")
+	_, err = MarshalMultipartForm(form, " ")
 	assert.NotNil(t, err)
 }
