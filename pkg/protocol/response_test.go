@@ -229,3 +229,30 @@ func TestResponseAcquireResponse(t *testing.T) {
 	ReleaseResponse(resp1)
 	assert.Nil(t, resp1.body)
 }
+
+type closeBuffer struct {
+	*bytes.Buffer
+}
+
+func (b *closeBuffer) Close() error {
+	b.Reset()
+	return nil
+}
+
+func TestSetBodyStreamNoReset(t *testing.T) {
+	t.Parallel()
+	resp := Response{}
+	bsA := &closeBuffer{bytes.NewBufferString("A")}
+	bsB := &closeBuffer{bytes.NewBufferString("B")}
+	bsC := &closeBuffer{bytes.NewBufferString("C")}
+
+	resp.SetBodyStream(bsA, 1)
+	resp.SetBodyStreamNoReset(bsB, 1)
+	// resp.Body() has closed bsB
+	assert.DeepEqual(t, string(resp.Body()), "B")
+	assert.DeepEqual(t, bsA.String(), "A")
+
+	resp.bodyStream = bsA
+	resp.SetBodyStream(bsC, 1)
+	assert.DeepEqual(t, bsA.String(), "")
+}
