@@ -2051,3 +2051,70 @@ func TestClientDialerName(t *testing.T) {
 		t.Errorf("expected 'empty string', but get %s", dName)
 	}
 }
+
+func TestClientDoWithDialFunc(t *testing.T) {
+	t.Parallel()
+
+	ch := make(chan error, 1)
+	uri := "/foo/bar/baz"
+	body := "request body"
+	opt := config.NewOptions([]config.Option{})
+
+	opt.Addr = "unix-test-10021"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+
+	engine.POST("/foo/bar/baz", func(c context.Context, ctx *app.RequestContext) {
+		if string(ctx.Request.Header.Method()) != consts.MethodPost {
+			ch <- fmt.Errorf("unexpected request method: %q. Expecting %q", ctx.Request.Header.Method(), consts.MethodPost)
+			return
+		}
+		reqURI := ctx.Request.RequestURI()
+		if string(reqURI) != uri {
+			ch <- fmt.Errorf("unexpected request uri: %q. Expecting %q", reqURI, uri)
+			return
+		}
+		cl := ctx.Request.Header.ContentLength()
+		if cl != len(body) {
+			ch <- fmt.Errorf("unexpected content-length %d. Expecting %d", cl, len(body))
+			return
+		}
+		reqBody := ctx.Request.Body()
+		if string(reqBody) != body {
+			ch <- fmt.Errorf("unexpected request body: %q. Expecting %q", reqBody, body)
+			return
+		}
+		ch <- nil
+	})
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+
+	var req protocol.Request
+	req.Header.SetMethod(consts.MethodPost)
+	req.SetRequestURI(uri)
+	req.SetHost("xxx.com")
+	req.SetBodyString(body)
+
+	var resp protocol.Response
+
+	err := c.Do(context.Background(), &req, &resp)
+	if err != nil {
+		t.Fatalf("error when doing request: %s", err)
+	}
+
+	select {
+	case err = <-ch:
+		if err != nil {
+			t.Fatalf("err = %s", err.Error())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timeout")
+	}
+}
