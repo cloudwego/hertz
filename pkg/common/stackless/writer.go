@@ -46,7 +46,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/valyala/bytebufferpool"
 )
 
 // Writer is an interface stackless writer must conform to.
