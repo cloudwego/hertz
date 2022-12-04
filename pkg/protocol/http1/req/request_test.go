@@ -54,7 +54,6 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -63,6 +62,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 	"github.com/cloudwego/netpoll"
+	"github.com/valyala/bytebufferpool"
 )
 
 func TestRequestContinueReadBody(t *testing.T) {

@@ -47,10 +47,10 @@ import (
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/nocopy"
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/valyala/bytebufferpool"
 )
 
 var responsePool sync.Pool

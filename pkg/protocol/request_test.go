@@ -52,10 +52,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/valyala/bytebufferpool"
 )
 
 type errorReader struct{}
