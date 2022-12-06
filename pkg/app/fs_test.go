@@ -160,7 +160,7 @@ func TestServeFileHead(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if len(ce) > 0 {
 		t.Fatalf("Unexpected 'Content-Encoding' %q", ce)
 	}
@@ -250,8 +250,7 @@ func TestServeFileCompressed(t *testing.T) {
 	if err := resp.Read(&r, zr); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if string(ce) != "gzip" {
 		t.Fatalf("Unexpected 'Content-Encoding' %q. Expecting %q", ce, "gzip")
 	}
@@ -287,7 +286,7 @@ func TestServeFileUncompressed(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if len(ce) > 0 {
 		t.Fatalf("Unexpected 'Content-Encoding' %q", ce)
 	}
@@ -534,7 +533,7 @@ func testFSCompress(t *testing.T, h HandlerFunc, filePath string) {
 	if r.StatusCode() != consts.StatusOK {
 		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusOK, filePath)
 	}
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if string(ce) != "" {
 		t.Fatalf("unexpected content-encoding %q. Expecting empty string. filePath=%q", ce, filePath)
 	}
@@ -553,7 +552,7 @@ func testFSCompress(t *testing.T, h HandlerFunc, filePath string) {
 	if r.StatusCode() != consts.StatusOK {
 		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusOK, filePath)
 	}
-	ce = r.Header.Peek(consts.HeaderContentEncoding)
+	ce = r.Header.ContentEncoding()
 	if string(ce) != "gzip" {
 		t.Fatalf("unexpected content-encoding %q. Expecting %q. filePath=%q", ce, "gzip", filePath)
 	}

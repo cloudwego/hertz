@@ -167,7 +167,7 @@ func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response str
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType)
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
 	if !bytes.Equal(resp.Body(), []byte(expectedBody)) {
 		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
 	}
@@ -421,15 +421,18 @@ func TestResponseReadWithoutBody(t *testing.T) {
 		329, 894, "qwe", "foobar")
 }
 
-func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType string) {
+func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType string, expectedContentEncoding string) {
 	if h.StatusCode() != expectedStatusCode {
 		t.Fatalf("Unexpected status code %d. Expected %d", h.StatusCode(), expectedStatusCode)
 	}
 	if h.ContentLength() != expectedContentLength {
 		t.Fatalf("Unexpected content length %d. Expected %d", h.ContentLength(), expectedContentLength)
 	}
-	if string(h.Peek(consts.HeaderContentType)) != expectedContentType {
-		t.Fatalf("Unexpected content type %q. Expected %q", h.Peek(consts.HeaderContentType), expectedContentType)
+	if string(h.ContentType()) != expectedContentType {
+		t.Fatalf("Unexpected content type %q. Expected %q", h.ContentType(), expectedContentType)
+	}
+	if string(h.ContentEncoding()) != expectedContentEncoding {
+		t.Fatalf("Unexpected content encoding %q. Expected %q", h.ContentEncoding(), expectedContentEncoding)
 	}
 }
 
@@ -489,7 +492,7 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 	if len(resp.Body()) != 0 {
 		t.Fatalf("Unexpected response body %q. Expected %q. response=%q", resp.Body(), "", s)
 	}
-	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType)
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
 	assert.VerifyTrailer(t, zr, expectedTrailer)
 
 	// verify that ordinal response is read after null-body response
