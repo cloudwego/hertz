@@ -485,7 +485,7 @@ func verifyResponse(t *testing.T, zr network.Reader, expectedStatusCode int, exp
 	verifyResponseHeader(t, &r.Header, expectedStatusCode, len(r.Body()), expectedContentType, "")
 }
 
-func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType string, expectedContentEncoding string) {
+func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType, expectedContentEncoding string) {
 	if h.StatusCode() != expectedStatusCode {
 		t.Fatalf("Unexpected status code %d. Expected %d", h.StatusCode(), expectedStatusCode)
 	}

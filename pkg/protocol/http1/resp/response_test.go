@@ -421,7 +421,7 @@ func TestResponseReadWithoutBody(t *testing.T) {
 		329, 894, "qwe", "foobar")
 }
 
-func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType string, expectedContentEncoding string) {
+func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType, expectedContentEncoding string) {
 	if h.StatusCode() != expectedStatusCode {
 		t.Fatalf("Unexpected status code %d. Expected %d", h.StatusCode(), expectedStatusCode)
 	}

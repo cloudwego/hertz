@@ -100,6 +100,7 @@ func TestSetContentLengthBytes(t *testing.T) {
 	rh.SetContentLengthBytes([]byte("foo"))
 	assert.DeepEqual(t, rh.contentLengthBytes, []byte("foo"))
 }
+
 func TestSetContentEncoding(t *testing.T) {
 	rh := ResponseHeader{}
 	rh.SetContentEncoding("gzip")
