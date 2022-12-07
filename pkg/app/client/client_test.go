@@ -68,6 +68,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/netpoll"
@@ -191,6 +192,39 @@ func TestClientGetWithBody(t *testing.T) {
 	if len(res.Body()) == 0 {
 		t.Fatal("missing request body")
 	}
+}
+
+func TestClientPostBodyStream(t *testing.T) {
+	t.Parallel()
+
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "unix-test-10102"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
+		body := ctx.Request.Body()
+		ctx.Write(body) //nolint:errcheck
+	})
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+
+	cStream, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)), WithResponseBodyStream(true))
+	args := &protocol.Args{}
+	// There is some data in databuf and others is in bodystream, so we need
+	// to let the data exceed the max bodysize of bodystream
+	v := ""
+	for i := 0; i < 10240; i++ {
+		v += "b"
+	}
+	args.Add("a", v)
+	_, body, err := cStream.Post(context.Background(), nil, "http://example.com", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, "a="+v, string(body))
 }
 
 func TestClientURLAuth(t *testing.T) {

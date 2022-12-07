@@ -19,6 +19,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 )
 
@@ -29,12 +30,8 @@ func TestChunkParseChunkSizeGetCorrect(t *testing.T) {
 		chunkSizeBody := hex + "\r\n"
 		zr := mock.NewZeroCopyReader(chunkSizeBody)
 		chunkSize, err := ParseChunkSize(zr)
-		if err != nil {
-			t.Fatalf("Unexpected error for ParseChunkSize: %s", err)
-		}
-		if dec != chunkSize {
-			t.Fatalf("Unexpected chunkSize: %d. Expecting %d", chunkSize, dec)
-		}
+		assert.DeepEqual(t, nil, err)
+		assert.DeepEqual(t, chunkSize, dec)
 	}
 }
 
@@ -46,12 +43,8 @@ func TestChunkParseChunkSizeCorrectWhiteSpace(t *testing.T) {
 		chunkSizeBody := "0" + whiteSpace + "\r\n"
 		zr := mock.NewZeroCopyReader(chunkSizeBody)
 		chunkSize, err := ParseChunkSize(zr)
-		if err != nil {
-			t.Fatalf("Unexpected error for ParseChunkSize: %s", err)
-		}
-		if chunkSize != 0 {
-			t.Fatalf("Unexpected chunk size: %d. Expecting 0", chunkSize)
-		}
+		assert.DeepEqual(t, nil, err)
+		assert.DeepEqual(t, 0, chunkSize)
 	}
 }
 
@@ -60,28 +53,20 @@ func TestChunkParseChunkSizeNonCRLF(t *testing.T) {
 	chunkSizeBody := "0" + "\n\r"
 	zr := mock.NewZeroCopyReader(chunkSizeBody)
 	chunkSize, err := ParseChunkSize(zr)
-	if err == nil {
-		t.Fatalf("Expecting an error for chunkSize, but get nil")
-	}
-	if chunkSize != -1 {
-		t.Fatalf("Unexpected chunk size: %d. Expecting -1", chunkSize)
-	}
+	assert.DeepEqual(t, true, err != nil)
+	assert.DeepEqual(t, -1, chunkSize)
 }
 
 func TestChunkReadTrueCRLF(t *testing.T) {
 	CRLF := "\r\n"
 	zr := mock.NewZeroCopyReader(CRLF)
 	err := SkipCRLF(zr)
-	if err != nil {
-		t.Fatalf("Unexpected error for SkipCRLF: %s. Expecting nil", err)
-	}
+	assert.DeepEqual(t, nil, err)
 }
 
 func TestChunkReadFalseCRLF(t *testing.T) {
 	CRLF := "\n\r"
 	zr := mock.NewZeroCopyReader(CRLF)
 	err := SkipCRLF(zr)
-	if err == nil {
-		t.Fatalf("Expecting error, but get nil")
-	}
+	assert.DeepEqual(t, errBrokenChunk, err)
 }

@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
-package hertz
+package utils
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.4.2"
+import (
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
+
+func TestNetAddr(t *testing.T) {
+	networkAddr := NewNetAddr("127.0.0.1", "192.168.1.1")
+
+	assert.DeepEqual(t, networkAddr.Network(), "127.0.0.1")
+	assert.DeepEqual(t, networkAddr.String(), "192.168.1.1")
+}
