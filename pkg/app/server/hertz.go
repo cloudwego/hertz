@@ -95,8 +95,13 @@ func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
 // SIGTERM triggers immediately close.
 // SIGHUP|SIGINT triggers graceful shutdown.
 func waitSignal(errCh chan error) error {
+	signalToNotify := []os.Signal{syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM}
+	if signal.Ignored(syscall.SIGHUP) {
+		signalToNotify = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	}
+
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	signal.Notify(signals, signalToNotify...)
 
 	select {
 	case sig := <-signals:
@@ -105,6 +110,7 @@ func waitSignal(errCh chan error) error {
 			// force exit
 			return errors.New(sig.String()) // nolint
 		case syscall.SIGHUP, syscall.SIGINT:
+			hlog.SystemLogger().Infof("Received signal: %s\n", sig)
 			// graceful shutdown
 			return nil
 		}
