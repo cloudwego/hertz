@@ -130,7 +130,7 @@ func (lg *LayoutGenerator) GenerateByService(service Layout) error {
 		return err
 	}
 	if service.HasIdl {
-		for k, _ := range lg.tpls {
+		for k := range lg.tpls {
 			if strings.Contains(k, registerTplName) {
 				delete(lg.tpls, k)
 				break

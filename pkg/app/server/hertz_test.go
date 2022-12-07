@@ -457,7 +457,7 @@ func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStat
 
 func TestParamInconsist(t *testing.T) {
 	mapS := sync.Map{}
-	h := New(WithHostPorts("localhost:10091"))
+	h := New(WithHostPorts("127.0.0.1:10091"))
 	h.GET("/:label", func(c context.Context, ctx *app.RequestContext) {
 		label := ctx.Param("label")
 		x, _ := mapS.LoadOrStore(label, label)
@@ -473,13 +473,13 @@ func TestParamInconsist(t *testing.T) {
 	tr := func() {
 		defer wg.Done()
 		for i := 0; i < 5000; i++ {
-			client.Get(context.Background(), nil, "http://localhost:10091/test1")
+			client.Get(context.Background(), nil, "http://127.0.0.1:10091/test1")
 		}
 	}
 	ti := func() {
 		defer wg.Done()
 		for i := 0; i < 5000; i++ {
-			client.Get(context.Background(), nil, "http://localhost:10091/test2")
+			client.Get(context.Background(), nil, "http://127.0.0.1:10091/test2")
 		}
 	}
 
@@ -492,7 +492,7 @@ func TestParamInconsist(t *testing.T) {
 }
 
 func TestDuplicateReleaseBodyStream(t *testing.T) {
-	h := New(WithStreamBody(true), WithHostPorts("localhost:10092"))
+	h := New(WithStreamBody(true), WithHostPorts("127.0.0.1:10092"))
 	h.POST("/test", func(ctx context.Context, c *app.RequestContext) {
 		stream := c.RequestBodyStream()
 		c.Response.SetBodyStream(stream, -1)
@@ -514,7 +514,7 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 	wg := sync.WaitGroup{}
 	testFunc := func() {
 		defer wg.Done()
-		r := protocol.NewRequest("POST", "http://localhost:10092/test", nil)
+		r := protocol.NewRequest("POST", "http://127.0.0.1:10092/test", nil)
 		r.SetBodyString(body)
 		resp := protocol.AcquireResponse()
 		err := client.Do(context.Background(), r, resp)
@@ -670,7 +670,7 @@ func (t testTracer) Start(ctx context.Context, c *app.RequestContext) context.Co
 func (t testTracer) Finish(ctx context.Context, c *app.RequestContext) {}
 
 func TestReuseCtx(t *testing.T) {
-	h := New(WithTracer(testTracer{}), WithHostPorts("localhost:9228"))
+	h := New(WithTracer(testTracer{}), WithHostPorts("127.0.0.1:9228"))
 	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		assert.DeepEqual(t, 0, ctx.Value("testKey").(int))
 	})
@@ -739,4 +739,73 @@ func TestOnprepare(t *testing.T) {
 	go h.Spin()
 	time.Sleep(time.Second)
 	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
+}
+
+func TestHertz_BodyWithHandleContext(t *testing.T) {
+	hertz := New(WithHostPorts("127.0.0.1:7555"))
+	exceptdBody := "test"
+	hertz.POST("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.Request.Header.SetRequestURI("/test1")
+		hertz.HandleContext(c, ctx)
+	})
+
+	hertz.POST("/test1", func(c context.Context, ctx *app.RequestContext) {
+		body, err := ctx.Body()
+		assert.Nil(t, err)
+		assert.DeepEqual(t, exceptdBody, string(body))
+		ctx.String(consts.StatusOK, string(body))
+	})
+
+	go hertz.Spin()
+	time.Sleep(100 * time.Millisecond)
+
+	resp, err := http.Post("http://127.0.0.1:7555/test", "application/json", bytes.NewBuffer([]byte(exceptdBody)))
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+}
+
+func TestBodyStreamWithHandleContext(t *testing.T) {
+	h := New(WithStreamBody(true), WithHostPorts("127.0.0.1:10089"))
+	h.POST("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.Request.Header.SetRequestURI("/test1")
+		h.HandleContext(c, ctx)
+	})
+	h.POST("/test1", func(ctx context.Context, c *app.RequestContext) {
+		stream := c.RequestBodyStream()
+		c.Response.SetBodyStream(stream, -1)
+	})
+	go h.Spin()
+	time.Sleep(time.Second)
+	client, _ := c.NewClient(c.WithMaxConnsPerHost(1000000), c.WithDialTimeout(time.Minute))
+	bodyBytes := make([]byte, 102388)
+	index := 0
+	letterBytes := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	for i := 0; i < 102388; i++ {
+		bodyBytes[i] = letterBytes[index]
+		if i%1969 == 0 && i != 0 {
+			index = index + 1
+		}
+	}
+	body := string(bodyBytes)
+
+	wg := sync.WaitGroup{}
+	testFunc := func() {
+		defer wg.Done()
+		r := protocol.NewRequest("POST", "http://127.0.0.1:10089/test", nil)
+		r.SetBodyString(body)
+		resp := protocol.AcquireResponse()
+		err := client.Do(context.Background(), r, resp)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err.Error())
+		}
+		if body != string(resp.Body()) {
+			t.Errorf("unequal body")
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go testFunc()
+	}
+	wg.Wait()
 }

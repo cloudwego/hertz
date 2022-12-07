@@ -49,6 +49,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -500,6 +501,91 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestHandleContext(t *testing.T) {
+	t.Run("normal route", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		e := NewEngine(opt)
+		e.GET("/", func(c context.Context, ctx *app.RequestContext) {
+			ctx.Request.SetRequestURI("/v2")
+			e.HandleContext(c, ctx)
+		})
+		v2 := e.Group("/v2")
+		{
+			v2.GET("/", func(c context.Context, ctx *app.RequestContext) {
+			})
+		}
+		w := performRequest(e, "GET", "/")
+		assert.DeepEqual(t, 301, w.Code)
+	})
+
+	t.Run("diff method", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		e := NewEngine(opt)
+		e.GET("/", func(c context.Context, ctx *app.RequestContext) {
+			ctx.Request.SetRequestURI("/v2/index")
+			ctx.Request.SetMethod("POST")
+			e.HandleContext(c, ctx)
+		})
+		v2 := e.Group("/v2")
+		{
+			v2.POST("/index", func(c context.Context, ctx *app.RequestContext) {
+			})
+		}
+		w := performRequest(e, "GET", "/")
+		assert.DeepEqual(t, 200, w.Code)
+	})
+
+	t.Run("param route", func(t *testing.T) {
+		name := "hertz"
+		opt := config.NewOptions([]config.Option{})
+		e := NewEngine(opt)
+		e.GET("/", func(c context.Context, ctx *app.RequestContext) {
+			ctx.Request.SetRequestURI("/v2/hertz")
+			e.HandleContext(c, ctx)
+		})
+		v2 := e.Group("/v2")
+		{
+			v2.GET("/:name", func(c context.Context, ctx *app.RequestContext) {
+				assert.DeepEqual(t, name, ctx.Param("name"))
+				ctx.SetStatusCode(201)
+			})
+		}
+		w := performRequest(e, "GET", "/")
+		assert.DeepEqual(t, 201, w.Code)
+	})
+
+	t.Run("many-reenter", func(t *testing.T) {
+		expectValue := 10000
+
+		var handlerCounter, middlewareCounter int64
+
+		opt := config.NewOptions([]config.Option{})
+		e := NewEngine(opt)
+		e.Use(func(c context.Context, ctx *app.RequestContext) {
+			atomic.AddInt64(&middlewareCounter, 1)
+		})
+
+		e.GET("/:count", func(c context.Context, ctx *app.RequestContext) {
+			countStr := ctx.Param("count")
+			count, err := strconv.Atoi(countStr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case count > 0:
+				ctx.Request.SetRequestURI("/" + strconv.Itoa(count-1))
+				e.HandleContext(c, ctx)
+			}
+		}, func(c context.Context, ctx *app.RequestContext) {
+			atomic.AddInt64(&handlerCounter, 1)
+		})
+		w := performRequest(e, "GET", "/"+strconv.Itoa(expectValue-1))
+		assert.DeepEqual(t, 200, w.Code)
+		assert.DeepEqual(t, int64(expectValue), handlerCounter)
+		assert.DeepEqual(t, int64(expectValue), middlewareCounter)
+	})
 }
 
 type mockConn struct{}

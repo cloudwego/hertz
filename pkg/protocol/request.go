@@ -190,6 +190,13 @@ func (req *Request) ResetSkipHeader() {
 	req.isTLS = false
 }
 
+func (req *Request) ResetURI() {
+	req.uri.Reset()
+	req.parsedURI = false
+	req.parsedPostArgs = false
+	req.postArgs.Reset()
+}
+
 func SwapRequestBody(a, b *Request) {
 	a.body, b.body = b.body, a.body
 	a.bodyRaw, b.bodyRaw = b.bodyRaw, a.bodyRaw

@@ -284,6 +284,10 @@ func (ctx *RequestContext) GetIndex() int8 {
 	return ctx.index
 }
 
+func (ctx *RequestContext) SetIndex(i int8) {
+	ctx.index = i
+}
+
 type HandlerFunc func(c context.Context, ctx *RequestContext)
 
 // HandlersChain defines a HandlerFunc array.
