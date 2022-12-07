@@ -415,8 +415,13 @@ func (engine *Engine) getNextProto(conn network.Conn) (proto string, err error) 
 	return
 }
 
-func (engine *Engine) onData(c context.Context, conn network.Conn) (err error) {
-	err = engine.Serve(c, conn)
+func (engine *Engine) onData(c context.Context, conn interface{}) (err error) {
+	switch conn := conn.(type) {
+	case network.Conn:
+		err = engine.Serve(c, conn)
+	case network.StreamConn:
+		err = engine.ServeStream(c, conn)
+	}
 	return
 }
 
@@ -929,6 +934,11 @@ func (engine *Engine) AddProtocol(protocol string, factory suite.ServerFactory) 
 
 func (engine *Engine) HasServer(name string) bool {
 	return engine.protocolSuite.Get(name) != nil
+}
+
+func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) error {
+	// TODO
+	return nil
 }
 
 // iterate iterates the method tree by depth firstly.
