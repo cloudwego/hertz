@@ -116,7 +116,8 @@ func Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) err
 // Warning: DoTimeout does not terminate the request itself. The request will
 // continue in the background and the response will be discarded.
 // If requests take too long and the connection pool gets filled up please
-// try using a Client and setting a ReadTimeout.
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration) error {
 	return defaultClient.DoTimeout(ctx, req, resp, timeout)
 }
@@ -144,6 +145,12 @@ func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Respon
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
+//
+// Warning: DoDeadline does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time) error {
 	return defaultClient.DoDeadline(ctx, req, resp, deadline)
 }
@@ -178,8 +185,9 @@ func DoRedirects(ctx context.Context, req *protocol.Request, resp *protocol.Resp
 // is too small a new slice will be allocated.
 //
 // The function follows redirects. Use Do* for manually handling redirects.
-func Get(ctx context.Context, dst []byte, url string) (statusCode int, body []byte, err error) {
-	return defaultClient.Get(ctx, dst, url)
+//
+func Get(ctx context.Context, dst []byte, url string, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.Get(ctx, dst, url, requestOptions...)
 }
 
 // GetTimeout returns the status code and body of url.
@@ -191,8 +199,14 @@ func Get(ctx context.Context, dst []byte, url string) (statusCode int, body []by
 //
 // errTimeout error is returned if url contents couldn't be fetched
 // during the given timeout.
-func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Duration) (statusCode int, body []byte, err error) {
-	return defaultClient.GetTimeout(ctx, dst, url, timeout)
+//
+// Warning: GetTimeout does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `GetTimeout(ctx, dst, url, timeout, config.WithReadTimeout(1 * time.Second))`
+func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Duration, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.GetTimeout(ctx, dst, url, timeout, requestOptions...)
 }
 
 // GetDeadline returns the status code and body of url.
@@ -204,8 +218,14 @@ func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Durati
 //
 // errTimeout error is returned if url contents couldn't be fetched
 // until the given deadline.
-func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time) (statusCode int, body []byte, err error) {
-	return defaultClient.GetDeadline(ctx, dst, url, deadline)
+//
+// Warning: GetDeadline does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `GetDeadline(ctx, dst, url, timeout, config.WithReadTimeout(1 * time.Second))`
+func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.GetDeadline(ctx, dst, url, deadline, requestOptions...)
 }
 
 // Post sends POST request to the given url with the given POST arguments.
@@ -216,8 +236,8 @@ func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time
 // The function follows redirects. Use Do* for manually handling redirects.
 //
 // Empty POST body is sent if postArgs is nil.
-func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args) (statusCode int, body []byte, err error) {
-	return defaultClient.Post(ctx, dst, url, postArgs)
+func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.Post(ctx, dst, url, postArgs, requestOptions...)
 }
 
 var defaultClient, _ = NewClient(WithDialTimeout(consts.DefaultDialTimeout))
@@ -353,7 +373,8 @@ func (c *Client) Post(ctx context.Context, dst []byte, url string, postArgs *pro
 // Warning: DoTimeout does not terminate the request itself. The request will
 // continue in the background and the response will be discarded.
 // If requests take too long and the connection pool gets filled up please
-// try setting a ReadTimeout.
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func (c *Client) DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration) error {
 	return client.DoTimeout(ctx, req, resp, timeout, c)
 }
