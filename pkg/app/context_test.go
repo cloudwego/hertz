@@ -798,6 +798,37 @@ func TestRequestCtxFormValue(t *testing.T) {
 	}
 }
 
+func TestSetCustomFormValueFunc(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Request.SetRequestURI("/foo/bar?aaa=bbb")
+	ctx.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	ctx.Request.SetBodyString("aaa=port")
+
+	ctx.SetFormValueFunc(func(ctx *RequestContext, key string) []byte {
+		v := ctx.PostArgs().Peek(key)
+		if len(v) > 0 {
+			return v
+		}
+		mf, err := ctx.MultipartForm()
+		if err == nil && mf.Value != nil {
+			vv := mf.Value[key]
+			if len(vv) > 0 {
+				return []byte(vv[0])
+			}
+		}
+		v = ctx.QueryArgs().Peek(key)
+		if len(v) > 0 {
+			return v
+		}
+		return nil
+	})
+
+	v := ctx.FormValue("aaa")
+	if string(v) != "port" {
+		t.Fatalf("unexpected value %q. Expecting %q", v, "port")
+	}
+}
+
 func TestContextSetGet(t *testing.T) {
 	c := &RequestContext{}
 	c.Set("foo", "bar")

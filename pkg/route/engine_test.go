@@ -465,6 +465,23 @@ func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
 }
 
+func TestSetClientIPAndSetFormValue(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	e := NewEngine(opt)
+	e.SetClientIPFunc(func(ctx *app.RequestContext) string {
+		return "1.1.1.1"
+	})
+	e.SetFormValueFunc(func(requestContext *app.RequestContext, s string) []byte {
+		return []byte(s)
+	})
+	e.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, ctx.ClientIP(), "1.1.1.1")
+		assert.DeepEqual(t, string(ctx.FormValue("key")), "key")
+	})
+
+	_ = performRequest(e, "GET", "/ping")
+}
+
 func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
 	opt.AutoReloadRender = true

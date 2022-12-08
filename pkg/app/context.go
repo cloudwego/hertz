@@ -76,6 +76,51 @@ type Handler interface {
 	ServeHTTP(c context.Context, ctx *RequestContext)
 }
 
+type ClientIP func(ctx *RequestContext) string
+
+var defaultClientIP = func(ctx *RequestContext) string {
+	RemoteIPHeaders := []string{"X-Real-IP", "X-Forwarded-For"}
+	for _, headerName := range RemoteIPHeaders {
+		ip := ctx.Request.Header.Get(headerName)
+		if ip != "" {
+			return ip
+		}
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String())); err == nil {
+		return ip
+	}
+
+	return ""
+}
+
+// SetClientIPFunc sets ClientIP function implementation to get ClientIP.
+// Deprecated: Use engine.SetClientIPFunc instead of SetClientIPFunc
+func SetClientIPFunc(fn ClientIP) {
+	defaultClientIP = fn
+}
+
+type FormValueFunc func(*RequestContext, string) []byte
+
+var defaultFormValue = func(ctx *RequestContext, key string) []byte {
+	v := ctx.QueryArgs().Peek(key)
+	if len(v) > 0 {
+		return v
+	}
+	v = ctx.PostArgs().Peek(key)
+	if len(v) > 0 {
+		return v
+	}
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		vv := mf.Value[key]
+		if len(vv) > 0 {
+			return []byte(vv[0])
+		}
+	}
+	return nil
+}
+
 type RequestContext struct {
 	conn     network.Conn
 	Request  protocol.Request
@@ -108,6 +153,20 @@ type RequestContext struct {
 
 	// enableTrace defines whether enable trace.
 	enableTrace bool
+
+	// clientIPFunc get client ip by use custom function.
+	clientIPFunc ClientIP
+
+	// clientIPFunc get form value by use custom function.
+	formValueFunc FormValueFunc
+}
+
+func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {
+	ctx.clientIPFunc = f
+}
+
+func (ctx *RequestContext) SetFormValueFunc(f FormValueFunc) {
+	ctx.formValueFunc = f
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -459,23 +518,12 @@ func (ctx *RequestContext) FormFile(name string) (*multipart.FileHeader, error) 
 //   * FormFile for obtaining uploaded files.
 //
 // The returned value is valid until returning from RequestHandler.
+// Use engine.SetCustomFormValueFunc to change action of FormValue.
 func (ctx *RequestContext) FormValue(key string) []byte {
-	v := ctx.QueryArgs().Peek(key)
-	if len(v) > 0 {
-		return v
+	if ctx.formValueFunc != nil {
+		return ctx.formValueFunc(ctx, key)
 	}
-	v = ctx.PostArgs().Peek(key)
-	if len(v) > 0 {
-		return v
-	}
-	mf, err := ctx.MultipartForm()
-	if err == nil && mf.Value != nil {
-		vv := mf.Value[key]
-		if len(vv) > 0 {
-			return []byte(vv[0])
-		}
-	}
-	return nil
+	return defaultFormValue(ctx, key)
 }
 
 func (ctx *RequestContext) multipartFormValue(key string) (string, bool) {
@@ -1056,33 +1104,13 @@ func (ctx *RequestContext) Body() ([]byte, error) {
 	return ctx.Request.BodyE()
 }
 
-type ClientIP func(ctx *RequestContext) string
-
-var defaultClientIP = func(ctx *RequestContext) string {
-	RemoteIPHeaders := []string{"X-Real-IP", "X-Forwarded-For"}
-	for _, headerName := range RemoteIPHeaders {
-		ip := ctx.Request.Header.Get(headerName)
-		if ip != "" {
-			return ip
-		}
-	}
-
-	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String())); err == nil {
-		return ip
-	}
-
-	return ""
-}
-
-// SetClientIPFunc sets ClientIP function implementation to get ClientIP.
-func SetClientIPFunc(fn ClientIP) {
-	defaultClientIP = fn
-}
-
 // ClientIP tries to parse the headers in [X-Real-Ip, X-Forwarded-For].
 // It calls RemoteIP() under the hood. If it cannot satisfy the requirements,
-// use SetClientIPFunc to inject your own implementation.
+// use engine.SetClientIPFunc to inject your own implementation.
 func (ctx *RequestContext) ClientIP() string {
+	if ctx.clientIPFunc != nil {
+		return ctx.clientIPFunc(ctx)
+	}
 	return defaultClientIP(ctx)
 }
 
