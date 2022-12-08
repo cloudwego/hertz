@@ -267,10 +267,10 @@ func TestRouteRedirectTrailingSlash(t *testing.T) {
 
 	w = performRequest(router, consts.MethodGet, "/path2", header{Key: "X-Forwarded-Prefix", Value: "/api"})
 	assert.DeepEqual(t, "/api/path2/", w.Header().Get("Location"))
-	assert.DeepEqual(t, 301, w.Code)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, w.Code)
 
 	w = performRequest(router, consts.MethodGet, "/path2/", header{Key: "X-Forwarded-Prefix", Value: "/api/"})
-	assert.DeepEqual(t, 200, w.Code)
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
 
 	router.options.RedirectTrailingSlash = false
 
