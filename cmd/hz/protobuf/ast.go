@@ -22,16 +22,15 @@ import (
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/config"
-	"github.com/cloudwego/hertz/cmd/hz/meta"
-	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
+	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/protobuf/api"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"github.com/jhump/protoreflect/desc"
+	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 

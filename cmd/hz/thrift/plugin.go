@@ -23,14 +23,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudwego/thriftgo/generator/backend"
-
 	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
+	"github.com/cloudwego/thriftgo/generator/backend"
 	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
