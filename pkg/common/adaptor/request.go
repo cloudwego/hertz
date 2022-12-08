@@ -38,3 +38,19 @@ func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
 	r.Header = h
 	return r, nil
 }
+
+func SwapToHertzRequest(req *http.Request, hreq *protocol.Request) error {
+	hreq.Header.SetRequestURI(req.RequestURI)
+	hreq.Header.SetHost(req.Host)
+	hreq.Header.SetProtocol(req.Proto)
+	for k, v := range req.Header {
+		for _, vv := range v {
+			hreq.Header.Add(k, vv)
+		}
+	}
+	req.Header = nil
+
+	hreq.SetBodyStream(req.Body, hreq.Header.ContentLength())
+	req.Body = nil
+	return nil
+}
