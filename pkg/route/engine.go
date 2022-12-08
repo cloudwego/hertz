@@ -155,8 +155,9 @@ type Engine struct {
 	enableTrace bool
 
 	// protocol layer management
-	protocolSuite   *suite.Config
-	protocolServers map[string]protocol.Server
+	protocolSuite         *suite.Config
+	protocolServers       map[string]protocol.Server
+	protocolStreamServers map[string]protocol.StreamServer
 
 	// RequestContext pool
 	ctxPool sync.Pool
@@ -362,12 +363,13 @@ func (engine *Engine) Init() error {
 		engine.AddProtocol(suite.HTTP1, factory.NewServerFactory(newHttp1OptionFromEngine(engine)))
 	}
 
-	serverMap, err := engine.protocolSuite.LoadAll(engine)
+	serverMap, streamServerMap, err := engine.protocolSuite.LoadAll(engine)
 	if err != nil {
 		return errs.New(err, errs.ErrorTypePrivate, "LoadAll protocol suite error")
 	}
 
 	engine.protocolServers = serverMap
+	engine.protocolStreamServers = streamServerMap
 
 	if engine.alpnEnable() {
 		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP1)
@@ -532,6 +534,10 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	return
 }
 
+func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) error {
+	return engine.protocolStreamServers["http3"].Serve(ctx, conn)
+}
+
 func NewEngine(opt *config.Options) *Engine {
 	engine := &Engine{
 		trees: make(MethodTrees, 0, 9),
@@ -540,11 +546,12 @@ func NewEngine(opt *config.Options) *Engine {
 			basePath: opt.BasePath,
 			root:     true,
 		},
-		transport:       defaultTransporter(opt),
-		tracerCtl:       &internalStats.Controller{},
-		protocolServers: make(map[string]protocol.Server),
-		enableTrace:     true,
-		options:         opt,
+		transport:             defaultTransporter(opt),
+		tracerCtl:             &internalStats.Controller{},
+		protocolServers:       make(map[string]protocol.Server),
+		protocolStreamServers: make(map[string]protocol.StreamServer),
+		enableTrace:           true,
+		options:               opt,
 	}
 	if opt.TransporterNewer != nil {
 		engine.transport = opt.TransporterNewer(opt)
@@ -928,17 +935,12 @@ func (engine *Engine) Routes() (routes RoutesInfo) {
 	return routes
 }
 
-func (engine *Engine) AddProtocol(protocol string, factory suite.ServerFactory) {
+func (engine *Engine) AddProtocol(protocol string, factory interface{}) {
 	engine.protocolSuite.Add(protocol, factory)
 }
 
 func (engine *Engine) HasServer(name string) bool {
 	return engine.protocolSuite.Get(name) != nil
-}
-
-func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) error {
-	// TODO
-	return nil
 }
 
 // iterate iterates the method tree by depth firstly.

@@ -151,7 +151,6 @@ type Stream interface {
 
 type ReceiveStream interface {
 	StreamID() int64
-
 	io.Reader
 
 	// CancelRead aborts receiving on this stream.

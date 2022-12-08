@@ -51,17 +51,34 @@ type ServerFactory interface {
 	New(core Core) (server protocol.Server, err error)
 }
 
+type StreamServerFactory interface {
+	New(core Core) (server protocol.StreamServer, err error)
+}
+
 type Config struct {
-	configMap map[string]ServerFactory
+	configMap       map[string]ServerFactory
+	streamConfigMap map[string]StreamServerFactory
 }
 
 type ServerMap map[string]protocol.Server
 
-func (c *Config) Add(protocol string, factory ServerFactory) {
-	if fac := c.configMap[protocol]; fac != nil {
-		hlog.SystemLogger().Warnf("ServerFactory of protocol: %s will be overridden by customized function", protocol)
+type StreamServerMap map[string]protocol.StreamServer
+
+func (c *Config) Add(protocol string, factory interface{}) {
+	switch factory := factory.(type) {
+	case ServerFactory:
+		if fac := c.configMap[protocol]; fac != nil {
+			hlog.SystemLogger().Warnf("ServerFactory of protocol: %s will be overridden by customized function", protocol)
+		}
+		c.configMap[protocol] = factory
+	case StreamServerFactory:
+		if fac := c.streamConfigMap[protocol]; fac != nil {
+			hlog.SystemLogger().Warnf("StreamServerFactory of protocol: %s will be overridden by customized function", protocol)
+		}
+		c.streamConfigMap[protocol] = factory
+	default:
+		hlog.SystemLogger().Fatalf("Unsupported factory type: %T", factory)
 	}
-	c.configMap[protocol] = factory
 }
 
 func (c *Config) Get(name string) ServerFactory {
@@ -79,21 +96,34 @@ func (c *Config) Load(core Core, protocol string) (server protocol.Server, err e
 	return c.configMap[protocol].New(core)
 }
 
-func (c *Config) LoadAll(core Core) (serverMap ServerMap, err error) {
+func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap StreamServerMap, err error) {
 	serverMap = make(ServerMap)
 	var server protocol.Server
-	for protocol := range c.configMap {
-		if server, err = c.configMap[protocol].New(core); err != nil {
-			return nil, err
+	for proto := range c.configMap {
+		if server, err = c.configMap[proto].New(core); err != nil {
+			return nil, streamServerMap, err
 		} else {
-			serverMap[protocol] = server
+			serverMap[proto] = server
 		}
 	}
-	return serverMap, nil
+	streamServerMap = make(StreamServerMap)
+	var streamServer protocol.StreamServer
+	for proto := range c.streamConfigMap {
+		if streamServer, err = c.streamConfigMap[proto].New(core); err != nil {
+			return serverMap, nil, err
+		} else {
+			streamServerMap[proto] = streamServer
+		}
+	}
+	return serverMap, streamServerMap, nil
 }
 
 // New return an empty Config suite, use .Add() to add protocol impl
 func New() *Config {
-	c := &Config{configMap: make(map[string]ServerFactory)}
+	c := &Config{
+		configMap:       make(map[string]ServerFactory),
+		streamConfigMap: make(map[string]StreamServerFactory),
+	}
+
 	return c
 }
