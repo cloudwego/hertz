@@ -69,12 +69,14 @@ import (
 )
 
 type Plugin struct {
-	Package   string
-	Recursive bool
-	OutDir    string
-	ModelDir  string
-	PkgMap    map[string]string
-	logger    *logs.StdLogger
+	*protogen.Plugin
+	Package      string
+	Recursive    bool
+	OutDir       string
+	ModelDir     string
+	IdlClientDir string
+	PkgMap       map[string]string
+	logger       *logs.StdLogger
 }
 
 func (plugin *Plugin) Run() int {
@@ -184,6 +186,7 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	// new plugin
 	opts := protogen.Options{}
 	gen, err := opts.New(req)
+	plugin.Plugin = gen
 	if err != nil {
 		return fmt.Errorf("new protoc plugin failed: %s", err.Error())
 	}
@@ -321,6 +324,11 @@ func (plugin *Plugin) GenerateFiles(pluginPb *protogen.Plugin) error {
 			if err != nil {
 				return err
 			}
+			impt := string(f.GoImportPath)
+			if strings.HasPrefix(impt, plugin.Package) {
+				impt = impt[len(plugin.Package):]
+			}
+			plugin.IdlClientDir = impt
 		} else if plugin.Recursive {
 			if strings.HasPrefix(f.Proto.GetPackage(), "google.protobuf") {
 				continue
@@ -504,7 +512,7 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 	return nil
 }
 
-func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map[string]*descriptorpb.FileDescriptorProto) (*generator.HttpPackage, error) {
+func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map[string]*descriptorpb.FileDescriptorProto, args *config.Argument) (*generator.HttpPackage, error) {
 	if ast == nil {
 		return nil, fmt.Errorf("ast is nil")
 	}
@@ -528,7 +536,7 @@ func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map
 		return nil, err
 	}
 
-	services, err := astToService(ast, rs)
+	services, err := astToService(ast, rs, args, plugin.Plugin)
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +555,7 @@ func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map
 
 func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps map[string]*descriptorpb.FileDescriptorProto, args *config.Argument) ([]generator.File, error) {
 	options := CheckTagOption(args)
-	idl, err := plugin.getIdlInfo(ast, deps)
+	idl, err := plugin.getIdlInfo(ast, deps, args)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +593,8 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		ProjPackage:     pkg,
 		Options:         options,
 		HandlerByMethod: args.HandlerByMethod,
+		CmdType:         args.CmdType,
+		IdlClientDir:    plugin.IdlClientDir,
 	}
 
 	if args.ModelBackend != "" {

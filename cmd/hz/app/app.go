@@ -100,6 +100,22 @@ func Model(c *cli.Context) error {
 	return nil
 }
 
+func Client(c *cli.Context) error {
+	args, err := globalArgs.Parse(c, meta.CmdClient)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
+
+	err = TriggerPlugin(args)
+	if err != nil {
+		return cli.Exit(err, meta.PluginError)
+	}
+
+	return nil
+}
+
 func PluginMode() {
 	pluginName := filepath.Base(os.Args[0])
 	if util.IsWindows() {
@@ -239,6 +255,29 @@ func Init() *cli.App {
 				&excludeFilesFlag,
 			},
 			Action: Model,
+		},
+		{
+			Name:  meta.CmdClient,
+			Usage: "Generate hertz client based IDL",
+			Flags: []cli.Flag{
+				&idlFlag,
+				&moduleFlag,
+				&modelDirFlag,
+
+				&includesFlag,
+				&thriftOptionsFlag,
+				&protoOptionsFlag,
+				&noRecurseFlag,
+
+				&jsonEnumStrFlag,
+				&unsetOmitemptyFlag,
+				&protoCamelJSONTag,
+				&snakeNameFlag,
+				&excludeFilesFlag,
+				&protoPluginsFlag,
+				&thriftPluginsFlag,
+			},
+			Action: Client,
 		},
 	}
 	return app

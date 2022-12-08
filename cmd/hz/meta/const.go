@@ -34,7 +34,7 @@ const (
 	CmdUpdate = "update"
 	CmdNew    = "new"
 	CmdModel  = "model"
-	// CmdClient = "client"
+	CmdClient = "client"
 )
 
 // hz IDLs

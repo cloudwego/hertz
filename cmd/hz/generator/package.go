@@ -38,20 +38,23 @@ type HttpPackage struct {
 }
 
 type Service struct {
-	Name    string
-	Methods []*HttpMethod
-	Models  []*model.Model // all dependency models
+	Name          string
+	Methods       []*HttpMethod
+	ClientMethods []*ClientMethod
+	Models        []*model.Model // all dependency models
 }
 
 type HttpPackageGenerator struct {
 	ConfigPath      string
 	Backend         meta.Backend
 	Options         []Option
+	CmdType         string
 	ProjPackage     string
 	HandlerDir      string
 	RouterDir       string
 	ModelDir        string
 	ClientDir       string
+	IdlClientDir    string
 	NeedModel       bool
 	HandlerByMethod bool
 
@@ -134,6 +137,15 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 				return fmt.Errorf("generate model %s failed, err: %v", m.FilePath, err.Error())
 			}
 		}
+	}
+
+	if pkgGen.CmdType == meta.CmdClient {
+		clientDir := pkgGen.IdlClientDir
+		clientDir = util.SubDir(clientDir, "hertz")
+		if err := pkgGen.genClient(pkg, clientDir); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	// this is for handler_by_service, the handler_dir is {$HANDLER_DIR}/{$PKG}
