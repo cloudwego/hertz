@@ -877,11 +877,11 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 }
 {{end}}
 
-var dafaultClient, _ = New{{.ServiceName}}Client("http://127.0.0.1:8899")
+var defaultClient, _ = New{{.ServiceName}}Client("http://127.0.0.1:8899")
 
 {{range $_, $MethodInfo := .ClientMethods}}
 func {{$MethodInfo.Name}}(context context.Context, req *{{$MethodInfo.RequestTypeName}}, reqOpt ...config.RequestOption) (resp *{{$MethodInfo.ReturnTypeName}}, rawResponse *protocol.Response, err error) {
-	return dafaultClient.{{$MethodInfo.Name}}(context, req, reqOpt...)
+	return defaultClient.{{$MethodInfo.Name}}(context, req, reqOpt...)
 }
 {{end}}
 `
