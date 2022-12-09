@@ -508,7 +508,32 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 	// error happened when writing request, close the connection, and try another connection if retry is enabled
 	if err != nil {
-		c.closeConn(cc)
+		defer c.closeConn(cc)
+
+		errNorm, ok := conn.(network.ErrorNormalization)
+		if ok {
+			err = errNorm.ToHertzError(err)
+		}
+
+		if !errors.Is(err, errs.ErrConnectionClosed) {
+			return true, err
+		}
+
+		// set a protection timeout to avoid infinite loop.
+		if conn.SetReadTimeout(time.Second) != nil {
+			return true, err
+		}
+
+		// Only if the connection is closed while writing the request. Try to parse the response and return.
+		// In this case, the request/response is considered as successful.
+		// Otherwise, return the former error.
+
+		zr := c.acquireReader(conn)
+		defer zr.Release()
+		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
+			return false, nil
+		}
+
 		return true, err
 	}
 
