@@ -271,6 +271,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Del(consts.HeaderServer)
 	h.Del("content-length")
 	h.Del("set-cookie")
+	h.DelBytes([]byte("content-encoding"))
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
@@ -288,6 +289,10 @@ func TestResponseHeaderDel(t *testing.T) {
 	if string(hv) != string(bytestr.DefaultContentType) {
 		t.Fatalf("unexpected content-type: %q. Expecting %q", hv, bytestr.DefaultContentType)
 	}
+	hv = h.Peek(consts.HeaderContentEncoding)
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
+	}
 	hv = h.Peek(consts.HeaderServer)
 	if len(hv) > 0 {
 		t.Fatalf("non-zero value: %q", hv)
@@ -303,10 +308,6 @@ func TestResponseHeaderDel(t *testing.T) {
 
 	if h.ContentLength() != 0 {
 		t.Fatalf("unexpected content-length: %d. Expecting 0", h.ContentLength())
-	}
-	hv = h.ContentEncoding()
-	if string(hv) != ("gzip") {
-		t.Fatalf("unexpected content-encoding: %q. Expecting %q", hv, "gzip")
 	}
 }
 
@@ -385,20 +386,22 @@ func TestResponseHeaderAdd(t *testing.T) {
 	var h ResponseHeader
 	h.Add("aaa", "bbb")
 	h.Add("content-type", "xxx")
+	h.SetContentEncoding("gzip")
 	m["bbb"] = struct{}{}
 	m["xxx"] = struct{}{}
+	m["gzip"] = struct{}{}
 	for i := 0; i < 10; i++ {
 		v := fmt.Sprintf("%d", i)
 		h.Add("Foo-Bar", v)
 		m[v] = struct{}{}
 	}
-	if h.Len() != 12 {
+	if h.Len() != 13 {
 		t.Fatalf("unexpected header len %d. Expecting 12", h.Len())
 	}
 
 	h.VisitAll(func(k, v []byte) {
 		switch string(k) {
-		case "Aaa", "Foo-Bar", "Content-Type":
+		case "Aaa", "Foo-Bar", "Content-Type", "Content-Encoding":
 			if _, ok := m[string(v)]; !ok {
 				t.Fatalf("unexpected value found %q. key %q", v, k)
 			}
