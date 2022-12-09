@@ -593,7 +593,7 @@ func TestRouterStaticFSNotFound(t *testing.T) {
 	router := NewEngine(config.NewOptions(nil))
 	router.StaticFS("/", &app.FS{Root: "/thisreallydoesntexist/"})
 	router.NoRoute(func(c context.Context, ctx *app.RequestContext) {
-		ctx.String(404, "non existent")
+		ctx.String(consts.StatusNotFound, "non existent")
 	})
 
 	w := performRequest(router, consts.MethodGet, "/nonexistent")
@@ -825,7 +825,7 @@ func TestRouterParamWithSlash(t *testing.T) {
 	ctx.Request.Header.SetMethod(consts.MethodGet)
 	e.ServeHTTP(context.Background(), ctx)
 	assert.Nil(t, getHelper(ctx, "path"))
-	assert.DeepEqual(t, 404, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusNotFound, ctx.Response.StatusCode())
 }
 
 func TestRouteMultiLevelBacktracking(t *testing.T) {

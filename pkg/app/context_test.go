@@ -140,19 +140,19 @@ func TestNotFound(t *testing.T) {
 
 func TestRedirect(t *testing.T) {
 	ctx := NewContext(0)
-	ctx.Redirect(302, []byte("/hello"))
-	assert.DeepEqual(t, 302, ctx.Response.StatusCode())
+	ctx.Redirect(consts.StatusFound, []byte("/hello"))
+	assert.DeepEqual(t, consts.StatusFound, ctx.Response.StatusCode())
 
-	ctx.redirect([]byte("/hello"), 301)
-	assert.DeepEqual(t, 301, ctx.Response.StatusCode())
+	ctx.redirect([]byte("/hello"), consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, ctx.Response.StatusCode())
 }
 
 func TestGetRedirectStatusCode(t *testing.T) {
-	val := getRedirectStatusCode(301)
-	assert.DeepEqual(t, 301, val)
+	val := getRedirectStatusCode(consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, val)
 
-	val = getRedirectStatusCode(404)
-	assert.DeepEqual(t, 302, val)
+	val = getRedirectStatusCode(consts.StatusNotFound)
+	assert.DeepEqual(t, consts.StatusFound, val)
 }
 
 func TestCookie(t *testing.T) {

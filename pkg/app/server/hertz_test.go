@@ -290,7 +290,7 @@ func TestServer_Run(t *testing.T) {
 
 	resp, err = http.Get("http://127.0.0.1:8888/foo")
 	assert.Nil(t, err)
-	assert.DeepEqual(t, 404, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode)
 
 	resp, err = http.Post("http://127.0.0.1:8888/redirect", "", nil)
 	assert.Nil(t, err)
