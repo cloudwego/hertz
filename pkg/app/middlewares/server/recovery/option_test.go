@@ -19,13 +19,13 @@ package recovery
 import (
 	"context"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestDefaultOption(t *testing.T) {
