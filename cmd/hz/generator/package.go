@@ -150,5 +150,9 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 		return err
 	}
 
-	return pkgGen.genRouter(pkg, root, handlerPackage, routerDir, routerPackage)
+	if err := pkgGen.genRouter(pkg, root, handlerPackage, routerDir, routerPackage); err != nil {
+		return err
+	}
+
+	return pkgGen.generateCustomTemplate(pkg)
 }

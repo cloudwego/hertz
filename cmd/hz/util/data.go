@@ -420,3 +420,11 @@ func getUniqueName(name string, uniqueNameSet map[string]bool) (string, error) {
 
 	return uniqueName, nil
 }
+
+func SubPackageDir(path string) string {
+	index := strings.LastIndex(path, "/")
+	if index == -1 {
+		return ""
+	}
+	return path[:index]
+}

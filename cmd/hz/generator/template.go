@@ -54,6 +54,7 @@ type TemplateGenerator struct {
 
 	// custom template files and whether divide method
 	customTpls    map[string]*template.Template
+	pathNameTpls  map[string]*template.Template
 	divideMethods map[string]bool
 
 	files         []File
@@ -78,6 +79,12 @@ func (tg *TemplateGenerator) Init() error {
 	if customTpls == nil {
 		customTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
 	}
+
+	pathNameTpls := tg.pathNameTpls
+	if pathNameTpls == nil {
+		pathNameTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
+	}
+
 	divideMethods := tg.divideMethods
 	if divideMethods == nil {
 		divideMethods = make(map[string]bool, len(tg.Config.Layouts))
@@ -130,6 +137,15 @@ func (tg *TemplateGenerator) Init() error {
 			tpls[path] = tpl
 		}
 
+		if l.CustomTemplate {
+			pathNameTpl := template.New(path)
+			pathNameTpl = pathNameTpl.Delims(delims[0], delims[1])
+			if pathNameTpl, err = pathNameTpl.Parse(path); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
+			pathNameTpls[path] = pathNameTpl
+		}
+
 	}
 
 	excludes := make(map[string]*File, len(tg.Excludes))
@@ -139,9 +155,10 @@ func (tg *TemplateGenerator) Init() error {
 
 	tg.tpls = tpls
 	tg.dirs = dirs
+	tg.excludedFiles = excludes
 	tg.customTpls = customTpls
 	tg.divideMethods = divideMethods
-	tg.excludedFiles = excludes
+	tg.pathNameTpls = pathNameTpls
 	return nil
 }
 
