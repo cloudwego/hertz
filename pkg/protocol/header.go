@@ -295,10 +295,6 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.trailer = copyArgs(dst.trailer, h.trailer)
 }
 
-func (h *RequestHeader) GetDisableNormalizing() bool {
-	return h.disableNormalizing
-}
-
 func (h *RequestHeader) SetTrailer(trailer string) error {
 	return h.SetTrailerBytes(bytesconv.S2b(trailer))
 }

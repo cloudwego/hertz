@@ -358,6 +358,15 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		req.Reset()
 		return err
 	}
+
+	if req.Header.ContentLength() == - 1 {
+		err = ReadTrailer(&req.Header, r)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		return nil
+	}
+
 	req.Header.SetContentLength(len(bodyBuf.B))
 	return nil
 }
@@ -416,8 +425,12 @@ func writeBodyStream(req *protocol.Request, w network.Writer) error {
 		}
 	} else {
 		req.Header.SetContentLength(-1)
-		if err = WriteHeader(&req.Header, w); err == nil {
+		err = WriteHeader(&req.Header, w)
+		if err == nil {
 			err = ext.WriteBodyChunked(w, req.BodyStream())
+		}
+		if err == nil {
+			err = WriteTrailer(&req.Header, w)
 		}
 	}
 	err1 := req.CloseBodyStream()

@@ -47,6 +47,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 	"io"
 	"mime/multipart"
 	"net/url"
@@ -750,8 +751,8 @@ func TestRequestReadChunked(t *testing.T) {
 
 	var req protocol.Request
 
-	s := "POST /foo HTTP/1.1\r\nHost: google.com\r\nTransfer-Encoding: chunked\r\nContent-Type: aa/bb\r\n\r\n3\r\nabc\r\n5\r\n12345\r\n0\r\n\r\ntrail"
-	zr := mock.NewZeroCopyReader(s)
+	s := "POST /foo HTTP/1.1\r\nHost: google.com\r\nTransfer-Encoding: chunked\r\nContent-Type: aa/bb\r\n\r\n3\r\nabc\r\n5\r\n12345\r\n0\r\n\r\nTrail: test\r\n\r\n"
+	zr := netpoll.NewReader(bytes.NewBufferString(s))
 	err := Read(&req, zr)
 	if err != nil {
 		t.Fatalf("Unexpected error when reading chunked request: %s", err)
@@ -760,8 +761,30 @@ func TestRequestReadChunked(t *testing.T) {
 	if string(req.Body()) != expectedBody {
 		t.Fatalf("Unexpected body %q. Expected %q", req.Body(), expectedBody)
 	}
-	verifyRequestHeader(t, &req.Header, 8, "/foo", "google.com", "", "aa/bb")
-	assert.VerifyTrailer(t, zr, "trail")
+	verifyRequestHeader(t, &req.Header, -1, "/foo", "google.com", "", "aa/bb")
+	VerifyTrailer(t, zr, map[string]string{"Trail": "test"})
+}
+
+func VerifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]string) {
+	request := protocol.Request{}
+	err := ReadTrailer(&request.Header, r)
+	if err == io.EOF && exceptedTrailers == nil {
+		return
+	}
+	if err != nil {
+		t.Fatalf("Cannot read trailer: %v", err)
+	}
+	verifyRequestTrailer(t, &request.Header, exceptedTrailers)
+	return
+}
+
+func verifyRequestTrailer(t *testing.T, h *protocol.RequestHeader, exceptedTrailers map[string]string) {
+	for k, v := range exceptedTrailers {
+		got := h.Peek(k)
+		if !bytes.Equal(got, []byte(v)) {
+			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
+		}
+	}
 }
 
 func TestRequestChunkedWhitespace(t *testing.T) {
@@ -1014,9 +1037,8 @@ func testRequestMultipartFormNotPreParse(t *testing.T, boundary string, formData
 
 func testReadBodyChunked(t *testing.T, bodySize int) {
 	body := mock.CreateFixedBody(bodySize)
-	chunkedBody := createChunkedBody(body)
-	expectedTrailer := []byte("chunked shit")
-	chunkedBody = append(chunkedBody, expectedTrailer...)
+	expectedTrailer := map[string]string{"Foo": "chunked shit"}
+	chunkedBody := createChunkedBody(body, expectedTrailer, true)
 
 	zr := mock.NewZeroCopyReader(string(chunkedBody))
 
@@ -1028,10 +1050,10 @@ func testReadBodyChunked(t *testing.T, bodySize int) {
 	if !bytes.Equal(b, body) {
 		t.Fatalf("Unexpected response read for bodySize=%d: %q. Expected %q. chunkedBody=%q", bodySize, b, body, chunkedBody)
 	}
-	assert.VerifyTrailer(t, zr, string(expectedTrailer))
+	VerifyTrailer(t, zr, expectedTrailer)
 }
 
-func createChunkedBody(body []byte) []byte {
+func createChunkedBody(body []byte, trailer map[string]string, hasTrailer bool) []byte {
 	var b []byte
 	chunkSize := 1
 	for len(body) > 0 {
@@ -1044,15 +1066,23 @@ func createChunkedBody(body []byte) []byte {
 		body = body[chunkSize:]
 		chunkSize++
 	}
-	return append(b, []byte("0\r\n\r\n")...)
+	if hasTrailer {
+		b = append(b, "0\r\n"...)
+		for k, v := range trailer {
+			b = append(b, k...)
+			b = append(b, ": "...)
+			b = append(b, v...)
+			b = append(b, "\r\n"...)
+		}
+		b = append(b, "\r\n"...)
+	}
+	return b
 }
 
 func testReadBodyFixedSize(t *testing.T, bodySize int) {
 	body := mock.CreateFixedBody(bodySize)
-	expectedTrailer := []byte("traler aaaa")
-	bodyWithTrailer := append(body, expectedTrailer...)
 
-	zr := mock.NewZeroCopyReader(string(bodyWithTrailer))
+	zr := mock.NewZeroCopyReader(string(body))
 	b, err := ext.ReadBody(zr, bodySize, 0, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error in ReadResponseBody(%d): %s", bodySize, err)
@@ -1060,7 +1090,7 @@ func testReadBodyFixedSize(t *testing.T, bodySize int) {
 	if !bytes.Equal(b, body) {
 		t.Fatalf("Unexpected response read for bodySize=%d: %q. Expected %q", bodySize, b, body)
 	}
-	assert.VerifyTrailer(t, zr, string(expectedTrailer))
+	VerifyTrailer(t, zr, nil)
 }
 
 func TestRequestFormFile(t *testing.T) {

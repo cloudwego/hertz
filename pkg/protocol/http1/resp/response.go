@@ -106,6 +106,8 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		}
 	}
 
+	var cLen int
+
 	if !resp.MustSkipBody() {
 		bodyBuf := resp.BodyBuffer()
 		bodyBuf.Reset()
@@ -113,8 +115,21 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		if err != nil {
 			return err
 		}
-		resp.Header.SetContentLength(len(bodyBuf.B))
+		cLen = len(bodyBuf.B)
 	}
+
+	if resp.Header.ContentLength() == -1 {
+		err = ReadTrailer(&resp.Header, r)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		return nil
+	}
+
+	if !resp.MustSkipBody() {
+		resp.Header.SetContentLength(cLen)
+	}
+
 	return nil
 }
 
@@ -276,6 +291,9 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 			}
 			if err == nil {
 				err = ext.WriteBodyChunked(w, resp.BodyStream())
+			}
+			if err == nil {
+				err = WriteTrailer(&resp.Header, w)
 			}
 		}
 	}

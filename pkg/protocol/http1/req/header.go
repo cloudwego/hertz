@@ -330,7 +330,7 @@ func parseTrailer(h *protocol.RequestHeader, buf []byte) (int, error) {
 
 	var s ext.HeaderScanner
 	s.B = buf
-	s.DisableNormalizing = h.GetDisableNormalizing()
+	s.DisableNormalizing = h.IsDisableNormalizing()
 	var err error
 	for s.Next() {
 		if len(s.Key) > 0 {
