@@ -46,6 +46,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"io"
 	"mime/multipart"
 	"net/url"
@@ -397,7 +398,8 @@ func TestChunkedUnexpectedEOF(t *testing.T) {
 	}
 
 	var pool bytebufferpool.Pool
-	bs := ext.AcquireBodyStream(pool.Get(), reader, -1)
+	var req1 protocol.Request
+	bs := AcquireRequestStream(pool.Get(), reader, -1, &req1.Header)
 	byteSlice := make([]byte, 4096)
 	_, err = bs.Read(byteSlice)
 	if err != io.ErrUnexpectedEOF {
@@ -483,21 +485,21 @@ func TestRequestWriteRequestURINoHost(t *testing.T) {
 func TestSetRequestBodyStreamChunked(t *testing.T) {
 	t.Parallel()
 
-	testSetRequestBodyStream(t, "", true)
+	testSetRequestBodyStreamChunked(t, "", map[string]string{"Foo": "bar"})
 
 	body := "foobar baz aaa bbb ccc"
-	testSetRequestBodyStream(t, body, true)
+	testSetRequestBodyStreamChunked(t, body, nil)
 
 	body = string(mock.CreateFixedBody(10001))
-	testSetRequestBodyStream(t, body, true)
+	testSetRequestBodyStreamChunked(t, body, map[string]string{"Foo": "test", "Bar": "test"})
 }
 
 func TestSetRequestBodyStreamFixedSize(t *testing.T) {
 	t.Parallel()
 
-	testSetRequestBodyStream(t, "a", false)
-	testSetRequestBodyStream(t, string(mock.CreateFixedBody(4097)), false)
-	testSetRequestBodyStream(t, string(mock.CreateFixedBody(100500)), false)
+	testSetRequestBodyStream(t, "a")
+	testSetRequestBodyStream(t, string(mock.CreateFixedBody(4097)))
+	testSetRequestBodyStream(t, string(mock.CreateFixedBody(100500)))
 }
 
 func TestRequestHostFromRequestURI(t *testing.T) {
@@ -801,15 +803,12 @@ func testRequestReadLimitBodySuccess(t *testing.T, s string, maxBodySize int) {
 	}
 }
 
-func testSetRequestBodyStream(t *testing.T, body string, chunked bool) {
+func testSetRequestBodyStream(t *testing.T, body string) {
 	var req protocol.Request
 	req.Header.SetHost("foobar.com")
 	req.Header.SetMethod(consts.MethodPost)
 
 	bodySize := len(body)
-	if chunked {
-		bodySize = -1
-	}
 	if req.IsBodyStream() {
 		t.Fatalf("IsBodyStream must return false")
 	}
@@ -838,6 +837,54 @@ func testSetRequestBodyStream(t *testing.T, body string, chunked bool) {
 		fmt.Println(string(req1.Body()))
 		fmt.Println(body)
 		t.Fatalf("unexpected body %q. Expecting %q", req1.Body(), body)
+	}
+}
+
+func testSetRequestBodyStreamChunked(t *testing.T, body string, trailer map[string]string) {
+	var req protocol.Request
+	req.Header.SetHost("foobar.com")
+	req.Header.SetMethod(consts.MethodPost)
+
+	if req.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return false")
+	}
+	req.SetBodyStream(bytes.NewBufferString(body), -1)
+	if !req.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return true")
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	for k := range trailer {
+		err := req.Header.AddTrailer(k)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if err := Write(&req, zw); err != nil {
+		t.Fatalf("unexpected error when writing request: %v, body=%q", err, body)
+	}
+	for k, v := range trailer {
+		req.Header.Set(k, v)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error when flushing request: %v, body=%q", err, body)
+	}
+
+	var req1 protocol.Request
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&req1, zr); err != nil {
+		t.Fatalf("unexpected error when reading request: %v. body=%q", err, body)
+	}
+	if string(req1.Body()) != body {
+		t.Fatalf("unexpected body %q. Expecting %q", req1.Body(), body)
+	}
+	for k, v := range trailer {
+		r := req.Header.Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer %q. Expecting %q. Got %q", k, v, r)
+		}
 	}
 }
 
@@ -1328,7 +1375,65 @@ func TestStreamNotEnoughData(t *testing.T) {
 	const maxBodySize = 4 * 1024 * 1024
 	err := ContinueReadBodyStream(req, conn, maxBodySize)
 	assert.Nil(t, err)
-	err = ext.ReleaseBodyStream(req.BodyStream())
+	err = ReleaseRequestStream(req.BodyStream())
 	assert.Nil(t, err)
 	assert.DeepEqual(t, 0, len(conn.Data))
+}
+
+func TestRequestBodyStreamWithTrailer(t *testing.T) {
+	t.Parallel()
+}
+
+func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormalizing bool) {
+	expectedTrailer := map[string]string{
+		"foo": "testfoo",
+		"bar": "testbar",
+	}
+
+	var req1 protocol.Request
+	if disableNormalizing {
+		req1.Header.DisableNormalizing()
+	}
+	req1.SetHost("google.com")
+	req1.SetBodyStream(bytes.NewBuffer(body), -1)
+	for k, v := range expectedTrailer {
+		err := req1.Header.AddTrailer(k)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		req1.Header.Set(k, v)
+	}
+
+	w := &bytes.Buffer{}
+	zw := netpoll.NewWriter(w)
+	if err := Write(&req1, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var req2 protocol.Request
+	if disableNormalizing {
+		req2.Header.DisableNormalizing()
+	}
+
+	br := netpoll.NewReader(w)
+	if err := Read(&req2, br); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	reqBody := req2.Body()
+	if !bytes.Equal(reqBody, body) {
+		t.Fatalf("unexpected body: %q. Excepting %q", reqBody, body)
+	}
+
+	for k, v := range expectedTrailer {
+		kBytes := []byte(k)
+		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
+		r := req2.Header.Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer header %q: %q. Expectiing %s", kBytes, k, v)
+		}
+	}
 }

@@ -45,6 +45,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"io"
 	"strings"
 	"testing"
@@ -519,6 +520,164 @@ func testResponseReadLimitBodySuccess(t *testing.T, s string, maxBodySize int) {
 	mr := mock.NewZeroCopyReader(s)
 	if err := ReadHeaderAndLimitBody(&resp, mr, maxBodySize); err != nil {
 		t.Fatalf("unexpected error: %s. s=%q, maxBodySize=%d", err, s, maxBodySize)
+	}
+}
+
+func TestResponseBodyStreamWithTrailer(t *testing.T) {
+	t.Parallel()
+
+	testResponseBodyStreamWithTrailer(t, nil, false)
+
+	body := mock.CreateFixedBody(1e5)
+	testResponseBodyStreamWithTrailer(t, body, false)
+	testResponseBodyStreamWithTrailer(t, body, true)
+}
+
+func testResponseBodyStreamWithTrailer(t *testing.T, body []byte, disableNormalizing bool) {
+	expectedTrailer := map[string]string{
+		"foo": "testfoo",
+		"bar": "testbar",
+	}
+	var resp1 protocol.Response
+	if disableNormalizing {
+		resp1.Header.DisableNormalizing()
+	}
+	resp1.SetBodyStream(bytes.NewReader(body), -1)
+	for k, v := range expectedTrailer {
+		err := resp1.Header.AddTrailer(k)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		resp1.Header.Set(k, v)
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&resp1, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var resp2 protocol.Response
+	if disableNormalizing {
+		resp2.Header.DisableNormalizing()
+	}
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp2, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	respBody := resp2.Body()
+	if !bytes.Equal(respBody, body) {
+		t.Fatalf("unexpected body: %q. Expecting %q", respBody, body)
+	}
+
+	for k, v := range expectedTrailer {
+		kBytes := []byte(k)
+		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
+		r := resp2.Header.Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
+		}
+	}
+}
+
+func TestSetResponseBodyStreamFixedSize(t *testing.T) {
+	t.Parallel()
+
+	testSetResponseBodyStream(t, "a")
+	testSetResponseBodyStream(t, string(mock.CreateFixedBody(4097)))
+	testSetResponseBodyStream(t, string(mock.CreateFixedBody(100500)))
+}
+
+func TestSetResponseBodyStreamChunked(t *testing.T) {
+	t.Parallel()
+
+	testSetResponseBodyStreamChunked(t, "", map[string]string{"Foo": "bar"})
+
+	body := "foobar baz aaa bbb ccc"
+	testSetResponseBodyStreamChunked(t, body, nil)
+
+	body = string(mock.CreateFixedBody(10001))
+	testSetResponseBodyStreamChunked(t, body, map[string]string{"Foo": "test", "Bar": "test"})
+}
+
+func testSetResponseBodyStream(t *testing.T, body string) {
+	var resp protocol.Response
+	bodySize := len(body)
+	if resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return false")
+	}
+	resp.SetBodyStream(bytes.NewBufferString(body), bodySize)
+	if !resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return true")
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&resp, zw); err != nil {
+		t.Fatalf("unexpected error when writing response: %s. body=%q", err, body)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error when flushing response: %s. body=%q", err, body)
+	}
+
+	var resp1 protocol.Response
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp1, zr); err != nil {
+		t.Fatalf("unexpected error when reading response: %s. body=%q", err, body)
+	}
+	if string(resp1.Body()) != body {
+		t.Fatalf("unexpected body %q. Expecting %q", resp1.Body(), body)
+	}
+}
+
+func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[string]string) {
+	var resp protocol.Response
+	if resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return false")
+	}
+	resp.SetBodyStream(bytes.NewBufferString(body), -1)
+	if !resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return true")
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	for k := range trailer {
+		err := resp.Header.AddTrailer(k)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	}
+	if err := Write(&resp, zw); err != nil {
+		t.Fatalf("unexpected error when writing response: %s. body=%q", err, body)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error when flushing response: %s. body=%q", err, body)
+	}
+	for k, v := range trailer {
+		resp.Header.Set(k, v)
+	}
+
+	var resp1 protocol.Response
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp1, zr); err != nil {
+		t.Fatalf("unexpected error when reading response: %s. body=%q", err, body)
+	}
+	if string(resp1.Body()) != body {
+		t.Fatalf("unexpected body %q. Expecting %q", resp1.Body(), body)
+	}
+	for k, v := range trailer {
+		r := resp.Header.Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer %s. Expecting %s. Got %q", k, v, r)
+		}
 	}
 }
 

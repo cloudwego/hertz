@@ -46,7 +46,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -112,15 +111,6 @@ func ReadBodyWithStreaming(zr network.Reader, contentLength, maxBodySize int, ds
 		return b, errBodyTooLarge
 	}
 	return b, nil
-}
-
-func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, contentLength int) io.Reader {
-	rs := bodyStreamPool.Get().(*bodyStream)
-	rs.prefetchedBytes = bytes.NewReader(b.B)
-	rs.reader = r
-	rs.contentLength = contentLength
-
-	return rs
 }
 
 func (rs *bodyStream) Read(p []byte) (int, error) {
@@ -263,18 +253,4 @@ func (rs *bodyStream) skipRest() error {
 			return nil
 		}
 	}
-}
-
-// ReleaseBodyStream releases the body stream.
-//
-// NOTE: Be careful to use this method unless you know what it's for.
-func ReleaseBodyStream(requestReader io.Reader) (err error) {
-	if rs, ok := requestReader.(*bodyStream); ok {
-		err = rs.skipRest()
-		rs.prefetchedBytes = nil
-		rs.offset = 0
-		rs.reader = nil
-		bodyStreamPool.Put(rs)
-	}
-	return
 }

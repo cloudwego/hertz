@@ -35,7 +35,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
@@ -343,7 +342,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 		// Release request body stream
 		if ctx.Request.IsBodyStream() {
-			err = ext.ReleaseBodyStream(ctx.RequestBodyStream())
+			err = req.ReleaseRequestStream(ctx.RequestBodyStream())
 			if err != nil {
 				return
 			}
