@@ -45,11 +45,12 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/network"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"

@@ -359,7 +359,7 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		return err
 	}
 
-	if req.Header.ContentLength() == - 1 {
+	if req.Header.ContentLength() == -1 {
 		err = ReadTrailer(&req.Header, r)
 		if err != nil && err != io.EOF {
 			return err

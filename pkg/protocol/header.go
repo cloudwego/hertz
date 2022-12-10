@@ -43,11 +43,12 @@ package protocol
 
 import (
 	"bytes"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"

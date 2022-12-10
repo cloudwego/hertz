@@ -2,21 +2,20 @@ package resp
 
 import (
 	"bytes"
+	"io"
+	"sync"
+
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
-	"io"
-	"sync"
 )
 
-var (
-	responseStreamPool = sync.Pool{
-		New: func() interface{} {
-			return &responseStream{}
-		},
-	}
-)
+var responseStreamPool = sync.Pool{
+	New: func() interface{} {
+		return &responseStream{}
+	},
+}
 
 type responseStream struct {
 	prefetchedBytes *bytes.Reader

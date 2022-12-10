@@ -46,13 +46,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/network"
 	"io"
 	"mime/multipart"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"

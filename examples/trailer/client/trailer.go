@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+
 	"github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"io"
 )
 
 func main() {
@@ -36,7 +37,6 @@ func main() {
 	resp.Header.VisitAllTrailer(visitSingle)
 
 	fmt.Println(string(resp.Header.TrailerHeader()))
-
 }
 
 func visitSingle(k []byte) {

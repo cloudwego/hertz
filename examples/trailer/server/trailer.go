@@ -95,4 +95,3 @@ func (cr *ChunkReader) Write(p []byte) (n int, err error) {
 func (cr *ChunkReader) Close() {
 	close(cr.w2r)
 }
-
