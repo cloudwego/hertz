@@ -484,7 +484,7 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -518,7 +518,7 @@ func TestClientSetUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -549,7 +549,7 @@ func TestClientNoUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -1283,7 +1283,7 @@ func TestPostWithFormData(t *testing.T) {
 			ans = ans + string(key) + "=" + string(value) + "&"
 		})
 		ans = strings.TrimRight(ans, "&")
-		ctx.Data(200, "text/plain; charset=utf-8", []byte(ans))
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", []byte(ans))
 	})
 	go engine.Run()
 

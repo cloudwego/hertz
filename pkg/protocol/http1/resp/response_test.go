@@ -155,7 +155,7 @@ func testResponseReadError(t *testing.T, resp *protocol.Response, response strin
 	}
 
 	testResponseReadSuccess(t, resp, "HTTP/1.1 303 Redisred sedfs sdf\r\nContent-Type: aaa\r\nContent-Length: 5\r\n\r\nHELLOaaa",
-		303, 5, "aaa", "HELLO", "aaa")
+		consts.StatusSeeOther, 5, "aaa", "HELLO", "aaa")
 }
 
 func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
@@ -181,19 +181,19 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// usual response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
-		200, 10, "foo/bar", "0123456789", "")
+		consts.StatusOK, 10, "foo/bar", "0123456789", "")
 
 	// zero response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
-		500, 0, "foo/bar", "", "")
+		consts.StatusInternalServerError, 0, "foo/bar", "", "")
 
 	// response with trailer
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		300, 5, "bar", "56789", "aaa")
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
 
 	// no content-length ('identity' transfer-encoding)
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
-		200, 4, "foobar", "zxxc", "")
+		consts.StatusOK, 4, "foobar", "zxxc", "")
 
 	// explicitly stated 'Transfer-Encoding: identity'
 	testResponseReadSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
@@ -202,11 +202,11 @@ func TestResponseReadSuccess(t *testing.T) {
 	// big 'identity' response
 	body := string(mock.CreateFixedBody(100500))
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
-		200, 100500, "aa", body, "")
+		consts.StatusOK, 100500, "aa", body, "")
 
 	// chunked response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
-		200, 6, "text/html", "qwerty", "zzzzz")
+		consts.StatusOK, 6, "text/html", "qwerty", "zzzzz")
 
 	// chunked response with non-chunked Transfer-Encoding.
 	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
@@ -214,7 +214,7 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// zero chunked response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
-		200, 0, "text/html", "", "zzz")
+		consts.StatusOK, 0, "text/html", "", "zzz")
 }
 
 func TestResponseReadError(t *testing.T) {
@@ -360,24 +360,24 @@ func TestResponseSuccess(t *testing.T) {
 	t.Parallel()
 
 	// 200 response
-	testResponseSuccess(t, 200, "test/plain", "server", "foobar",
-		200, "test/plain", "server")
+	testResponseSuccess(t, consts.StatusOK, "test/plain", "server", "foobar",
+		consts.StatusOK, "test/plain", "server")
 
 	// response with missing statusCode
 	testResponseSuccess(t, 0, "text/plain", "server", "foobar",
-		200, "text/plain", "server")
+		consts.StatusOK, "text/plain", "server")
 
 	// response with missing server
-	testResponseSuccess(t, 500, "aaa", "", "aaadfsd",
-		500, "aaa", "")
+	testResponseSuccess(t, consts.StatusInternalServerError, "aaa", "", "aaadfsd",
+		consts.StatusInternalServerError, "aaa", "")
 
 	// empty body
-	testResponseSuccess(t, 200, "bbb", "qwer", "",
-		200, "bbb", "qwer")
+	testResponseSuccess(t, consts.StatusOK, "bbb", "qwer", "",
+		consts.StatusOK, "bbb", "qwer")
 
 	// missing content-type
-	testResponseSuccess(t, 200, "", "asdfsd", "asdf",
-		200, string(bytestr.DefaultContentType), "asdfsd")
+	testResponseSuccess(t, consts.StatusOK, "", "asdfsd", "asdf",
+		consts.StatusOK, string(bytestr.DefaultContentType), "asdfsd")
 }
 
 func TestResponseReadLimitBody(t *testing.T) {
@@ -406,16 +406,16 @@ func TestResponseReadWithoutBody(t *testing.T) {
 	var resp protocol.Response
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Length: 1235\r\n\r\nfoobar", false,
-		304, 1235, "aa", "foobar")
+		consts.StatusNotModified, 1235, "aa", "foobar")
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
-		204, -1, "aab", "123\r\nss")
+		consts.StatusNoContent, -1, "aab", "123\r\nss")
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Length: 3434\r\n\r\naaaa", false,
 		123, 3434, "xxx", "aaaa")
 
 	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Length: 123\r\n\r\nxxxx", true,
-		200, 123, "text/xml", "xxxx")
+		consts.StatusOK, 123, "text/xml", "xxxx")
 
 	// '100 Continue' must be skipped.
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Length: 894\r\n\r\nfoobar", true,
@@ -499,7 +499,7 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 	// verify that ordinal response is read after null-body response
 	resp.SkipBody = false
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		300, 5, "bar", "56789", "aaa")
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
 }
 
 func testResponseReadLimitBodyError(t *testing.T, s string, maxBodySize int) {

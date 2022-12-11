@@ -218,7 +218,7 @@ func TestLoadHTMLGlob(t *testing.T) {
 	go engine.Run()
 	time.Sleep(200 * time.Millisecond)
 	resp, _ := http.Get("http://127.0.0.1:8890/index")
-	assert.DeepEqual(t, 200, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
 	assert.DeepEqual(t, "<html>\n<h1>\n    Main website\n</h1>\n</html>", string(b[0:n]))
@@ -240,7 +240,7 @@ func TestLoadHTMLFiles(t *testing.T) {
 	go engine.Run()
 	time.Sleep(200 * time.Millisecond)
 	resp, _ := http.Get("http://127.0.0.1:8891/raw")
-	assert.DeepEqual(t, 200, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
 	assert.DeepEqual(t, "<h1>Date: 2017/07/01</h1>", string(b[0:n]))
@@ -283,18 +283,18 @@ func TestServer_Run(t *testing.T) {
 	time.Sleep(100 * time.Microsecond)
 	resp, err := http.Get("http://127.0.0.1:8888/test")
 	assert.Nil(t, err)
-	assert.DeepEqual(t, 200, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 5)
 	resp.Body.Read(b)
 	assert.DeepEqual(t, "/test", string(b))
 
 	resp, err = http.Get("http://127.0.0.1:8888/foo")
 	assert.Nil(t, err)
-	assert.DeepEqual(t, 404, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode)
 
 	resp, err = http.Post("http://127.0.0.1:8888/redirect", "", nil)
 	assert.Nil(t, err)
-	assert.DeepEqual(t, 200, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b = make([]byte, 5)
 	resp.Body.Read(b)
 	assert.DeepEqual(t, "/test", string(b))
@@ -323,7 +323,7 @@ func TestNotAbsolutePath(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
 
 	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
@@ -334,7 +334,7 @@ func TestNotAbsolutePath(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
 }
 
@@ -355,7 +355,7 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 400, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
 
 	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
@@ -366,7 +366,7 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 400, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
 }
 
@@ -398,7 +398,7 @@ func TestEnoughBodySize(t *testing.T) {
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
 	resp, _ := http.Post("http://127.0.0.1:8892/test", "application/x-www-form-urlencoded", body)
-	assert.DeepEqual(t, 200, resp.StatusCode)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
 func TestRequestCtxHijack(t *testing.T) {
@@ -594,16 +594,16 @@ func TestReusePorts(t *testing.T) {
 	hc := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
 	hd := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
 	ha.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(200, utils.H{"ping": "pong"})
+		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	hc.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(200, utils.H{"ping": "pong"})
+		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	hd.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(200, utils.H{"ping": "pong"})
+		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	hb.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(200, utils.H{"ping": "pong"})
+		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go ha.Run()
 	go hb.Run()
@@ -615,7 +615,7 @@ func TestReusePorts(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		statusCode, body, err := client.Get(context.Background(), nil, "http://localhost:10093/ping")
 		assert.Nil(t, err)
-		assert.DeepEqual(t, 200, statusCode)
+		assert.DeepEqual(t, consts.StatusOK, statusCode)
 		assert.DeepEqual(t, "{\"ping\":\"pong\"}", string(body))
 	}
 }
