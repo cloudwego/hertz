@@ -71,7 +71,7 @@ Content-Type: application/json
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	// boundary is too long
+	// The length of boundary is in the range of [1,70], which can be verified for strings outside this range.
 	err = WriteMultipartForm(&w, form, s)
 	assert.NotNil(t, err)
 
