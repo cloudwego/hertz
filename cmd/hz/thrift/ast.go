@@ -166,7 +166,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 	}
 	thriftgoUtil.SetRootScope(scope)
 	st := scope.StructLike(typeName)
-	var hasBodyAnnotation bool
+	var (
+		hasBodyAnnotation bool
+		hasFormAnnotation bool
+	)
 	for _, field := range st.Fields() {
 		rwctx, err := thriftgoUtil.MkRWCtx(thriftgoUtil.RootScope(), field)
 		if err != nil {
@@ -201,6 +204,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 
 		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
 			form := anno[0]
+			hasFormAnnotation = true
 			if rwctx.IsPointer {
 				clientMethod.FormValueCode += fmt.Sprintf("%q: *req.%v,\n", form, field.GoName().String())
 			} else {
@@ -211,9 +215,24 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {
 			hasBodyAnnotation = true
 		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
+			fileName := anno[0]
+			hasFormAnnotation = true
+			if rwctx.IsPointer {
+				clientMethod.FormFileCode += fmt.Sprintf("%q: *req.%v,\n", fileName, field.GoName().String())
+			} else {
+				clientMethod.FormFileCode += fmt.Sprintf("%q: req.%v,\n", fileName, field.GoName().String())
+			}
+		}
 	}
-	if hasBodyAnnotation {
-		clientMethod.BodyParamsCode = "setBodyParam(req).\n"
+	clientMethod.BodyParamsCode = "setBodyParam(req).\n"
+	if hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.FormValueCode = ""
+		clientMethod.FormFileCode = ""
+	}
+	if !hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.BodyParamsCode = ""
 	}
 
 	return nil

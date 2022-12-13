@@ -298,6 +298,7 @@ var (
 
 	plainTextType   = "text/plain; charset=utf-8"
 	jsonContentType = "application/json; charset=utf-8"
+	formContentType = "multipart/form-data"
 
 	jsonCheck = regexp.MustCompile(` + "`(?i:(application|text)/(json|.*\\+json|json\\-.*)(; |$))`)\n" +
 	`xmlCheck  = regexp.MustCompile(` + "`(?i:(application|text)/(xml|.*\\+xml)(; |$))`)\n" +
@@ -483,7 +484,9 @@ func (c *cli) r() *request {
 	return &request{
 		queryParam: url.Values{},
 		header:     http.Header{},
-		pathParams: map[string]string{},
+		pathParam:  map[string]string{},
+		formParam:  map[string]string{},
+		fileParam:  map[string]string{},
 		client:     c,
 	}
 }
@@ -527,16 +530,18 @@ func (r *response) header() http.Header {
 }
 
 type request struct {
+	client         *cli
 	url            string
 	method         string
 	queryParam     url.Values
 	header         http.Header
-	requestOptions []config.RequestOption
+	pathParam      map[string]string
+	formParam      map[string]string
+	fileParam      map[string]string
 	bodyParam      interface{}
 	rawRequest     *protocol.Request
 	ctx            context.Context
-	pathParams     map[string]string
-	client         *cli
+	requestOptions []config.RequestOption
 	result         interface{}
 	Error          interface{}
 }
@@ -596,7 +601,21 @@ func (r *request) setQueryParams(params map[string]interface{}) *request {
 
 func (r *request) setPathParams(params map[string]string) *request {
 	for p, v := range params {
-		r.pathParams[p] = v
+		r.pathParam[p] = v
+	}
+	return r
+}
+
+func (r *request) setFormParams(params map[string]string) *request {
+	for p, v := range params {
+		r.formParam[p] = v
+	}
+	return r
+}
+
+func (r *request) setFormFileParams(params map[string]string) *request {
+	for p, v := range params {
+		r.fileParam[p] = v
 	}
 	return r
 }
@@ -618,8 +637,8 @@ func (r *request) execute(method, url string) (*response, error) {
 }
 
 func parseRequestURL(c *cli, r *request) error {
-	if len(r.pathParams) > 0 {
-		for p, v := range r.pathParams {
+	if len(r.pathParam) > 0 {
+		for p, v := range r.pathParam {
 			r.url = strings.Replace(r.url, ":"+p, url.PathEscape(v), -1)
 		}
 	}
@@ -686,6 +705,10 @@ func parseRequestHeader(c *cli, r *request) error {
 		hdr[k] = append(hdr[k], r.header[k]...)
 	}
 
+	if len(r.formParam) != 0 && len(r.fileParam) != 0 {
+		hdr.Add(hdrContentTypeKey, formContentType)
+	}
+
 	r.header = hdr
 	return nil
 }
@@ -744,6 +767,13 @@ func createHTTPRequest(c *cli, r *request) (err error) {
 	}
 	if err == nil {
 		r.rawRequest = protocol.NewRequest(r.method, r.url, body)
+		if contentType == formContentType && isPayloadSupported(r.method) {
+			if r.rawRequest.IsBodyStream() {
+				r.rawRequest.ResetBody()
+			}
+			r.rawRequest.SetMultipartFormData(r.formParam)
+			r.rawRequest.SetFiles(r.fileParam)
+		}
 		for key, values := range r.header {
 			for _, val := range values {
 				r.rawRequest.Header.Add(key, val)
@@ -862,10 +892,16 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 		setPathParams(map[string]string{
 			{{$MethodInfo.PathParamsCode}}
 		}).
-		{{$MethodInfo.BodyParamsCode}}
 		setHeaders(map[string]string{
 			{{$MethodInfo.HeaderParamsCode}}
 		}).
+		setFormParams(map[string]string{
+			{{$MethodInfo.FormValueCode}}
+		}).
+		setFormFileParams(map[string]string{
+			{{$MethodInfo.FormFileCode}}
+		}).
+		{{$MethodInfo.BodyParamsCode}}
 		setRequestOption(reqOpt...).
 		setResult(httpResp).
 		execute("{{$MethodInfo.HTTPMethod}}", "{{$MethodInfo.Path}}")

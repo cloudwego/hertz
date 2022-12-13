@@ -17,6 +17,7 @@ extend google.protobuf.FieldOptions {
   optional string form = 50108;
   optional string go_tag = 51001;
   optional string js_conv = 50109;
+  optional string file_name = 50110;
 }
 
 extend google.protobuf.MethodOptions {
