@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestDefaultOption(t *testing.T) {
@@ -35,7 +36,7 @@ func TestDefaultOption(t *testing.T) {
 func newRecoveryHandler(c context.Context, ctx *app.RequestContext, err interface{}, stack []byte) {
 	hlog.SystemLogger().CtxErrorf(c, "[New Recovery] panic recovered:\n%s\n%s\n",
 		err, stack)
-	ctx.JSON(501, utils.H{"msg": err.(string)})
+	ctx.JSON(consts.StatusNotImplemented, utils.H{"msg": err.(string)})
 }
 
 func TestOption(t *testing.T) {
