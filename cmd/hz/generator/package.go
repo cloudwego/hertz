@@ -42,7 +42,7 @@ type Service struct {
 	Methods       []*HttpMethod
 	ClientMethods []*ClientMethod
 	Models        []*model.Model // all dependency models
-	BaseDomain    string // base domain for client code
+	BaseDomain    string         // base domain for client code
 }
 
 type HttpPackageGenerator struct {

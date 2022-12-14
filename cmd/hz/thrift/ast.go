@@ -61,7 +61,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		}
 		baseDomain := ""
 		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
-		if len(domainAnno)  == 1 {
+		if len(domainAnno) == 1 {
 			baseDomain = domainAnno[0]
 			if args.CmdType == meta.CmdClient {
 				service.BaseDomain = baseDomain
