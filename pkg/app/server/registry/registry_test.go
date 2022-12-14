@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-package hertz
+package registry
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.4.2"
+import (
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
+
+func TestNoopRegistry(t *testing.T) {
+	reg := noopRegistry{}
+	assert.Nil(t, reg.Deregister(&Info{}))
+	assert.Nil(t, reg.Register(&Info{}))
+}

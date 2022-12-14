@@ -193,6 +193,13 @@ func (resp *Response) SetBodyStream(bodyStream io.Reader, bodySize int) {
 	resp.Header.SetContentLength(bodySize)
 }
 
+// SetBodyStreamNoReset is almost the same as SetBodyStream,
+// but it doesn't reset the bodyStream before.
+func (resp *Response) SetBodyStreamNoReset(bodyStream io.Reader, bodySize int) {
+	resp.bodyStream = bodyStream
+	resp.Header.SetContentLength(bodySize)
+}
+
 // BodyE returns response body.
 func (resp *Response) BodyE() ([]byte, error) {
 	if resp.bodyStream != nil {

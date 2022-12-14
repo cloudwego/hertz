@@ -20,27 +20,28 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestResult(t *testing.T) {
 	r := new(ResponseRecorder)
 	ret := r.Result()
-	assert.DeepEqual(t, 200, ret.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ret.StatusCode())
 }
 
 func TestFlush(t *testing.T) {
 	r := new(ResponseRecorder)
 	r.Flush()
 	ret := r.Result()
-	assert.DeepEqual(t, 200, ret.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ret.StatusCode())
 }
 
 func TestWriterHeader(t *testing.T) {
 	r := NewRecorder()
-	r.WriteHeader(201)
-	r.WriteHeader(200)
+	r.WriteHeader(consts.StatusCreated)
+	r.WriteHeader(consts.StatusOK)
 	ret := r.Result()
-	assert.DeepEqual(t, 201, ret.StatusCode())
+	assert.DeepEqual(t, consts.StatusCreated, ret.StatusCode())
 }
 
 func TestWriteString(t *testing.T) {
