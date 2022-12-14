@@ -59,6 +59,14 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		service := &generator.Service{
 			Name: s.GetName(),
 		}
+		baseDomain := ""
+		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
+		if len(domainAnno)  == 1 {
+			baseDomain = domainAnno[0]
+			if args.CmdType == meta.CmdClient {
+				service.BaseDomain = baseDomain
+			}
+		}
 
 		ms := s.GetFunctions()
 		methods := make([]*generator.HttpMethod, 0, len(ms))

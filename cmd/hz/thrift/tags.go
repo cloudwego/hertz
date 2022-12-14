@@ -60,6 +60,10 @@ const (
 	ApiGenPath    = "api.handler_path"
 )
 
+const (
+	ApiBaseDomain = "api.base_domain"
+)
+
 var (
 	HttpMethodAnnotations = map[string]string{
 		ApiGet:     "GET",

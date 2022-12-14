@@ -43,3 +43,7 @@ extend google.protobuf.MethodOptions {
 extend google.protobuf.EnumValueOptions {
   optional int32 http_code = 50401;
 }
+
+extend google.protobuf.ServiceOptions {
+  optional string base_domain = 50402;
+}

@@ -36,6 +36,7 @@ type ClientMethod struct {
 type ClientFile struct {
 	FilePath      string
 	ServiceName   string
+	BaseDomain    string
 	Imports       map[string]*model.Model
 	ClientMethods []*ClientMethod
 }
@@ -58,6 +59,7 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			FilePath:      filepath.Join(clientDir, util.ToSnakeCase(s.Name)+".go"),
 			ServiceName:   util.ToSnakeCase(s.Name),
 			ClientMethods: s.ClientMethods,
+			BaseDomain:    s.BaseDomain,
 		}
 		client.Imports = make(map[string]*model.Model, len(client.ClientMethods))
 		for _, m := range client.ClientMethods {

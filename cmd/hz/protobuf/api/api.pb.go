@@ -253,6 +253,14 @@ var file_api_proto_extTypes = []protoimpl.ExtensionInfo{
 		Tag:           "varint,50401,opt,name=http_code",
 		Filename:      "api.proto",
 	},
+	{
+		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
+		ExtensionType: (*string)(nil),
+		Field:         50402,
+		Name:          "api.base_domain",
+		Tag:           "bytes,50402,opt,name=base_domain",
+		Filename:      "api.proto",
+	},
 }
 
 // Extension fields to descriptorpb.FieldOptions.
@@ -323,6 +331,12 @@ var (
 var (
 	// optional int32 http_code = 50401;
 	E_HttpCode = &file_api_proto_extTypes[28]
+)
+
+// Extension fields to descriptorpb.ServiceOptions.
+var (
+	// optional string base_domain = 50402;
+	E_BaseDomain = &file_api_proto_extTypes[29]
 )
 
 var File_api_proto protoreflect.FileDescriptor
@@ -435,13 +449,18 @@ var file_api_proto_rawDesc = []byte{
 	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
 	0x2e, 0x45, 0x6e, 0x75, 0x6d, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e,
 	0x73, 0x18, 0xe1, 0x89, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x68, 0x74, 0x74, 0x70, 0x43,
-	0x6f, 0x64, 0x65, 0x42, 0x06, 0x5a, 0x04, 0x2f, 0x61, 0x70, 0x69,
+	0x6f, 0x64, 0x65, 0x3a, 0x42, 0x0a, 0x0b, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x64, 0x6f, 0x6d, 0x61,
+	0x69, 0x6e, 0x12, 0x1f, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4f, 0x70, 0x74, 0x69,
+	0x6f, 0x6e, 0x73, 0x18, 0xe2, 0x89, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x62, 0x61, 0x73,
+	0x65, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x42, 0x06, 0x5a, 0x04, 0x2f, 0x61, 0x70, 0x69,
 }
 
 var file_api_proto_goTypes = []interface{}{
 	(*descriptorpb.FieldOptions)(nil),     // 0: google.protobuf.FieldOptions
 	(*descriptorpb.MethodOptions)(nil),    // 1: google.protobuf.MethodOptions
 	(*descriptorpb.EnumValueOptions)(nil), // 2: google.protobuf.EnumValueOptions
+	(*descriptorpb.ServiceOptions)(nil),   // 3: google.protobuf.ServiceOptions
 }
 var file_api_proto_depIdxs = []int32{
 	0,  // 0: api.raw_body:extendee -> google.protobuf.FieldOptions
@@ -473,10 +492,11 @@ var file_api_proto_depIdxs = []int32{
 	1,  // 26: api.baseurl:extendee -> google.protobuf.MethodOptions
 	1,  // 27: api.handler_path:extendee -> google.protobuf.MethodOptions
 	2,  // 28: api.http_code:extendee -> google.protobuf.EnumValueOptions
-	29, // [29:29] is the sub-list for method output_type
-	29, // [29:29] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	0,  // [0:29] is the sub-list for extension extendee
+	3,  // 29: api.base_domain:extendee -> google.protobuf.ServiceOptions
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	0,  // [0:30] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
 }
 
@@ -492,7 +512,7 @@ func file_api_proto_init() {
 			RawDescriptor: file_api_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   0,
-			NumExtensions: 29,
+			NumExtensions: 30,
 			NumServices:   0,
 		},
 		GoTypes:           file_api_proto_goTypes,

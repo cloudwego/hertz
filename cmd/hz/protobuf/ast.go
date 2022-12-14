@@ -116,6 +116,18 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, arg
 			Name: s.GetName(),
 		}
 
+		baseDomain := ""
+		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
+		if args.CmdType == meta.CmdClient {
+			val, ok := domainAnno.(string)
+			if !ok || len(val) == 0 {
+				baseDomain = ""
+			} else {
+				baseDomain = val
+			}
+			service.BaseDomain = baseDomain
+		}
+
 		ms := s.GetMethod()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
