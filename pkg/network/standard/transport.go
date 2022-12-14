@@ -46,6 +46,8 @@ type transport struct {
 	tls              *tls.Config
 	listenConfig     *net.ListenConfig
 	lock             sync.Mutex
+	OnAccept         func(conn network.Conn) context.Context
+	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
 }
 
 func (t *transport) serve() (err error) {
@@ -62,18 +64,28 @@ func (t *transport) serve() (err error) {
 	}
 	hlog.SystemLogger().Infof("HERTZ: HTTP server listening on address=%s", t.ln.Addr().String())
 	for {
+		ctx := context.Background()
 		conn, err := t.ln.Accept()
 		var c network.Conn
 		if err != nil {
 			hlog.SystemLogger().Errorf("Error=%s", err.Error())
 			return err
 		}
+
+		if t.OnAccept != nil {
+			ctx = t.OnAccept(c)
+		}
+
 		if t.tls != nil {
 			c = newTLSConn(tls.Server(conn, t.tls), t.readBufferSize)
 		} else {
 			c = newConn(conn, t.readBufferSize)
 		}
-		go t.handler(context.Background(), c)
+
+		if t.OnConnect != nil {
+			ctx = t.OnConnect(ctx, c)
+		}
+		go t.handler(ctx, c)
 	}
 }
 
@@ -111,5 +123,7 @@ func NewTransporter(options *config.Options) network.Transporter {
 		readTimeout:      options.ReadTimeout,
 		tls:              options.TLS,
 		listenConfig:     options.ListenConfig,
+		OnAccept:         options.OnAccept,
+		OnConnect:        options.OnConnect,
 	}
 }
