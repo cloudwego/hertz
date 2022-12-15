@@ -769,3 +769,38 @@ func TestReuseCtx(t *testing.T) {
 		assert.Nil(t, err)
 	}
 }
+
+func TestOnprepare(t *testing.T) {
+	h := New(
+		WithOnAccept(func(conn network.Conn) context.Context {
+			timer := time.NewTimer(time.Second)
+			ch := make(chan error)
+			go func() {
+				_, err := conn.Peek(3)
+				ch <- err
+			}()
+			select {
+			case <-timer.C:
+				return context.Background()
+			case <-ch:
+				t.Fatal("should not read data")
+			}
+			return context.Background()
+		}),
+		WithHostPorts("localhost:9229"),
+		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+			b, err := conn.Peek(3)
+			assert.Nil(t, err)
+			assert.DeepEqual(t, string(b), "GET")
+			conn.Close()
+			return ctx
+		}))
+	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
+	})
+
+	go h.Spin()
+	time.Sleep(time.Second)
+	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9229/ping")
+	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
+}
