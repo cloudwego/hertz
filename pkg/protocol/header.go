@@ -1890,3 +1890,20 @@ func (h *RequestHeader) setSpecialHeader(key, value []byte) bool {
 
 	return false
 }
+
+
+func (h *RequestHeader) HasTrailer() bool {
+   return len(h.trailer) > 0
+}
+
+func (h *ResponseHeader) HasTrailer() bool {
+   return len(h.trailer) > 0
+}
+
+func (h *ResponseHeader) GetTrailers() []argsKV {
+   return h.trailer
+}
+
+func (h *RequestHeader) GetTrailers() []argsKV {
+   return h.trailer
+}

@@ -19,6 +19,7 @@ package consts
 const (
 	HeaderServerLower    = "server"
 	HeaderSetCookieLower = "set-cookie"
+	HeaderTrailerLower   = "trailer"
 	HeaderDate           = "Date"
 
 	HeaderIfModifiedSince = "If-Modified-Since"
