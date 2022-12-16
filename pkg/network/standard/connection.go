@@ -18,13 +18,15 @@ package standard
 
 import (
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"strconv"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/errors"
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -42,6 +44,13 @@ type Conn struct {
 	outputBuffer *linkBuffer
 	caches       [][]byte // buf allocated by Next when cross-package, which should be freed when release
 	maxSize      int      // history max malloc size
+}
+
+func (c *Conn) ToHertzError(err error) error {
+	if errors.Is(err, unix.EPIPE) || errors.Is(err, unix.ENOTCONN) {
+		return errs.ErrConnectionClosed
+	}
+	return err
 }
 
 func (c *Conn) SetWriteTimeout(t time.Duration) error {
@@ -383,7 +392,7 @@ func (c *Conn) fill(i int) (err error) {
 func (c *Conn) Skip(n int) error {
 	// check whether enough or not.
 	if c.Len() < n {
-		return errors.NewPrivate("link buffer skip[" + strconv.Itoa(n) + "] not enough")
+		return errs.NewPrivate("link buffer skip[" + strconv.Itoa(n) + "] not enough")
 	}
 	c.inputBuffer.len -= n // re-cal length
 

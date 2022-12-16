@@ -47,7 +47,7 @@ import (
 func TestProtobuf(t *testing.T) {
 	ctx := NewContext(0)
 	body := proto.TestStruct{Body: []byte("Hello World")}
-	ctx.ProtoBuf(200, &body)
+	ctx.ProtoBuf(consts.StatusOK, &body)
 
 	assert.DeepEqual(t, string(ctx.Response.Body()), "\n\vHello World")
 }
@@ -140,19 +140,19 @@ func TestNotFound(t *testing.T) {
 
 func TestRedirect(t *testing.T) {
 	ctx := NewContext(0)
-	ctx.Redirect(302, []byte("/hello"))
-	assert.DeepEqual(t, 302, ctx.Response.StatusCode())
+	ctx.Redirect(consts.StatusFound, []byte("/hello"))
+	assert.DeepEqual(t, consts.StatusFound, ctx.Response.StatusCode())
 
-	ctx.redirect([]byte("/hello"), 301)
-	assert.DeepEqual(t, 301, ctx.Response.StatusCode())
+	ctx.redirect([]byte("/hello"), consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, ctx.Response.StatusCode())
 }
 
 func TestGetRedirectStatusCode(t *testing.T) {
-	val := getRedirectStatusCode(301)
-	assert.DeepEqual(t, 301, val)
+	val := getRedirectStatusCode(consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, val)
 
-	val = getRedirectStatusCode(404)
-	assert.DeepEqual(t, 302, val)
+	val = getRedirectStatusCode(consts.StatusNotFound)
+	assert.DeepEqual(t, consts.StatusFound, val)
 }
 
 func TestCookie(t *testing.T) {
@@ -504,7 +504,7 @@ func TestContextRenderAttachment(t *testing.T) {
 
 	ctx.FileAttachment("./context.go", newFilename)
 
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(),
 		"func (ctx *RequestContext) FileAttachment(filepath, filename string) {"))
 	assert.DeepEqual(t, fmt.Sprintf("attachment; filename=\"%s\"", newFilename),
@@ -1098,8 +1098,8 @@ func TestFinished(t *testing.T) {
 
 func TestString(t *testing.T) {
 	ctx := NewContext(0)
-	ctx.String(200, "ok")
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
+	ctx.String(consts.StatusOK, "ok")
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 }
 
 func TestFullPath(t *testing.T) {
