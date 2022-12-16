@@ -116,16 +116,13 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, arg
 			Name: s.GetName(),
 		}
 
-		baseDomain := ""
+		service.BaseDomain = ""
 		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
 		if args.CmdType == meta.CmdClient {
 			val, ok := domainAnno.(string)
-			if !ok || len(val) == 0 {
-				baseDomain = ""
-			} else {
-				baseDomain = val
+			if ok && len(val) != 0 {
+				service.BaseDomain = val
 			}
-			service.BaseDomain = baseDomain
 		}
 
 		ms := s.GetMethod()
@@ -275,7 +272,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 	}
-	clientMethod.BodyParamsCode = "setBodyParam(req).\n"
+	clientMethod.BodyParamsCode = meta.SetBodyParam
 	if hasBodyAnnotation && hasFormAnnotation {
 		clientMethod.FormValueCode = ""
 		clientMethod.FormFileCode = ""

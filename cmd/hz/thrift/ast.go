@@ -59,12 +59,11 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		service := &generator.Service{
 			Name: s.GetName(),
 		}
-		baseDomain := ""
+		service.BaseDomain = ""
 		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
 		if len(domainAnno) == 1 {
-			baseDomain = domainAnno[0]
 			if args.CmdType == meta.CmdClient {
-				service.BaseDomain = baseDomain
+				service.BaseDomain = domainAnno[0]
 			}
 		}
 
@@ -98,7 +97,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			var reqName string
 			if len(m.Arguments) >= 1 {
 				if len(m.Arguments) > 1 {
-					return nil, fmt.Errorf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName())
+					logs.Warnf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName())
 				}
 				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
 				if err != nil {
@@ -234,7 +233,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 			}
 		}
 	}
-	clientMethod.BodyParamsCode = "setBodyParam(req).\n"
+	clientMethod.BodyParamsCode = meta.SetBodyParam
 	if hasBodyAnnotation && hasFormAnnotation {
 		clientMethod.FormValueCode = ""
 		clientMethod.FormFileCode = ""

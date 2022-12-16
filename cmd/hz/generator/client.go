@@ -54,8 +54,7 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 				return err
 			}
 		}
-		var client ClientFile
-		client = ClientFile{
+		client := ClientFile{
 			FilePath:      filepath.Join(clientDir, util.ToSnakeCase(s.Name)+".go"),
 			ServiceName:   util.ToSnakeCase(s.Name),
 			ClientMethods: s.ClientMethods,

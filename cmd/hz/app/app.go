@@ -258,7 +258,7 @@ func Init() *cli.App {
 		},
 		{
 			Name:  meta.CmdClient,
-			Usage: "Generate hertz client based IDL",
+			Usage: "Generate hertz client based on IDL",
 			Flags: []cli.Flag{
 				&idlFlag,
 				&moduleFlag,

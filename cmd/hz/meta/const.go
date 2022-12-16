@@ -76,3 +76,8 @@ type Backend string
 const (
 	BackendGolang Backend = "golang"
 )
+
+// template const value
+const (
+	SetBodyParam = "setBodyParam(req).\n"
+)
