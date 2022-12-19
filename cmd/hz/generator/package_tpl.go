@@ -62,6 +62,7 @@ import (
 	"context"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 {{- range $k, $v := .Imports}}
 	{{$k}} "{{$v.Package}}"
@@ -76,13 +77,13 @@ func {{$MethodInfo.Name}}(ctx context.Context, c *app.RequestContext) {
 	var req {{$MethodInfo.RequestTypeName}}
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		c.String(400, err.Error())
+		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
 	{{end}}
 	resp := new({{$MethodInfo.ReturnTypeName}})
 
-	c.{{.Serializer}}(200, resp)
+	c.{{.Serializer}}(consts.StatusOK, resp)
 }
 {{end}}
 			`,
@@ -222,13 +223,13 @@ func {{.Name}}(ctx context.Context, c *app.RequestContext) {
 	var req {{.RequestTypeName}}
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		c.String(400, err.Error())
+		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
 	{{end}}
 	resp := new({{.ReturnTypeName}})
 
-	c.{{.Serializer}}(200, resp)
+	c.{{.Serializer}}(consts.StatusOK, resp)
 }
 `,
 		},

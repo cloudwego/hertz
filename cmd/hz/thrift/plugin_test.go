@@ -27,7 +27,7 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	data, err := ioutil.ReadFile("test_data/test_tag.out")
+	data, err := ioutil.ReadFile("../testdata/request_thrift.out")
 	if err != nil {
 		t.Fatal(err)
 	}

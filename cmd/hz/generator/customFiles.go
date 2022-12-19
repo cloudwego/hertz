@@ -58,7 +58,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 						Methods:           service.Methods,
 						TPL:               customTpl,
 					}
-					if err = pkgGen.generateCustomTemplate(customInfo); err != nil {
+					if err = pkgGen.generateCustomTemplateFile(customInfo); err != nil {
 						return err
 					}
 				}
@@ -77,7 +77,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 					Methods:           service.Methods,
 					TPL:               customTpl,
 				}
-				if err = pkgGen.generateCustomTemplate(customInfo); err != nil {
+				if err = pkgGen.generateCustomTemplateFile(customInfo); err != nil {
 					return err
 				}
 			}
@@ -86,14 +86,14 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 	return nil
 }
 
-func (pkgGen *HttpPackageGenerator) generateCustomFileName(path, serviceName, namespace, method string) (string, error) {
+func (pkgGen *HttpPackageGenerator) generateCustomFileName(path, serviceName, packagePath, method string) (string, error) {
 	pathTpl, ok := pkgGen.pathNameTpls[path]
 	if !ok {
 		return "", fmt.Errorf("path is not exist,path = %s", path)
 	}
 	data := make(map[string]interface{})
 	data["Method"] = method
-	data["ProjectNamespace"] = namespace
+	data["PackagePath"] = packagePath
 	data["serviceName"] = serviceName
 	fileName := bytes.NewBuffer(nil)
 	if err := pathTpl.Execute(fileName, data); err != nil {
@@ -102,7 +102,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomFileName(path, serviceName, na
 	return fileName.String(), nil
 }
 
-func (pkgGen *HttpPackageGenerator) generateCustomTemplate(customRenderInfo *CustomTplRenderInfo) error {
+func (pkgGen *HttpPackageGenerator) generateCustomTemplateFile(customRenderInfo *CustomTplRenderInfo) error {
 	isExist, err := util.PathExist(customRenderInfo.FilePath)
 	if err != nil {
 		return err

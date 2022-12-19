@@ -140,11 +140,12 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // Ping .
 func Ping(ctx context.Context, c *app.RequestContext) {
-	c.JSON(200, utils.H{
+	c.JSON(consts.StatusOK, utils.H{
 		"message": "pong",
 	})
 }

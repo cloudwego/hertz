@@ -29,8 +29,6 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
-	"github.com/cloudwego/thriftgo/generator/backend"
-	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
@@ -187,19 +185,19 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	return verboseLog
 }
 
-//func (plugin *Plugin) handleRequest() error {
-//	data, err := ioutil.ReadAll(os.Stdin)
-//	if err != nil {
-//		return fmt.Errorf("read request failed: %s", err.Error())
-//	}
-//	req, err := thriftgo_plugin.UnmarshalRequest(data)
-//	if err != nil {
-//		return fmt.Errorf("unmarshal request failed: %s", err.Error())
-//	}
-//	plugin.req = req
-//
-//	return nil
-//}
+func (plugin *Plugin) handleRequest() error {
+	data, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("read request failed: %s", err.Error())
+	}
+	req, err := thriftgo_plugin.UnmarshalRequest(data)
+	if err != nil {
+		return fmt.Errorf("unmarshal request failed: %s", err.Error())
+	}
+	plugin.req = req
+
+	return nil
+}
 
 func (plugin *Plugin) parseArgs() (*config.Argument, error) {
 	if plugin.req == nil {
@@ -393,24 +391,4 @@ func (plugin *Plugin) GetResponse(files []generator.File, outputDir string) (*th
 	return &thriftgo_plugin.Response{
 		Contents: contents,
 	}, nil
-}
-
-func (plugin *Plugin) handleRequest() error {
-	data, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		return fmt.Errorf("read request failed: %s", err.Error())
-	}
-	req, err := thriftgo_plugin.UnmarshalRequest(data)
-	if err != nil {
-		return fmt.Errorf("unmarshal request failed: %s", err.Error())
-	}
-	plugin.req = req
-	// init thriftgo utils
-	thriftgoUtil := golang.NewCodeUtils(backend.DummyLogFunc())
-	thriftgoUtil.HandleOptions(req.GeneratorParameters)
-	// TEST: For plugin debug. Delete below codes after release!
-	buf, err := thriftgo_plugin.MarshalRequest(req)
-	err = os.MkdirAll("./testdata", os.FileMode(0o755))
-	err = os.WriteFile("./testdata/test_tag.out", buf, os.FileMode(0o755))
-	return nil
 }
