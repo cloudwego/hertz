@@ -19,19 +19,21 @@ package generator
 import (
 	"bytes"
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"text/template"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
 type CustomTplRenderInfo struct {
-	FilePath          string
-	Service           string
-	Module            string
-	CustomPackagePath string
-	CustomPackageName string
-	Methods           []*HttpMethod
-	TPL               *template.Template
+	FilePath    string
+	Service     string
+	Module      string
+	PackagePath string
+	PackageName string
+	Methods     []*HttpMethod
+	Imports     map[string]*model.Model
+	TPL         *template.Template
 }
 
 func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) error {
@@ -44,19 +46,20 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 		for _, service := range pkg.Services {
 			if dm := divideMethods[tplPath]; dm {
 				for _, method := range service.Methods {
-					genFilePath, err := pkgGen.generateCustomFileName(tplPath, service.Name, pkg.Package, method.Name)
+					genFilePath, err := pkgGen.generateCustomFileName(tplPath, service.Name, pkg.Package, util.ToSnakeCase(method.Name))
 					if err != nil {
 						return err
 					}
 					customPackagePath := util.SubPackage(pkgGen.ProjPackage, util.SubPackageDir(genFilePath))
 					customInfo := &CustomTplRenderInfo{
-						FilePath:          genFilePath,
-						Service:           service.Name,
-						Module:            pkg.Package,
-						CustomPackagePath: customPackagePath,
-						CustomPackageName: util.SplitPackage(customPackagePath, ""),
-						Methods:           service.Methods,
-						TPL:               customTpl,
+						FilePath:    genFilePath,
+						Service:     service.Name,
+						Module:      pkg.Package,
+						PackagePath: customPackagePath,
+						PackageName: util.SplitPackage(customPackagePath, ""),
+						Methods:     []*HttpMethod{method},
+						TPL:         customTpl,
+						Imports:     getImports([]*HttpMethod{method}),
 					}
 					if err = pkgGen.generateCustomTemplateFile(customInfo); err != nil {
 						return err
@@ -69,13 +72,14 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 				}
 				customPackagePath := util.SubPackage(pkgGen.ProjPackage, util.SubPackageDir(genFilePath))
 				customInfo := &CustomTplRenderInfo{
-					FilePath:          genFilePath,
-					Service:           service.Name,
-					Module:            pkg.Package,
-					CustomPackagePath: customPackagePath,
-					CustomPackageName: util.SplitPackage(customPackagePath, ""),
-					Methods:           service.Methods,
-					TPL:               customTpl,
+					FilePath:    genFilePath,
+					Service:     service.Name,
+					Module:      pkg.Package,
+					PackagePath: customPackagePath,
+					PackageName: util.SplitPackage(customPackagePath, ""),
+					Methods:     service.Methods,
+					TPL:         customTpl,
+					Imports:     getImports(service.Methods),
 				}
 				if err = pkgGen.generateCustomTemplateFile(customInfo); err != nil {
 					return err
@@ -110,17 +114,25 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplateFile(customRenderInfo 
 	if isExist {
 		return nil
 	}
-	data := make(map[string]interface{})
-	data["Methods"] = customRenderInfo.Methods
-	data["Module"] = customRenderInfo.Module
-	data["ServiceName"] = customRenderInfo.Service
-	data["PackagePath"] = customRenderInfo.CustomPackagePath
-	data["PackageName"] = customRenderInfo.CustomPackageName
-
 	file := bytes.NewBuffer(nil)
-	if err = customRenderInfo.TPL.Execute(file, data); err != nil {
+	if err = customRenderInfo.TPL.Execute(file, customRenderInfo); err != nil {
 		return err
 	}
 	pkgGen.files = append(pkgGen.files, File{customRenderInfo.FilePath, file.String(), false, ""})
 	return nil
+}
+
+func getImports(Methods []*HttpMethod) map[string]*model.Model {
+	ims := make(map[string]*model.Model, len(Methods))
+	for _, m := range Methods {
+		// Iterate over the request and return parameters of the method to get import path.
+		for key, mm := range m.Models {
+			if v, ok := ims[mm.PackageName]; ok && v.Package != mm.Package {
+				ims[key] = mm
+				continue
+			}
+			ims[mm.PackageName] = mm
+		}
+	}
+	return ims
 }
