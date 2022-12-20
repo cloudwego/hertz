@@ -372,36 +372,16 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 
 func TestWithBasePath(t *testing.T) {
 	engine := New(WithBasePath("/hertz"), WithHostPorts("127.0.0.1:9898"))
-	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Write(ctx.Request.Body())
-	})
-	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Write(ctx.Request.Body())
+	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
 	time.Sleep(200 * time.Microsecond)
-
-	s := "POST hertz?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
-	zr := mock.NewZeroCopyReader(s)
-
-	ctx := app.NewContext(0)
-	if err := req.Read(&ctx.Request, zr); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
-	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
-
-	s = "POST hertz/a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
-	zr = mock.NewZeroCopyReader(s)
-
-	ctx = app.NewContext(0)
-	if err := req.Read(&ctx.Request, zr); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	engine.ServeHTTP(context.Background(), ctx)
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
-	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
+	var r http.Request
+	r.ParseForm()
+	r.Form.Add("xxxxxx", "xxx")
+	body := strings.NewReader(r.Form.Encode())
+	resp, _ := http.Post("http://127.0.0.1:9898/hertz/test", "application/x-www-form-urlencoded", body)
+	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
 func TestNotEnoughBodySize(t *testing.T) {
