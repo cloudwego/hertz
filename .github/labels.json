@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "invalid_issue": {
+      "name": "invalid issue",
+      "colour": "#CF2E1F",
+      "description": "invalid issue (not related to Hertz or described in document or not enough information provided)"
+    }
+  },
+  "issue": {
+    "invalid_issue": {
+      "requires": 2,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!Describe the bug).)*$/is"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!Is your feature request related to a problem\\? Please describe).)*$/is"
+        }
+      ]
+    }
+  }
+}

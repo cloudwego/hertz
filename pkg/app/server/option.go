@@ -17,6 +17,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"strings"
@@ -317,5 +318,21 @@ func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
 func WithDisablePrintRoute(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.DisablePrintRoute = b
+	}}
+}
+
+// WithOnAccept sets the callback function when a new connection is accepted but cannot
+// receive data in netpoll. In go net, it will be called before converting tls connection
+func WithOnAccept(fn func(conn network.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnAccept = fn
+	}}
+}
+
+// WithOnConnect sets the onConnect function. It can received data from connection in netpoll.
+// In go net, it will be called after converting tls connection.
+func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnConnect = fn
 	}}
 }
