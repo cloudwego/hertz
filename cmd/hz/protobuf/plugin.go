@@ -536,7 +536,7 @@ func (plugin *Plugin) getIdlInfo(ast *descriptorpb.FileDescriptorProto, deps map
 		return nil, err
 	}
 
-	services, err := astToService(ast, rs, args, plugin.Plugin)
+	services, err := astToService(ast, rs, args.CmdType, plugin.Plugin)
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
@@ -49,7 +48,7 @@ func getGoPackage(ast *parser.Thrift, pkgMap map[string]string) string {
 
 /*---------------------------Service-----------------------------*/
 
-func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument) ([]*generator.Service, error) {
+func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*generator.Service, error) {
 	ss := ast.GetServices()
 	out := make([]*generator.Service, 0, len(ss))
 	var models model.Models
@@ -62,7 +61,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		service.BaseDomain = ""
 		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
 		if len(domainAnno) == 1 {
-			if args.CmdType == meta.CmdClient {
+			if cmdType == meta.CmdClient {
 				service.BaseDomain = domainAnno[0]
 			}
 		}
@@ -135,7 +134,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			}
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
-			if args.CmdType == meta.CmdClient {
+			if cmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
 				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())

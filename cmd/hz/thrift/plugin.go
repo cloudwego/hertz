@@ -269,7 +269,7 @@ func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 		return nil, fmt.Errorf("go package for '%s' is not defined", ast.GetFilename())
 	}
 
-	services, err := astToService(ast, rs, args)
+	services, err := astToService(ast, rs, args.CmdType)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
@@ -105,7 +104,7 @@ func switchBaseType(typ descriptorpb.FieldDescriptorProto_Type) *model.Type {
 	return nil
 }
 
-func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, args *config.Argument, gen *protogen.Plugin) ([]*generator.Service, error) {
+func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmdType string, gen *protogen.Plugin) ([]*generator.Service, error) {
 	resolver.ExportReferred(true, false)
 	ss := ast.GetService()
 	out := make([]*generator.Service, 0, len(ss))
@@ -118,7 +117,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, arg
 
 		service.BaseDomain = ""
 		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
-		if args.CmdType == meta.CmdClient {
+		if cmdType == meta.CmdClient {
 			val, ok := domainAnno.(string)
 			if ok && len(val) != 0 {
 				service.BaseDomain = val
@@ -202,7 +201,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, arg
 
 			methods = append(methods, method)
 
-			if args.CmdType == meta.CmdClient {
+			if cmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
 				err := parseAnnotationToClient(clientMethod, gen, ast, m)
