@@ -13,7 +13,7 @@ A clear and concise description of what the question is.
 
 **Reproducible Code**
 
-Please submit a reproducible code and tell us how to reproduce it like how you send a request or send what request?
+Please construct a minimum complete and reproducible example for us to get the same error. And tell us how to reproduce it like how you send a request or send what request.
 
 **Expected behavior**
 
