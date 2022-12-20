@@ -1,7 +1,7 @@
 name: "Close Invalid Issue"
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "0 * * * *"
 
 permissions:
   contents: read
