@@ -19,9 +19,9 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"text/template"
 
+	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
@@ -46,7 +46,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 		for _, service := range pkg.Services {
 			if dm := divideMethods[tplPath]; dm {
 				for _, method := range service.Methods {
-					genFilePath, err := pkgGen.generateCustomFileName(tplPath, service.Name, pkg.Package, util.ToSnakeCase(method.Name))
+					genFilePath, err := pkgGen.generateCustomFileName(tplPath, util.ToSnakeCase(service.Name), pkg.Package, util.ToSnakeCase(method.Name))
 					if err != nil {
 						return err
 					}
@@ -66,7 +66,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomTemplate(pkg *HttpPackage) err
 					}
 				}
 			} else {
-				genFilePath, err := pkgGen.generateCustomFileName(tplPath, service.Name, pkg.Package, "")
+				genFilePath, err := pkgGen.generateCustomFileName(tplPath, util.ToSnakeCase(service.Name), pkg.Package, "")
 				if err != nil {
 					return err
 				}
@@ -98,7 +98,7 @@ func (pkgGen *HttpPackageGenerator) generateCustomFileName(path, serviceName, pa
 	data := make(map[string]interface{})
 	data["Method"] = method
 	data["PackagePath"] = packagePath
-	data["serviceName"] = serviceName
+	data["ServiceName"] = serviceName
 	fileName := bytes.NewBuffer(nil)
 	if err := pathTpl.Execute(fileName, data); err != nil {
 		return "", err
