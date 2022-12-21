@@ -51,6 +51,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestResponseCopyTo(t *testing.T) {
@@ -64,7 +65,7 @@ func TestResponseCopyTo(t *testing.T) {
 	// init resp
 	// resp.laddr = zeroTCPAddr
 	resp.SkipBody = true
-	resp.Header.SetStatusCode(200)
+	resp.Header.SetStatusCode(consts.StatusOK)
 	resp.SetBodyString("test")
 	testResponseCopyTo(t, &resp)
 }
@@ -179,11 +180,11 @@ func testResponseCopyTo(t *testing.T, src *Response) {
 
 func TestResponseMustSkipBody(t *testing.T) {
 	resp := Response{}
-	resp.SetStatusCode(200)
+	resp.SetStatusCode(consts.StatusOK)
 	resp.SetBodyString("test")
 	assert.False(t, resp.MustSkipBody())
 	// no content 204 means that skip body is necessary
-	resp.SetStatusCode(204)
+	resp.SetStatusCode(consts.StatusNoContent)
 	resp.ResetBody()
 	assert.True(t, resp.MustSkipBody())
 }
@@ -225,7 +226,7 @@ func TestResponseAcquireResponse(t *testing.T) {
 	resp1 := AcquireResponse()
 	assert.NotNil(t, resp1)
 	resp1.SetBody([]byte("test"))
-	resp1.SetStatusCode(200)
+	resp1.SetStatusCode(consts.StatusOK)
 	ReleaseResponse(resp1)
 	assert.Nil(t, resp1.body)
 }

@@ -151,7 +151,7 @@ func WithWriteTimeout(t time.Duration) config.ClientOption {
 
 // WithDialFunc is used to set dialer function.
 // Note: WithDialFunc will overwrite custom dialer.
-func WithDialFunc(f DialFunc, dialers ...network.Dialer) config.ClientOption {
+func WithDialFunc(f network.DialFunc, dialers ...network.Dialer) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		d := dialer.DefaultDialer()
 		if len(dialers) != 0 {
@@ -161,12 +161,10 @@ func WithDialFunc(f DialFunc, dialers ...network.Dialer) config.ClientOption {
 	}}
 }
 
-type DialFunc func(addr string) (network.Conn, error)
-
 // customDialer set customDialerFunc and params to set dailFunc
 type customDialer struct {
 	network.Dialer
-	dialFunc DialFunc
+	dialFunc network.DialFunc
 }
 
 func (m *customDialer) DialConnection(network, address string, timeout time.Duration,
@@ -177,7 +175,7 @@ func (m *customDialer) DialConnection(network, address string, timeout time.Dura
 	return m.Dialer.DialConnection(network, address, timeout, tlsConfig)
 }
 
-func newCustomDialerWithDialFunc(dialer network.Dialer, dialFunc DialFunc) network.Dialer {
+func newCustomDialerWithDialFunc(dialer network.Dialer, dialFunc network.DialFunc) network.Dialer {
 	return &customDialer{
 		Dialer:   dialer,
 		dialFunc: dialFunc,

@@ -94,3 +94,9 @@ type ConnTLSer interface {
 type HandleSpecificError interface {
 	HandleSpecificError(err error, rip string) (needIgnore bool)
 }
+
+type ErrorNormalization interface {
+	ToHertzError(err error) error
+}
+
+type DialFunc func(addr string) (Conn, error)
