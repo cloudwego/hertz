@@ -23,10 +23,13 @@ import (
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
+	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/protobuf/api"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"github.com/jhump/protoreflect/desc"
+	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -101,7 +104,7 @@ func switchBaseType(typ descriptorpb.FieldDescriptorProto_Type) *model.Type {
 	return nil
 }
 
-func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]*generator.Service, error) {
+func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmdType string, gen *protogen.Plugin) ([]*generator.Service, error) {
 	resolver.ExportReferred(true, false)
 	ss := ast.GetService()
 	out := make([]*generator.Service, 0, len(ss))
@@ -112,10 +115,19 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 			Name: s.GetName(),
 		}
 
+		service.BaseDomain = ""
+		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
+		if cmdType == meta.CmdClient {
+			val, ok := domainAnno.(string)
+			if ok && len(val) != 0 {
+				service.BaseDomain = val
+			}
+		}
+
 		ms := s.GetMethod()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
+		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
 		for _, m := range ms {
-
 			hmethod, vpath := checkFirstOptions(HttpMethodOptions, m.GetOptions())
 			if hmethod == "" {
 				continue
@@ -188,13 +200,99 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver) ([]
 			method.ReturnTypeName = respName
 
 			methods = append(methods, method)
+
+			if cmdType == meta.CmdClient {
+				clientMethod := &generator.ClientMethod{}
+				clientMethod.HttpMethod = method
+				err := parseAnnotationToClient(clientMethod, gen, ast, m)
+				if err != nil {
+					return nil, err
+				}
+				clientMethods = append(clientMethods, clientMethod)
+			}
 		}
 
+		service.ClientMethods = clientMethods
 		service.Methods = methods
 		service.Models = merges
 		out = append(out, service)
 	}
 	return out, nil
+}
+
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
+	file, exist := gen.FilesByPath[ast.GetName()]
+	if !exist {
+		return fmt.Errorf("file(%s) can not exist", ast.GetName())
+	}
+	method, err := getMethod(file, m)
+	if err != nil {
+		return err
+	}
+	inputType := method.Input
+	var (
+		hasBodyAnnotation bool
+		hasFormAnnotation bool
+	)
+	for _, f := range inputType.Fields {
+		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
+			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
+			val := queryAnnos.(string)
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+
+		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
+			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
+			val := pathAnnos.(string)
+			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+
+		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
+			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
+			val := headerAnnos.(string)
+			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+
+		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
+			hasFormAnnotation = true
+			val := formAnnos.(string)
+			clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+
+		if proto.HasExtension(f.Desc.Options(), api.E_Body) {
+			hasBodyAnnotation = true
+		}
+
+		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
+			hasFormAnnotation = true
+			val := fileAnnos.(string)
+			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+	}
+	clientMethod.BodyParamsCode = meta.SetBodyParam
+	if hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.FormValueCode = ""
+		clientMethod.FormFileCode = ""
+	}
+	if !hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.BodyParamsCode = ""
+	}
+
+	return nil
+}
+
+func getMethod(file *protogen.File, m *descriptorpb.MethodDescriptorProto) (*protogen.Method, error) {
+	for _, f := range file.Services {
+		for _, method := range f.Methods {
+			if string(method.Desc.Name()) == m.GetName() {
+				return method, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("can not find method: %s", m.GetName())
 }
 
 //---------------------------------Model--------------------------------
