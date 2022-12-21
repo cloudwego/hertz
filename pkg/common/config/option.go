@@ -74,7 +74,8 @@ type Options struct {
 	ListenConfig                 *net.ListenConfig
 
 	// TransporterNewer is the function to create a transporter.
-	TransporterNewer func(opt *Options) network.Transporter
+	TransporterNewer    func(opt *Options) network.Transporter
+	AltTransporterNewer func(opt *Options) network.Transporter
 
 	// In netpoll library, OnAccept is called after connection accepted
 	// but before adding it to epoll. OnConnect is called after adding it to epoll.

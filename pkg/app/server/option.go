@@ -259,6 +259,13 @@ func WithTransport(transporter func(options *config.Options) network.Transporter
 	}}
 }
 
+// WithAltTransport sets which network library to use as an alternative transporter(need to be implemented by specific transporter).
+func WithAltTransport(transporter func(options *config.Options) network.Transporter) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AltTransporterNewer = transporter
+	}}
+}
+
 // WithH2C sets whether enable H2C.
 func WithH2C(enable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
