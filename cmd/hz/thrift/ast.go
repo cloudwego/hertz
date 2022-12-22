@@ -18,11 +18,14 @@ package thrift
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
+	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
+	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	"github.com/cloudwego/thriftgo/parser"
 )
@@ -45,7 +48,7 @@ func getGoPackage(ast *parser.Thrift, pkgMap map[string]string) string {
 
 /*---------------------------Service-----------------------------*/
 
-func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service, error) {
+func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*generator.Service, error) {
 	ss := ast.GetServices()
 	out := make([]*generator.Service, 0, len(ss))
 	var models model.Models
@@ -55,20 +58,24 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 		service := &generator.Service{
 			Name: s.GetName(),
 		}
+		service.BaseDomain = ""
+		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
+		if len(domainAnno) == 1 {
+			if cmdType == meta.CmdClient {
+				service.BaseDomain = domainAnno[0]
+			}
+		}
 
 		ms := s.GetFunctions()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
+		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
 		for _, m := range ms {
-
 			rs := getAnnotations(m.Annotations, HttpMethodAnnotations)
 			if len(rs) > 1 {
-				return nil, fmt.Errorf("invalid http router '%v' for %s.%s", rs, s.Name, m.Name)
+				return nil, fmt.Errorf("too many 'api.XXX' annotations: %s", rs)
 			}
 			if len(rs) == 0 {
 				continue
-			}
-			if len(rs) > 1 {
-				return nil, fmt.Errorf("too many 'api.XXX' annotations: %s", rs)
 			}
 
 			var handlerOutDir string
@@ -88,13 +95,13 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 
 			var reqName string
 			if len(m.Arguments) >= 1 {
+				if len(m.Arguments) > 1 {
+					logs.Warnf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName())
+				}
 				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
 				if err != nil {
 					return nil, err
 				}
-				// if len(m.Arguments) > 1 {
-				// 	*warns = append(*warns, fmt.Sprintf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName()))
-				// }
 				reqName = rt.Expression()
 			}
 			var respName string
@@ -120,7 +127,6 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 			refs := resolver.ExportReferred(false, true)
 			method.Models = make(map[string]*model.Model, len(refs))
 			for _, ref := range refs {
-				// method.Models[ref.Model.PackageName] = ref.Model
 				if v, ok := method.Models[ref.Model.PackageName]; ok && (v.Package != ref.Model.Package) {
 					return nil, fmt.Errorf("Package name: %s  redeclared in %s and %s ", ref.Model.PackageName, v.Package, ref.Model.Package)
 				}
@@ -128,13 +134,114 @@ func astToService(ast *parser.Thrift, resolver *Resolver) ([]*generator.Service,
 			}
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
+			if cmdType == meta.CmdClient {
+				clientMethod := &generator.ClientMethod{}
+				clientMethod.HttpMethod = method
+				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
+				if err != nil {
+					return nil, err
+				}
+				err = parseAnnotationToClient(clientMethod, m.Arguments[0].GetType(), rt)
+				if err != nil {
+					return nil, err
+				}
+				clientMethods = append(clientMethods, clientMethod)
+			}
 		}
 
+		service.ClientMethods = clientMethods
 		service.Methods = methods
 		service.Models = models
 		out = append(out, service)
 	}
 	return out, nil
+}
+
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol) error {
+	if p == nil {
+		return fmt.Errorf("get type failed for parse annotatoon to client")
+	}
+	typeName := p.GetName()
+	if strings.Contains(typeName, ".") {
+		ret := strings.Split(typeName, ".")
+		typeName = ret[len(ret)-1]
+	}
+	scope, err := golang.BuildScope(thriftgoUtil, symbol.Scope)
+	if err != nil {
+		fmt.Errorf("can not build scope for %s", p.Name)
+	}
+	thriftgoUtil.SetRootScope(scope)
+	st := scope.StructLike(typeName)
+	var (
+		hasBodyAnnotation bool
+		hasFormAnnotation bool
+	)
+	for _, field := range st.Fields() {
+		rwctx, err := thriftgoUtil.MkRWCtx(thriftgoUtil.RootScope(), field)
+		if err != nil {
+			fmt.Errorf("can not get field info for %s", field.Name)
+		}
+		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
+			query := anno[0]
+			if rwctx.IsPointer {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: *req.%v,\n", query, field.GoName().String())
+			} else {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.%v,\n", query, field.GoName().String())
+			}
+		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
+			path := anno[0]
+			if rwctx.IsPointer {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: *req.%v,\n", path, field.GoName().String())
+			} else {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.%v,\n", path, field.GoName().String())
+			}
+		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
+			header := anno[0]
+			if rwctx.IsPointer {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: *req.%v,\n", header, field.GoName().String())
+			} else {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.%v,\n", header, field.GoName().String())
+			}
+		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
+			form := anno[0]
+			hasFormAnnotation = true
+			if rwctx.IsPointer {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: *req.%v,\n", form, field.GoName().String())
+			} else {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req.%v,\n", form, field.GoName().String())
+			}
+		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {
+			hasBodyAnnotation = true
+		}
+
+		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
+			fileName := anno[0]
+			hasFormAnnotation = true
+			if rwctx.IsPointer {
+				clientMethod.FormFileCode += fmt.Sprintf("%q: *req.%v,\n", fileName, field.GoName().String())
+			} else {
+				clientMethod.FormFileCode += fmt.Sprintf("%q: req.%v,\n", fileName, field.GoName().String())
+			}
+		}
+	}
+	clientMethod.BodyParamsCode = meta.SetBodyParam
+	if hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.FormValueCode = ""
+		clientMethod.FormFileCode = ""
+	}
+	if !hasBodyAnnotation && hasFormAnnotation {
+		clientMethod.BodyParamsCode = ""
+	}
+
+	return nil
 }
 
 /*---------------------------Model-----------------------------*/

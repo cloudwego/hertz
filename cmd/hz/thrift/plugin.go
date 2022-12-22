@@ -29,6 +29,8 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
+	"github.com/cloudwego/thriftgo/generator/backend"
+	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
@@ -133,6 +135,8 @@ func (plugin *Plugin) Run() int {
 		ProjPackage:     pkg,
 		Options:         options,
 		HandlerByMethod: args.HandlerByMethod,
+		CmdType:         args.CmdType,
+		IdlClientDir:    util.SubDir(modelDir, pkgInfo.Package),
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)
@@ -195,6 +199,9 @@ func (plugin *Plugin) handleRequest() error {
 		return fmt.Errorf("unmarshal request failed: %s", err.Error())
 	}
 	plugin.req = req
+	// init thriftgo utils
+	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
+	thriftgoUtil.HandleOptions(req.GeneratorParameters)
 
 	return nil
 }
@@ -262,7 +269,7 @@ func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 		return nil, fmt.Errorf("go package for '%s' is not defined", ast.GetFilename())
 	}
 
-	services, err := astToService(ast, rs)
+	services, err := astToService(ast, rs, args.CmdType)
 	if err != nil {
 		return nil, err
 	}

@@ -30,15 +30,16 @@ import (
 )
 
 const (
-	AnnotationQuery   = "api.query"
-	AnnotationForm    = "api.form"
-	AnnotationPath    = "api.path"
-	AnnotationHeader  = "api.header"
-	AnnotationCookie  = "api.cookie"
-	AnnotationBody    = "api.body"
-	AnnotationRawBody = "api.raw_body"
-	AnnotationJsConv  = "api.js_conv"
-	AnnotationNone    = "api.none"
+	AnnotationQuery    = "api.query"
+	AnnotationForm     = "api.form"
+	AnnotationPath     = "api.path"
+	AnnotationHeader   = "api.header"
+	AnnotationCookie   = "api.cookie"
+	AnnotationBody     = "api.body"
+	AnnotationRawBody  = "api.raw_body"
+	AnnotationJsConv   = "api.js_conv"
+	AnnotationNone     = "api.none"
+	AnnotationFileName = "api.file_name"
 
 	AnnotationValidator = "api.vd"
 
@@ -57,6 +58,10 @@ const (
 	ApiPath       = "api.path"
 	ApiSerializer = "api.serializer"
 	ApiGenPath    = "api.handler_path"
+)
+
+const (
+	ApiBaseDomain = "api.base_domain"
 )
 
 var (
