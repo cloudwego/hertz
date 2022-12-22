@@ -98,3 +98,5 @@ type HandleSpecificError interface {
 type ErrorNormalization interface {
 	ToHertzError(err error) error
 }
+
+type DialFunc func(addr string) (Conn, error)
