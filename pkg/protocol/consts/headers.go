@@ -26,6 +26,7 @@ const (
 	HeaderConnection    = "Connection"
 	HeaderContentLength = "Content-Length"
 	HeaderCookie        = "Cookie"
+	HeaderAltSvc        = "Alt-Svc"
 
 	HeaderServer           = "Server"
 	HeaderServerLower      = "server"

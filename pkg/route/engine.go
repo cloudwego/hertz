@@ -939,6 +939,10 @@ func (engine *Engine) AddProtocol(protocol string, factory interface{}) {
 	engine.protocolSuite.Add(protocol, factory)
 }
 
+func (engine *Engine) SetAltProtocol(targetProtocol string, f func(c context.Context, ctx *app.RequestContext)) {
+	engine.protocolSuite.SetAltConfig(targetProtocol, f)
+}
+
 func (engine *Engine) HasServer(name string) bool {
 	return engine.protocolSuite.Get(name) != nil
 }

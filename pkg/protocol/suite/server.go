@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 const (
@@ -56,6 +57,7 @@ type StreamServerFactory interface {
 }
 
 type Config struct {
+	altServerConfig *altServerConfig
 	configMap       map[string]ServerFactory
 	streamConfigMap map[string]StreamServerFactory
 }
@@ -63,6 +65,32 @@ type Config struct {
 type ServerMap map[string]protocol.Server
 
 type StreamServerMap map[string]protocol.StreamServer
+
+type altServerConfig struct {
+	targetProtocol   string
+	setAltHeaderFunc func(ctx context.Context, reqCtx *app.RequestContext)
+}
+
+type coreWrapper struct {
+	Core
+	beforeHandler func(c context.Context, ctx *app.RequestContext)
+}
+
+func (c *coreWrapper) ServeHTTP(ctx context.Context, reqCtx *app.RequestContext) {
+	c.beforeHandler(ctx, reqCtx)
+	c.Core.ServeHTTP(ctx, reqCtx)
+}
+
+// SetAltHeader will set response header "Alt-Svc" for the target protocol, altHeader will be the value of the header.
+// Protocols other than the target protocol will carry the altHeader in the request header.
+func (c *Config) SetAltHeader(target string, altHeader string) {
+	c.altServerConfig = &altServerConfig{
+		targetProtocol: target,
+		setAltHeaderFunc: func(ctx context.Context, reqCtx *app.RequestContext) {
+			reqCtx.Response.Header.Add(consts.HeaderAltSvc, altHeader)
+		},
+	}
+}
 
 func (c *Config) Add(protocol string, factory interface{}) {
 	switch factory := factory.(type) {
@@ -93,13 +121,20 @@ func (c *Config) Load(core Core, protocol string) (server protocol.Server, err e
 	if c.configMap[protocol] == nil {
 		return nil, errors.NewPrivate("HERTZ: Load server error, not support protocol: " + protocol)
 	}
-	return c.configMap[protocol].New(core)
+	if c.altServerConfig == nil || c.altServerConfig.targetProtocol == protocol {
+		return c.configMap[protocol].New(core)
+	}
+	return c.configMap[protocol].New(&coreWrapper{Core: core, beforeHandler: c.altServerConfig.setAltHeaderFunc})
 }
 
 func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap StreamServerMap, err error) {
 	serverMap = make(ServerMap)
+	wrapperCore := &coreWrapper{Core: core, beforeHandler: c.altServerConfig.setAltHeaderFunc}
 	var server protocol.Server
 	for proto := range c.configMap {
+		if c.altServerConfig != nil && c.altServerConfig.targetProtocol != proto {
+			core = wrapperCore
+		}
 		if server, err = c.configMap[proto].New(core); err != nil {
 			return nil, streamServerMap, err
 		} else {
@@ -109,6 +144,9 @@ func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap Stream
 	streamServerMap = make(StreamServerMap)
 	var streamServer protocol.StreamServer
 	for proto := range c.streamConfigMap {
+		if c.altServerConfig != nil && c.altServerConfig.targetProtocol != proto {
+			core = wrapperCore
+		}
 		if streamServer, err = c.streamConfigMap[proto].New(core); err != nil {
 			return serverMap, nil, err
 		} else {
