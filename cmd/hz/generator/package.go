@@ -67,46 +67,53 @@ type HttpPackageGenerator struct {
 }
 
 func (pkgGen *HttpPackageGenerator) Init() error {
-	config := packageConfig
+	defaultConfig := packageConfig
+	customConfig := TemplateConfig{}
 	// unmarshal from user-defined config file if it exists
 	if pkgGen.ConfigPath != "" {
 		cdata, err := os.ReadFile(pkgGen.ConfigPath)
 		if err != nil {
 			return fmt.Errorf("read layout config from  %s failed, err: %v", pkgGen.ConfigPath, err.Error())
 		}
-		config = TemplateConfig{}
-		if err = yaml.Unmarshal(cdata, &config); err != nil {
+		if err = yaml.Unmarshal(cdata, &customConfig); err != nil {
 			return fmt.Errorf("unmarshal layout config failed, err: %v", err.Error())
 		}
-		if reflect.DeepEqual(config, TemplateConfig{}) {
+		if reflect.DeepEqual(customConfig, TemplateConfig{}) {
 			return errors.New("empty config")
 		}
 	}
 
-	// extract routerTplName/middlewareTplName/handlerTplName/registerTplName/modelTplName/clientTplName directories
-	for _, layout := range config.Layouts {
-		name := filepath.Base(layout.Path)
-		if !IsDefaultTpl(name) {
-			continue
-		}
-		path := name
-		delims := DefaultDelimiters
-		if layout.Delims[0] != "" && layout.Delims[1] != "" {
-			delims = layout.Delims
-		}
-		tpl := template.New(path)
-		tpl = tpl.Delims(delims[0], delims[1])
-		var err error
-		if tpl, err = tpl.Parse(layout.Body); err != nil {
-			return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
-		}
-		if pkgGen.tpls == nil {
-			pkgGen.tpls = make(map[string]*template.Template, len(config.Layouts))
-		}
-		pkgGen.tpls[path] = tpl
+	if pkgGen.tpls == nil {
+		pkgGen.tpls = make(map[string]*template.Template, len(defaultConfig.Layouts))
+	}
+	if pkgGen.tplsInfo == nil {
+		pkgGen.tplsInfo = make(map[string]*Template, len(defaultConfig.Layouts))
 	}
 
-	pkgGen.Config = &config
+	// extract routerTplName/middlewareTplName/handlerTplName/registerTplName/modelTplName/clientTplName directories
+	// load default template
+	for _, layout := range defaultConfig.Layouts {
+		// default template use "fileName" as template name
+		path := filepath.Base(layout.Path)
+		err := pkgGen.loadLayout(layout, path, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	// override the default template, other customized file template will be loaded by "TemplateGenerator.Init"
+	for _, layout := range customConfig.Layouts {
+		path := layout.Path
+		if !IsDefaultPackageTpl(path) {
+			continue
+		}
+		err := pkgGen.loadLayout(layout, path, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	pkgGen.Config = &customConfig
 	// load Model tpl if need
 	if pkgGen.Backend != "" {
 		if err := pkgGen.LoadBackend(pkgGen.Backend); err != nil {
@@ -171,5 +178,5 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 		return err
 	}
 
-	return pkgGen.generateCustomTemplate(pkg)
+	return nil
 }
