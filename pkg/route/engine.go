@@ -532,7 +532,7 @@ func NewEngine(opt *config.Options) *Engine {
 		trees: make(MethodTrees, 0, 9),
 		RouterGroup: RouterGroup{
 			Handlers: nil,
-			basePath: "/",
+			basePath: opt.BasePath,
 			root:     true,
 		},
 		transport:       defaultTransporter(opt),
