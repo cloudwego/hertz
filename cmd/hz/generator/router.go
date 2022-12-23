@@ -309,6 +309,9 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 		router.HandlerPackages = handlerMap
 	}
 
+	// store router info
+	pkg.RouterInfo = &router
+
 	if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
 		return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
 	}

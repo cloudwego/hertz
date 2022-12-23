@@ -31,10 +31,11 @@ import (
 )
 
 type HttpPackage struct {
-	IdlName  string
-	Package  string
-	Services []*Service
-	Models   []*model.Model
+	IdlName    string
+	Package    string
+	Services   []*Service
+	Models     []*model.Model
+	RouterInfo *Router
 }
 
 type Service struct {
@@ -103,11 +104,10 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 
 	// override the default template, other customized file template will be loaded by "TemplateGenerator.Init"
 	for _, layout := range customConfig.Layouts {
-		path := layout.Path
-		if !IsDefaultPackageTpl(path) {
+		if !IsDefaultPackageTpl(layout.Path) {
 			continue
 		}
-		err := pkgGen.loadLayout(layout, path, true)
+		err := pkgGen.loadLayout(layout, layout.Path, true)
 		if err != nil {
 			return err
 		}
@@ -122,6 +122,7 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 	}
 
 	pkgGen.processedModels = make(map[*model.Model]bool)
+	pkgGen.TemplateGenerator.isPackageTpl = true
 
 	return pkgGen.TemplateGenerator.Init()
 }
@@ -175,6 +176,10 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 	}
 
 	if err := pkgGen.genRouter(pkg, root, handlerPackage, routerDir, routerPackage); err != nil {
+		return err
+	}
+
+	if err := pkgGen.genCustomizedFile(pkg); err != nil {
 		return err
 	}
 

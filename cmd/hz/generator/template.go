@@ -36,24 +36,33 @@ type TemplateConfig struct {
 	Layouts []Template `yaml:"layouts"`
 }
 
+const (
+	Unchanged  = 0
+	Regenerate = 1
+	Append     = 2
+)
+
 type Template struct {
 	Default        bool      // Is the default package template
 	Path           string    `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
 	Delims         [2]string `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
 	Body           string    `yaml:"body"`            // Render template, currently only supports go template syntax
-	LoopField      []string  `yaml:"loop_field"`      // Loop generation file accor based on key, "method"、"service" can be supported
+	LoopMethod     bool      `yaml:"loop_method"`     // Loop generate files based on "method"
+	LoopService    bool      `yaml:"loop_service"`    // loop generate files based on "service"
 	UpdateBehavior int       `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
+	AppendKey      string    `yaml:"append_key"`      // Append content based in key; for example: 'method'/'service'
 	AppendContent  string    `yaml:"append_content"`  // Append content if UpdateBehavior is "append"
 }
 
 // TemplateGenerator contains information about the output template
 type TemplateGenerator struct {
-	OutputDir string
-	Config    *TemplateConfig
-	Excludes  []string
-	tpls      map[string]*template.Template // template name -> template
-	tplsInfo  map[string]*Template          // template name -> template info, for getting more template info
-	dirs      map[string]bool
+	OutputDir    string
+	Config       *TemplateConfig
+	Excludes     []string
+	tpls         map[string]*template.Template // template name -> template
+	tplsInfo     map[string]*Template          // template name -> template info, for getting more template info
+	dirs         map[string]bool
+	isPackageTpl bool
 
 	files         []File
 	excludedFiles map[string]*File
@@ -75,12 +84,11 @@ func (tg *TemplateGenerator) Init() error {
 	}
 
 	for _, l := range tg.Config.Layouts {
-		// check if is a directory
-		name := filepath.Base(l.Path)
-		if IsDefaultPackageTpl(name) {
+		if tg.isPackageTpl && IsDefaultPackageTpl(l.Path) {
 			continue
 		}
 
+		// check if is a directory
 		var noFile bool
 		if strings.HasSuffix(l.Path, string(filepath.Separator)) {
 			noFile = true
@@ -128,7 +136,8 @@ func (tg *TemplateGenerator) loadLayout(layout Template, tplName string, isDefau
 	if layout.Delims[0] != "" && layout.Delims[1] != "" {
 		delims = layout.Delims
 	}
-	tpl := template.New(tplName)
+	// insert template funcs
+	tpl := template.New(tplName).Funcs(funcMap)
 	tpl = tpl.Delims(delims[0], delims[1])
 	var err error
 	if tpl, err = tpl.Parse(layout.Body); err != nil {
