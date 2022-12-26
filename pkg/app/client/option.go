@@ -168,8 +168,7 @@ type customDialer struct {
 }
 
 func (m *customDialer) DialConnection(network, address string, timeout time.Duration,
-	tlsConfig *tls.Config,
-) (conn network.Conn, err error) {
+	tlsConfig *tls.Config) (conn network.Conn, err error) {
 	if m.dialFunc != nil {
 		return m.dialFunc(address)
 	}
