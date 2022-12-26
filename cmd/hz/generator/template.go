@@ -37,9 +37,11 @@ type TemplateConfig struct {
 }
 
 type Template struct {
-	Path   string    `yaml:"path"`   // The generated path and its filename, such as biz/handler/ping.go
-	Delims [2]string `yaml:"delims"` // Template Action Instruction Identifier，default: "{{}}"
-	Body   string    `yaml:"body"`   // Render template, currently only supports go template syntax
+	Path           string    `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
+	Delims         [2]string `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
+	Body           string    `yaml:"body"`            // Render template, currently only supports go template syntax
+	CustomTemplate bool      `yaml:"custom_template"` // Whether it is a custom template, This configuration does not work in layout templates, default: false
+	DivideMethod   bool      `yaml:"divide_method"`   // When CustomTemplate is equal to true, all methods are traversed and code is generated.
 }
 
 // TemplateGenerator contains information about the output template
@@ -49,6 +51,11 @@ type TemplateGenerator struct {
 	Excludes  []string
 	tpls      map[string]*template.Template
 	dirs      map[string]bool
+
+	// custom template files and whether divide method
+	customTpls    map[string]*template.Template
+	pathNameTpls  map[string]*template.Template
+	divideMethods map[string]bool
 
 	files         []File
 	excludedFiles map[string]*File
@@ -66,6 +73,21 @@ func (tg *TemplateGenerator) Init() error {
 	dirs := tg.dirs
 	if dirs == nil {
 		dirs = make(map[string]bool)
+	}
+
+	customTpls := tg.customTpls
+	if customTpls == nil {
+		customTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
+	}
+
+	pathNameTpls := tg.pathNameTpls
+	if pathNameTpls == nil {
+		pathNameTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
+	}
+
+	divideMethods := tg.divideMethods
+	if divideMethods == nil {
+		divideMethods = make(map[string]bool, len(tg.Config.Layouts))
 	}
 
 	for _, l := range tg.Config.Layouts {
@@ -89,6 +111,8 @@ func (tg *TemplateGenerator) Init() error {
 			dirs[dir] = false
 		}
 
+		divideMethods[path] = l.DivideMethod
+
 		if noFile {
 			continue
 		}
@@ -107,7 +131,21 @@ func (tg *TemplateGenerator) Init() error {
 			return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
 		}
 
-		tpls[path] = tpl
+		if l.CustomTemplate {
+			customTpls[path] = tpl
+		} else {
+			tpls[path] = tpl
+		}
+
+		if l.CustomTemplate {
+			pathNameTpl := template.New(path)
+			pathNameTpl = pathNameTpl.Delims(delims[0], delims[1])
+			if pathNameTpl, err = pathNameTpl.Parse(path); err != nil {
+				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
+			}
+			pathNameTpls[path] = pathNameTpl
+		}
+
 	}
 
 	excludes := make(map[string]*File, len(tg.Excludes))
@@ -118,6 +156,9 @@ func (tg *TemplateGenerator) Init() error {
 	tg.tpls = tpls
 	tg.dirs = dirs
 	tg.excludedFiles = excludes
+	tg.customTpls = customTpls
+	tg.divideMethods = divideMethods
+	tg.pathNameTpls = pathNameTpls
 	return nil
 }
 

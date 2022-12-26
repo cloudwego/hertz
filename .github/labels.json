@@ -8,7 +8,7 @@
   },
   "issue": {
     "invalid_issue": {
-      "requires": 2,
+      "requires": 3,
       "conditions": [
         {
           "type": "descriptionMatches",
@@ -17,6 +17,10 @@
         {
           "type": "descriptionMatches",
           "pattern": "/^((?!Is your feature request related to a problem\\? Please describe).)*$/is"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!Describe the Question).)*$/is"
         }
       ]
     }

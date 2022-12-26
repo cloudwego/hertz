@@ -187,6 +187,10 @@ type Engine struct {
 
 	// Hook functions get triggered simultaneously when engine shutdown
 	OnShutdown []CtxCallback
+
+	// Custom Functions
+	clientIPFunc  app.ClientIP
+	formValueFunc app.FormValueFunc
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -528,7 +532,7 @@ func NewEngine(opt *config.Options) *Engine {
 		trees: make(MethodTrees, 0, 9),
 		RouterGroup: RouterGroup{
 			Handlers: nil,
-			basePath: "/",
+			basePath: opt.BasePath,
 			root:     true,
 		},
 		transport:       defaultTransporter(opt),
@@ -706,6 +710,8 @@ func (engine *Engine) allocateContext() *app.RequestContext {
 	ctx := engine.NewContext()
 	ctx.Request.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
 	ctx.Response.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
+	ctx.SetClientIPFunc(engine.clientIPFunc)
+	ctx.SetFormValueFunc(engine.formValueFunc)
 	return ctx
 }
 
@@ -854,6 +860,14 @@ func (engine *Engine) SetAutoReloadHTMLTemplate(tmpl *template.Template, files [
 // SetFuncMap sets the funcMap used for template.funcMap.
 func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 	engine.funcMap = funcMap
+}
+
+func (engine *Engine) SetClientIPFunc(f app.ClientIP) {
+	engine.clientIPFunc = f
+}
+
+func (engine *Engine) SetFormValueFunc(f app.FormValueFunc) {
+	engine.formValueFunc = f
 }
 
 // Delims sets template left and right delims and returns an Engine instance.
