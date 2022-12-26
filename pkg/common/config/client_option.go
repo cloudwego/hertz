@@ -25,6 +25,18 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
+type ConnPoolState struct {
+	ConnNum     int
+	WaitConnNum int
+	Addr        string
+}
+
+type HostClientState interface {
+	ConnPoolState() ConnPoolState
+}
+
+type HostClientStateFunc func(HostClientState)
+
 // ClientOption is the only struct that can be used to set ClientOptions.
 type ClientOption struct {
 	F func(o *ClientOptions)
@@ -106,6 +118,8 @@ type ClientOptions struct {
 
 	// all configurations related to retry
 	RetryConfig *retry.Config
+
+	HostClientStateObserve HostClientStateFunc
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {

@@ -149,6 +149,13 @@ func WithWriteTimeout(t time.Duration) config.ClientOption {
 	}}
 }
 
+// WithConnStateObserve sets the connection state observation function.
+func WithConnStateObserve(hs config.HostClientStateFunc) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.HostClientStateObserve = hs
+	}}
+}
+
 // WithDialFunc is used to set dialer function.
 // Note: WithDialFunc will overwrite custom dialer.
 func WithDialFunc(f network.DialFunc, dialers ...network.Dialer) config.ClientOption {
