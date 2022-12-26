@@ -81,10 +81,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
-var (
-	errTooManyRedirects = errors.New("too many redirects detected when doing the request")
-	errNoFreeConns      = errors.New("no free connections available to host")
-)
+var errTooManyRedirects = errors.New("too many redirects detected when doing the request")
 
 func TestCloseIdleConnections(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
@@ -834,7 +831,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 
 			for {
 				if err := c.DoDeadline(context.Background(), req, resp, time.Now().Add(timeout)); err != nil {
-					if err.Error() == errNoFreeConns.Error() {
+					if err.Error() == errs.ErrNoFreeConns.Error() {
 						time.Sleep(time.Millisecond * 500)
 						continue
 					}
@@ -1179,8 +1176,8 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 			resp := protocol.AcquireResponse()
 
 			if err := c.Do(context.Background(), req, resp); err != nil {
-				if err.Error() != errNoFreeConns.Error() {
-					t.Errorf("unexpected error: %s. Expecting %s", err.Error(), errNoFreeConns.Error())
+				if err.Error() != errs.ErrNoFreeConns.Error() {
+					t.Errorf("unexpected error: %s. Expecting %s", err.Error(), errs.ErrNoFreeConns.Error())
 				}
 				atomic.AddUint32(&errNoFreeConnsCount, 1)
 			} else {
@@ -2151,4 +2148,22 @@ func TestClientDoWithDialFunc(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timeout")
 	}
+}
+
+func TestClientState(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = ":11000"
+	engine := route.NewEngine(opt)
+	go engine.Run()
+
+	client, _ := NewClient(WithConnStateObserve(func(hcs config.HostClientState) {
+		assert.DeepEqual(t, 0, hcs.ConnPoolState().ConnNum)
+		time.Sleep(time.Second * 2)
+		assert.DeepEqual(t, 1, hcs.ConnPoolState().ConnNum)
+		assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+	}))
+
+	time.Sleep(time.Second)
+	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
+	time.Sleep(time.Second * 3)
 }

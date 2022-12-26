@@ -60,6 +60,7 @@ var (
 	ErrDialTimeout      = errors.New("dial timeout")
 	ErrNothingRead      = errors.New("nothing read")
 	ErrShortConnection  = errors.New("short connection")
+	ErrNoFreeConns      = errors.New("no free connections available to host")
 	ErrConnectionClosed = errors.New("connection closed")
 )
 

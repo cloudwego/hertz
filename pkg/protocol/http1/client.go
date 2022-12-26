@@ -71,11 +71,8 @@ import (
 	respI "github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
-var (
-	errNoFreeConns      = errs.NewPublic("no free connections available to host")
-	errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
-		"Make sure the server returns 'Connection: close' response header before closing the connection")
-)
+var errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
+	"Make sure the server returns 'Connection: close' response header before closing the connection")
 
 // HostClient balances http requests among hosts listed in Addr.
 //
@@ -129,6 +126,11 @@ func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
 	c.Addr = dc.Addr
 	c.ProxyURI = dc.ProxyURI
 	c.IsTLS = dc.IsTLS
+
+	// start observation after setting addr
+	if c.StateObserve != nil {
+		go c.StateObserve(c)
+	}
 }
 
 type clientConn struct {
@@ -165,6 +167,20 @@ func (c *HostClient) ConnectionCount() (count int) {
 
 func (c *HostClient) WantConnectionCount() (count int) {
 	return c.connsWait.len()
+}
+
+func (c *HostClient) ConnPoolState() config.ConnPoolState {
+	c.connsLock.Lock()
+	defer c.connsLock.Unlock()
+	cps := config.ConnPoolState{
+		ConnNum: len(c.conns),
+		Addr:    c.Addr,
+	}
+
+	if c.connsWait != nil {
+		cps.WaitConnNum = c.connsWait.len()
+	}
+	return cps
 }
 
 // GetTimeout returns the status code and body of url.
@@ -252,7 +268,7 @@ type wantConn struct {
 // errTimeout is returned if the response wasn't returned during
 // the given timeout.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -279,7 +295,7 @@ func (c *HostClient) DoTimeout(ctx context.Context, req *protocol.Request, resp 
 // errTimeout is returned if the response wasn't returned until
 // the given deadline.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -302,7 +318,7 @@ func (c *HostClient) DoDeadline(ctx context.Context, req *protocol.Request, resp
 //
 // Response is ignored if resp is nil.
 //
-// errNoFreeConns is returned if all DefaultMaxConnsPerHost connections
+// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -321,7 +337,7 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 //
 // Response is ignored if resp is nil.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -627,7 +643,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	}
 	if !createConn {
 		if c.MaxConnWaitTimeout <= 0 {
-			return nil, errNoFreeConns
+			return nil, errs.ErrNoFreeConns
 		}
 
 		timeout := c.MaxConnWaitTimeout
@@ -656,7 +672,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 		case <-w.ready:
 			return w.conn, w.err
 		case <-tc.C:
-			return nil, errNoFreeConns
+			return nil, errs.ErrNoFreeConns
 		}
 	}
 
@@ -1116,9 +1132,11 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 }
 
 func NewHostClient(c *ClientOptions) client.HostClient {
-	return &HostClient{
+	hc := &HostClient{
 		ClientOptions: c,
 	}
+
+	return hc
 }
 
 type ClientOptions struct {
@@ -1218,7 +1236,7 @@ type ClientOptions struct {
 
 	// Maximum duration for waiting for a free connection.
 	//
-	// By default will not wait, return errNoFreeConns immediately
+	// By default will not wait, return ErrNoFreeConns immediately
 	MaxConnWaitTimeout time.Duration
 
 	// ResponseBodyStream enables response body streaming
@@ -1228,4 +1246,6 @@ type ClientOptions struct {
 	RetryConfig *retry.Config
 
 	RetryIfFunc client.RetryIfFunc
+
+	StateObserve config.HostClientStateFunc
 }
