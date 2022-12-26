@@ -396,7 +396,7 @@ func TestResponseHeaderAdd(t *testing.T) {
 		m[v] = struct{}{}
 	}
 	if h.Len() != 13 {
-		t.Fatalf("unexpected header len %d. Expecting 12", h.Len())
+		t.Fatalf("unexpected header len %d. Expecting 13", h.Len())
 	}
 
 	h.VisitAll(func(k, v []byte) {
