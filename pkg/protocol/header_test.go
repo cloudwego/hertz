@@ -271,7 +271,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Del(consts.HeaderServer)
 	h.Del("content-length")
 	h.Del("set-cookie")
-	h.DelBytes([]byte("content-encoding"))
+	h.Del("content-encoding")
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
