@@ -173,8 +173,9 @@ func (c *HostClient) ConnPoolState() config.ConnPoolState {
 	c.connsLock.Lock()
 	defer c.connsLock.Unlock()
 	cps := config.ConnPoolState{
-		ConnNum: len(c.conns),
-		Addr:    c.Addr,
+		PollConnNum:  len(c.conns),
+		TotalConnNum: c.connsCount,
+		Addr:         c.Addr,
 	}
 
 	if c.connsWait != nil {

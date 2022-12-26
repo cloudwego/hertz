@@ -26,9 +26,10 @@ import (
 )
 
 type ConnPoolState struct {
-	ConnNum     int
-	WaitConnNum int
-	Addr        string
+	PollConnNum  int
+	TotalConnNum int
+	WaitConnNum  int
+	Addr         string
 }
 
 type HostClientState interface {
