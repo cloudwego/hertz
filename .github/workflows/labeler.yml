@@ -5,6 +5,7 @@ on:
 
 jobs:
   triage:
+    if: contains(github.event.issue.labels.*.name, 'invalid issue') || join(github.event.issue.labels) == ''
     runs-on: ubuntu-latest
     name: Label issues
     steps:
