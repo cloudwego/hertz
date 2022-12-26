@@ -120,6 +120,8 @@ type HostClient struct {
 	pendingRequests int32
 
 	connsCleanerRun bool
+
+	closed bool
 }
 
 func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
@@ -173,8 +175,10 @@ func (c *HostClient) ConnPoolState() config.ConnPoolState {
 	c.connsLock.Lock()
 	defer c.connsLock.Unlock()
 	cps := config.ConnPoolState{
-		ConnNum: len(c.conns),
-		Addr:    c.Addr,
+		PoolConnNum:  len(c.conns),
+		TotalConnNum: c.connsCount,
+		Addr:         c.Addr,
+		Closed:       c.closed,
 	}
 
 	if c.connsWait != nil {
@@ -601,6 +605,13 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 
 	return false, err
+}
+
+func (c *HostClient) Close() error {
+	c.connsLock.Lock()
+	defer c.connsLock.Unlock()
+	c.closed = true
+	return nil
 }
 
 // SetMaxConns sets up the maximum number of connections which may be established to all hosts listed in Addr.

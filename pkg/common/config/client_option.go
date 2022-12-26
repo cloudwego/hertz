@@ -26,9 +26,17 @@ import (
 )
 
 type ConnPoolState struct {
-	ConnNum     int
+	// The conn num of conn pool. These conns are idle connections.
+	PoolConnNum int
+	// Total conn num.
+	TotalConnNum int
+	// Number of pending connections
 	WaitConnNum int
-	Addr        string
+	// HostClient Addr
+	Addr string
+	// Whether HostClient has been removed by Client. If it is true,
+	// you should let HostClientStateFunc return.
+	Closed bool
 }
 
 type HostClientState interface {
