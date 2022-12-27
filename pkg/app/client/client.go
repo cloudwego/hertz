@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"sync"
@@ -54,6 +55,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -542,6 +544,12 @@ func (c *Client) mCleaner() {
 
 			if shouldRemove {
 				delete(c.m, k)
+				if f, ok := v.(io.Closer); ok {
+					err := f.Close()
+					if err != nil {
+						hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
+					}
+				}
 			}
 		}
 		if len(c.m) == 0 {
