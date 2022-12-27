@@ -43,15 +43,22 @@ const (
 )
 
 type Template struct {
-	Default        bool      // Is the default package template
-	Path           string    `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
-	Delims         [2]string `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
-	Body           string    `yaml:"body"`            // Render template, currently only supports go template syntax
-	LoopMethod     bool      `yaml:"loop_method"`     // Loop generate files based on "method"
-	LoopService    bool      `yaml:"loop_service"`    // loop generate files based on "service"
-	UpdateBehavior int       `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
-	AppendKey      string    `yaml:"append_key"`      // Append content based in key; for example: 'method'/'service'
-	AppendContent  string    `yaml:"append_content"`  // Append content if UpdateBehavior is "append"
+	Default        bool           // Is the default package template
+	Path           string         `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
+	Delims         [2]string      `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
+	Body           string         `yaml:"body"`            // Render template, currently only supports go template syntax
+	LoopMethod     bool           `yaml:"loop_method"`     // Loop generate files based on "method"
+	LoopService    bool           `yaml:"loop_service"`    // loop generate files based on "service"
+	UpdateBehavior UpdateBehavior `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
+}
+
+type UpdateBehavior struct {
+	Behavior int `yaml:"behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
+	// the following variables are used for append update
+	AppendKey        string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
+	InsertKey        string   `yaml:"insert_key"`         // Insert content by "insert_key"
+	AppendContentTpl string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
+	ImportTpl        []string `yaml:"import_tpl"`         // Import insert template
 }
 
 // TemplateGenerator contains information about the output template

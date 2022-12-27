@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -49,12 +50,14 @@ type CustomizedFileForMethod struct {
 	*HttpMethod
 	FilePath    string
 	FilePackage string
+	ServiceInfo *Service // service info for that method
 }
 
 type CustomizedFileForService struct {
 	*Service
-	FilePath    string
-	FilePackage string
+	FilePath       string
+	FilePackage    string
+	IDLPackageInfo *IDLPackageRenderInfo // IDL info for that service
 }
 
 type CustomizedFileForIDL struct {
@@ -64,9 +67,8 @@ type CustomizedFileForIDL struct {
 }
 
 // todo: 1. how to import other file, if the other file name is a template
-//       2. how to update file when it's import changed
-//       3. how to optimize "append update logic" for a file
 
+// genCustomizedFile generate customized file template
 func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 	filePathRenderInfo := FilePathRenderInfo{
 		MasterIDLName: pkg.IdlName,
@@ -97,7 +99,7 @@ func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 			if loopService && !loopMethod { // only loop service
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
 					filePathRenderInfo.ServiceName = service.Name
-					err := pkgGen.genLoopService(tplInfo, filePathRenderInfo, service)
+					err := pkgGen.genLoopService(tplInfo, filePathRenderInfo, service, &idlPackageRenderInfo)
 					if err != nil {
 						return err
 					}
@@ -108,7 +110,7 @@ func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 						filePathRenderInfo.ServiceName = service.Name
 						filePathRenderInfo.MethodName = method.Name
 						filePathRenderInfo.HandlerGenPath = method.OutputDir
-						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method)
+						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method, service)
 						if err != nil {
 							return err
 						}
@@ -125,6 +127,7 @@ func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 	return nil
 }
 
+// renderFilePath used to render file path template to get real file path
 func renderFilePath(tplInfo *Template, filePathRenderInfo FilePathRenderInfo) (string, error) {
 	tpl, err := template.New(tplInfo.Path).Funcs(funcMap).Parse(tplInfo.Path)
 	if err != nil {
@@ -139,8 +142,56 @@ func renderFilePath(tplInfo *Template, filePathRenderInfo FilePathRenderInfo) (s
 	return filePath.String(), nil
 }
 
+func renderInsertKey(tplInfo *Template, data interface{}) (string, error) {
+	tpl, err := template.New(tplInfo.UpdateBehavior.InsertKey).Funcs(funcMap).Parse(tplInfo.UpdateBehavior.InsertKey)
+	if err != nil {
+		return "", fmt.Errorf("parse insert key template(%s) failed, err: %v", tplInfo.UpdateBehavior.InsertKey, err)
+	}
+	insertKey := bytes.NewBuffer(nil)
+	err = tpl.Execute(insertKey, data)
+	if err != nil {
+		return "", fmt.Errorf("render insert key template(%s) failed, err: %v", tplInfo.UpdateBehavior.InsertKey, err)
+	}
+
+	return insertKey.String(), nil
+}
+
+// renderImportTpl will render import template
+// it will return the []string, like blow:
+// ["import", alias "import", import]
+// other format will be error
+func renderImportTpl(tplInfo *Template, data interface{}) ([]string, error) {
+	var importList []string
+	for _, impt := range tplInfo.UpdateBehavior.ImportTpl {
+		tpl, err := template.New(impt).Funcs(funcMap).Parse(impt)
+		if err != nil {
+			return nil, fmt.Errorf("parse import template(%s) failed, err: %v", impt, err)
+		}
+		imptContent := bytes.NewBuffer(nil)
+		err = tpl.Execute(imptContent, data)
+		if err != nil {
+			return nil, fmt.Errorf("render import template(%s) failed, err: %v", impt, err)
+		}
+		importList = append(importList, imptContent.String())
+	}
+	var ret []string
+	for _, impts := range importList {
+		// 'import render result' may have multiple imports
+		if strings.Contains(impts, "\n") {
+			for _, impt := range strings.Split(impts, "\n") {
+				ret = append(ret, impt)
+			}
+		} else {
+			ret = append(ret, impts)
+		}
+	}
+
+	return ret, nil
+}
+
+// renderAppendContent used to render append content for 'update' command
 func renderAppendContent(tplInfo *Template, renderInfo interface{}) (string, error) {
-	tpl, err := template.New(tplInfo.Path).Parse(tplInfo.AppendContent)
+	tpl, err := template.New(tplInfo.Path).Parse(tplInfo.UpdateBehavior.AppendContentTpl)
 	if err != nil {
 		return "", fmt.Errorf("parse append content template(%s) failed, err: %v", tplInfo.Path, err)
 	}
@@ -153,7 +204,9 @@ func renderAppendContent(tplInfo *Template, renderInfo interface{}) (string, err
 	return appendContent.String(), nil
 }
 
-func getAppendFile(tplInfo *Template, renderInfo interface{}, fileContent []byte) ([]byte, error) {
+// appendUpdateFile used to append content to file for 'update' command
+func appendUpdateFile(tplInfo *Template, renderInfo interface{}, fileContent []byte) ([]byte, error) {
+	// render insert content
 	appendContent, err := renderAppendContent(tplInfo, renderInfo)
 	if err != nil {
 		return []byte(""), err
@@ -163,7 +216,7 @@ func getAppendFile(tplInfo *Template, renderInfo interface{}, fileContent []byte
 	if err != nil {
 		return []byte(""), fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 	}
-	_, err = buf.WriteString(appendContent)
+	_, err = buf.WriteString("\n" + appendContent + "\n")
 	if err != nil {
 		return []byte(""), fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
 	}
@@ -171,7 +224,50 @@ func getAppendFile(tplInfo *Template, renderInfo interface{}, fileContent []byte
 	return buf.Bytes(), nil
 }
 
-func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, service *Service) error {
+func getInsertImportContent(tplInfo *Template, renderInfo interface{}, fileContent []byte) ([][2]string, error) {
+	importContent, err := renderImportTpl(tplInfo, renderInfo)
+	if err != nil {
+		return nil, err
+	}
+	var imptSlice [][2]string
+	for _, impt := range importContent {
+		// import has to format
+		// 1. alias "import"
+		// 2. "import"
+		// 3. import (can not contain '"')
+		impt = strings.TrimSpace(impt)
+		if !strings.Contains(impt, "\"") { // 3. import (can not contain '"')
+			if bytes.Contains(fileContent, []byte(impt)) {
+				continue
+			}
+			imptSlice = append(imptSlice, [2]string{"", impt})
+		} else {
+			if !strings.HasSuffix(impt, "\"") {
+				return nil, fmt.Errorf("import can not has suffix \"\"\", for file: %s", tplInfo.Path)
+			}
+			if strings.HasPrefix(impt, "\"") { // 2. "import"
+				if bytes.Contains(fileContent, []byte(impt[1:len(impt)-1])) {
+					continue
+				}
+				imptSlice = append(imptSlice, [2]string{"", impt[1 : len(impt)-1]})
+			} else { // 3. alias "import"
+				idx := strings.Index(impt, "\n")
+				if idx == -1 {
+					return nil, fmt.Errorf("error import format for file: %s", tplInfo.Path)
+				}
+				if bytes.Contains(fileContent, []byte(impt[idx+1:len(impt)-1])) {
+					continue
+				}
+				imptSlice = append(imptSlice, [2]string{impt[:idx], impt[idx+1 : len(impt)-1]})
+			}
+		}
+	}
+
+	return imptSlice, nil
+}
+
+// genLoopService used to generate files by 'service'
+func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, service *Service, idlPackageRenderInfo *IDLPackageRenderInfo) error {
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
 	if err != nil {
 		return err
@@ -183,16 +279,17 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 	}
 	if !exist { // create file
 		data := CustomizedFileForService{
-			Service:     service,
-			FilePath:    filePath,
-			FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+			Service:        service,
+			FilePath:       filePath,
+			FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+			IDLPackageInfo: idlPackageRenderInfo,
 		}
-		err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
+		err = pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 		if err != nil {
 			return err
 		}
 	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior {
+		switch tplInfo.UpdateBehavior.Behavior {
 		case Unchanged:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
@@ -200,9 +297,10 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForService{
-				Service:     service,
-				FilePath:    filePath,
-				FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+				Service:        service,
+				FilePath:       filePath,
+				FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+				IDLPackageInfo: idlPackageRenderInfo,
 			}
 			err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 			if err != nil {
@@ -213,27 +311,57 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 			if err != nil {
 				return err
 			}
-			if tplInfo.AppendKey == "method" {
+			var appendContent []byte
+			// get insert content
+			if tplInfo.UpdateBehavior.AppendKey == "method" {
 				for _, method := range service.Methods {
-					if bytes.Contains(fileContent, []byte(method.Name)) {
-						continue
-					}
 					data := CustomizedFileForMethod{
 						HttpMethod:  method,
 						FilePath:    filePath,
 						FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+						ServiceInfo: service,
 					}
-					file, err := getAppendFile(tplInfo, data, fileContent)
+					insertKey, err := renderInsertKey(tplInfo, data)
 					if err != nil {
 						return err
 					}
-					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
-					pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, ""})
+					if bytes.Contains(fileContent, []byte(insertKey)) {
+						continue
+					}
+					imptSlice, err := getInsertImportContent(tplInfo, data, fileContent)
+					if err != nil {
+						return err
+					}
+					// insert new import to the fileContent
+					for _, impt := range imptSlice {
+						if bytes.Contains(fileContent, []byte(impt[1])) {
+							continue
+						}
+						fileContent, err = util.AddImportForContent(fileContent, impt[0], impt[1])
+						// insert import error do not influence the generated file
+						if err != nil {
+							logs.Warnf("can not add import(%s) for file(%s), err: %v\n", impt[1], filePath, err)
+						}
+					}
+					appendContent, err = appendUpdateFile(tplInfo, data, appendContent)
+					if err != nil {
+						return err
+					}
 				}
+				buf := bytes.NewBuffer(nil)
+				_, err = buf.Write(fileContent)
+				if err != nil {
+					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				_, err = buf.Write(appendContent)
+				if err != nil {
+					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 			} else {
 				logs.Warnf("Loop 'service' field for '%s' only append content by appendKey for 'method', so cannot append content", filePath)
 			}
-
 		default:
 			// do nothing
 			logs.Warnf("unknown update behavior, do nothing")
@@ -242,7 +370,8 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 	return nil
 }
 
-func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod) error {
+// genLoopMethod used to generate files by 'method'
+func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod, service *Service) error {
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
 	if err != nil {
 		return err
@@ -258,13 +387,14 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 			HttpMethod:  method,
 			FilePath:    filePath,
 			FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+			ServiceInfo: service,
 		}
 		err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 		if err != nil {
 			return err
 		}
 	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior {
+		switch tplInfo.UpdateBehavior.Behavior {
 		case Unchanged:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
@@ -275,6 +405,7 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 				HttpMethod:  method,
 				FilePath:    filePath,
 				FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+				ServiceInfo: service,
 			}
 			err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 			if err != nil {
@@ -292,6 +423,7 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 	return nil
 }
 
+// genSingleCustomizedFile used to generate file by 'master IDL'
 func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, idlPackageRenderInfo IDLPackageRenderInfo) error {
 	// generate file single
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
@@ -315,7 +447,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 			return err
 		}
 	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior {
+		switch tplInfo.UpdateBehavior.Behavior {
 		case Unchanged:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
@@ -336,47 +468,106 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 			if err != nil {
 				return err
 			}
-			if tplInfo.AppendKey == "method" {
+			if tplInfo.UpdateBehavior.AppendKey == "method" {
+				var appendContent []byte
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
 					for _, method := range service.Methods {
-						if bytes.Contains(fileContent, []byte(method.Name)) {
-							continue
-						}
 						data := CustomizedFileForMethod{
 							HttpMethod:  method,
 							FilePath:    filePath,
 							FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+							ServiceInfo: service,
 						}
-						file, err := getAppendFile(tplInfo, data, fileContent)
+						insertKey, err := renderInsertKey(tplInfo, data)
 						if err != nil {
 							return err
 						}
-						pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, ""})
+						if bytes.Contains(fileContent, []byte(insertKey)) {
+							continue
+						}
+						imptSlice, err := getInsertImportContent(tplInfo, data, fileContent)
+						if err != nil {
+							return err
+						}
+						for _, impt := range imptSlice {
+							if bytes.Contains(fileContent, []byte(impt[1])) {
+								continue
+							}
+							fileContent, err = util.AddImportForContent(fileContent, impt[0], impt[1])
+							if err != nil {
+								logs.Warnf("can not add import(%s) for file(%s)\n", impt[1], filePath)
+							}
+						}
+
+						appendContent, err = appendUpdateFile(tplInfo, data, appendContent)
+						if err != nil {
+							return err
+						}
 					}
 				}
-			} else if tplInfo.AppendKey == "service" {
+				buf := bytes.NewBuffer(nil)
+				_, err = buf.Write(fileContent)
+				if err != nil {
+					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				_, err = buf.Write(appendContent)
+				if err != nil {
+					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+			} else if tplInfo.UpdateBehavior.AppendKey == "service" {
+				var appendContent []byte
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
-					if bytes.Contains(fileContent, []byte(service.Name)) {
-						continue
-					}
 					data := CustomizedFileForService{
-						Service:     service,
-						FilePath:    filePath,
-						FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
+						Service:        service,
+						FilePath:       filePath,
+						FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+						IDLPackageInfo: &idlPackageRenderInfo,
 					}
-					file, err := getAppendFile(tplInfo, data, fileContent)
+					insertKey, err := renderInsertKey(tplInfo, data)
 					if err != nil {
 						return err
 					}
-					pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, ""})
+					if bytes.Contains(fileContent, []byte(insertKey)) {
+						continue
+					}
+					imptSlice, err := getInsertImportContent(tplInfo, data, fileContent)
+					if err != nil {
+						return err
+					}
+					for _, impt := range imptSlice {
+						if bytes.Contains(fileContent, []byte(impt[1])) {
+							continue
+						}
+						fileContent, err = util.AddImportForContent(fileContent, impt[0], impt[1])
+						if err != nil {
+							logs.Warnf("can not add import(%s) for file(%s)\n", impt[1], filePath)
+						}
+					}
+					appendContent, err = appendUpdateFile(tplInfo, data, appendContent)
+					if err != nil {
+						return err
+					}
 				}
+				buf := bytes.NewBuffer(nil)
+				_, err = buf.Write(fileContent)
+				if err != nil {
+					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				_, err = buf.Write(appendContent)
+				if err != nil {
+					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+				}
+				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
+				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 			} else { // add append content to the file directly
 				data := CustomizedFileForIDL{
 					IDLPackageRenderInfo: &idlPackageRenderInfo,
 					FilePath:             filePath,
 					FilePackage:          util.SplitPackage(filepath.Dir(filePath), ""),
 				}
-				file, err := getAppendFile(tplInfo, data, fileContent)
+				file, err := appendUpdateFile(tplInfo, data, fileContent)
 				if err != nil {
 					return err
 				}
