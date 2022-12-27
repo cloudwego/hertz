@@ -45,11 +45,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/cloudwego/hertz/internal/bytesconv"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
