@@ -163,21 +163,6 @@ func TestCookie(t *testing.T) {
 	}
 }
 
-func TestCookies(t *testing.T) {
-	ctx := NewContext(0)
-	ctx.Request.Header.SetCookie("cookie0", "test cookie0")
-	ctx.Request.Header.SetCookie("cookie1", "test cookie1")
-	ctx.Request.Header.SetCookie("cookie2", "test cookie2")
-	cookies := ctx.Cookies()
-	for i, cookie := range cookies {
-		key := fmt.Sprintf("cookie%v", i)
-		value := fmt.Sprintf("test cookie%v", i)
-		assert.DeepEqual(t, key, bytesconv.B2s(cookie.Key()))
-		assert.DeepEqual(t, value, bytesconv.B2s(cookie.Value()))
-		protocol.ReleaseCookie(cookie)
-	}
-}
-
 func TestUserAgent(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.Request.Header.SetUserAgentBytes([]byte("user agent"))

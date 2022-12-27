@@ -1045,20 +1045,6 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 	return ctx.Request.Header.Cookie(key)
 }
 
-// Cookies returns all the request cookies.
-//
-// It's a good idea to call protocol.ReleaseCookie to reduce GC load after the cookie used.
-func (ctx *RequestContext) Cookies() []*protocol.Cookie {
-	var cookies []*protocol.Cookie
-	ctx.Request.Header.VisitAllCookie(func(key, value []byte) {
-		cookie := protocol.AcquireCookie()
-		cookie.SetKeyBytes(key)
-		cookie.SetValueBytes(value)
-		cookies = append(cookies, cookie)
-	})
-	return cookies
-}
-
 // SetCookie adds a Set-Cookie header to the Response's headers.
 //  Parameter introduce:
 //  name and value is used to set cookie's name and value, eg. Set-Cookie: name=value

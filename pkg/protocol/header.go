@@ -1166,6 +1166,20 @@ func (h *RequestHeader) Cookie(key string) []byte {
 	return peekArgStr(h.cookies, key)
 }
 
+// Cookies returns all the request cookies.
+//
+// It's a good idea to call protocol.ReleaseCookie to reduce GC load after the cookie used.
+func (h *RequestHeader) Cookies() []*Cookie {
+	var cookies []*Cookie
+	h.VisitAllCookie(func(key, value []byte) {
+		cookie := AcquireCookie()
+		cookie.SetKeyBytes(key)
+		cookie.SetValueBytes(value)
+		cookies = append(cookies, cookie)
+	})
+	return cookies
+}
+
 func (h *RequestHeader) PeekRange() []byte {
 	return h.peek(bytestr.StrRange)
 }

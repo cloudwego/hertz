@@ -45,6 +45,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"net/http"
 	"strings"
 	"testing"
@@ -247,6 +248,18 @@ func TestRequestHeaderCookie(t *testing.T) {
 	if len(h.Cookie("привет")) > 0 {
 		t.Fatalf("Unexpected cookie found: %q", h.Cookie("привет"))
 	}
+}
+
+func TestRequestHeaderCookies(t *testing.T) {
+	var h protocol.RequestHeader
+	h.SetCookie("foo", "bar")
+	h.SetCookie("привет", "мир")
+	cookies := h.Cookies()
+	assert.DeepEqual(t, 2, len(cookies))
+	assert.DeepEqual(t, "foo", bytesconv.B2s(cookies[0].Key()))
+	assert.DeepEqual(t, "bar", bytesconv.B2s(cookies[0].Value()))
+	assert.DeepEqual(t, "привет", bytesconv.B2s(cookies[1].Key()))
+	assert.DeepEqual(t, "мир", bytesconv.B2s(cookies[1].Value()))
 }
 
 func TestRequestRawHeaders(t *testing.T) {
