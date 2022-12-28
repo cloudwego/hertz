@@ -405,21 +405,21 @@ func TestResponseReadWithoutBody(t *testing.T) {
 
 	var resp protocol.Response
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Length: 1235\r\n\r\nfoobar", false,
-		consts.StatusNotModified, 1235, "aa", "foobar")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\nfoobar", false,
+		consts.StatusNotModified, 1235, "aa", "foobar", "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
-		consts.StatusNoContent, -1, "aab", "123\r\nss")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
+		consts.StatusNoContent, -1, "aab", "123\r\nss", "deflate")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Length: 3434\r\n\r\naaaa", false,
-		123, 3434, "xxx", "aaaa")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\naaaa", false,
+		123, 3434, "xxx", "aaaa", "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Length: 123\r\n\r\nxxxx", true,
-		consts.StatusOK, 123, "text/xml", "xxxx")
+	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Encoding: deflate\r\nContent-Length: 123\r\n\r\nxxxx", true,
+		consts.StatusOK, 123, "text/xml", "xxxx", "deflate")
 
 	// '100 Continue' must be skipped.
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Length: 894\r\n\r\nfoobar", true,
-		329, 894, "qwe", "foobar")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Encoding: gzip\r\nContent-Length: 894\r\n\r\nfoobar", true,
+		329, 894, "qwe", "foobar", "gzip")
 }
 
 func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType, expectedContentEncoding string) {
@@ -482,7 +482,7 @@ func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, 
 }
 
 func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string, skipBody bool,
-	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string,
+	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer, expectedContentEncoding string,
 ) {
 	zr := mock.NewZeroCopyReader(s)
 	resp.SkipBody = skipBody
@@ -493,7 +493,7 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 	if len(resp.Body()) != 0 {
 		t.Fatalf("Unexpected response body %q. Expected %q. response=%q", resp.Body(), "", s)
 	}
-	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, expectedContentEncoding)
 	assert.VerifyTrailer(t, zr, expectedTrailer)
 
 	// verify that ordinal response is read after null-body response
