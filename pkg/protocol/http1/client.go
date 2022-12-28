@@ -121,7 +121,7 @@ type HostClient struct {
 
 	connsCleanerRun bool
 
-	closed bool
+	closed chan struct{}
 }
 
 func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
@@ -129,9 +129,19 @@ func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
 	c.ProxyURI = dc.ProxyURI
 	c.IsTLS = dc.IsTLS
 
-	// start observation after setting addr
+	// start observation after setting addr to avoid race
 	if c.StateObserve != nil {
-		go c.StateObserve(c)
+		go func() {
+			t := time.NewTicker(c.ObservationInterval)
+			for {
+				select {
+				case <-c.closed:
+					return
+				case <-t.C:
+					c.StateObserve(c)
+				}
+			}
+		}()
 	}
 }
 
@@ -178,7 +188,6 @@ func (c *HostClient) ConnPoolState() config.ConnPoolState {
 		PoolConnNum:  len(c.conns),
 		TotalConnNum: c.connsCount,
 		Addr:         c.Addr,
-		Closed:       c.closed,
 	}
 
 	if c.connsWait != nil {
@@ -608,9 +617,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 }
 
 func (c *HostClient) Close() error {
-	c.connsLock.Lock()
-	defer c.connsLock.Unlock()
-	c.closed = true
+	close(c.closed)
 	return nil
 }
 
@@ -1145,6 +1152,7 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 func NewHostClient(c *ClientOptions) client.HostClient {
 	hc := &HostClient{
 		ClientOptions: c,
+		closed:        make(chan struct{}),
 	}
 
 	return hc
@@ -1258,5 +1266,9 @@ type ClientOptions struct {
 
 	RetryIfFunc client.RetryIfFunc
 
+	// Observe hostclient state
 	StateObserve config.HostClientStateFunc
+
+	// StateObserve execution interval
+	ObservationInterval time.Duration
 }

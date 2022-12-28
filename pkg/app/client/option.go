@@ -150,9 +150,15 @@ func WithWriteTimeout(t time.Duration) config.ClientOption {
 }
 
 // WithConnStateObserve sets the connection state observation function.
-func WithConnStateObserve(hs config.HostClientStateFunc) config.ClientOption {
+// The first param is used to set hostclient state func.
+// The second param is used to set observation interval, default value is 5 seconds.
+// Warn: Do not start go routine in HostClientStateFunc.
+func WithConnStateObserve(hs config.HostClientStateFunc, interval ...time.Duration) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.HostClientStateObserve = hs
+		if len(interval) > 0 {
+			o.ObservationInterval = interval[0]
+		}
 	}}
 }
 
