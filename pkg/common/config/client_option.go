@@ -34,9 +34,6 @@ type ConnPoolState struct {
 	WaitConnNum int
 	// HostClient Addr
 	Addr string
-	// Whether HostClient has been removed by Client. If it is true,
-	// you should let HostClientStateFunc return.
-	Closed bool
 }
 
 type HostClientState interface {
@@ -128,6 +125,9 @@ type ClientOptions struct {
 	RetryConfig *retry.Config
 
 	HostClientStateObserve HostClientStateFunc
+
+	// StateObserve execution interval
+	ObservationInterval time.Duration
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {
@@ -136,6 +136,7 @@ func NewClientOptions(opts []ClientOption) *ClientOptions {
 		MaxConnsPerHost:     consts.DefaultMaxConnsPerHost,
 		MaxIdleConnDuration: consts.DefaultMaxIdleConnDuration,
 		KeepAlive:           true,
+		ObservationInterval: time.Second * 5,
 	}
 	options.Apply(opts)
 

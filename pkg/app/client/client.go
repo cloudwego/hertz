@@ -538,6 +538,7 @@ func (c *Client) mCleaner() {
 	mustStop := false
 
 	for {
+		time.Sleep(10 * time.Second)
 		c.mLock.Lock()
 		for k, v := range c.m {
 			shouldRemove := v.ShouldRemove()
@@ -560,7 +561,6 @@ func (c *Client) mCleaner() {
 		if mustStop {
 			break
 		}
-		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -638,5 +638,6 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		RetryConfig:                   c.options.RetryConfig,
 		RetryIfFunc:                   c.RetryIfFunc,
 		StateObserve:                  c.options.HostClientStateObserve,
+		ObservationInterval:           c.options.ObservationInterval,
 	}
 }
