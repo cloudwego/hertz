@@ -189,6 +189,18 @@ func TestRequestHeaderVisitAll(t *testing.T) {
 		})
 }
 
+func TestRequestHeaderCookies(t *testing.T) {
+	var h RequestHeader
+	h.SetCookie("foo", "bar")
+	h.SetCookie("привет", "мир")
+	cookies := h.Cookies()
+	assert.DeepEqual(t, 2, len(cookies))
+	assert.DeepEqual(t, []byte("foo"), cookies[0].Key())
+	assert.DeepEqual(t, []byte("bar"), cookies[0].Value())
+	assert.DeepEqual(t, []byte("привет"), cookies[1].Key())
+	assert.DeepEqual(t, []byte("мир"), cookies[1].Value())
+}
+
 func TestRequestHeaderDel(t *testing.T) {
 	t.Parallel()
 
