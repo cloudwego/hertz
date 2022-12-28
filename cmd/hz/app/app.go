@@ -57,17 +57,17 @@ func New(c *cli.Context) error {
 }
 
 func Update(c *cli.Context) error {
-	manifest := new(meta.Manifest)
-	err := manifest.Validate(".")
-	if err != nil {
-		return cli.Exit(err, meta.LoadError)
-	}
-
 	// begin to update
 	args, err := globalArgs.Parse(c, meta.CmdUpdate)
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
+	manifest := new(meta.Manifest)
+	err = manifest.Validate(args.OutDir)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
 
