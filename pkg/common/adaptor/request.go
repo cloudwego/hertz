@@ -39,18 +39,18 @@ func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
 	return r, nil
 }
 
-func SwapToHertzRequest(req *http.Request, hreq *protocol.Request) error {
+// CopyToHertzRequest copy uri, host, method,protocol, header, but share body reader from http.Request to protocol.Request.
+func CopyToHertzRequest(req *http.Request, hreq *protocol.Request) error {
 	hreq.Header.SetRequestURI(req.RequestURI)
 	hreq.Header.SetHost(req.Host)
+	hreq.Header.SetMethod(req.Method)
 	hreq.Header.SetProtocol(req.Proto)
 	for k, v := range req.Header {
 		for _, vv := range v {
 			hreq.Header.Add(k, vv)
 		}
 	}
-	req.Header = nil
 
 	hreq.SetBodyStream(req.Body, hreq.Header.ContentLength())
-	req.Body = nil
 	return nil
 }

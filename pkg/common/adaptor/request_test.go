@@ -20,6 +20,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -140,4 +141,30 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		t.Fatalf("Write body error: %s", err)
 	}
+}
+
+func TestCopyToHertzRequest(t *testing.T) {
+	req := http.Request{
+		Method:     "GET",
+		RequestURI: "/test",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "test.com",
+		},
+		Proto: "HTTP/1.1",
+		Header: http.Header{
+			"key1": []string{"value1"},
+			"key2": []string{"value2"},
+		},
+	}
+	hertzReq := protocol.Request{}
+	err := CopyToHertzRequest(&req, &hertzReq)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, req.Method, string(hertzReq.Method()))
+	assert.DeepEqual(t, req.URL.Path, string(hertzReq.Path()))
+	assert.DeepEqual(t, req.Proto, hertzReq.Header.GetProtocol())
+	hertzReq.Header.VisitAll(func(key, value []byte) {
+		assert.DeepEqual(t, req.Header.Get(string(key)), value)
+	})
+	assert.DeepEqual(t, len(req.Header), hertzReq.Header.Len())
 }

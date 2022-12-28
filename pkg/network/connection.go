@@ -149,6 +149,7 @@ type Stream interface {
 	SendStream
 }
 
+// ReceiveStream is the interface for receiving data on a stream.
 type ReceiveStream interface {
 	StreamID() int64
 	io.Reader
@@ -165,6 +166,7 @@ type ReceiveStream interface {
 	SetReadDeadline(t time.Time) error
 }
 
+// SendStream is the interface for sending data on a stream.
 type SendStream interface {
 	StreamID() int64
 	// Writer writes data to the stream.

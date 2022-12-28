@@ -939,8 +939,9 @@ func (engine *Engine) AddProtocol(protocol string, factory interface{}) {
 	engine.protocolSuite.Add(protocol, factory)
 }
 
-func (engine *Engine) SetAltProtocol(targetProtocol string, f func(c context.Context, ctx *app.RequestContext)) {
-	engine.protocolSuite.SetAltConfig(targetProtocol, f)
+// SetAltHeader sets the value of "Alt-Svc" header for protocols other than targetProtocol.
+func (engine *Engine) SetAltHeader(targetProtocol, altHeaderValue string) {
+	engine.protocolSuite.SetAltHeader(targetProtocol, altHeaderValue)
 }
 
 func (engine *Engine) HasServer(name string) bool {

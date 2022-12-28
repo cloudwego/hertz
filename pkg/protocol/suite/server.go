@@ -83,7 +83,7 @@ func (c *coreWrapper) ServeHTTP(ctx context.Context, reqCtx *app.RequestContext)
 
 // SetAltHeader will set response header "Alt-Svc" for the target protocol, altHeader will be the value of the header.
 // Protocols other than the target protocol will carry the altHeader in the request header.
-func (c *Config) SetAltHeader(target string, altHeader string) {
+func (c *Config) SetAltHeader(target, altHeader string) {
 	c.altServerConfig = &altServerConfig{
 		targetProtocol: target,
 		setAltHeaderFunc: func(ctx context.Context, reqCtx *app.RequestContext) {
@@ -136,7 +136,7 @@ func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap Stream
 			core = wrapperCore
 		}
 		if server, err = c.configMap[proto].New(core); err != nil {
-			return nil, streamServerMap, err
+			return nil, nil, err
 		} else {
 			serverMap[proto] = server
 		}
@@ -148,7 +148,7 @@ func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap Stream
 			core = wrapperCore
 		}
 		if streamServer, err = c.streamConfigMap[proto].New(core); err != nil {
-			return serverMap, nil, err
+			return nil, nil, err
 		} else {
 			streamServerMap[proto] = streamServer
 		}
