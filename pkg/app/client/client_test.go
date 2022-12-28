@@ -2158,17 +2158,26 @@ func TestClientState(t *testing.T) {
 
 	time.Sleep(time.Millisecond)
 
-	client, _ := NewClient(WithConnStateObserve(func(hcs config.HostClientState) {
-		time.Sleep(time.Second * 1)
-		assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
-		assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
-		assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
-		// sleep 20s so that client cleaner has removed hostclient.
-		// In this case, the closed should be true
-		time.Sleep(time.Second * 20)
-		assert.DeepEqual(t, true, hcs.ConnPoolState().Closed)
-	}))
+	state := int32(0)
+	client, _ := NewClient(
+		WithConnStateObserve(func(hcs config.HostClientState) {
+			switch atomic.LoadInt32(&state) {
+			case int32(0):
+				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
+				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				atomic.StoreInt32(&state, int32(1))
+			case int32(1):
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				atomic.StoreInt32(&state, int32(2))
+				return
+			case int32(2):
+				t.Fatal("It shouldn't go to here")
+			}
+		}, time.Second*9))
 
 	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
-	time.Sleep(time.Second * 25)
+	time.Sleep(time.Second * 22)
 }
