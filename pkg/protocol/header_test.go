@@ -101,6 +101,12 @@ func TestSetContentLengthBytes(t *testing.T) {
 	assert.DeepEqual(t, rh.contentLengthBytes, []byte("foo"))
 }
 
+func TestSetContentEncoding(t *testing.T) {
+	rh := ResponseHeader{}
+	rh.SetContentEncoding("gzip")
+	assert.DeepEqual(t, rh.contentEncoding, []byte("gzip"))
+}
+
 func Test_peekRawHeader(t *testing.T) {
 	s := "Expect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	assert.DeepEqual(t, []byte("127.0.0.1"), peekRawHeader([]byte(s), []byte("Host")))
@@ -250,6 +256,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Set("aaa", "bbb")
 	h.Set(consts.HeaderConnection, "keep-alive")
 	h.Set(consts.HeaderContentType, "aaa")
+	h.Set(consts.HeaderContentEncoding, "gzip")
 	h.Set(consts.HeaderServer, "aaabbb")
 	h.Set(consts.HeaderContentLength, "1123")
 
@@ -264,6 +271,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Del(consts.HeaderServer)
 	h.Del("content-length")
 	h.Del("set-cookie")
+	h.Del("content-encoding")
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
@@ -280,6 +288,10 @@ func TestResponseHeaderDel(t *testing.T) {
 	hv = h.Peek(consts.HeaderContentType)
 	if string(hv) != string(bytestr.DefaultContentType) {
 		t.Fatalf("unexpected content-type: %q. Expecting %q", hv, bytestr.DefaultContentType)
+	}
+	hv = h.Peek(consts.HeaderContentEncoding)
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
 	}
 	hv = h.Peek(consts.HeaderServer)
 	if len(hv) > 0 {
@@ -374,20 +386,22 @@ func TestResponseHeaderAdd(t *testing.T) {
 	var h ResponseHeader
 	h.Add("aaa", "bbb")
 	h.Add("content-type", "xxx")
+	h.SetContentEncoding("gzip")
 	m["bbb"] = struct{}{}
 	m["xxx"] = struct{}{}
+	m["gzip"] = struct{}{}
 	for i := 0; i < 10; i++ {
 		v := fmt.Sprintf("%d", i)
 		h.Add("Foo-Bar", v)
 		m[v] = struct{}{}
 	}
-	if h.Len() != 12 {
-		t.Fatalf("unexpected header len %d. Expecting 12", h.Len())
+	if h.Len() != 13 {
+		t.Fatalf("unexpected header len %d. Expecting 13", h.Len())
 	}
 
 	h.VisitAll(func(k, v []byte) {
 		switch string(k) {
-		case "Aaa", "Foo-Bar", "Content-Type":
+		case "Aaa", "Foo-Bar", "Content-Type", "Content-Encoding":
 			if _, ok := m[string(v)]; !ok {
 				t.Fatalf("unexpected value found %q. key %q", v, k)
 			}
@@ -449,6 +463,23 @@ func TestResponseHeaderAddContentType(t *testing.T) {
 
 	if n := strings.Count(string(h.Header()), "Content-Type: "); n != 1 {
 		t.Errorf("Content-Type occurred %d times", n)
+	}
+}
+
+func TestResponseHeaderAddContentEncoding(t *testing.T) {
+	t.Parallel()
+
+	var h ResponseHeader
+	h.Add("Content-Encoding", "test")
+
+	got := string(h.ContentEncoding())
+	expected := "test"
+	if got != expected {
+		t.Errorf("expected %q got %q", expected, got)
+	}
+
+	if n := strings.Count(string(h.Header()), "Content-Encoding: "); n != 1 {
+		t.Errorf("Content-Encoding occurred %d times", n)
 	}
 }
 

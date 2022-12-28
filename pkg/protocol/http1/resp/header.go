@@ -141,6 +141,10 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					h.SetContentTypeBytes(s.Value)
 					continue
 				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentEncoding) {
+					h.SetContentEncodingBytes(s.Value)
+					continue
+				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentLength) {
 					var contentLength int
 					if h.ContentLength() != -1 {
