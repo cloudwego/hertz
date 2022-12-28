@@ -2156,14 +2156,19 @@ func TestClientState(t *testing.T) {
 	engine := route.NewEngine(opt)
 	go engine.Run()
 
+	time.Sleep(time.Millisecond)
+
 	client, _ := NewClient(WithConnStateObserve(func(hcs config.HostClientState) {
-		assert.DeepEqual(t, 0, hcs.ConnPoolState().ConnNum)
-		time.Sleep(time.Second * 2)
-		assert.DeepEqual(t, 1, hcs.ConnPoolState().ConnNum)
+		time.Sleep(time.Second * 1)
+		assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
+		assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
 		assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+		// sleep 20s so that client cleaner has removed hostclient.
+		// In this case, the closed should be true
+		time.Sleep(time.Second * 20)
+		assert.DeepEqual(t, true, hcs.ConnPoolState().Closed)
 	}))
 
-	time.Sleep(time.Second)
 	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 25)
 }
