@@ -151,20 +151,27 @@ func TestCopyToHertzRequest(t *testing.T) {
 			Scheme: "http",
 			Host:   "test.com",
 		},
-		Proto: "HTTP/1.1",
-		Header: http.Header{
-			"key1": []string{"value1"},
-			"key2": []string{"value2"},
-		},
+		Proto:  "HTTP/1.1",
+		Header: http.Header{},
 	}
+	req.Header.Set("key1", "value1")
+	req.Header.Add("key2", "value2")
+	req.Header.Add("key2", "value22")
 	hertzReq := protocol.Request{}
 	err := CopyToHertzRequest(&req, &hertzReq)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, req.Method, string(hertzReq.Method()))
-	assert.DeepEqual(t, req.URL.Path, string(hertzReq.Path()))
+	assert.DeepEqual(t, req.RequestURI, string(hertzReq.Path()))
 	assert.DeepEqual(t, req.Proto, hertzReq.Header.GetProtocol())
-	hertzReq.Header.VisitAll(func(key, value []byte) {
-		assert.DeepEqual(t, req.Header.Get(string(key)), value)
+	assert.DeepEqual(t, req.Header.Get("key1"), hertzReq.Header.Get("key1"))
+	valueSlice := make([]string, 0, 2)
+	hertzReq.Header.VisitAllCustomHeader(func(key, value []byte) {
+		if strings.ToLower(string(key)) == "key2" {
+			valueSlice = append(valueSlice, string(value))
+		}
 	})
-	assert.DeepEqual(t, len(req.Header), hertzReq.Header.Len())
+
+	assert.DeepEqual(t, req.Header.Values("key2"), valueSlice)
+
+	assert.DeepEqual(t, 3, hertzReq.Header.Len())
 }

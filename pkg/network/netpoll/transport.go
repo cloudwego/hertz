@@ -133,5 +133,8 @@ func (t *transporter) Shutdown(ctx context.Context) error {
 		t.RUnlock()
 	}()
 	t.RLock()
+	if t.eventLoop == nil {
+		return nil
+	}
 	return t.eventLoop.Shutdown(ctx)
 }

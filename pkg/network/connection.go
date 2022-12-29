@@ -98,6 +98,8 @@ type StreamConn interface {
 	GetRawConnection() interface{}
 	// HandshakeComplete blocks until the handshake completes (or fails).
 	HandshakeComplete() context.Context
+	// GetVersion returns the version of the protocol used by the connection.
+	GetVersion() uint32
 	// CloseWithError closes the connection with an error.
 	// The error string will be sent to the peer.
 	CloseWithError(err ApplicationError, errMsg string) error

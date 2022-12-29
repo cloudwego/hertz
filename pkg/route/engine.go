@@ -535,7 +535,20 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 }
 
 func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) error {
-	return engine.protocolStreamServers["http3"].Serve(ctx, conn)
+	// ALPN path
+	if engine.options.ALPN && engine.options.TLS != nil {
+		version := conn.GetVersion()
+		nextProtocol := versionToALNP(version)
+		if server, ok := engine.protocolStreamServers[nextProtocol]; ok {
+			return server.Serve(ctx, conn)
+		}
+	}
+
+	// default path
+	if server, ok := engine.protocolStreamServers[suite.HTTP3]; ok {
+		return server.Serve(ctx, conn)
+	}
+	return errs.ErrNotSupportProtocol
 }
 
 func NewEngine(opt *config.Options) *Engine {
@@ -998,4 +1011,14 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		opt.IdleTimeout = -1
 	}
 	return opt
+}
+
+func versionToALNP(v uint32) string {
+	if v == network.Version1 || v == network.Version2 {
+		return suite.HTTP3
+	}
+	if v == network.VersionTLS || v == network.VersionDraft29 {
+		return suite.HTTP3Draft29
+	}
+	return ""
 }

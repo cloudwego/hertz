@@ -32,6 +32,10 @@ const (
 	// must be the same with the ALPN nextProto values
 	HTTP1 = "http/1.1"
 	HTTP2 = "h2"
+	// HTTP3Draft29 is the ALPN protocol negotiated during the TLS handshake, for QUIC draft 29.
+	HTTP3Draft29 = "h3-29"
+	// HTTP3 is the ALPN protocol negotiated during the TLS handshake, for QUIC v1 and v2.
+	HTTP3 = "h3"
 )
 
 // Core is the core interface that promises to be provided for the protocol layer extensions
@@ -129,11 +133,14 @@ func (c *Config) Load(core Core, protocol string) (server protocol.Server, err e
 
 func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap StreamServerMap, err error) {
 	serverMap = make(ServerMap)
-	wrapperCore := &coreWrapper{Core: core, beforeHandler: c.altServerConfig.setAltHeaderFunc}
+	var wrappedCore *coreWrapper
+	if c.altServerConfig != nil {
+		wrappedCore = &coreWrapper{Core: core, beforeHandler: c.altServerConfig.setAltHeaderFunc}
+	}
 	var server protocol.Server
 	for proto := range c.configMap {
 		if c.altServerConfig != nil && c.altServerConfig.targetProtocol != proto {
-			core = wrapperCore
+			core = wrappedCore
 		}
 		if server, err = c.configMap[proto].New(core); err != nil {
 			return nil, nil, err
@@ -145,7 +152,7 @@ func (c *Config) LoadAll(core Core) (serverMap ServerMap, streamServerMap Stream
 	var streamServer protocol.StreamServer
 	for proto := range c.streamConfigMap {
 		if c.altServerConfig != nil && c.altServerConfig.targetProtocol != proto {
-			core = wrapperCore
+			core = wrappedCore
 		}
 		if streamServer, err = c.streamConfigMap[proto].New(core); err != nil {
 			return nil, nil, err

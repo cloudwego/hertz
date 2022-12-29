@@ -240,7 +240,10 @@ func WithExitWaitTime(timeout time.Duration) config.Option {
 // NOTE: If a tls server is started, it won't accept non-tls request.
 func WithTLS(cfg *tls.Config) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		o.TransporterNewer = standard.NewTransporter
+		// If there is no explicit transporter, change it to standard one. Netpoll do not support tls yet.
+		if o.TransporterNewer == nil {
+			o.TransporterNewer = standard.NewTransporter
+		}
 		o.TLS = cfg
 	}}
 }
