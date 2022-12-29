@@ -905,25 +905,33 @@ func (h *RequestHeader) Reset() {
 	h.ResetSkipNormalize()
 }
 
+func (h *RequestHeader) SetByteRange(startPos, endPos int) {
+	h.SetByteRanges([]int{startPos}, []int{endPos})
+}
+
 // SetByteRange sets 'Range: bytes=startPos-endPos' header.
 //
 //     * If startPos is negative, then 'bytes=-startPos' value is set.
 //     * If endPos is negative, then 'bytes=startPos-' value is set.
-func (h *RequestHeader) SetByteRange(startPos, endPos int) {
+func (h *RequestHeader) SetByteRanges(startPos, endPos []int) {
 	b := h.bufKV.value[:0]
 	b = append(b, bytestr.StrBytes...)
 	b = append(b, '=')
-	if startPos >= 0 {
-		b = bytesconv.AppendUint(b, startPos)
-	} else {
-		endPos = -startPos
-	}
-	b = append(b, '-')
-	if endPos >= 0 {
-		b = bytesconv.AppendUint(b, endPos)
+	for i := range startPos {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		if startPos[i] >= 0 {
+			b = bytesconv.AppendUint(b, startPos[i])
+		} else {
+			endPos[i] = -startPos[i]
+		}
+		b = append(b, '-')
+		if endPos[i] >= 0 {
+			b = bytesconv.AppendUint(b, endPos[i])
+		}
 	}
 	h.bufKV.value = b
-
 	h.SetCanonical(bytestr.StrRange, h.bufKV.value)
 }
 
