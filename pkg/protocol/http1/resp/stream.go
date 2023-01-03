@@ -171,7 +171,7 @@ func (rs *responseStream) Read(p []byte) (int, error) {
 
 func (rs *responseStream) skipRest() error {
 	// The body length doesn't exceed the maxContentLengthInStream or
-	// the bodyStream haa been skip rest
+	// the bodyStream has been skip rest
 	if rs.prefetchedBytes == nil {
 		return nil
 	}
