@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 func main() {
@@ -21,12 +23,12 @@ func main() {
 }
 
 func handler2(ctx context.Context, c *app.RequestContext) {
-	rw := newChunkReader()
+	rw := newChunkReader(&c.Response.Header)
 	// Content-Length may be negative:
 	// -1 means Transfer-Encoding: chunked.
 	// -2 means Transfer-Encoding: identity.
 	c.SetBodyStream(rw, -1)
-	c.Response.Header.SetTrailer("Hertz,Yeben")
+	c.Response.Header.SetTrailer("Hertz,Yeben,Test")
 
 	go func() {
 		for i := 1; i < 50; i++ {
@@ -41,23 +43,25 @@ func handler2(ctx context.Context, c *app.RequestContext) {
 	c.Response.Header.Add("Hertz", "trailer_test")
 	c.Response.Header.Add("Yeben", "yeben_test")
 
-	go func() {
-		<-c.Finished()
-		fmt.Println("request process end")
-	}()
+	// go func() {
+	// 	<-c.Finished()
+	// 	fmt.Println("request process end")
+	// }()
 }
 
 type ChunkReader struct {
 	rw  bytes.Buffer
 	w2r chan struct{}
 	r2w chan struct{}
+
+	header *protocol.ResponseHeader
 }
 
-func newChunkReader() *ChunkReader {
+func newChunkReader(header *protocol.ResponseHeader) *ChunkReader {
 	var rw bytes.Buffer
 	w2r := make(chan struct{})
 	r2w := make(chan struct{})
-	cr := &ChunkReader{rw, w2r, r2w}
+	cr := &ChunkReader{rw, w2r, r2w, header}
 	return cr
 }
 
@@ -71,6 +75,9 @@ func (cr *ChunkReader) Read(p []byte) (n int, err error) {
 				close(cr.r2w)
 			})
 			n, err = cr.rw.Read(p)
+			if err == io.EOF {
+				cr.header.Set("Test", "AddAfterBody")
+			}
 			return
 		}
 

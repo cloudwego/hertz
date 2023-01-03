@@ -134,6 +134,7 @@ func TestSetCanonical(t *testing.T) {
 	h.SetCanonical([]byte(consts.HeaderContentLength), []byte("3"))
 	h.SetCanonical([]byte(consts.HeaderConnection), []byte("foo4"))
 	h.SetCanonical([]byte(consts.HeaderTransferEncoding), []byte("foo5"))
+	h.SetCanonical([]byte(consts.HeaderTrailer), []byte("foo7"))
 	h.SetCanonical([]byte("bar"), []byte("foo6"))
 
 	assert.DeepEqual(t, []byte("foo"), h.ContentType())
@@ -142,6 +143,7 @@ func TestSetCanonical(t *testing.T) {
 	assert.DeepEqual(t, 3, h.ContentLength())
 	assert.DeepEqual(t, false, h.ConnectionClose())
 	assert.DeepEqual(t, false, strings.Contains(string(h.ContentType()), "foo5"))
+	assert.DeepEqual(t, true, strings.Contains(string(h.Header()), "Trailer: Foo7"))
 	assert.DeepEqual(t, true, strings.Contains(string(h.Header()), "bar: foo6"))
 }
 
@@ -211,6 +213,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.Set(consts.HeaderContentType, "aaa")
 	h.Set(consts.HeaderServer, "aaabbb")
 	h.Set(consts.HeaderContentLength, "1123")
+	h.Set(consts.HeaderTrailer, "foo, bar")
 	h.SetHost("foobar")
 	h.SetCookie("foo", "bar")
 
@@ -221,6 +224,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.del([]byte("Content-Length"))
 	h.del([]byte("Set-Cookie"))
 	h.del([]byte("Host"))
+	h.del([]byte(consts.HeaderTrailer))
 	h.DelCookie("foo")
 
 	hv := h.Peek("aaa")
@@ -255,6 +259,10 @@ func TestRequestHeaderDel(t *testing.T) {
 	if len(hv) > 0 {
 		t.Fatalf("non-zero value: %q", hv)
 	}
+	hv = h.Peek(consts.HeaderTrailer)
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
+	}
 	if h.ContentLength() != 0 {
 		t.Fatalf("unexpected content-length: %d. Expecting 0", h.ContentLength())
 	}
@@ -271,6 +279,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Set(consts.HeaderContentEncoding, "gzip")
 	h.Set(consts.HeaderServer, "aaabbb")
 	h.Set(consts.HeaderContentLength, "1123")
+	h.Set(consts.HeaderTrailer, "foo, bar")
 
 	var c Cookie
 	c.SetKey("foo")
@@ -284,6 +293,7 @@ func TestResponseHeaderDel(t *testing.T) {
 	h.Del("content-length")
 	h.Del("set-cookie")
 	h.Del("content-encoding")
+	h.Del(consts.HeaderTrailer)
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
@@ -310,6 +320,11 @@ func TestResponseHeaderDel(t *testing.T) {
 		t.Fatalf("non-zero value: %q", hv)
 	}
 	hv = h.Peek(consts.HeaderContentLength)
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
+	}
+
+	hv = h.Peek(consts.HeaderTrailer)
 	if len(hv) > 0 {
 		t.Fatalf("non-zero value: %q", hv)
 	}
@@ -571,6 +586,72 @@ func TestRequestHeaderSetNoDefaultContentType(t *testing.T) {
 	h.SetNoDefaultContentType(true)
 	b = h.AppendBytes(nil)
 	assert.DeepEqual(t, b, []byte("POST / HTTP/1.1\r\n\r\n"))
+}
+
+func TestRequestAddTrailer(t *testing.T) {
+	var h RequestHeader
+	assert.Nil(t, h.AddTrailer("foo"))
+	assert.Nil(t, h.AddTrailer("bar"))
+	assert.Nil(t, h.AddTrailer("Request"))
+	assert.DeepEqual(t, h.Peek("trailer"), []byte("Foo, Bar, Request"))
+}
+
+func TestRequestSetTrailer(t *testing.T) {
+	var h RequestHeader
+	assert.Nil(t, h.SetTrailer("foo"))
+	assert.Nil(t, h.SetTrailer("Request"))
+	assert.DeepEqual(t, h.Peek("trailer"), []byte("Request"))
+}
+
+func TestResponseAddTrailer(t *testing.T) {
+	var h ResponseHeader
+	assert.Nil(t, h.AddTrailer("foo"))
+	assert.Nil(t, h.AddTrailer("bar"))
+	assert.Nil(t, h.AddTrailer("Response"))
+	assert.DeepEqual(t, h.Peek("trailer"), []byte("Foo, Bar, Response"))
+}
+
+func TestResponseSetTrailer(t *testing.T) {
+	var h ResponseHeader
+	assert.Nil(t, h.SetTrailer("foo"))
+	assert.Nil(t, h.SetTrailer("Response"))
+	assert.DeepEqual(t, h.Peek("trailer"), []byte("Response"))
+}
+
+func TestRequestHeaderHasTrailer(t *testing.T) {
+	var h RequestHeader
+	assert.DeepEqual(t, h.HasTrailer(), false)
+	assert.Nil(t, h.SetTrailer("foo"))
+	assert.DeepEqual(t, h.HasTrailer(), true)
+}
+
+func TestResponseHeaderHasTrailer(t *testing.T) {
+	var h ResponseHeader
+	assert.DeepEqual(t, h.HasTrailer(), false)
+	assert.Nil(t, h.SetTrailer("foo"))
+	assert.DeepEqual(t, h.HasTrailer(), true)
+}
+
+func TestRequestHeaderVisitAllTrailer(t *testing.T) {
+	h := RequestHeader{}
+	assert.Nil(t, h.AddTrailer("foo"))
+	assert.Nil(t, h.AddTrailer("bar"))
+	h.VisitAllTrailer(
+		func(k []byte) {
+			key := string(k)
+			if key != "Foo" && key != "Bar" {
+				t.Fatalf("Unexpected %v. Expected %v", key, "foo or bar")
+			}
+		})
+}
+
+func TestRequestHeaderTrailerHeader(t *testing.T) {
+	h := RequestHeader{}
+	assert.Nil(t, h.AddTrailer("foo"))
+	assert.Nil(t, h.AddTrailer("bar"))
+	h.Set("foo", "foo1")
+	h.Set("bar", "bar1")
+	assert.DeepEqual(t, string(h.TrailerHeader()), "Foo: foo1\r\nBar: bar1\r\n\r\n")
 }
 
 func TestRequestHeader_PeekAll(t *testing.T) {

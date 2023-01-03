@@ -48,8 +48,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
-
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
@@ -57,6 +55,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
 var (
@@ -1891,19 +1890,18 @@ func (h *RequestHeader) setSpecialHeader(key, value []byte) bool {
 	return false
 }
 
-
 func (h *RequestHeader) HasTrailer() bool {
-   return len(h.trailer) > 0
+	return len(h.trailer) > 0
 }
 
 func (h *ResponseHeader) HasTrailer() bool {
-   return len(h.trailer) > 0
+	return len(h.trailer) > 0
 }
 
 func (h *ResponseHeader) GetTrailers() []argsKV {
-   return h.trailer
+	return h.trailer
 }
 
 func (h *RequestHeader) GetTrailers() []argsKV {
-   return h.trailer
+	return h.trailer
 }

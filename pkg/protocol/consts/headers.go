@@ -29,8 +29,9 @@ const (
 	HeaderLocation = "Location"
 
 	// Transfer coding
-	HeaderTE      = "TE"
-	HeaderTrailer = "Trailer"
+	HeaderTE               = "TE"
+	HeaderTrailer          = "Trailer"
+	HeaderTransferEncoding = "Transfer-Encoding"
 
 	// Controls
 	HeaderCookie      = "Cookie"
