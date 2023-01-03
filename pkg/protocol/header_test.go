@@ -596,6 +596,28 @@ func TestRequestAddTrailer(t *testing.T) {
 	assert.DeepEqual(t, h.Peek("trailer"), []byte("Foo, Bar, Request"))
 }
 
+func TestRequestAddTrailerError(t *testing.T) {
+	var h RequestHeader
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderAuthorization), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderContentEncoding), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderContentLength), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderContentType), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderContentRange), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderConnection), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderExpect), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderHost), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderKeepAlive), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderMaxForwards), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderProxyConnection), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderProxyAuthenticate), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderProxyAuthorization), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderRange), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderTE), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderTrailer), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderTransferEncoding), errBadTrailer)
+	assert.DeepEqual(t, h.AddTrailer(consts.HeaderWWWAuthenticate), errBadTrailer)
+}
+
 func TestRequestSetTrailer(t *testing.T) {
 	var h RequestHeader
 	assert.Nil(t, h.SetTrailer("foo"))

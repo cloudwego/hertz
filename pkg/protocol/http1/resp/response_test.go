@@ -49,13 +49,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/network"
-
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/netpoll"
@@ -523,7 +523,6 @@ func VerifyTrailer(t *testing.T, r network.Reader, expectedTrailers map[string]s
 		t.Fatalf("Cannot read trailer: %v", err)
 	}
 	verifyResponseTrailer(t, &response.Header, expectedTrailers)
-	return
 }
 
 func verifyResponseTrailer(t *testing.T, h *protocol.ResponseHeader, expectedTrailers map[string]string) {
@@ -711,6 +710,24 @@ func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[str
 			t.Fatalf("unexpected trailer %s. Expecting %s. Got %q", k, v, r)
 		}
 	}
+}
+
+func TestResponseStream(t *testing.T) {
+	var pool bytebufferpool.Pool
+	var resp protocol.Response
+	var bodybuf = pool.Get()
+	var body = mock.NewZeroCopyReader("5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n")
+	stream := AcquireResponseStream(bodybuf, body, -1, &resp.Header)
+	byteSlice := make([]byte, 4096)
+	_, err := stream.Read(byteSlice)
+	if err != nil {
+		t.Fatalf("unexcepted error when reading response: %s", err)
+	}
+	_, err = stream.Read(byteSlice)
+	assert.DeepEqual(t, err, io.EOF)
+	assert.DeepEqual(t, string(bytes.Trim(byteSlice, "\x00")), "56789")
+	verifyResponseTrailer(t, &resp.Header, map[string]string{"Foo": "bar"})
+	assert.Nil(t, ReleaseResponseStream(stream))
 }
 
 func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,

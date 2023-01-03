@@ -38,7 +38,7 @@ func main() {
 	bodyStream := resp.BodyStream()
 
 	buf := make([]byte, 5)
-	for true {
+	for {
 		n, err := bodyStream.Read(buf)
 		if err != nil {
 			if err == io.EOF {
@@ -46,12 +46,12 @@ func main() {
 			}
 			panic(err)
 		}
-		fmt.Printf(string(buf[:n]))
+		fmt.Printf("%s", string(buf[:n]))
 	}
 
 	resp.Header.VisitAllTrailer(visitSingle)
 
-	fmt.Println(string(resp.Header.TrailerHeader()))
+	fmt.Printf("%s\n", string(resp.Header.TrailerHeader()))
 }
 
 func visitSingle(k []byte) {

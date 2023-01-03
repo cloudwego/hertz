@@ -775,7 +775,6 @@ func VerifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]s
 		t.Fatalf("Cannot read trailer: %v", err)
 	}
 	verifyRequestTrailer(t, &request.Header, exceptedTrailers)
-	return
 }
 
 func verifyRequestTrailer(t *testing.T, h *protocol.RequestHeader, exceptedTrailers map[string]string) {
@@ -1412,6 +1411,10 @@ func TestStreamNotEnoughData(t *testing.T) {
 
 func TestRequestBodyStreamWithTrailer(t *testing.T) {
 	t.Parallel()
+
+	testRequestBodyStreamWithTrailer(t, []byte("test"), false)
+	testRequestBodyStreamWithTrailer(t, mock.CreateFixedBody(4097), false)
+	testRequestBodyStreamWithTrailer(t, mock.CreateFixedBody(105000), false)
 }
 
 func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormalizing bool) {

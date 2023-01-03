@@ -389,7 +389,7 @@ func IsBadTrailer(key []byte) bool {
 	case 'a':
 		return utils.CaseInsensitiveCompare(key, bytestr.StrAuthorization)
 	case 'c':
-		if len(key) > len(consts.HeaderContentType) && utils.CaseInsensitiveCompare(key[:8], bytestr.StrContentType[:8]) {
+		if len(key) >= len(consts.HeaderContentType) && utils.CaseInsensitiveCompare(key[:8], bytestr.StrContentType[:8]) {
 			// skip compare prefix 'Content-'
 			return utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentEncoding[8:]) ||
 				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentLength[8:]) ||
@@ -406,7 +406,7 @@ func IsBadTrailer(key []byte) bool {
 	case 'm':
 		return utils.CaseInsensitiveCompare(key, bytestr.StrMaxForwards)
 	case 'p':
-		if len(key) > len(consts.HeaderProxyConnection) && utils.CaseInsensitiveCompare(key[:6], bytestr.StrProxyConnection[:6]) {
+		if len(key) >= len(consts.HeaderProxyConnection) && utils.CaseInsensitiveCompare(key[:6], bytestr.StrProxyConnection[:6]) {
 			// skip compare prefix 'Proxy-'
 			return utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyConnection[6:]) ||
 				utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyAuthenticate[6:]) ||
