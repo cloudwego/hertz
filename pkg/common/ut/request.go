@@ -40,7 +40,7 @@ type Body struct {
 
 // PerformRequest send a constructed request to given engine without network transporting
 //
-// Url can be a standard relative URI or a simple absolute path
+// # Url can be a standard relative URI or a simple absolute path
 //
 // If engine.streamRequestBody is true, it sets body as bodyStream
 // if not, it sets body as bodyBytes

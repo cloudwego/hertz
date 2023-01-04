@@ -275,8 +275,8 @@ type HijackHandler func(c network.Conn)
 //
 // The server skips calling the handler in the following cases:
 //
-//     * 'Connection: close' header exists in either request or response.
-//     * Unexpected error during response writing to the connection.
+//   - 'Connection: close' header exists in either request or response.
+//   - Unexpected error during response writing to the connection.
 //
 // The server stops processing requests from hijacked connections.
 //
@@ -288,9 +288,8 @@ type HijackHandler func(c network.Conn)
 // Arbitrary 'Connection: Upgrade' protocols may be implemented
 // with HijackHandler. For instance,
 //
-//     * WebSocket ( https://en.wikipedia.org/wiki/WebSocket )
-//     * HTTP/2.0 ( https://en.wikipedia.org/wiki/HTTP/2 )
-//
+//   - WebSocket ( https://en.wikipedia.org/wiki/WebSocket )
+//   - HTTP/2.0 ( https://en.wikipedia.org/wiki/HTTP/2 )
 func (ctx *RequestContext) Hijack(handler HijackHandler) {
 	ctx.hijackHandler = handler
 }
@@ -441,9 +440,10 @@ func (ctx *RequestContext) String(code int, format string, values ...interface{}
 
 // FullPath returns a matched route full path. For not found routes
 // returns an empty string.
-//     router.GET("/user/:id", func(c *hertz.RequestContext) {
-//         c.FullPath() == "/user/:id" // true
-//     })
+//
+//	router.GET("/user/:id", func(c *hertz.RequestContext) {
+//	    c.FullPath() == "/user/:id" // true
+//	})
 func (ctx *RequestContext) FullPath() string {
 	return ctx.fullPath
 }
@@ -507,15 +507,15 @@ func (ctx *RequestContext) FormFile(name string) (*multipart.FileHeader, error) 
 //
 // The value is searched in the following places:
 //
-//   * Query string.
-//   * POST or PUT body.
+//   - Query string.
+//   - POST or PUT body.
 //
 // There are more fine-grained methods for obtaining form values:
 //
-//   * QueryArgs for obtaining values from query string.
-//   * PostArgs for obtaining values from POST or PUT body.
-//   * MultipartForm for obtaining values from multipart form.
-//   * FormFile for obtaining uploaded files.
+//   - QueryArgs for obtaining values from query string.
+//   - PostArgs for obtaining values from POST or PUT body.
+//   - MultipartForm for obtaining values from multipart form.
+//   - FormFile for obtaining uploaded files.
 //
 // The returned value is valid until returning from RequestHandler.
 // Use engine.SetCustomFormValueFunc to change action of FormValue.
@@ -678,7 +678,7 @@ func (ctx *RequestContext) SetHandlers(hc HandlersChain) {
 
 // HandlerName returns the main handler's name.
 //
-//For example if the handler is "handleGetUsers()", this function will return "main.handleGetUsers".
+// For example if the handler is "handleGetUsers()", this function will return "main.handleGetUsers".
 func (ctx *RequestContext) HandlerName() string {
 	return utils.NameOfFunction(ctx.handlers.Last())
 }
@@ -889,10 +889,11 @@ func (ctx *RequestContext) GetStringMapStringSlice(key string) (smss map[string]
 
 // Param returns the value of the URL param.
 // It is a shortcut for c.Params.ByName(key)
-//     router.GET("/user/:id", func(c *hertz.RequestContext) {
-//         // a GET request to /user/john
-//         id := c.Param("id") // id == "john"
-//     })
+//
+//	router.GET("/user/:id", func(c *hertz.RequestContext) {
+//	    // a GET request to /user/john
+//	    id := c.Param("id") // id == "john"
+//	})
 func (ctx *RequestContext) Param(key string) string {
 	return ctx.Params.ByName(key)
 }
@@ -1046,22 +1047,23 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 }
 
 // SetCookie adds a Set-Cookie header to the Response's headers.
-//  Parameter introduce:
-//  name and value is used to set cookie's name and value, eg. Set-Cookie: name=value
-//  maxAge is use to set cookie's expiry date, eg. Set-Cookie: name=value; max-age=1
-//  path and domain is used to set the scope of a cookie, eg. Set-Cookie: name=value;domain=localhost; path=/;
-//  secure and httpOnly is used to sent cookies securely; eg. Set-Cookie: name=value;HttpOnly; secure;
-//  sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
 //
-//  For example:
-//  1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
-//  add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
-//  2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//  add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//  3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//  add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//  4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//  add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	Parameter introduce:
+//	name and value is used to set cookie's name and value, eg. Set-Cookie: name=value
+//	maxAge is use to set cookie's expiry date, eg. Set-Cookie: name=value; max-age=1
+//	path and domain is used to set the scope of a cookie, eg. Set-Cookie: name=value;domain=localhost; path=/;
+//	secure and httpOnly is used to sent cookies securely; eg. Set-Cookie: name=value;HttpOnly; secure;
+//	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
+//
+//	For example:
+//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
+//	add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
+//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
 func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
 	if path == "" {
 		path = "/"
@@ -1135,11 +1137,12 @@ func (ctx *RequestContext) PostArgs() *protocol.Args {
 // Query returns the keyed url query value if it exists, otherwise it returns an empty string `("")`.
 //
 // For example:
-//     GET /path?id=1234&name=Manu&value=
-// 	   c.Query("id") == "1234"
-// 	   c.Query("name") == "Manu"
-// 	   c.Query("value") == ""
-// 	   c.Query("wtf") == ""
+//
+//	    GET /path?id=1234&name=Manu&value=
+//		   c.Query("id") == "1234"
+//		   c.Query("name") == "Manu"
+//		   c.Query("value") == ""
+//		   c.Query("wtf") == ""
 func (ctx *RequestContext) Query(key string) string {
 	value, _ := ctx.GetQuery(key)
 	return value
@@ -1159,10 +1162,11 @@ func (ctx *RequestContext) DefaultQuery(key, defaultValue string) string {
 // if it exists `(value, true)` (even when the value is an empty string) will be returned,
 // otherwise it returns `("", false)`.
 // For example:
-//     GET /?name=Manu&lastname=
-//     ("Manu", true) == c.GetQuery("name")
-//     ("", false) == c.GetQuery("id")
-//     ("", true) == c.GetQuery("lastname")
+//
+//	GET /?name=Manu&lastname=
+//	("Manu", true) == c.GetQuery("name")
+//	("", false) == c.GetQuery("id")
+//	("", true) == c.GetQuery("lastname")
 func (ctx *RequestContext) GetQuery(key string) (string, bool) {
 	return ctx.QueryArgs().PeekExists(key)
 }
@@ -1190,9 +1194,10 @@ func (ctx *RequestContext) DefaultPostForm(key, defaultValue string) string {
 // otherwise it returns ("", false).
 //
 // For example, during a PATCH request to update the user's email:
-//     email=mail@example.com  -->  ("mail@example.com", true) := GetPostForm("email") // set email to "mail@example.com"
-// 	   email=                  -->  ("", true) := GetPostForm("email") // set email to ""
-//                             -->  ("", false) := GetPostForm("email") // do nothing with email
+//
+//	    email=mail@example.com  -->  ("mail@example.com", true) := GetPostForm("email") // set email to "mail@example.com"
+//		   email=                  -->  ("", true) := GetPostForm("email") // set email to ""
+//	                            -->  ("", false) := GetPostForm("email") // do nothing with email
 func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 	if v, exists := ctx.PostArgs().PeekExists(key); exists {
 		return v, exists

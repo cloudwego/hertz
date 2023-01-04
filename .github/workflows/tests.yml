@@ -4,6 +4,9 @@ on: [ push, pull_request ]
 
 jobs:
   lint-and-ut:
+    strategy:
+      matrix:
+        version: [ 1.18, 1.19 ]
     runs-on: [ self-hosted, X64 ]
     steps:
       - uses: actions/checkout@v3
@@ -11,7 +14,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.18
+          go-version: ${{ matrix.version }}
 
       - uses: actions/cache@v3
         with:
