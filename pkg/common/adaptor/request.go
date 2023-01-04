@@ -21,18 +21,19 @@ import (
 	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/henrylee2cn/goutil"
 )
 
 // GetCompatRequest only support basic function of Request, not for all.
 func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
-	r, err := http.NewRequest(string(req.Method()), req.URI().String(), bytes.NewReader(req.Body()))
+	r, err := http.NewRequest(goutil.BytesToString(req.Method()), goutil.BytesToString(req.URI().FullURI()), bytes.NewReader(req.Body()))
 	if err != nil {
 		return r, err
 	}
 
 	h := make(map[string][]string)
 	req.Header.VisitAll(func(k, v []byte) {
-		h[string(k)] = append(h[string(k)], string(v))
+		h[goutil.BytesToString(k)] = append(h[goutil.BytesToString(k)], goutil.BytesToString(v))
 	})
 
 	r.Header = h
