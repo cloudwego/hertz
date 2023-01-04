@@ -50,6 +50,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/netpoll"
 )
 
 var responseStreamPool = sync.Pool{
@@ -154,8 +155,8 @@ func (rs *responseStream) Read(p []byte) (int, error) {
 
 	if err != nil {
 		// the data on stream may be incomplete
-		if err == io.EOF {
-			if rs.offset != rs.contentLength {
+		if err == io.EOF || err == netpoll.ErrEOF {
+			if rs.offset != rs.contentLength && rs.contentLength != -2 {
 				err = io.ErrUnexpectedEOF
 			}
 			// ensure that skipRest works fine

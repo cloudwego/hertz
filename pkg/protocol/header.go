@@ -59,8 +59,6 @@ import (
 )
 
 var (
-	errBadTrailer = errs.NewPublic("contain forbidden trailer")
-
 	ServerDate     atomic.Value
 	ServerDateOnce sync.Once // serverDateOnce.Do(updateServerDate)
 )
@@ -167,7 +165,7 @@ func (h *ResponseHeader) AddTrailerBytes(trailer []byte) error {
 		}
 		// Forbidden by RFC 7230, section 4.1.2
 		if ext.IsBadTrailer(key) {
-			err = errBadTrailer
+			err = errs.NewPublicf("forbidden trailer key: %q", key)
 			continue
 		}
 		h.bufKV.key = append(h.bufKV.key[:0], key...)
@@ -325,7 +323,7 @@ func (h *RequestHeader) AddTrailerBytes(trailer []byte) error {
 		}
 		// Forbidden by RFC 7230, section 4.1.2
 		if ext.IsBadTrailer(key) {
-			err = errBadTrailer
+			err = errs.NewPublicf("forbidden trailer key: %q", key)
 			continue
 		}
 		h.bufKV.key = append(h.bufKV.key[:0], key...)

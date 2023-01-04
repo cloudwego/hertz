@@ -304,7 +304,7 @@ func tryReadTrailer(h *protocol.RequestHeader, r network.Reader, n int) error {
 			return io.EOF
 		}
 
-		return fmt.Errorf("error when reading request trailer: %w", err)
+		return errs.NewPublicf("error when reading request trailer: %w", err)
 	}
 	b = ext.MustPeekBuffered(r)
 	headersLen, errParse := parseTrailer(h, b)
@@ -340,7 +340,7 @@ func parseTrailer(h *protocol.RequestHeader, buf []byte) (int, error) {
 			}
 			// Forbidden by RFC 7230, section 4.1.2
 			if ext.IsBadTrailer(s.Key) {
-				err = fmt.Errorf("forbidden trailer key %q", s.Key)
+				err = errs.NewPublicf("forbidden trailer key: %q", s.Key)
 				continue
 			}
 			h.AddArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
