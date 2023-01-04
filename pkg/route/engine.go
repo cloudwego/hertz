@@ -278,12 +278,12 @@ func (engine *Engine) NewContext() *app.RequestContext {
 
 // Shutdown starts the server's graceful exit by next steps:
 //
-// 1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
-// 2. Close the net listener, which means new connection won't be accepted
-// 3. Wait all connections get closed:
-// 	One connection gets closed after reaching out the shorter time of processing
-//	one request (in hand or next incoming), idleTimeout or ExitWaitTime
-// 4. Exit
+//  1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
+//  2. Close the net listener, which means new connection won't be accepted
+//  3. Wait all connections get closed:
+//     One connection gets closed after reaching out the shorter time of processing
+//     one request (in hand or next incoming), idleTimeout or ExitWaitTime
+//  4. Exit
 func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	if atomic.LoadUint32(&engine.status) != statusRunning {
 		return errStatusNotRunning

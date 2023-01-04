@@ -48,7 +48,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
 	"os"
@@ -270,8 +269,8 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 //
 // HTTP response may contain uncompressed file contents in the following cases:
 //
-//   * Missing 'Accept-Encoding: gzip' request header.
-//   * No write access to directory containing the file.
+//   - Missing 'Accept-Encoding: gzip' request header.
+//   - No write access to directory containing the file.
 //
 // Directory contents is returned if path points to directory.
 //
@@ -1077,7 +1076,7 @@ func readFileHeader(f *os.File, compressed bool) ([]byte, error) {
 		R: r,
 		N: 512,
 	}
-	data, err := ioutil.ReadAll(lr)
+	data, err := io.ReadAll(lr)
 	if _, err := f.Seek(0, 0); err != nil {
 		return nil, err
 	}
@@ -1155,12 +1154,11 @@ func ParseByteRange(byteRange []byte, contentLength int) (startPos, endPos int, 
 //
 // Examples:
 //
-//   * host=foobar.com, slashesCount=0, original path="/foo/bar".
+//   - host=foobar.com, slashesCount=0, original path="/foo/bar".
 //     Resulting path: "/foobar.com/foo/bar"
 //
-//   * host=img.aaa.com, slashesCount=1, original path="/images/123/456.jpg"
+//   - host=img.aaa.com, slashesCount=1, original path="/images/123/456.jpg"
 //     Resulting path: "/img.aaa.com/123/456.jpg"
-//
 func NewVHostPathRewriter(slashesCount int) PathRewriteFunc {
 	return func(ctx *RequestContext) []byte {
 		path := stripLeadingSlashes(ctx.Path(), slashesCount)
@@ -1217,9 +1215,9 @@ func ServeFileUncompressed(ctx *RequestContext, path string) {
 //
 // Examples:
 //
-//   * slashesCount = 0, original path: "/foo/bar", result: "/foo/bar"
-//   * slashesCount = 1, original path: "/foo/bar", result: "/bar"
-//   * slashesCount = 2, original path: "/foo/bar", result: ""
+//   - slashesCount = 0, original path: "/foo/bar", result: "/foo/bar"
+//   - slashesCount = 1, original path: "/foo/bar", result: "/bar"
+//   - slashesCount = 2, original path: "/foo/bar", result: ""
 //
 // The returned path rewriter may be used as FS.PathRewrite .
 func NewPathSlashesStripper(slashesCount int) PathRewriteFunc {

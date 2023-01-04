@@ -155,11 +155,11 @@ func AppendGzipBytes(dst, src []byte) []byte {
 //
 // Supported compression levels are:
 //
-//    * CompressNoCompression
-//    * CompressBestSpeed
-//    * CompressBestCompression
-//    * CompressDefaultCompression
-//    * CompressHuffmanOnly
+//   - CompressNoCompression
+//   - CompressBestSpeed
+//   - CompressBestCompression
+//   - CompressDefaultCompression
+//   - CompressHuffmanOnly
 func AppendGzipBytesLevel(dst, src []byte, level int) []byte {
 	w := &byteSliceWriter{dst}
 	WriteGzipLevel(w, src, level) //nolint:errcheck
@@ -219,11 +219,11 @@ func normalizeCompressLevel(level int) int {
 //
 // Supported compression levels are:
 //
-//    * CompressNoCompression
-//    * CompressBestSpeed
-//    * CompressBestCompression
-//    * CompressDefaultCompression
-//    * CompressHuffmanOnly
+//   - CompressNoCompression
+//   - CompressBestSpeed
+//   - CompressBestCompression
+//   - CompressDefaultCompression
+//   - CompressHuffmanOnly
 func WriteGzipLevel(w io.Writer, p []byte, level int) (int, error) {
 	switch w.(type) {
 	case *byteSliceWriter,

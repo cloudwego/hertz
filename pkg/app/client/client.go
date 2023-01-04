@@ -187,7 +187,6 @@ func DoRedirects(ctx context.Context, req *protocol.Request, resp *protocol.Resp
 // is too small a new slice will be allocated.
 //
 // The function follows redirects. Use Do* for manually handling redirects.
-//
 func Get(ctx context.Context, dst []byte, url string, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
 	return defaultClient.Get(ctx, dst, url, requestOptions...)
 }

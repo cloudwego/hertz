@@ -17,7 +17,7 @@
 package thrift
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -26,7 +26,7 @@ import (
 )
 
 func TestInsertTag(t *testing.T) {
-	data, err := ioutil.ReadFile("./test_data/thrift_tag_test.out")
+	data, err := os.ReadFile("./test_data/thrift_tag_test.out")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -232,7 +232,6 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
 }
 
-//
 // Multiple headers with the same key may be added with this function.
 // Use Set for setting a single header for the given key.
 //
@@ -610,13 +609,13 @@ func (h *ResponseHeader) PeekLocation() []byte {
 // This doesn't work for a cookie with specific domain or path,
 // you should delete it manually like:
 //
-//      c := AcquireCookie()
-//      c.SetKey(key)
-//      c.SetDomain("example.com")
-//      c.SetPath("/path")
-//      c.SetExpire(CookieExpireDelete)
-//      h.SetCookie(c)
-//      ReleaseCookie(c)
+//	c := AcquireCookie()
+//	c.SetKey(key)
+//	c.SetDomain("example.com")
+//	c.SetPath("/path")
+//	c.SetExpire(CookieExpireDelete)
+//	h.SetCookie(c)
+//	ReleaseCookie(c)
 //
 // Use DelCookie if you want just removing the cookie from response header.
 func (h *ResponseHeader) DelClientCookie(key string) {
@@ -633,13 +632,13 @@ func (h *ResponseHeader) DelClientCookie(key string) {
 // This doesn't work for a cookie with specific domain or path,
 // you should delete it manually like:
 //
-//      c := AcquireCookie()
-//      c.SetKey(key)
-//      c.SetDomain("example.com")
-//      c.SetPath("/path")
-//      c.SetExpire(CookieExpireDelete)
-//      h.SetCookie(c)
-//      ReleaseCookie(c)
+//	c := AcquireCookie()
+//	c.SetKey(key)
+//	c.SetDomain("example.com")
+//	c.SetPath("/path")
+//	c.SetExpire(CookieExpireDelete)
+//	h.SetCookie(c)
+//	ReleaseCookie(c)
 //
 // Use DelCookieBytes if you want just removing the cookie from response header.
 func (h *ResponseHeader) DelClientCookieBytes(key []byte) {
@@ -907,8 +906,8 @@ func (h *RequestHeader) Reset() {
 
 // SetByteRange sets 'Range: bytes=startPos-endPos' header.
 //
-//     * If startPos is negative, then 'bytes=-startPos' value is set.
-//     * If endPos is negative, then 'bytes=startPos-' value is set.
+//   - If startPos is negative, then 'bytes=-startPos' value is set.
+//   - If endPos is negative, then 'bytes=startPos-' value is set.
 func (h *RequestHeader) SetByteRange(startPos, endPos int) {
 	b := h.bufKV.value[:0]
 	b = append(b, bytestr.StrBytes...)
@@ -1336,9 +1335,9 @@ func (h *RequestHeader) UserAgent() []byte {
 // while lowercasing all the other letters.
 // Examples:
 //
-//     * CONNECTION -> Connection
-//     * conteNT-tYPE -> Content-Type
-//     * foo-bar-baz -> Foo-Bar-Baz
+//   - CONNECTION -> Connection
+//   - conteNT-tYPE -> Content-Type
+//   - foo-bar-baz -> Foo-Bar-Baz
 //
 // Disable header names' normalization only if you know what are you doing.
 func (h *RequestHeader) DisableNormalizing() {
@@ -1509,9 +1508,9 @@ func (h *RequestHeader) SetMethodBytes(method []byte) {
 // while lowercasing all the other letters.
 // Examples:
 //
-//     * CONNECTION -> Connection
-//     * conteNT-tYPE -> Content-Type
-//     * foo-bar-baz -> Foo-Bar-Baz
+//   - CONNECTION -> Connection
+//   - conteNT-tYPE -> Content-Type
+//   - foo-bar-baz -> Foo-Bar-Baz
 //
 // Disable header names' normalization only if you know what are you doing.
 func (h *ResponseHeader) DisableNormalizing() {

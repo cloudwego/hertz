@@ -46,7 +46,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -412,7 +412,7 @@ func TestRenderHtml(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
+	b, _ := io.ReadAll(rr.Body)
 	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
@@ -460,7 +460,7 @@ func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
+	b, _ := io.ReadAll(rr.Body)
 	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
@@ -498,7 +498,7 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
+	b, _ := io.ReadAll(rr.Body)
 	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))

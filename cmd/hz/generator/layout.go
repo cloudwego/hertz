@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -55,7 +56,7 @@ func (lg *LayoutGenerator) Init() error {
 	config := layoutConfig
 	// unmarshal from user-defined config file if it exists
 	if lg.ConfigPath != "" {
-		cdata, err := ioutil.ReadFile(lg.ConfigPath)
+		cdata, err := os.ReadFile(lg.ConfigPath)
 		if err != nil {
 			return fmt.Errorf("read layout config from  %s failed, err: %v", lg.ConfigPath, err.Error())
 		}
