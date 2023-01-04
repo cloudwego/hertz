@@ -141,9 +141,12 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 	}
 
 	if pkgGen.CmdType == meta.CmdClient {
+		// default client dir
 		clientDir := pkgGen.IdlClientDir
-		// support multiple service, so disable "clientDir/hertz"
-		// clientDir = util.SubDir(clientDir, "hertz")
+		// user specify client dir
+		if len(pkgGen.ClientDir) != 0 {
+			clientDir = pkgGen.ClientDir
+		}
 		if err := pkgGen.genClient(pkg, clientDir); err != nil {
 			return err
 		}
