@@ -48,7 +48,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -1504,7 +1503,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 	if string(p) != part1 {
 		t.Errorf("read len=%v, read content=%v; want len=%v, want content=%v", r, string(p), len(part1), part1)
 	}
-	left, _ := ioutil.ReadAll(bodyStream)
+	left, _ := io.ReadAll(bodyStream)
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
@@ -1871,13 +1870,13 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	if bodyStream1 == nil {
 		t.Errorf("bodystream1 is nil")
 	}
-	data, _ := ioutil.ReadAll(bodyStream1)
+	data, _ := io.ReadAll(bodyStream1)
 	if string(data) != part1+part2 {
 		t.Errorf("read len=%v, read content=%v; want len=%v, want content=%v", len(data), data, len(part1+part2), part1+part2)
 	}
 
 	// read left bodystream
-	left, _ := ioutil.ReadAll(bodyStream)
+	left, _ := io.ReadAll(bodyStream)
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
