@@ -715,8 +715,8 @@ func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[str
 func TestResponseStream(t *testing.T) {
 	var pool bytebufferpool.Pool
 	var resp protocol.Response
-	var bodybuf = pool.Get()
-	var body = mock.NewZeroCopyReader("5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n")
+	bodybuf := pool.Get()
+	body := mock.NewZeroCopyReader("5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n")
 	stream := AcquireResponseStream(bodybuf, body, -1, &resp.Header)
 	byteSlice := make([]byte, 4096)
 	_, err := stream.Read(byteSlice)
