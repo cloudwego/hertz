@@ -229,6 +229,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 	if err != nil {
 		return err
 	}
+	// pb input type must be message
 	inputType := method.Input
 	var (
 		hasBodyAnnotation bool

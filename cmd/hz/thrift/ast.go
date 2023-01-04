@@ -172,6 +172,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 	}
 	thriftgoUtil.SetRootScope(scope)
 	st := scope.StructLike(typeName)
+	if st == nil {
+		logs.Infof("the type '%s' for method '%s' is base type, so skip parse client info\n")
+		return nil
+	}
 	var (
 		hasBodyAnnotation bool
 		hasFormAnnotation bool
@@ -247,6 +251,18 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 /*---------------------------Model-----------------------------*/
 
 var BaseThrift = parser.Thrift{}
+
+var baseTypes = map[string]string{
+	"bool":   "bool",
+	"byte":   "int8",
+	"i8":     "int8",
+	"i16":    "int16",
+	"i32":    "int32",
+	"i64":    "int64",
+	"double": "float64",
+	"string": "string",
+	"binary": "[]byte",
+}
 
 func switchBaseType(typ *parser.Type) *model.Type {
 	switch typ.Name {
@@ -335,6 +351,13 @@ func (rs ResolvedSymbol) Expression() string {
 	if err != nil {
 		logs.Warnf("%s naming style for %s failed, fall back to %s, please refer to the variable manually!", NameStyle.Name(), rs.Base, rs.Base)
 		base = rs.Base
+	}
+	// base type no need to do name style
+	if model.IsBaseType(rs.Type) {
+		// base type mapping
+		if val, exist := baseTypes[rs.Base]; exist {
+			base = val
+		}
 	}
 	if rs.Src != "" {
 		if !rs.IsValue && model.IsBaseType(rs.Type) {
