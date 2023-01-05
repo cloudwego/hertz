@@ -49,6 +49,12 @@ func (c *Conn) Peek(n int) (b []byte, err error) {
 	return
 }
 
+func (c *Conn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	err = normalizeErr(err)
+	return n, err
+}
+
 func (c *Conn) Skip(n int) error {
 	return c.Conn.Skip(n)
 }
