@@ -803,7 +803,7 @@ func TestOnprepare(t *testing.T) {
 	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
 
 	h = New(
-		WithOnAccept(func(conn network.Conn) context.Context {
+		WithOnAccept(func(conn net.Conn) context.Context {
 			conn.Close()
 			return context.Background()
 		}),
@@ -817,4 +817,18 @@ func TestOnprepare(t *testing.T) {
 	if err == nil {
 		t.Fatalf("err should not be nil")
 	}
+
+	h = New(
+		WithOnAccept(func(conn net.Conn) context.Context {
+			assert.DeepEqual(t, conn.LocalAddr().String(), "127.0.0.1:9231")
+			return context.Background()
+		}),
+		WithHostPorts("localhost:9231"),
+		WithTransport(standard.NewTransporter))
+	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
+	})
+	go h.Spin()
+	time.Sleep(time.Second)
+	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
 }

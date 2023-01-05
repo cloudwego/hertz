@@ -41,7 +41,7 @@ type transporter struct {
 	listener         net.Listener
 	eventLoop        netpoll.EventLoop
 	listenConfig     *net.ListenConfig
-	OnAccept         func(conn network.Conn) context.Context
+	OnAccept         func(conn net.Conn) context.Context
 	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
 }
 
