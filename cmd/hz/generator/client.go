@@ -44,7 +44,7 @@ type ClientFile struct {
 func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string) error {
 	for _, s := range pkg.Services {
 		cliDir := util.SubDir(clientDir, util.ToSnakeCase(s.Name))
-		hertzClientPath := filepath.Join(cliDir, "hertz_client.go")
+		hertzClientPath := filepath.Join(cliDir, hertzClientTplName)
 		isExist, err := util.PathExist(hertzClientPath)
 		if err != nil {
 			return err
