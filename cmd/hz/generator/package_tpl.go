@@ -289,9 +289,12 @@ type use interface {
 
 // Definition of global data and types.
 type ResponseResultDecider func(statusCode int, rawResponse *protocol.Response) (isError bool)
-type bindRequestBodyFunc func(c *cli, r *request) (contentType string, body io.Reader, err error)
-type beforeRequestFunc func(*cli, *request) error
-type afterResponseFunc func(*cli, *response) error
+
+type (
+	bindRequestBodyFunc func(c *cli, r *request) (contentType string, body io.Reader, err error)
+	beforeRequestFunc   func(*cli, *request) error
+	afterResponseFunc   func(*cli, *response) error
+)
 
 var (
 	hdrContentTypeKey     = http.CanonicalHeaderKey("Content-Type")
@@ -906,11 +909,13 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 		setRequestOption(reqOpt...).
 		setResult(httpResp).
 		execute("{{$MethodInfo.HTTPMethod}}", "{{$MethodInfo.Path}}")
-	if err == nil {
-		resp = httpResp
+	if err != nil {
+		return nil, nil, err
 	}
+    
+	resp = httpResp
 	rawResponse = ret.rawResponse
-	return resp, rawResponse, err
+	return resp, rawResponse, nil
 }
 {{end}}
 
