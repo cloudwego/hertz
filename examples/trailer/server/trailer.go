@@ -38,12 +38,12 @@ func main() {
 }
 
 func handler2(ctx context.Context, c *app.RequestContext) {
-	rw := newChunkReader(&c.Response.Header)
+	rw := newChunkReader(&c.Response.Header.Trailer)
 	// Content-Length may be negative:
 	// -1 means Transfer-Encoding: chunked.
 	// -2 means Transfer-Encoding: identity.
 	c.SetBodyStream(rw, -1)
-	c.Response.Header.SetTrailer("Hertz,Yeben,Test")
+	c.Response.Header.Set("Trailer", "Hertz,Yeben,Test")
 
 	go func() {
 		for i := 1; i < 50; i++ {
@@ -55,8 +55,8 @@ func handler2(ctx context.Context, c *app.RequestContext) {
 		rw.Close()
 	}()
 
-	c.Response.Header.Add("Hertz", "trailer_test")
-	c.Response.Header.Add("Yeben", "yeben_test")
+	c.Response.Header.Trailer.Set("Hertz", "trailer_test")
+	c.Response.Header.Trailer.Set("Yeben", "yeben_test")
 
 	// go func() {
 	// 	<-c.Finished()
@@ -69,14 +69,14 @@ type ChunkReader struct {
 	w2r chan struct{}
 	r2w chan struct{}
 
-	header *protocol.ResponseHeader
+	trailer *protocol.Trailer
 }
 
-func newChunkReader(header *protocol.ResponseHeader) *ChunkReader {
+func newChunkReader(trailer *protocol.Trailer) *ChunkReader {
 	var rw bytes.Buffer
 	w2r := make(chan struct{})
 	r2w := make(chan struct{})
-	cr := &ChunkReader{rw, w2r, r2w, header}
+	cr := &ChunkReader{rw, w2r, r2w, trailer}
 	return cr
 }
 
@@ -91,7 +91,7 @@ func (cr *ChunkReader) Read(p []byte) (n int, err error) {
 			})
 			n, err = cr.rw.Read(p)
 			if err == io.EOF {
-				cr.header.Set("Test", "AddAfterBody")
+				cr.trailer.Set("Test", "AddAfterBody")
 			}
 			return
 		}

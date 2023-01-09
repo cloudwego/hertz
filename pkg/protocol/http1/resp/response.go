@@ -119,7 +119,7 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 	}
 
 	if resp.Header.ContentLength() == -1 {
-		err = ReadTrailer(&resp.Header, r)
+		err = ext.ReadTrailer(&resp.Header.Trailer, r)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -139,7 +139,7 @@ type clientRespStream struct {
 }
 
 func (c *clientRespStream) Close() (err error) {
-	ReleaseResponseStream(c.r)
+	ext.ReleaseBodyStream(c.r)
 	if c.closeCallback != nil {
 		err = c.closeCallback()
 	}
@@ -194,13 +194,13 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 	bodyBuf.B, err = ext.ReadBodyWithStreaming(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
 	if err != nil {
 		if errors.Is(err, errs.ErrBodyTooLarge) {
-			bodyStream := AcquireResponseStream(bodyBuf, r, resp.Header.ContentLength(), &resp.Header)
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, &resp.Header.Trailer, resp.Header.ContentLength())
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
 
 		if errors.Is(err, errs.ErrChunkedStream) {
-			bodyStream := AcquireResponseStream(bodyBuf, r, -1, &resp.Header)
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, &resp.Header.Trailer, -1)
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
@@ -209,7 +209,7 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 		return err
 	}
 
-	bodyStream := AcquireResponseStream(bodyBuf, r, resp.Header.ContentLength(), &resp.Header)
+	bodyStream := ext.AcquireBodyStream(bodyBuf, r, &resp.Header.Trailer, resp.Header.ContentLength())
 	resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 	return nil
 }

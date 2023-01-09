@@ -49,11 +49,11 @@ func main() {
 		fmt.Printf("%s", string(buf[:n]))
 	}
 
-	resp.Header.VisitAllTrailer(visitSingle)
+	resp.Header.Trailer.VisitAll(visitSingle)
 
-	fmt.Printf("%s\n", string(resp.Header.TrailerHeader()))
+	fmt.Printf("%s\n", string(resp.Header.Trailer.Header()))
 }
 
-func visitSingle(k []byte) {
+func visitSingle(k, v []byte) {
 	fmt.Printf("%s\n", string(k))
 }

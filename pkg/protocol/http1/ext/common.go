@@ -43,8 +43,12 @@ package ext
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/cloudwego/hertz/pkg/protocol"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -384,42 +388,81 @@ func stripSpace(b []byte) []byte {
 	return b
 }
 
-func IsBadTrailer(key []byte) bool {
-	switch key[0] | 0x20 {
-	case 'a':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrAuthorization)
-	case 'c':
-		if len(key) >= len(consts.HeaderContentType) && utils.CaseInsensitiveCompare(key[:8], bytestr.StrContentType[:8]) {
-			// skip compare prefix 'Content-'
-			return utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentEncoding[8:]) ||
-				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentLength[8:]) ||
-				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentType[8:]) ||
-				utils.CaseInsensitiveCompare(key[8:], bytestr.StrContentRange[8:])
+func ReadTrailer(t *protocol.Trailer, r network.Reader) error {
+	n := 1
+	for {
+		err := tryReadTrailer(t, r, n)
+		if err == nil {
+			return nil
 		}
-		return utils.CaseInsensitiveCompare(key, bytestr.StrConnection)
-	case 'e':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrExpect)
-	case 'h':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrHost)
-	case 'k':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrKeepAlive)
-	case 'm':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrMaxForwards)
-	case 'p':
-		if len(key) >= len(consts.HeaderProxyConnection) && utils.CaseInsensitiveCompare(key[:6], bytestr.StrProxyConnection[:6]) {
-			// skip compare prefix 'Proxy-'
-			return utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyConnection[6:]) ||
-				utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyAuthenticate[6:]) ||
-				utils.CaseInsensitiveCompare(key[6:], bytestr.StrProxyAuthorization[6:])
+		if !errors.Is(err, errs.ErrNeedMore) {
+			t.ResetSkipNormalize()
+			return err
 		}
-	case 'r':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrRange)
-	case 't':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrTE) ||
-			utils.CaseInsensitiveCompare(key, bytestr.StrTrailer) ||
-			utils.CaseInsensitiveCompare(key, bytestr.StrTransferEncoding)
-	case 'w':
-		return utils.CaseInsensitiveCompare(key, bytestr.StrWWWAuthenticate)
+		// No more data available on the wire, try block peek(by netpoll)
+		if n == r.Len() {
+			n++
+
+			continue
+		}
+		n = r.Len()
 	}
-	return false
+}
+
+func tryReadTrailer(t *protocol.Trailer, r network.Reader, n int) error {
+	b, err := r.Peek(n)
+	if len(b) == 0 {
+		// Return ErrTimeout on any timeout.
+		if err != nil && strings.Contains(err.Error(), "timeout") {
+			return errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read response header")
+		}
+
+		if n == 1 || err == io.EOF {
+			return io.EOF
+		}
+
+		return errs.NewPublicf("error when reading request trailer: %w", err)
+	}
+	b = MustPeekBuffered(r)
+	headersLen, errParse := parseTrailer(t, b)
+	if errParse != nil {
+		if err == io.EOF {
+			return err
+		}
+		return HeaderError("response", err, errParse, b)
+	}
+	MustDiscard(r, headersLen)
+	return nil
+}
+
+func parseTrailer(t *protocol.Trailer, buf []byte) (int, error) {
+	// Skip any 0 length chunk.
+	if buf[0] == '0' {
+		skip := len(bytestr.StrCRLF) + 1
+		if len(buf) < skip {
+			return 0, io.EOF
+		}
+		buf = buf[skip:]
+	}
+
+	var s HeaderScanner
+	s.B = buf
+	s.DisableNormalizing = t.IsDisableNormalizing()
+	var err error
+	for s.Next() {
+		if len(s.Key) > 0 {
+			if bytes.IndexByte(s.Key, ' ') != -1 || bytes.IndexByte(s.Key, '\t') != -1 {
+				err = fmt.Errorf("invalid trailer key %q", s.Key)
+				continue
+			}
+			err = t.SetArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
+		}
+	}
+	if s.Err != nil {
+		return 0, s.Err
+	}
+	if err != nil {
+		return 0, err
+	}
+	return s.HLen, nil
 }

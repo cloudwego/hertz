@@ -400,7 +400,7 @@ func TestChunkedUnexpectedEOF(t *testing.T) {
 
 	var pool bytebufferpool.Pool
 	var req1 protocol.Request
-	bs := AcquireRequestStream(pool.Get(), reader, -1, &req1.Header)
+	bs := ext.AcquireBodyStream(pool.Get(), reader, &req1.Header.Trailer, -1)
 	byteSlice := make([]byte, 4096)
 	_, err = bs.Read(byteSlice)
 	if err != io.ErrUnexpectedEOF {
@@ -767,7 +767,7 @@ func TestRequestReadChunked(t *testing.T) {
 
 func VerifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]string) {
 	request := protocol.Request{}
-	err := ReadTrailer(&request.Header, r)
+	err := ext.ReadTrailer(&request.Header.Trailer, r)
 	if err == io.EOF && exceptedTrailers == nil {
 		return
 	}
@@ -779,7 +779,7 @@ func VerifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]s
 
 func verifyRequestTrailer(t *testing.T, h *protocol.RequestHeader, exceptedTrailers map[string]string) {
 	for k, v := range exceptedTrailers {
-		got := h.Peek(k)
+		got := h.Trailer.Peek(k)
 		if !bytes.Equal(got, []byte(v)) {
 			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
 		}
@@ -877,17 +877,14 @@ func testSetRequestBodyStreamChunked(t *testing.T, body string, trailer map[stri
 
 	var w bytes.Buffer
 	zw := netpoll.NewWriter(&w)
-	for k := range trailer {
-		err := req.Header.AddTrailer(k)
+	for k, v := range trailer {
+		err := req.Header.Trailer.Add(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 	if err := Write(&req, zw); err != nil {
 		t.Fatalf("unexpected error when writing request: %v, body=%q", err, body)
-	}
-	for k, v := range trailer {
-		req.Header.Set(k, v)
 	}
 	if err := zw.Flush(); err != nil {
 		t.Fatalf("unexpected error when flushing request: %v, body=%q", err, body)
@@ -903,7 +900,7 @@ func testSetRequestBodyStreamChunked(t *testing.T, body string, trailer map[stri
 		t.Fatalf("unexpected body %q. Expecting %q", req1.Body(), body)
 	}
 	for k, v := range trailer {
-		r := req.Header.Peek(k)
+		r := req.Header.Trailer.Peek(k)
 		if string(r) != v {
 			t.Fatalf("unexpected trailer %q. Expecting %q. Got %q", k, v, r)
 		}
@@ -1404,7 +1401,7 @@ func TestStreamNotEnoughData(t *testing.T) {
 	const maxBodySize = 4 * 1024 * 1024
 	err := ContinueReadBodyStream(req, conn, maxBodySize)
 	assert.Nil(t, err)
-	err = ReleaseRequestStream(req.BodyStream())
+	err = ext.ReleaseBodyStream(req.BodyStream())
 	assert.Nil(t, err)
 	assert.DeepEqual(t, 0, len(conn.Data))
 }
@@ -1430,11 +1427,10 @@ func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormaliz
 	req1.SetHost("google.com")
 	req1.SetBodyStream(bytes.NewBuffer(body), -1)
 	for k, v := range expectedTrailer {
-		err := req1.Header.AddTrailer(k)
+		err := req1.Header.Trailer.Set(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		req1.Header.Set(k, v)
 	}
 
 	w := &bytes.Buffer{}
@@ -1464,9 +1460,9 @@ func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormaliz
 	for k, v := range expectedTrailer {
 		kBytes := []byte(k)
 		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
-		r := req2.Header.Peek(k)
+		r := req2.Header.Trailer.Peek(k)
 		if string(r) != v {
-			t.Fatalf("unexpected trailer header %q: %q. Expectiing %s", kBytes, k, v)
+			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
 		}
 	}
 }

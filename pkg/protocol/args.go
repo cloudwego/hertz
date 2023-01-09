@@ -173,50 +173,6 @@ func allocArg(h []argsKV) ([]argsKV, *argsKV) {
 	return h, &h[n]
 }
 
-func visitArgsKey(args []argsKV, f func(k []byte)) {
-	for i, n := 0, len(args); i < n; i++ {
-		kv := &args[i]
-		f(kv.key)
-	}
-}
-
-func AppendArgBytes(args []argsKV, key, value []byte, noValue bool) []argsKV {
-	var kv *argsKV
-	args, kv = allocArg(args)
-	kv.key = append(kv.key[:0], key...)
-	if noValue {
-		kv.value = kv.value[:0]
-	} else {
-		kv.value = append(kv.value[:0], value...)
-	}
-	kv.noValue = noValue
-	return args
-}
-
-func appendArg(args []argsKV, key, value string, noValue bool) []argsKV {
-	var kv *argsKV
-	args, kv = allocArg(args)
-	kv.key = append(kv.key[:0], key...)
-	if noValue {
-		kv.value = kv.value[:0]
-	} else {
-		kv.value = append(kv.value[:0], value...)
-	}
-	kv.noValue = noValue
-	return args
-}
-
-func AppendArgsKeyBytes(dst []byte, args []argsKV, sep []byte) []byte {
-	for i, n := 0, len(args); i < n; i++ {
-		kv := &args[i]
-		dst = append(dst, kv.key...)
-		if i+1 < n {
-			dst = append(dst, sep...)
-		}
-	}
-	return dst
-}
-
 func releaseArg(h []argsKV) []argsKV {
 	return h[:len(h)-1]
 }
@@ -235,7 +191,7 @@ func setArgBytes(h []argsKV, key, value []byte, noValue bool) []argsKV {
 			return h
 		}
 	}
-	return AppendArgBytes(h, key, value, noValue)
+	return appendArgBytes(h, key, value, noValue)
 }
 
 func setArg(h []argsKV, key, value string, noValue bool) []argsKV {

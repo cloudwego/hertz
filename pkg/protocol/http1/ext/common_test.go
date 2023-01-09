@@ -20,8 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/hertz/internal/bytestr"
-
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -44,25 +42,4 @@ func Test_bufferSnippet(t *testing.T) {
 func Test_isOnlyCRLF(t *testing.T) {
 	assert.True(t, isOnlyCRLF([]byte("\r\n")))
 	assert.True(t, isOnlyCRLF([]byte("\n")))
-}
-
-func TestIsBadTrailer(t *testing.T) {
-	assert.True(t, IsBadTrailer(bytestr.StrAuthorization))
-	assert.True(t, IsBadTrailer(bytestr.StrContentEncoding))
-	assert.True(t, IsBadTrailer(bytestr.StrContentLength))
-	assert.True(t, IsBadTrailer(bytestr.StrContentType))
-	assert.True(t, IsBadTrailer(bytestr.StrContentRange))
-	assert.True(t, IsBadTrailer(bytestr.StrConnection))
-	assert.True(t, IsBadTrailer(bytestr.StrExpect))
-	assert.True(t, IsBadTrailer(bytestr.StrHost))
-	assert.True(t, IsBadTrailer(bytestr.StrKeepAlive))
-	assert.True(t, IsBadTrailer(bytestr.StrMaxForwards))
-	assert.True(t, IsBadTrailer(bytestr.StrProxyConnection))
-	assert.True(t, IsBadTrailer(bytestr.StrProxyAuthenticate))
-	assert.True(t, IsBadTrailer(bytestr.StrProxyAuthorization))
-	assert.True(t, IsBadTrailer(bytestr.StrRange))
-	assert.True(t, IsBadTrailer(bytestr.StrTE))
-	assert.True(t, IsBadTrailer(bytestr.StrTrailer))
-	assert.True(t, IsBadTrailer(bytestr.StrTransferEncoding))
-	assert.True(t, IsBadTrailer(bytestr.StrWWWAuthenticate))
 }
