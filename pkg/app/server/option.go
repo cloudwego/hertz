@@ -333,7 +333,7 @@ func WithDisablePrintRoute(b bool) config.Option {
 
 // WithOnAccept sets the callback function when a new connection is accepted but cannot
 // receive data in netpoll. In go net, it will be called before converting tls connection
-func WithOnAccept(fn func(conn network.Conn) context.Context) config.Option {
+func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.OnAccept = fn
 	}}
