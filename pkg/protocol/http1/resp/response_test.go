@@ -521,3 +521,67 @@ func testResponseReadLimitBodySuccess(t *testing.T, s string, maxBodySize int) {
 		t.Fatalf("unexpected error: %s. s=%q, maxBodySize=%d", err, s, maxBodySize)
 	}
 }
+
+func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
+	expectedContentType, expectedBody, expectedTrailer string,
+) {
+	zr := mock.NewZeroCopyReader(response)
+	err := ReadBodyStream(resp, zr, 0, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	assert.True(t, resp.IsBodyStream())
+
+	body, err := io.ReadAll(resp.BodyStream())
+	if err != nil && err != io.EOF {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
+	if !bytes.Equal(body, []byte(expectedBody)) {
+		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
+	}
+	assert.VerifyTrailer(t, zr, expectedTrailer)
+}
+
+func TestResponseReadBodyStream(t *testing.T) {
+	t.Parallel()
+
+	resp := &protocol.Response{}
+
+	// usual response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
+		consts.StatusOK, 10, "foo/bar", "0123456789", "")
+
+	// zero response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
+		consts.StatusInternalServerError, 0, "foo/bar", "", "")
+
+	// response with trailer
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
+
+	// no content-length ('identity' transfer-encoding)
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
+		consts.StatusOK, -2, "foobar", "zxxc", "")
+
+	// explicitly stated 'Transfer-Encoding: identity'
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
+		234, -2, "xxx", "xag", "")
+
+	// big 'identity' response
+	body := string(mock.CreateFixedBody(100500))
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
+		consts.StatusOK, -2, "aa", body, "")
+
+	// chunked response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
+		consts.StatusOK, -1, "text/html", "qwerty", "zzzzz")
+
+	// chunked response with non-chunked Transfer-Encoding.
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
+		230, -1, "text", "erty", "we")
+
+	// zero chunked response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
+		consts.StatusOK, -1, "text/html", "", "zzz")
+}
