@@ -46,7 +46,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"mime/multipart"
 	"strings"
@@ -148,7 +147,7 @@ tailfoobar`
 	defer r.RemoveMultipartFormFiles()
 
 	// verify tail
-	tail, err := ioutil.ReadAll(mr)
+	tail, err := io.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -230,7 +229,7 @@ tailfoobar`
 	defer r.RemoveMultipartFormFiles()
 
 	// all data must be consumed if the content length is unknown
-	tail, err := ioutil.ReadAll(mr)
+	tail, err := io.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

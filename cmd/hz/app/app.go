@@ -57,17 +57,17 @@ func New(c *cli.Context) error {
 }
 
 func Update(c *cli.Context) error {
-	manifest := new(meta.Manifest)
-	err := manifest.Validate(".")
-	if err != nil {
-		return cli.Exit(err, meta.LoadError)
-	}
-
 	// begin to update
 	args, err := globalArgs.Parse(c, meta.CmdUpdate)
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
+	manifest := new(meta.Manifest)
+	err = manifest.Validate(args.OutDir)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
 
@@ -86,6 +86,22 @@ func Update(c *cli.Context) error {
 
 func Model(c *cli.Context) error {
 	args, err := globalArgs.Parse(c, meta.CmdModel)
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
+
+	err = TriggerPlugin(args)
+	if err != nil {
+		return cli.Exit(err, meta.PluginError)
+	}
+
+	return nil
+}
+
+func Client(c *cli.Context) error {
+	args, err := globalArgs.Parse(c, meta.CmdClient)
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
@@ -125,7 +141,7 @@ func Init() *cli.App {
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
 	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
 	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
-	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, no client code is generated.", Destination: &globalArgs.ClientDir}
+	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
 
 	optPkgFlag := cli.StringSliceFlag{Name: "option_package", Aliases: []string{"P"}, Usage: "Specify the package path. ({include_path}={import_path})"}
 	includesFlag := cli.StringSliceFlag{Name: "proto_path", Aliases: []string{"I"}, Usage: "Add an IDL search path for includes. (Valid only if idl is protobuf)"}
@@ -239,6 +255,30 @@ func Init() *cli.App {
 				&excludeFilesFlag,
 			},
 			Action: Model,
+		},
+		{
+			Name:  meta.CmdClient,
+			Usage: "Generate hertz client based on IDL",
+			Flags: []cli.Flag{
+				&idlFlag,
+				&moduleFlag,
+				&modelDirFlag,
+				&clientDirFlag,
+
+				&includesFlag,
+				&thriftOptionsFlag,
+				&protoOptionsFlag,
+				&noRecurseFlag,
+
+				&jsonEnumStrFlag,
+				&unsetOmitemptyFlag,
+				&protoCamelJSONTag,
+				&snakeNameFlag,
+				&excludeFilesFlag,
+				&protoPluginsFlag,
+				&thriftPluginsFlag,
+			},
+			Action: Client,
 		},
 	}
 	return app

@@ -41,6 +41,8 @@ type transporter struct {
 	listener         net.Listener
 	eventLoop        netpoll.EventLoop
 	listenConfig     *net.ListenConfig
+	OnAccept         func(conn net.Conn) context.Context
+	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
 }
 
 // For transporter switch
@@ -54,6 +56,8 @@ func NewTransporter(options *config.Options) network.Transporter {
 		listener:         nil,
 		eventLoop:        nil,
 		listenConfig:     options.ListenConfig,
+		OnAccept:         options.OnAccept,
+		OnConnect:        options.OnConnect,
 	}
 }
 
@@ -79,9 +83,19 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 			if t.writeTimeout > 0 {
 				conn.SetWriteTimeout(t.writeTimeout)
 			}
+			if t.OnAccept != nil {
+				return t.OnAccept(newConn(conn))
+			}
 			return context.Background()
 		}),
 	}
+
+	if t.OnConnect != nil {
+		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, conn netpoll.Connection) context.Context {
+			return t.OnConnect(ctx, newConn(conn))
+		}))
+	}
+
 	// Create EventLoop
 	t.Lock()
 	t.eventLoop, err = netpoll.NewEventLoop(func(ctx context.Context, connection netpoll.Connection) error {
@@ -119,5 +133,8 @@ func (t *transporter) Shutdown(ctx context.Context) error {
 		t.RUnlock()
 	}()
 	t.RLock()
+	if t.eventLoop == nil {
+		return nil
+	}
 	return t.eventLoop.Shutdown(ctx)
 }

@@ -200,7 +200,8 @@ func (group *RouterGroup) StaticFile(relativePath, filepath string) IRoutes {
 // Static serves files from the given file system root.
 // To use the operating system's file system implementation,
 // use :
-//     router.Static("/static", "/var/www")
+//
+//	router.Static("/static", "/var/www")
 func (group *RouterGroup) Static(relativePath, root string) IRoutes {
 	return group.StaticFS(relativePath, &app.FS{Root: root})
 }

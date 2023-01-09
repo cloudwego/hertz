@@ -155,7 +155,7 @@ func testResponseReadError(t *testing.T, resp *protocol.Response, response strin
 	}
 
 	testResponseReadSuccess(t, resp, "HTTP/1.1 303 Redisred sedfs sdf\r\nContent-Type: aaa\r\nContent-Length: 5\r\n\r\nHELLOaaa",
-		303, 5, "aaa", "HELLO", "aaa")
+		consts.StatusSeeOther, 5, "aaa", "HELLO", "aaa")
 }
 
 func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
@@ -167,7 +167,7 @@ func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response str
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType)
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
 	if !bytes.Equal(resp.Body(), []byte(expectedBody)) {
 		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
 	}
@@ -181,19 +181,19 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// usual response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
-		200, 10, "foo/bar", "0123456789", "")
+		consts.StatusOK, 10, "foo/bar", "0123456789", "")
 
 	// zero response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
-		500, 0, "foo/bar", "", "")
+		consts.StatusInternalServerError, 0, "foo/bar", "", "")
 
 	// response with trailer
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		300, 5, "bar", "56789", "aaa")
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
 
 	// no content-length ('identity' transfer-encoding)
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
-		200, 4, "foobar", "zxxc", "")
+		consts.StatusOK, 4, "foobar", "zxxc", "")
 
 	// explicitly stated 'Transfer-Encoding: identity'
 	testResponseReadSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
@@ -202,11 +202,11 @@ func TestResponseReadSuccess(t *testing.T) {
 	// big 'identity' response
 	body := string(mock.CreateFixedBody(100500))
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
-		200, 100500, "aa", body, "")
+		consts.StatusOK, 100500, "aa", body, "")
 
 	// chunked response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
-		200, 6, "text/html", "qwerty", "zzzzz")
+		consts.StatusOK, 6, "text/html", "qwerty", "zzzzz")
 
 	// chunked response with non-chunked Transfer-Encoding.
 	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
@@ -214,7 +214,7 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// zero chunked response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
-		200, 0, "text/html", "", "zzz")
+		consts.StatusOK, 0, "text/html", "", "zzz")
 }
 
 func TestResponseReadError(t *testing.T) {
@@ -360,24 +360,24 @@ func TestResponseSuccess(t *testing.T) {
 	t.Parallel()
 
 	// 200 response
-	testResponseSuccess(t, 200, "test/plain", "server", "foobar",
-		200, "test/plain", "server")
+	testResponseSuccess(t, consts.StatusOK, "test/plain", "server", "foobar",
+		consts.StatusOK, "test/plain", "server")
 
 	// response with missing statusCode
 	testResponseSuccess(t, 0, "text/plain", "server", "foobar",
-		200, "text/plain", "server")
+		consts.StatusOK, "text/plain", "server")
 
 	// response with missing server
-	testResponseSuccess(t, 500, "aaa", "", "aaadfsd",
-		500, "aaa", "")
+	testResponseSuccess(t, consts.StatusInternalServerError, "aaa", "", "aaadfsd",
+		consts.StatusInternalServerError, "aaa", "")
 
 	// empty body
-	testResponseSuccess(t, 200, "bbb", "qwer", "",
-		200, "bbb", "qwer")
+	testResponseSuccess(t, consts.StatusOK, "bbb", "qwer", "",
+		consts.StatusOK, "bbb", "qwer")
 
 	// missing content-type
-	testResponseSuccess(t, 200, "", "asdfsd", "asdf",
-		200, string(bytestr.DefaultContentType), "asdfsd")
+	testResponseSuccess(t, consts.StatusOK, "", "asdfsd", "asdf",
+		consts.StatusOK, string(bytestr.DefaultContentType), "asdfsd")
 }
 
 func TestResponseReadLimitBody(t *testing.T) {
@@ -387,7 +387,8 @@ func TestResponseReadLimitBody(t *testing.T) {
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nContent-Length: 10\r\n\r\n9876543210", 10)
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nContent-Length: 10\r\n\r\n9876543210", 100)
 	testResponseReadLimitBodyError(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nContent-Length: 10\r\n\r\n9876543210", 9)
-
+	// response with content-encoding
+	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\n\r\n9876543210", 10)
 	// chunked response
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\n\r\n", 9)
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\n\r\n", 100)
@@ -404,32 +405,35 @@ func TestResponseReadWithoutBody(t *testing.T) {
 
 	var resp protocol.Response
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Length: 1235\r\n\r\nfoobar", false,
-		304, 1235, "aa", "foobar")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\nfoobar", false,
+		consts.StatusNotModified, 1235, "aa", "foobar", "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
-		204, -1, "aab", "123\r\nss")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
+		consts.StatusNoContent, -1, "aab", "123\r\nss", "deflate")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Length: 3434\r\n\r\naaaa", false,
-		123, 3434, "xxx", "aaaa")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\naaaa", false,
+		123, 3434, "xxx", "aaaa", "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Length: 123\r\n\r\nxxxx", true,
-		200, 123, "text/xml", "xxxx")
+	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Encoding: deflate\r\nContent-Length: 123\r\n\r\nxxxx", true,
+		consts.StatusOK, 123, "text/xml", "xxxx", "deflate")
 
 	// '100 Continue' must be skipped.
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Length: 894\r\n\r\nfoobar", true,
-		329, 894, "qwe", "foobar")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Encoding: gzip\r\nContent-Length: 894\r\n\r\nfoobar", true,
+		329, 894, "qwe", "foobar", "gzip")
 }
 
-func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType string) {
+func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType, expectedContentEncoding string) {
 	if h.StatusCode() != expectedStatusCode {
 		t.Fatalf("Unexpected status code %d. Expected %d", h.StatusCode(), expectedStatusCode)
 	}
 	if h.ContentLength() != expectedContentLength {
 		t.Fatalf("Unexpected content length %d. Expected %d", h.ContentLength(), expectedContentLength)
 	}
-	if string(h.Peek(consts.HeaderContentType)) != expectedContentType {
-		t.Fatalf("Unexpected content type %q. Expected %q", h.Peek(consts.HeaderContentType), expectedContentType)
+	if string(h.ContentType()) != expectedContentType {
+		t.Fatalf("Unexpected content type %q. Expected %q", h.ContentType(), expectedContentType)
+	}
+	if string(h.ContentEncoding()) != expectedContentEncoding {
+		t.Fatalf("Unexpected content encoding %q. Expected %q", h.ContentEncoding(), expectedContentEncoding)
 	}
 }
 
@@ -478,7 +482,7 @@ func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, 
 }
 
 func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string, skipBody bool,
-	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer string,
+	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer, expectedContentEncoding string,
 ) {
 	zr := mock.NewZeroCopyReader(s)
 	resp.SkipBody = skipBody
@@ -489,13 +493,13 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 	if len(resp.Body()) != 0 {
 		t.Fatalf("Unexpected response body %q. Expected %q. response=%q", resp.Body(), "", s)
 	}
-	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType)
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, expectedContentEncoding)
 	assert.VerifyTrailer(t, zr, expectedTrailer)
 
 	// verify that ordinal response is read after null-body response
 	resp.SkipBody = false
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		300, 5, "bar", "56789", "aaa")
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
 }
 
 func testResponseReadLimitBodyError(t *testing.T, s string, maxBodySize int) {
@@ -516,4 +520,68 @@ func testResponseReadLimitBodySuccess(t *testing.T, s string, maxBodySize int) {
 	if err := ReadHeaderAndLimitBody(&resp, mr, maxBodySize); err != nil {
 		t.Fatalf("unexpected error: %s. s=%q, maxBodySize=%d", err, s, maxBodySize)
 	}
+}
+
+func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
+	expectedContentType, expectedBody, expectedTrailer string,
+) {
+	zr := mock.NewZeroCopyReader(response)
+	err := ReadBodyStream(resp, zr, 0, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	assert.True(t, resp.IsBodyStream())
+
+	body, err := io.ReadAll(resp.BodyStream())
+	if err != nil && err != io.EOF {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, "")
+	if !bytes.Equal(body, []byte(expectedBody)) {
+		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
+	}
+	assert.VerifyTrailer(t, zr, expectedTrailer)
+}
+
+func TestResponseReadBodyStream(t *testing.T) {
+	t.Parallel()
+
+	resp := &protocol.Response{}
+
+	// usual response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
+		consts.StatusOK, 10, "foo/bar", "0123456789", "")
+
+	// zero response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
+		consts.StatusInternalServerError, 0, "foo/bar", "", "")
+
+	// response with trailer
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
+		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
+
+	// no content-length ('identity' transfer-encoding)
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
+		consts.StatusOK, -2, "foobar", "zxxc", "")
+
+	// explicitly stated 'Transfer-Encoding: identity'
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
+		234, -2, "xxx", "xag", "")
+
+	// big 'identity' response
+	body := string(mock.CreateFixedBody(100500))
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
+		consts.StatusOK, -2, "aa", body, "")
+
+	// chunked response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
+		consts.StatusOK, -1, "text/html", "qwerty", "zzzzz")
+
+	// chunked response with non-chunked Transfer-Encoding.
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
+		230, -1, "text", "erty", "we")
+
+	// zero chunked response
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
+		consts.StatusOK, -1, "text/html", "", "zzz")
 }

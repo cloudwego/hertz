@@ -46,7 +46,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -61,6 +61,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestNew_Engine(t *testing.T) {
@@ -105,7 +106,7 @@ func TestEngineUnescape(t *testing.T) {
 
 	for _, r := range routes {
 		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
-			ctx.String(200, ctx.Param(ctx.Query("key")))
+			ctx.String(consts.StatusOK, ctx.Param(ctx.Query("key")))
 		})
 	}
 
@@ -122,7 +123,7 @@ func TestEngineUnescape(t *testing.T) {
 	}
 	for _, tr := range testRoutes {
 		w := performRequest(e, http.MethodGet, tr.route+"?key="+tr.key)
-		assert.DeepEqual(t, 200, w.Code)
+		assert.DeepEqual(t, consts.StatusOK, w.Code)
 		assert.DeepEqual(t, tr.want, w.Body.String())
 	}
 }
@@ -142,7 +143,7 @@ func TestEngineUnescapeRaw(t *testing.T) {
 
 	for _, r := range routes {
 		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
-			ctx.String(200, ctx.Param(ctx.Query("key")))
+			ctx.String(consts.StatusOK, ctx.Param(ctx.Query("key")))
 		})
 	}
 
@@ -169,7 +170,7 @@ func TestEngineUnescapeRaw(t *testing.T) {
 	}
 	for _, tr := range testRoutes {
 		w := performRequest(e, http.MethodGet, tr.route+"?key="+tr.key)
-		assert.DeepEqual(t, 200, w.Code)
+		assert.DeepEqual(t, consts.StatusOK, w.Code)
 		assert.DeepEqual(t, tr.want, w.Body.String())
 	}
 }
@@ -179,7 +180,7 @@ func TestConnectionClose(t *testing.T) {
 	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
 	err := engine.Serve(context.Background(), conn)
@@ -192,7 +193,7 @@ func TestConnectionClose01(t *testing.T) {
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		ctx.SetConnectionClose()
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
 	err := engine.Serve(context.Background(), conn)
@@ -206,7 +207,7 @@ func TestIdleTimeout(t *testing.T) {
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(100 * time.Millisecond)
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
@@ -237,7 +238,7 @@ func TestIdleTimeout01(t *testing.T) {
 	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(10 * time.Millisecond)
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
@@ -266,7 +267,7 @@ func TestIdleTimeout03(t *testing.T) {
 	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(50 * time.Millisecond)
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n" +
@@ -411,8 +412,8 @@ func TestRenderHtml(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
-	assert.DeepEqual(t, 200, rr.Code)
+	b, _ := io.ReadAll(rr.Body)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
 }
@@ -459,10 +460,27 @@ func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
-	assert.DeepEqual(t, 200, rr.Code)
+	b, _ := io.ReadAll(rr.Body)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestSetClientIPAndSetFormValue(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	e := NewEngine(opt)
+	e.SetClientIPFunc(func(ctx *app.RequestContext) string {
+		return "1.1.1.1"
+	})
+	e.SetFormValueFunc(func(requestContext *app.RequestContext, s string) []byte {
+		return []byte(s)
+	})
+	e.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, ctx.ClientIP(), "1.1.1.1")
+		assert.DeepEqual(t, string(ctx.FormValue("key")), "key")
+	})
+
+	_ = performRequest(e, "GET", "/ping")
 }
 
 func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
@@ -480,8 +498,8 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 		})
 	})
 	rr := performRequest(e, "GET", "/templateName")
-	b, _ := ioutil.ReadAll(rr.Body)
-	assert.DeepEqual(t, 200, rr.Code)
+	b, _ := io.ReadAll(rr.Body)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
 }

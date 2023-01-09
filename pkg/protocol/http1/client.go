@@ -71,11 +71,8 @@ import (
 	respI "github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
-var (
-	errNoFreeConns      = errs.NewPublic("no free connections available to host")
-	errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
-		"Make sure the server returns 'Connection: close' response header before closing the connection")
-)
+var errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
+	"Make sure the server returns 'Connection: close' response header before closing the connection")
 
 // HostClient balances http requests among hosts listed in Addr.
 //
@@ -123,12 +120,29 @@ type HostClient struct {
 	pendingRequests int32
 
 	connsCleanerRun bool
+
+	closed chan struct{}
 }
 
 func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
 	c.Addr = dc.Addr
 	c.ProxyURI = dc.ProxyURI
 	c.IsTLS = dc.IsTLS
+
+	// start observation after setting addr to avoid race
+	if c.StateObserve != nil {
+		go func() {
+			t := time.NewTicker(c.ObservationInterval)
+			for {
+				select {
+				case <-c.closed:
+					return
+				case <-t.C:
+					c.StateObserve(c)
+				}
+			}
+		}()
+	}
 }
 
 type clientConn struct {
@@ -165,6 +179,21 @@ func (c *HostClient) ConnectionCount() (count int) {
 
 func (c *HostClient) WantConnectionCount() (count int) {
 	return c.connsWait.len()
+}
+
+func (c *HostClient) ConnPoolState() config.ConnPoolState {
+	c.connsLock.Lock()
+	defer c.connsLock.Unlock()
+	cps := config.ConnPoolState{
+		PoolConnNum:  len(c.conns),
+		TotalConnNum: c.connsCount,
+		Addr:         c.Addr,
+	}
+
+	if c.connsWait != nil {
+		cps.WaitConnNum = c.connsWait.len()
+	}
+	return cps
 }
 
 // GetTimeout returns the status code and body of url.
@@ -252,7 +281,7 @@ type wantConn struct {
 // errTimeout is returned if the response wasn't returned during
 // the given timeout.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -279,7 +308,7 @@ func (c *HostClient) DoTimeout(ctx context.Context, req *protocol.Request, resp 
 // errTimeout is returned if the response wasn't returned until
 // the given deadline.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -302,7 +331,7 @@ func (c *HostClient) DoDeadline(ctx context.Context, req *protocol.Request, resp
 //
 // Response is ignored if resp is nil.
 //
-// errNoFreeConns is returned if all DefaultMaxConnsPerHost connections
+// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -321,7 +350,7 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 //
 // Response is ignored if resp is nil.
 //
-// errNoFreeConns is returned if all HostClient.MaxConns connections
+// ErrNoFreeConns is returned if all HostClient.MaxConns connections
 // to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
@@ -508,7 +537,32 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 	// error happened when writing request, close the connection, and try another connection if retry is enabled
 	if err != nil {
-		c.closeConn(cc)
+		defer c.closeConn(cc)
+
+		errNorm, ok := conn.(network.ErrorNormalization)
+		if ok {
+			err = errNorm.ToHertzError(err)
+		}
+
+		if !errors.Is(err, errs.ErrConnectionClosed) {
+			return true, err
+		}
+
+		// set a protection timeout to avoid infinite loop.
+		if conn.SetReadTimeout(time.Second) != nil {
+			return true, err
+		}
+
+		// Only if the connection is closed while writing the request. Try to parse the response and return.
+		// In this case, the request/response is considered as successful.
+		// Otherwise, return the former error.
+
+		zr := c.acquireReader(conn)
+		defer zr.Release()
+		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
+			return false, nil
+		}
+
 		return true, err
 	}
 
@@ -562,6 +616,11 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	return false, err
 }
 
+func (c *HostClient) Close() error {
+	close(c.closed)
+	return nil
+}
+
 // SetMaxConns sets up the maximum number of connections which may be established to all hosts listed in Addr.
 func (c *HostClient) SetMaxConns(newMaxConns int) {
 	c.connsLock.Lock()
@@ -602,7 +661,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	}
 	if !createConn {
 		if c.MaxConnWaitTimeout <= 0 {
-			return nil, errNoFreeConns
+			return nil, errs.ErrNoFreeConns
 		}
 
 		timeout := c.MaxConnWaitTimeout
@@ -631,7 +690,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 		case <-w.ready:
 			return w.conn, w.err
 		case <-tc.C:
-			return nil, errNoFreeConns
+			return nil, errs.ErrNoFreeConns
 		}
 	}
 
@@ -1091,9 +1150,12 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 }
 
 func NewHostClient(c *ClientOptions) client.HostClient {
-	return &HostClient{
+	hc := &HostClient{
 		ClientOptions: c,
+		closed:        make(chan struct{}),
 	}
+
+	return hc
 }
 
 type ClientOptions struct {
@@ -1193,7 +1255,7 @@ type ClientOptions struct {
 
 	// Maximum duration for waiting for a free connection.
 	//
-	// By default will not wait, return errNoFreeConns immediately
+	// By default will not wait, return ErrNoFreeConns immediately
 	MaxConnWaitTimeout time.Duration
 
 	// ResponseBodyStream enables response body streaming
@@ -1203,4 +1265,10 @@ type ClientOptions struct {
 	RetryConfig *retry.Config
 
 	RetryIfFunc client.RetryIfFunc
+
+	// Observe hostclient state
+	StateObserve config.HostClientStateFunc
+
+	// StateObserve execution interval
+	ObservationInterval time.Duration
 }

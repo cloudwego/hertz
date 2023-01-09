@@ -17,6 +17,7 @@ extend google.protobuf.FieldOptions {
   optional string form = 50108;
   optional string go_tag = 51001;
   optional string js_conv = 50109;
+  optional string file_name = 50110;
 }
 
 extend google.protobuf.MethodOptions {
@@ -41,4 +42,8 @@ extend google.protobuf.MethodOptions {
 
 extend google.protobuf.EnumValueOptions {
   optional int32 http_code = 50401;
+}
+
+extend google.protobuf.ServiceOptions {
+  optional string base_domain = 50402;
 }

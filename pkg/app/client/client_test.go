@@ -48,7 +48,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -81,10 +80,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
-var (
-	errTooManyRedirects = errors.New("too many redirects detected when doing the request")
-	errNoFreeConns      = errors.New("no free connections available to host")
-)
+var errTooManyRedirects = errors.New("too many redirects detected when doing the request")
 
 func TestCloseIdleConnections(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
@@ -484,7 +480,7 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -518,7 +514,7 @@ func TestClientSetUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -549,7 +545,7 @@ func TestClientNoUserAgent(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Data(200, "text/plain; charset=utf-8", ctx.UserAgent())
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", ctx.UserAgent())
 	})
 	go engine.Run()
 	defer func() {
@@ -834,7 +830,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 
 			for {
 				if err := c.DoDeadline(context.Background(), req, resp, time.Now().Add(timeout)); err != nil {
-					if err.Error() == errNoFreeConns.Error() {
+					if err.Error() == errs.ErrNoFreeConns.Error() {
 						time.Sleep(time.Millisecond * 500)
 						continue
 					}
@@ -1179,8 +1175,8 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 			resp := protocol.AcquireResponse()
 
 			if err := c.Do(context.Background(), req, resp); err != nil {
-				if err.Error() != errNoFreeConns.Error() {
-					t.Errorf("unexpected error: %s. Expecting %s", err.Error(), errNoFreeConns.Error())
+				if err.Error() != errs.ErrNoFreeConns.Error() {
+					t.Errorf("unexpected error: %s. Expecting %s", err.Error(), errs.ErrNoFreeConns.Error())
 				}
 				atomic.AddUint32(&errNoFreeConnsCount, 1)
 			} else {
@@ -1283,7 +1279,7 @@ func TestPostWithFormData(t *testing.T) {
 			ans = ans + string(key) + "=" + string(value) + "&"
 		})
 		ans = strings.TrimRight(ans, "&")
-		ctx.Data(200, "text/plain; charset=utf-8", []byte(ans))
+		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", []byte(ans))
 	})
 	go engine.Run()
 
@@ -1507,7 +1503,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 	if string(p) != part1 {
 		t.Errorf("read len=%v, read content=%v; want len=%v, want content=%v", r, string(p), len(part1), part1)
 	}
-	left, _ := ioutil.ReadAll(bodyStream)
+	left, _ := io.ReadAll(bodyStream)
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
@@ -1874,13 +1870,13 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	if bodyStream1 == nil {
 		t.Errorf("bodystream1 is nil")
 	}
-	data, _ := ioutil.ReadAll(bodyStream1)
+	data, _ := io.ReadAll(bodyStream1)
 	if string(data) != part1+part2 {
 		t.Errorf("read len=%v, read content=%v; want len=%v, want content=%v", len(data), data, len(part1+part2), part1+part2)
 	}
 
 	// read left bodystream
-	left, _ := ioutil.ReadAll(bodyStream)
+	left, _ := io.ReadAll(bodyStream)
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
@@ -2084,4 +2080,103 @@ func TestClientDialerName(t *testing.T) {
 	if dName != "" {
 		t.Errorf("expected 'empty string', but get %s", dName)
 	}
+}
+
+func TestClientDoWithDialFunc(t *testing.T) {
+	t.Parallel()
+
+	ch := make(chan error, 1)
+	uri := "/foo/bar/baz"
+	body := "request body"
+	opt := config.NewOptions([]config.Option{})
+
+	opt.Addr = "unix-test-10021"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+
+	engine.POST("/foo/bar/baz", func(c context.Context, ctx *app.RequestContext) {
+		if string(ctx.Request.Header.Method()) != consts.MethodPost {
+			ch <- fmt.Errorf("unexpected request method: %q. Expecting %q", ctx.Request.Header.Method(), consts.MethodPost)
+			return
+		}
+		reqURI := ctx.Request.RequestURI()
+		if string(reqURI) != uri {
+			ch <- fmt.Errorf("unexpected request uri: %q. Expecting %q", reqURI, uri)
+			return
+		}
+		cl := ctx.Request.Header.ContentLength()
+		if cl != len(body) {
+			ch <- fmt.Errorf("unexpected content-length %d. Expecting %d", cl, len(body))
+			return
+		}
+		reqBody := ctx.Request.Body()
+		if string(reqBody) != body {
+			ch <- fmt.Errorf("unexpected request body: %q. Expecting %q", reqBody, body)
+			return
+		}
+		ch <- nil
+	})
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+
+	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
+		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
+	}))
+
+	var req protocol.Request
+	req.Header.SetMethod(consts.MethodPost)
+	req.SetRequestURI(uri)
+	req.SetHost("xxx.com")
+	req.SetBodyString(body)
+
+	var resp protocol.Response
+
+	err := c.Do(context.Background(), &req, &resp)
+	if err != nil {
+		t.Fatalf("error when doing request: %s", err)
+	}
+
+	select {
+	case err = <-ch:
+		if err != nil {
+			t.Fatalf("err = %s", err.Error())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timeout")
+	}
+}
+
+func TestClientState(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = ":11000"
+	engine := route.NewEngine(opt)
+	go engine.Run()
+
+	time.Sleep(time.Millisecond)
+
+	state := int32(0)
+	client, _ := NewClient(
+		WithConnStateObserve(func(hcs config.HostClientState) {
+			switch atomic.LoadInt32(&state) {
+			case int32(0):
+				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
+				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				atomic.StoreInt32(&state, int32(1))
+			case int32(1):
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				atomic.StoreInt32(&state, int32(2))
+				return
+			case int32(2):
+				t.Fatal("It shouldn't go to here")
+			}
+		}, time.Second*9))
+
+	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
+	time.Sleep(time.Second * 22)
 }

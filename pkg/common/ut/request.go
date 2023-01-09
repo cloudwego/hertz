@@ -20,7 +20,6 @@ package ut
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
@@ -40,7 +39,7 @@ type Body struct {
 
 // PerformRequest send a constructed request to given engine without network transporting
 //
-// Url can be a standard relative URI or a simple absolute path
+// # Url can be a standard relative URI or a simple absolute path
 //
 // If engine.streamRequestBody is true, it sets body as bodyStream
 // if not, it sets body as bodyBytes
@@ -58,7 +57,7 @@ func PerformRequest(engine *route.Engine, method, url string, body *Body, header
 		if engine.IsStreamRequestBody() || body.Len == -1 {
 			ctx.Request.SetBodyStream(body.Body, body.Len)
 		} else {
-			buf, err := ioutil.ReadAll(&io.LimitedReader{R: body.Body, N: int64(body.Len)})
+			buf, err := io.ReadAll(&io.LimitedReader{R: body.Body, N: int64(body.Len)})
 			ctx.Request.SetBody(buf)
 			if err != nil && err != io.EOF {
 				panic(err)

@@ -25,19 +25,34 @@ import (
 	"strings"
 	"syscall"
 
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/netpoll"
+	"golang.org/x/sys/unix"
 )
 
 type Conn struct {
 	network.Conn
 }
 
+func (c *Conn) ToHertzError(err error) error {
+	if errors.Is(err, netpoll.ErrConnClosed) || errors.Is(err, unix.EPIPE) {
+		return errs.ErrConnectionClosed
+	}
+	return err
+}
+
 func (c *Conn) Peek(n int) (b []byte, err error) {
 	b, err = c.Conn.Peek(n)
 	err = normalizeErr(err)
 	return
+}
+
+func (c *Conn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	err = normalizeErr(err)
+	return n, err
 }
 
 func (c *Conn) Skip(n int) error {

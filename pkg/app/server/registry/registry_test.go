@@ -14,22 +14,16 @@
  * limitations under the License.
  */
 
-package network
+package registry
 
 import (
-	"context"
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
-type Transporter interface {
-	// Close the transporter immediately
-	Close() error
-
-	// Graceful shutdown the transporter
-	Shutdown(ctx context.Context) error
-
-	// Start listen and ready to accept connection
-	ListenAndServe(onData OnData) error
+func TestNoopRegistry(t *testing.T) {
+	reg := noopRegistry{}
+	assert.Nil(t, reg.Deregister(&Info{}))
+	assert.Nil(t, reg.Register(&Info{}))
 }
-
-// Callback when data is ready on the connection
-type OnData func(ctx context.Context, conn interface{}) error

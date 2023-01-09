@@ -16,20 +16,10 @@
 
 package network
 
-import (
-	"context"
+const (
+	// QUIC version codes
+	VersionTLS     uint32 = 0x1
+	VersionDraft29 uint32 = 0xff00001d
+	Version1       uint32 = 0x1
+	Version2       uint32 = 0x709a50c4
 )
-
-type Transporter interface {
-	// Close the transporter immediately
-	Close() error
-
-	// Graceful shutdown the transporter
-	Shutdown(ctx context.Context) error
-
-	// Start listen and ready to accept connection
-	ListenAndServe(onData OnData) error
-}
-
-// Callback when data is ready on the connection
-type OnData func(ctx context.Context, conn interface{}) error

@@ -19,7 +19,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -44,6 +44,7 @@ type HttpMethod struct {
 type Handler struct {
 	FilePath    string
 	PackageName string
+	ProjPackage string
 	Imports     map[string]*model.Model
 	Methods     []*HttpMethod
 }
@@ -62,6 +63,7 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 					FilePath:    filepath.Join(handlerDir, m.OutputDir, util.ToSnakeCase(m.Name)+".go"),
 					PackageName: util.SplitPackage(handlerPackage, ""),
 					Methods:     []*HttpMethod{m},
+					ProjPackage: pkgGen.ProjPackage,
 				}
 
 				if err := pkgGen.processHandler(&handler, root, handlerDir, m.OutputDir, true); err != nil {
@@ -77,6 +79,7 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 				FilePath:    filepath.Join(handlerDir, util.ToSnakeCase(s.Name)+".go"),
 				PackageName: util.SplitPackage(handlerPackage, ""),
 				Methods:     s.Methods,
+				ProjPackage: pkgGen.ProjPackage,
 			}
 
 			if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
@@ -139,7 +142,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return pkgGen.TemplateGenerator.Generate(handler, handlerTpl, filePath, noRepeat)
 	}
 
-	file, err := ioutil.ReadFile(filePath)
+	file, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}

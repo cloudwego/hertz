@@ -25,3 +25,7 @@ import (
 type Server interface {
 	Serve(c context.Context, conn network.Conn) error
 }
+
+type StreamServer interface {
+	Serve(c context.Context, conn network.StreamConn) error
+}

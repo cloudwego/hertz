@@ -19,7 +19,7 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.4.0"
+const Version = "v0.5.0"
 
 // Mode hz run modes
 type Mode int
@@ -34,7 +34,7 @@ const (
 	CmdUpdate = "update"
 	CmdNew    = "new"
 	CmdModel  = "model"
-	// CmdClient = "client"
+	CmdClient = "client"
 )
 
 // hz IDLs
@@ -75,4 +75,9 @@ type Backend string
 
 const (
 	BackendGolang Backend = "golang"
+)
+
+// template const value
+const (
+	SetBodyParam = "setBodyParam(req).\n"
 )

@@ -158,11 +158,11 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 //
 // The caller must do one of the following actions if MayContinue returns true:
 //
-//     - Either send StatusExpectationFailed response if request headers don't
-//       satisfy the caller.
-//     - Or send StatusContinue response before reading request body
-//       with ContinueReadBody.
-//     - Or close the connection.
+//   - Either send StatusExpectationFailed response if request headers don't
+//     satisfy the caller.
+//   - Or send StatusContinue response before reading request body
+//     with ContinueReadBody.
+//   - Or close the connection.
 func (req *Request) MayContinue() bool {
 	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
 }
@@ -563,13 +563,15 @@ func parseBasicAuth(auth []byte) (username, password string, ok bool) {
 }
 
 // SetAuthToken sets the auth token header(Default Scheme: Bearer) in the current HTTP request. Header example:
-// 		Authorization: Bearer <auth-token-value-comes-here>
+//
+//	Authorization: Bearer <auth-token-value-comes-here>
 func (req *Request) SetAuthToken(token string) {
 	req.SetHeader(consts.HeaderAuthorization, "Bearer "+token)
 }
 
 // SetAuthSchemeToken sets the auth token scheme type in the HTTP request. For Example:
-//      Authorization: <auth-scheme-value-set-here> <auth-token-value>
+//
+//	Authorization: <auth-scheme-value-set-here> <auth-token-value>
 func (req *Request) SetAuthSchemeToken(scheme, token string) {
 	req.SetHeader(consts.HeaderAuthorization, scheme+" "+token)
 }
@@ -827,7 +829,7 @@ func ReleaseRequest(req *Request) {
 // NewRequest makes a new Request given a method, URL, and
 // optional body.
 //
-// Method's default value is GET
+// # Method's default value is GET
 //
 // Url must contain fully qualified uri, i.e. with scheme and host,
 // and http is assumed if scheme is omitted.

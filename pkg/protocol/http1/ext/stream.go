@@ -211,7 +211,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 	if err != nil {
 		// the data on stream may be incomplete
 		if err == io.EOF {
-			if rs.offset != rs.contentLength {
+			if rs.offset != rs.contentLength && rs.contentLength != -2 {
 				err = io.ErrUnexpectedEOF
 			}
 			// ensure that skipRest works fine

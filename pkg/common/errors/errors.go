@@ -49,17 +49,20 @@ import (
 
 var (
 	// These errors are the base error, which are used for checking in errors.Is()
-	ErrNeedMore        = errors.New("need more data")
-	ErrChunkedStream   = errors.New("chunked stream")
-	ErrBodyTooLarge    = errors.New("body size exceeds the given limit")
-	ErrHijacked        = errors.New("connection has been hijacked")
-	ErrIdleTimeout     = errors.New("idle timeout")
-	ErrTimeout         = errors.New("timeout")
-	ErrReadTimeout     = errors.New("read timeout")
-	ErrWriteTimeout    = errors.New("write timeout")
-	ErrDialTimeout     = errors.New("dial timeout")
-	ErrNothingRead     = errors.New("nothing read")
-	ErrShortConnection = errors.New("short connection")
+	ErrNeedMore           = errors.New("need more data")
+	ErrChunkedStream      = errors.New("chunked stream")
+	ErrBodyTooLarge       = errors.New("body size exceeds the given limit")
+	ErrHijacked           = errors.New("connection has been hijacked")
+	ErrIdleTimeout        = errors.New("idle timeout")
+	ErrTimeout            = errors.New("timeout")
+	ErrReadTimeout        = errors.New("read timeout")
+	ErrWriteTimeout       = errors.New("write timeout")
+	ErrDialTimeout        = errors.New("dial timeout")
+	ErrNothingRead        = errors.New("nothing read")
+	ErrShortConnection    = errors.New("short connection")
+	ErrNoFreeConns        = errors.New("no free connections available to host")
+	ErrConnectionClosed   = errors.New("connection closed")
+	ErrNotSupportProtocol = errors.New("not support protocol")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.
@@ -152,10 +155,11 @@ func (msg *Error) JSON() interface{} {
 
 // Errors returns an array will all the error messages.
 // Example:
-// 		c.Error(errors.New("first"))
-// 		c.Error(errors.New("second"))
-// 		c.Error(errors.New("third"))
-// 		c.Errors.Errors() // == []string{"first", "second", "third"}
+//
+//	c.Error(errors.New("first"))
+//	c.Error(errors.New("second"))
+//	c.Error(errors.New("third"))
+//	c.Errors.Errors() // == []string{"first", "second", "third"}
 func (a ErrorChain) Errors() []string {
 	if len(a) == 0 {
 		return nil

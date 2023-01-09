@@ -17,8 +17,10 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
@@ -159,6 +161,20 @@ func WithHostPorts(hp string) config.Option {
 	}}
 }
 
+// WithBasePath sets basePath.Must be "/" prefix and suffix,If not the default concatenate "/"
+func WithBasePath(basePath string) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		// Must be "/" prefix and suffix,If not the default concatenate "/"
+		if !strings.HasPrefix(basePath, "/") {
+			basePath = "/" + basePath
+		}
+		if !strings.HasSuffix(basePath, "/") {
+			basePath = basePath + "/"
+		}
+		o.BasePath = basePath
+	}}
+}
+
 // WithMaxRequestBodySize sets the limitation of request body size. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
@@ -224,7 +240,10 @@ func WithExitWaitTime(timeout time.Duration) config.Option {
 // NOTE: If a tls server is started, it won't accept non-tls request.
 func WithTLS(cfg *tls.Config) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		o.TransporterNewer = standard.NewTransporter
+		// If there is no explicit transporter, change it to standard one. Netpoll do not support tls yet.
+		if o.TransporterNewer == nil {
+			o.TransporterNewer = standard.NewTransporter
+		}
 		o.TLS = cfg
 	}}
 }
@@ -240,6 +259,13 @@ func WithListenConfig(l *net.ListenConfig) config.Option {
 func WithTransport(transporter func(options *config.Options) network.Transporter) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.TransporterNewer = transporter
+	}}
+}
+
+// WithAltTransport sets which network library to use as an alternative transporter(need to be implemented by specific transporter).
+func WithAltTransport(transporter func(options *config.Options) network.Transporter) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AltTransporterNewer = transporter
 	}}
 }
 
@@ -302,5 +328,21 @@ func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
 func WithDisablePrintRoute(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.DisablePrintRoute = b
+	}}
+}
+
+// WithOnAccept sets the callback function when a new connection is accepted but cannot
+// receive data in netpoll. In go net, it will be called before converting tls connection
+func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnAccept = fn
+	}}
+}
+
+// WithOnConnect sets the onConnect function. It can received data from connection in netpoll.
+// In go net, it will be called after converting tls connection.
+func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnConnect = fn
 	}}
 }

@@ -17,19 +17,20 @@
 package network
 
 import (
-	"context"
+	"crypto/tls"
+	"net"
+	"time"
 )
 
-type Transporter interface {
-	// Close the transporter immediately
-	Close() error
+type Dialer interface {
+	// DialConnection is used to dial the peer end.
+	DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn Conn, err error)
 
-	// Graceful shutdown the transporter
-	Shutdown(ctx context.Context) error
+	// DialTimeout is used to dial the peer end with a timeout.
+	//
+	// NOTE: Not recommended to use this function. Just for compatibility.
+	DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn net.Conn, err error)
 
-	// Start listen and ready to accept connection
-	ListenAndServe(onData OnData) error
+	// AddTLS will transfer a common connection to a tls connection.
+	AddTLS(conn Conn, tlsConfig *tls.Config) (Conn, error)
 }
-
-// Callback when data is ready on the connection
-type OnData func(ctx context.Context, conn interface{}) error

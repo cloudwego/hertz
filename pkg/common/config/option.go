@@ -17,6 +17,7 @@
 package config
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"time"
@@ -35,6 +36,7 @@ const (
 	defaultReadTimeout        = 3 * time.Minute
 	defaultAddr               = ":8888"
 	defaultNetwork            = "tcp"
+	defaultBasePath           = "/"
 	defaultMaxRequestBodySize = 4 * 1024 * 1024
 	defaultWaitExitTimeout    = time.Second * 5
 	defaultReadBufferSize     = 4 * 1024
@@ -61,6 +63,7 @@ type Options struct {
 	DisablePrintRoute            bool
 	Network                      string
 	Addr                         string
+	BasePath                     string
 	ExitWaitTimeout              time.Duration
 	TLS                          *tls.Config
 	H2C                          bool
@@ -71,7 +74,17 @@ type Options struct {
 	ListenConfig                 *net.ListenConfig
 
 	// TransporterNewer is the function to create a transporter.
-	TransporterNewer func(opt *Options) network.Transporter
+	TransporterNewer    func(opt *Options) network.Transporter
+	AltTransporterNewer func(opt *Options) network.Transporter
+
+	// In netpoll library, OnAccept is called after connection accepted
+	// but before adding it to epoll. OnConnect is called after adding it to epoll.
+	// The difference is that onConnect can get data but OnAccept cannot.
+	// If you'd like to check whether the peer IP is in the blacklist, you can use OnAccept.
+	// In go net, OnAccept is executed after connection accepted but before establishing
+	// tls connection. OnConnect is executed after establishing tls connection.
+	OnAccept  func(conn net.Conn) context.Context
+	OnConnect func(ctx context.Context, conn network.Conn) context.Context
 
 	// Registry is used for service registry.
 	Registry registry.Registry
@@ -167,6 +180,9 @@ func NewOptions(opts []Option) *Options {
 
 		// listen address
 		Addr: defaultAddr,
+
+		// basePath
+		BasePath: defaultBasePath,
 
 		// Define the max request body size. If the body Size exceeds this value,
 		// an error will be returned

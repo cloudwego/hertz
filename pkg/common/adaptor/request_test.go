@@ -18,8 +18,9 @@ package adaptor
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +87,7 @@ func makeACall(t *testing.T, method, url string, header http.Header, body string
 		}
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Read body error: %s", err)
 	}
@@ -115,7 +116,7 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	body, err := ioutil.ReadAll(request.Body)
+	body, err := io.ReadAll(request.Body)
 	if err != nil {
 		t.Fatalf("Read body error: %s", err)
 	}
@@ -140,4 +141,37 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		t.Fatalf("Write body error: %s", err)
 	}
+}
+
+func TestCopyToHertzRequest(t *testing.T) {
+	req := http.Request{
+		Method:     "GET",
+		RequestURI: "/test",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "test.com",
+		},
+		Proto:  "HTTP/1.1",
+		Header: http.Header{},
+	}
+	req.Header.Set("key1", "value1")
+	req.Header.Add("key2", "value2")
+	req.Header.Add("key2", "value22")
+	hertzReq := protocol.Request{}
+	err := CopyToHertzRequest(&req, &hertzReq)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, req.Method, string(hertzReq.Method()))
+	assert.DeepEqual(t, req.RequestURI, string(hertzReq.Path()))
+	assert.DeepEqual(t, req.Proto, hertzReq.Header.GetProtocol())
+	assert.DeepEqual(t, req.Header.Get("key1"), hertzReq.Header.Get("key1"))
+	valueSlice := make([]string, 0, 2)
+	hertzReq.Header.VisitAllCustomHeader(func(key, value []byte) {
+		if strings.ToLower(string(key)) == "key2" {
+			valueSlice = append(valueSlice, string(value))
+		}
+	})
+
+	assert.DeepEqual(t, req.Header.Values("key2"), valueSlice)
+
+	assert.DeepEqual(t, 3, hertzReq.Header.Len())
 }
