@@ -191,7 +191,7 @@ func renderImportTpl(tplInfo *Template, data interface{}) ([]string, error) {
 
 // renderAppendContent used to render append content for 'update' command
 func renderAppendContent(tplInfo *Template, renderInfo interface{}) (string, error) {
-	tpl, err := template.New(tplInfo.Path).Parse(tplInfo.UpdateBehavior.AppendContentTpl)
+	tpl, err := template.New(tplInfo.Path).Parse(tplInfo.UpdateBehavior.AppendTpl)
 	if err != nil {
 		return "", fmt.Errorf("parse append content template(%s) failed, err: %v", tplInfo.Path, err)
 	}
@@ -288,12 +288,12 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 		if err != nil {
 			return err
 		}
-	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior.Behavior {
-		case Unchanged:
+	} else {
+		switch tplInfo.UpdateBehavior.Type {
+		case Skip:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
-		case Regenerate:
+		case Cover:
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForService{
@@ -393,12 +393,12 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 		if err != nil {
 			return err
 		}
-	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior.Behavior {
-		case Unchanged:
+	} else {
+		switch tplInfo.UpdateBehavior.Type {
+		case Skip:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
-		case Regenerate:
+		case Cover:
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForMethod{
@@ -446,12 +446,12 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 		if err != nil {
 			return err
 		}
-	} else { // update file based on update behavior, use 'switch' statements to make logic clearer
-		switch tplInfo.UpdateBehavior.Behavior {
-		case Unchanged:
+	} else {
+		switch tplInfo.UpdateBehavior.Type {
+		case Skip:
 			// do nothing
 			logs.Infof("do not update file '%s', because the update behavior is 'Unchanged'", filePath)
-		case Regenerate:
+		case Cover:
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForIDL{

@@ -256,11 +256,10 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	}
 
 	if !bytes.Contains(file, []byte(register.Pkg)) {
-		newFile, err := util.AddImport(registerPath, register.PkgAlias, register.Pkg)
+		file, err = util.AddImport(registerPath, register.PkgAlias, register.Pkg)
 		if err != nil {
 			return err
 		}
-		file = []byte(newFile)
 
 		insertReg := register.PkgAlias + ".Register(r)\n"
 		if bytes.Contains(file, []byte(insertReg)) {

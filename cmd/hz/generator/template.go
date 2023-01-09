@@ -37,28 +37,28 @@ type TemplateConfig struct {
 }
 
 const (
-	Unchanged  = 0
-	Regenerate = 1
-	Append     = 2
+	Skip   = "skip"
+	Cover  = "cover"
+	Append = "append"
 )
 
 type Template struct {
-	Default        bool           // Is the default package template
+	Default        bool           // Update command behavior; skip/cover/append
 	Path           string         `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
 	Delims         [2]string      `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
 	Body           string         `yaml:"body"`            // Render template, currently only supports go template syntax
 	LoopMethod     bool           `yaml:"loop_method"`     // Loop generate files based on "method"
-	LoopService    bool           `yaml:"loop_service"`    // loop generate files based on "service"
+	LoopService    bool           `yaml:"loop_service"`    // Loop generate files based on "service"
 	UpdateBehavior UpdateBehavior `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
 }
 
 type UpdateBehavior struct {
-	Behavior int `yaml:"behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
+	Type string `yaml:"type"` // Update behavior type; skip/cover/append
 	// the following variables are used for append update
-	AppendKey        string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
-	InsertKey        string   `yaml:"insert_key"`         // Insert content by "insert_key"
-	AppendContentTpl string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
-	ImportTpl        []string `yaml:"import_tpl"`         // Import insert template
+	AppendKey string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
+	InsertKey string   `yaml:"insert_key"`         // Insert content by "insert_key"
+	AppendTpl string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
+	ImportTpl []string `yaml:"import_tpl"`         // Import insert template
 }
 
 // TemplateGenerator contains information about the output template
@@ -66,8 +66,8 @@ type TemplateGenerator struct {
 	OutputDir    string
 	Config       *TemplateConfig
 	Excludes     []string
-	tpls         map[string]*template.Template // template name -> template
-	tplsInfo     map[string]*Template          // template name -> template info, for getting more template info
+	tpls         map[string]*template.Template // "template name" -> "Template", it used to get the "parsed template" directly
+	tplsInfo     map[string]*Template          // "template name" -> "template info", it is used to get the original "template information"
 	dirs         map[string]bool
 	isPackageTpl bool
 
