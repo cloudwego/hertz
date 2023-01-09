@@ -416,10 +416,7 @@ func defaultErrorHandler(ctx *app.RequestContext, err error) {
 type eventStack []func(ti traceinfo.TraceInfo, err error)
 
 func (e *eventStack) isEmpty() bool {
-	if len(*e) == 0 {
-		return true
-	}
-	return false
+	return len(*e) == 0
 }
 
 func (e *eventStack) push(f func(ti traceinfo.TraceInfo, err error)) {
