@@ -98,7 +98,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
 
 		traceCtl        = s.Core.GetTracer()
-		eventsToTrigger eventStack
+		eventsToTrigger *eventStack
 
 		// Use a new variable to hold the standard context to avoid modify the initial
 		// context.
@@ -106,7 +106,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	)
 
 	if s.EnableTrace {
-		eventsToTrigger = s.eventStackPool.Get().(eventStack)
+		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
 	}
 
 	defer func() {
@@ -115,10 +115,12 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				ctx.GetTraceInfo().Stats().SetError(err)
 			}
 			// in case of error, we need to trigger all events
-			for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
-				last(ctx.GetTraceInfo(), err)
+			if eventsToTrigger != nil {
+				for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
+					last(ctx.GetTraceInfo(), err)
+				}
+				s.eventStackPool.Put(eventsToTrigger)
 			}
-			s.eventStackPool.Put(eventsToTrigger)
 
 			traceCtl.DoFinish(cc, ctx, err)
 		}
@@ -387,7 +389,7 @@ func NewServer() *Server {
 	return &Server{
 		eventStackPool: &sync.Pool{
 			New: func() interface{} {
-				return eventStack{}
+				return &eventStack{}
 			},
 		},
 	}

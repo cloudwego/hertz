@@ -34,7 +34,7 @@ import (
 )
 
 var pool = &sync.Pool{New: func() interface{} {
-	return eventStack{}
+	return &eventStack{}
 }}
 
 func TestTraceEventCompleted(t *testing.T) {
@@ -162,9 +162,8 @@ func TestTraceEventWriteError(t *testing.T) {
 
 func TestEventStack(t *testing.T) {
 	// Create a stack.
-	var s eventStack
-	assert.Nil(t, s)
-	// assert.True(t, s.isEmpty())
+	s := &eventStack{}
+	assert.True(t, s.isEmpty())
 
 	count := 0
 
