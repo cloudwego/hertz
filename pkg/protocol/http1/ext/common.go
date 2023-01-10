@@ -48,19 +48,21 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cloudwego/hertz/pkg/protocol"
-
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 const maxContentLengthInStream = 8 * 1024
 
 var errBrokenChunk = errs.NewPublic("cannot find crlf at the end of chunk").SetMeta("when read body chunk")
+
+// Deprecated: Use github.com/cloudwego/hertz/pkg/protocol.NoBody instead.
+var NoBody = protocol.NoBody
 
 func MustPeekBuffered(r network.Reader) []byte {
 	l := r.Len()
