@@ -762,24 +762,21 @@ func TestRequestReadChunked(t *testing.T) {
 		t.Fatalf("Unexpected body %q. Expected %q", req.Body(), expectedBody)
 	}
 	verifyRequestHeader(t, &req.Header, -1, "/foo", "google.com", "", "aa/bb")
-	VerifyTrailer(t, zr, map[string]string{"Trail": "test"})
+	verifyTrailer(t, zr, map[string]string{"Trail": "test"})
 }
 
-func VerifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]string) {
-	request := protocol.Request{}
-	err := ext.ReadTrailer(&request.Header.Trailer, r)
+func verifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]string) {
+	trailer := protocol.Trailer{}
+	err := ext.ReadTrailer(&trailer, r)
 	if err == io.EOF && exceptedTrailers == nil {
 		return
 	}
 	if err != nil {
 		t.Fatalf("Cannot read trailer: %v", err)
 	}
-	verifyRequestTrailer(t, &request.Header, exceptedTrailers)
-}
 
-func verifyRequestTrailer(t *testing.T, h *protocol.RequestHeader, exceptedTrailers map[string]string) {
 	for k, v := range exceptedTrailers {
-		got := h.Trailer.Peek(k)
+		got := trailer.Peek(k)
 		if !bytes.Equal(got, []byte(v)) {
 			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
 		}
@@ -1046,7 +1043,7 @@ func testReadBodyChunked(t *testing.T, bodySize int) {
 	if !bytes.Equal(b, body) {
 		t.Fatalf("Unexpected response read for bodySize=%d: %q. Expected %q. chunkedBody=%q", bodySize, b, body, chunkedBody)
 	}
-	VerifyTrailer(t, zr, expectedTrailer)
+	verifyTrailer(t, zr, expectedTrailer)
 }
 
 func createChunkedBody(body []byte, trailer map[string]string, hasTrailer bool) []byte {
@@ -1086,7 +1083,7 @@ func testReadBodyFixedSize(t *testing.T, bodySize int) {
 	if !bytes.Equal(b, body) {
 		t.Fatalf("Unexpected response read for bodySize=%d: %q. Expected %q", bodySize, b, body)
 	}
-	VerifyTrailer(t, zr, nil)
+	verifyTrailer(t, zr, nil)
 }
 
 func TestRequestFormFile(t *testing.T) {

@@ -39,7 +39,7 @@ func TestTrailerAdd(t *testing.T) {
 func TestTrailerAddError(t *testing.T) {
 	var tr Trailer
 	assert.NotNil(t, tr.Add(consts.HeaderContentType, ""))
-	assert.NotNil(t, tr.Add(consts.HeaderProxyConnection, ""))
+	assert.NotNil(t, tr.Set(consts.HeaderProxyConnection, ""))
 }
 
 func TestTrailerDel(t *testing.T) {
@@ -61,6 +61,14 @@ func TestTrailerSet(t *testing.T) {
 	assert.False(t, strings.Contains(string(tr.Header()), "Foo: value1"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value2"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Bar: value3"))
+}
+
+func TestTrailerGet(t *testing.T) {
+	var tr Trailer
+	assert.Nil(t, tr.Add("foo", "value1"))
+	assert.Nil(t, tr.Add("bar", "value3"))
+	assert.DeepEqual(t, tr.Get("foo"), "value1")
+	assert.DeepEqual(t, tr.Get("bar"), "value3")
 }
 
 func TestTrailerEmpty(t *testing.T) {

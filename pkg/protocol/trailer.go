@@ -101,6 +101,7 @@ func (t *Trailer) Empty() bool {
 	return len(t.h) == 0
 }
 
+// GetBytes return the 'Trailer' Header which is composed by the Trailer key
 func (t *Trailer) GetBytes() []byte {
 	var dst []byte
 	for i, n := 0, len(t.h); i < n; i++ {
