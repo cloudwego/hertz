@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -72,6 +73,8 @@ type Option struct {
 type Server struct {
 	Option
 	Core suite.Core
+
+	eventStackPool *sync.Pool
 }
 
 func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
@@ -102,18 +105,21 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		cc = c
 	)
 
+	if s.EnableTrace {
+		eventsToTrigger = s.eventStackPool.Get().(eventStack)
+	}
+
 	defer func() {
-		// error case
-		if err != nil && s.EnableTrace {
-			if !errors.Is(err, errs.ErrIdleTimeout) && !errors.Is(err, errs.ErrHijacked) {
+		if s.EnableTrace {
+			if err != nil && !errors.Is(err, errs.ErrIdleTimeout) && !errors.Is(err, errs.ErrHijacked) {
 				ctx.GetTraceInfo().Stats().SetError(err)
 			}
-			if eventsToTrigger != nil {
-				// in case of error, we need to trigger all events
-				for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
-					last(ctx.GetTraceInfo(), err)
-				}
+			// in case of error, we need to trigger all events
+			for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
+				last(ctx.GetTraceInfo(), err)
 			}
+			s.eventStackPool.Put(eventsToTrigger)
+
 			traceCtl.DoFinish(cc, ctx, err)
 		}
 
@@ -374,6 +380,16 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		ctx.ResetWithoutConn()
+	}
+}
+
+func NewServer() *Server {
+	return &Server{
+		eventStackPool: &sync.Pool{
+			New: func() interface{} {
+				return eventStack{}
+			},
+		},
 	}
 }
 
