@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -43,6 +44,15 @@ func New(c *cli.Context) error {
 	}
 	setLogVerbose(args.Verbose)
 	logs.Debugf("args: %#v\n", args)
+
+	exist, err := util.PathExist(path.Join(args.OutDir, meta.ManifestFile))
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+
+	if exist {
+		return cli.Exit(fmt.Errorf("if you still want to new a project please delete the .hz"), meta.LoadError)
+	}
 
 	err = GenerateLayout(args)
 	if err != nil {
