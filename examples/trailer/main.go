@@ -16,16 +16,26 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"time"
 
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/client"
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func main() {
+	h := server.Default(server.WithHostPorts("127.0.0.1:8080"), server.WithStreamBody(true))
+
+	h.GET("/trailer", handler)
+
+	go h.Spin()
+	time.Sleep(time.Second)
+
 	c, _ := client.NewClient(client.WithResponseBodyStream(true))
 	req := &protocol.Request{}
 	resp := &protocol.Response{}
@@ -35,25 +45,19 @@ func main() {
 	if err != nil {
 		return
 	}
-	bodyStream := resp.BodyStream()
-
-	buf := make([]byte, 5)
-	for {
-		n, err := bodyStream.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
-		}
-		fmt.Printf("%s", string(buf[:n]))
-	}
-
+	fmt.Println(string(resp.Body()))
 	resp.Header.Trailer.VisitAll(visitSingle)
+	fmt.Println(resp.Header.Trailer.Get("AAA"))
+	fmt.Println(resp.Header.Trailer.Get("Hertz"))
+}
 
-	fmt.Printf("%s\n", string(resp.Header.Trailer.Header()))
+func handler(ctx context.Context, c *app.RequestContext) {
+	bs := bytes.NewReader([]byte("Hello World"))
+	c.SetBodyStream(bs, -1)
+	c.Response.Header.Trailer.Set("AAA", "hertz")
+	c.Response.Header.Trailer.Set("Hertz", "trailer_test")
 }
 
 func visitSingle(k, v []byte) {
-	fmt.Printf("%s\n", string(k))
+	fmt.Printf("%q: %q\n", k, v)
 }
