@@ -147,16 +147,33 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return err
 	}
 
-	// insert new imports
+	// insert new model imports
 	for alias, model := range handler.(Handler).Imports {
 		if bytes.Contains(file, []byte(model.Package)) {
 			continue
 		}
-		newFile, err := util.AddImport(filePath, alias, model.Package)
+		file, err = util.AddImportForContent(file, alias, model.Package)
 		if err != nil {
 			return err
 		}
-		file = []byte(newFile)
+	}
+	// insert customized imports
+	if tplInfo, exist := pkgGen.TemplateGenerator.tplsInfo[handlerTpl]; exist {
+		if len(tplInfo.UpdateBehavior.ImportTpl) != 0 {
+			imptSlice, err := getInsertImportContent(tplInfo, handler, file)
+			if err != nil {
+				return err
+			}
+			for _, impt := range imptSlice {
+				if bytes.Contains(file, []byte(impt[1])) {
+					continue
+				}
+				file, err = util.AddImportForContent(file, impt[0], impt[1])
+				if err != nil {
+					logs.Warnf("can not add import(%s) for file(%s), err: %v\n", impt[1], filePath, err)
+				}
+			}
+		}
 	}
 
 	// insert new handler
@@ -176,6 +193,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		data["RequestTypeName"] = method.RequestTypeName
 		data["ReturnTypeName"] = method.ReturnTypeName
 		data["Serializer"] = method.Serializer
+		data["OutputDir"] = method.OutputDir
 		handlerFunc := bytes.NewBuffer(nil)
 		err = handlerSingleTpl.Execute(handlerFunc, data)
 		if err != nil {

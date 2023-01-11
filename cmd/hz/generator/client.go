@@ -72,7 +72,7 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 				client.Imports[mm.PackageName] = mm
 			}
 		}
-		err = pkgGen.TemplateGenerator.Generate(client, serviceClientName, client.FilePath, false)
+		err = pkgGen.TemplateGenerator.Generate(client, idlClientName, client.FilePath, false)
 		if err != nil {
 			return err
 		}

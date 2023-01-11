@@ -36,26 +36,40 @@ type TemplateConfig struct {
 	Layouts []Template `yaml:"layouts"`
 }
 
+const (
+	Skip   = "skip"
+	Cover  = "cover"
+	Append = "append"
+)
+
 type Template struct {
-	Path           string    `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
-	Delims         [2]string `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
-	Body           string    `yaml:"body"`            // Render template, currently only supports go template syntax
-	CustomTemplate bool      `yaml:"custom_template"` // Whether it is a custom template, This configuration does not work in layout templates, default: false
-	DivideMethod   bool      `yaml:"divide_method"`   // When CustomTemplate is equal to true, all methods are traversed and code is generated.
+	Default        bool           // Update command behavior; skip/cover/append
+	Path           string         `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
+	Delims         [2]string      `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
+	Body           string         `yaml:"body"`            // Render template, currently only supports go template syntax
+	LoopMethod     bool           `yaml:"loop_method"`     // Loop generate files based on "method"
+	LoopService    bool           `yaml:"loop_service"`    // Loop generate files based on "service"
+	UpdateBehavior UpdateBehavior `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
+}
+
+type UpdateBehavior struct {
+	Type string `yaml:"type"` // Update behavior type; skip/cover/append
+	// the following variables are used for append update
+	AppendKey string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
+	InsertKey string   `yaml:"insert_key"`         // Insert content by "insert_key"
+	AppendTpl string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
+	ImportTpl []string `yaml:"import_tpl"`         // Import insert template
 }
 
 // TemplateGenerator contains information about the output template
 type TemplateGenerator struct {
-	OutputDir string
-	Config    *TemplateConfig
-	Excludes  []string
-	tpls      map[string]*template.Template
-	dirs      map[string]bool
-
-	// custom template files and whether divide method
-	customTpls    map[string]*template.Template
-	pathNameTpls  map[string]*template.Template
-	divideMethods map[string]bool
+	OutputDir    string
+	Config       *TemplateConfig
+	Excludes     []string
+	tpls         map[string]*template.Template // "template name" -> "Template", it is used get the "parsed template" directly
+	tplsInfo     map[string]*Template          // "template name" -> "template info", it is used to get the original "template information"
+	dirs         map[string]bool
+	isPackageTpl bool
 
 	files         []File
 	excludedFiles map[string]*File
@@ -66,31 +80,21 @@ func (tg *TemplateGenerator) Init() error {
 		return errors.New("config not set yet")
 	}
 
-	tpls := tg.tpls
-	if tpls == nil {
-		tpls = make(map[string]*template.Template, len(tg.Config.Layouts))
+	if tg.tpls == nil {
+		tg.tpls = make(map[string]*template.Template, len(tg.Config.Layouts))
 	}
-	dirs := tg.dirs
-	if dirs == nil {
-		dirs = make(map[string]bool)
+	if tg.tplsInfo == nil {
+		tg.tplsInfo = make(map[string]*Template, len(tg.Config.Layouts))
 	}
-
-	customTpls := tg.customTpls
-	if customTpls == nil {
-		customTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
-	}
-
-	pathNameTpls := tg.pathNameTpls
-	if pathNameTpls == nil {
-		pathNameTpls = make(map[string]*template.Template, len(tg.Config.Layouts))
-	}
-
-	divideMethods := tg.divideMethods
-	if divideMethods == nil {
-		divideMethods = make(map[string]bool, len(tg.Config.Layouts))
+	if tg.dirs == nil {
+		tg.dirs = make(map[string]bool)
 	}
 
 	for _, l := range tg.Config.Layouts {
+		if tg.isPackageTpl && IsDefaultPackageTpl(l.Path) {
+			continue
+		}
+
 		// check if is a directory
 		var noFile bool
 		if strings.HasSuffix(l.Path, string(filepath.Separator)) {
@@ -106,46 +110,23 @@ func (tg *TemplateGenerator) Init() error {
 			return fmt.Errorf("check directory '%s' failed, err: %v", dir, err.Error())
 		}
 		if isExist {
-			dirs[dir] = true
+			tg.dirs[dir] = true
 		} else {
-			dirs[dir] = false
+			tg.dirs[dir] = false
 		}
-
-		divideMethods[path] = l.DivideMethod
 
 		if noFile {
 			continue
 		}
 
 		// parse templates
-		if _, ok := tpls[path]; ok {
+		if _, ok := tg.tpls[path]; ok {
 			continue
 		}
-		delims := DefaultDelimiters
-		if l.Delims[0] != "" && l.Delims[1] != "" {
-			delims = l.Delims
+		err = tg.loadLayout(l, path, false)
+		if err != nil {
+			return err
 		}
-		tpl := template.New(path)
-		tpl = tpl.Delims(delims[0], delims[1])
-		if tpl, err = tpl.Parse(l.Body); err != nil {
-			return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
-		}
-
-		if l.CustomTemplate {
-			customTpls[path] = tpl
-		} else {
-			tpls[path] = tpl
-		}
-
-		if l.CustomTemplate {
-			pathNameTpl := template.New(path)
-			pathNameTpl = pathNameTpl.Delims(delims[0], delims[1])
-			if pathNameTpl, err = pathNameTpl.Parse(path); err != nil {
-				return fmt.Errorf("parse template '%s' failed, err: %v", path, err.Error())
-			}
-			pathNameTpls[path] = pathNameTpl
-		}
-
 	}
 
 	excludes := make(map[string]*File, len(tg.Excludes))
@@ -153,12 +134,25 @@ func (tg *TemplateGenerator) Init() error {
 		excludes[f] = &File{}
 	}
 
-	tg.tpls = tpls
-	tg.dirs = dirs
 	tg.excludedFiles = excludes
-	tg.customTpls = customTpls
-	tg.divideMethods = divideMethods
-	tg.pathNameTpls = pathNameTpls
+	return nil
+}
+
+func (tg *TemplateGenerator) loadLayout(layout Template, tplName string, isDefaultTpl bool) error {
+	delims := DefaultDelimiters
+	if layout.Delims[0] != "" && layout.Delims[1] != "" {
+		delims = layout.Delims
+	}
+	// insert template funcs
+	tpl := template.New(tplName).Funcs(funcMap)
+	tpl = tpl.Delims(delims[0], delims[1])
+	var err error
+	if tpl, err = tpl.Parse(layout.Body); err != nil {
+		return fmt.Errorf("parse template '%s' failed, err: %v", tplName, err.Error())
+	}
+	layout.Default = isDefaultTpl
+	tg.tpls[tplName] = tpl
+	tg.tplsInfo[tplName] = &layout
 	return nil
 }
 
