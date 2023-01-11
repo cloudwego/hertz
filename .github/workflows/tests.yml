@@ -32,3 +32,33 @@ jobs:
 
       - name: Codecov
         run: bash <(curl -s https://codecov.io/bash)
+
+  lint-and-ut-windows:
+    strategy:
+      matrix:
+        version: [ 1.18, 1.19 ]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.version }}
+
+      - uses: actions/cache@v3
+        with:
+          path: $HOME/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Lint
+        run: |
+          go vet -stdmethods=false $(go list ./...)
+          go install mvdan.cc/gofumpt@v0.2.0
+          test -z "$(gofumpt -l -extra .)"
+      - name: Unit Test
+        run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
+#
+#      - name: Codecov
+#        run: bash <(curl -s https://codecov.io/bash)
