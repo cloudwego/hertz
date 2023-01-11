@@ -66,7 +66,7 @@ type TemplateGenerator struct {
 	OutputDir    string
 	Config       *TemplateConfig
 	Excludes     []string
-	tpls         map[string]*template.Template // "template name" -> "Template", it used to get the "parsed template" directly
+	tpls         map[string]*template.Template // "template name" -> "Template", it is used get the "parsed template" directly
 	tplsInfo     map[string]*Template          // "template name" -> "template info", it is used to get the original "template information"
 	dirs         map[string]bool
 	isPackageTpl bool
