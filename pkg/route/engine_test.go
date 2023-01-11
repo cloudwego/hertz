@@ -59,7 +59,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -75,16 +74,16 @@ func TestNew_Engine(t *testing.T) {
 }
 
 func TestNew_Engine_WithTransporter(t *testing.T) {
-	defaultTransporter = netpoll.NewTransporter
+	defaultTransporter = newMockTransporter
 	opt := config.NewOptions([]config.Option{})
 	router := NewEngine(opt)
-	assert.DeepEqual(t, "netpoll", router.GetTransporterName())
+	assert.DeepEqual(t, "route", router.GetTransporterName())
 
-	defaultTransporter = netpoll.NewTransporter
+	defaultTransporter = newMockTransporter
 	opt.TransporterNewer = standard.NewTransporter
 	router = NewEngine(opt)
 	assert.DeepEqual(t, "standard", router.GetTransporterName())
-	assert.DeepEqual(t, "netpoll", GetTransporterName())
+	assert.DeepEqual(t, "route", GetTransporterName())
 }
 
 func TestGetTransporterName(t *testing.T) {
@@ -419,16 +418,15 @@ func TestRenderHtml(t *testing.T) {
 }
 
 func TestTransporterName(t *testing.T) {
-	SetTransporter(netpoll.NewTransporter)
-	assert.DeepEqual(t, "netpoll", GetTransporterName())
-
 	SetTransporter(standard.NewTransporter)
 	assert.DeepEqual(t, "standard", GetTransporterName())
 
-	SetTransporter(func(options *config.Options) network.Transporter {
-		return &mockTransporter{}
-	})
+	SetTransporter(newMockTransporter)
 	assert.DeepEqual(t, "route", GetTransporterName())
+}
+
+func newMockTransporter(options *config.Options) network.Transporter {
+	return &mockTransporter{}
 }
 
 type mockTransporter struct{}

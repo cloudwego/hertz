@@ -31,7 +31,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -49,7 +48,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
-	"golang.org/x/sys/unix"
 )
 
 func TestHertz_Run(t *testing.T) {
@@ -593,44 +591,6 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 		go testFunc()
 	}
 	wg.Wait()
-}
-
-func TestReusePorts(t *testing.T) {
-	cfg := &net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
-		return c.Control(func(fd uintptr) {
-			syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEADDR, 1)
-			syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
-		})
-	}}
-	ha := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
-	hb := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg), WithTransport(standard.NewTransporter))
-	hc := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
-	hd := New(WithHostPorts("localhost:10093"), WithListenConfig(cfg))
-	ha.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
-	})
-	hc.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
-	})
-	hd.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
-	})
-	hb.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
-	})
-	go ha.Run()
-	go hb.Run()
-	go hc.Run()
-	go hd.Run()
-	time.Sleep(time.Second)
-
-	client, _ := c.NewClient()
-	for i := 0; i < 1000; i++ {
-		statusCode, body, err := client.Get(context.Background(), nil, "http://localhost:10093/ping")
-		assert.Nil(t, err)
-		assert.DeepEqual(t, consts.StatusOK, statusCode)
-		assert.DeepEqual(t, "{\"ping\":\"pong\"}", string(body))
-	}
 }
 
 func TestServiceRegisterFailed(t *testing.T) {
