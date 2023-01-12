@@ -11,21 +11,20 @@ type decoder interface {
 	Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error
 }
 
-type FieldCustomizedDecoder interface {
+type CustomizedFieldDecoder interface {
 	CustomizedFieldDecode(req *protocol.Request, params PathParams) error
 }
 
 type Decoder func(req *protocol.Request, params PathParams, rv reflect.Value) error
 
-var fieldDecoderType = reflect.TypeOf((*FieldCustomizedDecoder)(nil)).Elem()
+var fieldDecoderType = reflect.TypeOf((*CustomizedFieldDecoder)(nil)).Elem()
 
 func getReqDecoder(rt reflect.Type) (Decoder, error) {
 	var decoders []decoder
 
 	el := rt.Elem()
 	if el.Kind() != reflect.Struct {
-		// todo: 增加对map的支持
-		return nil, fmt.Errorf("unsupport non-struct type binding")
+		return nil, fmt.Errorf("unsupport \"%s\" type binding", el.String())
 	}
 
 	for i := 0; i < el.NumField(); i++ {
@@ -34,7 +33,7 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 			continue
 		}
 
-		dec, err := getFieldDecoder(el.Field(i), i)
+		dec, err := getFieldDecoder(el.Field(i), i, []int{})
 		if err != nil {
 			return nil, err
 		}
@@ -56,31 +55,39 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 	}, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int) ([]decoder, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]decoder, error) {
+	// 去掉每一个filed的指针，使其指向最终内容
+	for field.Type.Kind() == reflect.Ptr {
+		field.Type = field.Type.Elem()
+	}
 	if reflect.PtrTo(field.Type).Implements(fieldDecoderType) {
-		return []decoder{&customizedFieldTextDecoder{index: index, fieldName: field.Name, fieldType: field.Type}}, nil
+		return []decoder{&customizedFieldTextDecoder{
+			index:       index,
+			parentIndex: parentIdx,
+			fieldName:   field.Name,
+			fieldType:   field.Type}}, nil
 	}
 
 	fieldTagInfos := lookupFieldTags(field)
-	if len(fieldTagInfos) == 0 {
-		// todo: 如果没定义尝试给其赋值所有 tag
-		return nil, nil
-	}
+	// todo: 没有 tag 也不直接返回
+	//if len(fieldTagInfos) == 0 {
+	//	// todo: 如果没定义尝试给其赋值所有 tag
+	//	return nil, nil
+	//}
 
 	// todo: 用户自定义text信息解析
 	//if reflect.PtrTo(field.Type).Implements(textUnmarshalerType) {
 	//	return compileTextBasedDecoder(field, index, tagScope, tagContent)
 	//}
+	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
+		return getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
+	}
 
 	// todo: reflect Map
-	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
-		return getSliceFieldDecoder(field, index, fieldTagInfos)
+	if field.Type.Kind() == reflect.Map {
+		return getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
 	}
 
-	// Nested binding support
-	if field.Type.Kind() == reflect.Ptr {
-		field.Type = field.Type.Elem()
-	}
 	// 递归每一个 struct
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []decoder
@@ -91,7 +98,13 @@ func getFieldDecoder(field reflect.StructField, index int) ([]decoder, error) {
 				// ignore unexported field
 				continue
 			}
-			dec, err := getFieldDecoder(el.Field(i), i)
+			// todo: 优化一下？ idxes := append(parentIdx, index)
+			var idxes []int
+			if len(parentIdx) > 0 {
+				idxes = append(idxes, parentIdx...)
+			}
+			idxes = append(idxes, index)
+			dec, err := getFieldDecoder(el.Field(i), i, idxes)
 			if err != nil {
 				return nil, err
 			}
@@ -104,5 +117,5 @@ func getFieldDecoder(field reflect.StructField, index int) ([]decoder, error) {
 		return decoders, nil
 	}
 
-	return getBaseTypeTextDecoder(field, index, fieldTagInfos)
+	return getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
 }

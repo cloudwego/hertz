@@ -33,3 +33,16 @@ func ReferenceValue(v reflect.Value, ptrDepth int) reflect.Value {
 	}
 	return v
 }
+
+func GetNonNilReferenceValue(v reflect.Value) (reflect.Value, int) {
+	var ptrDepth int
+	t := v.Type()
+	elemKind := t.Kind()
+	for elemKind == reflect.Ptr {
+		t = t.Elem()
+		elemKind = t.Kind()
+		ptrDepth++
+	}
+	val := reflect.New(t).Elem()
+	return val, ptrDepth
+}

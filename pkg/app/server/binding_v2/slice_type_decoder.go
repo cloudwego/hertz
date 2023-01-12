@@ -5,17 +5,20 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/cloudwego/hertz/pkg/common/utils"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app/server/binding_v2/text_decoder"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type sliceTypeFieldTextDecoder struct {
-	index     int
-	fieldName string
-	isArray   bool
-	tagInfos  []TagInfo // query,param,header,respHeader ...
-	fieldType reflect.Type
+	index       int
+	parentIndex []int
+	fieldName   string
+	isArray     bool
+	tagInfos    []TagInfo // query,param,header,respHeader ...
+	fieldType   reflect.Type
 }
 
 func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
@@ -23,6 +26,11 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Key == jsonTag {
 			continue
+		}
+		if tagInfo.Key == headerTag {
+			tmp := []byte(tagInfo.Value)
+			utils.NormalizeHeaderKey(tmp, req.Header.IsDisableNormalizing())
+			tagInfo.Value = string(tmp)
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
 		// todo: 数组默认值
@@ -33,6 +41,27 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 	}
 	if len(texts) == 0 {
 		return nil
+	}
+
+	// todo 多重指针
+	for _, idx := range d.parentIndex {
+		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
+			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
+			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
+		}
+		for reqValue.Kind() == reflect.Ptr {
+			reqValue = reqValue.Elem()
+		}
+		reqValue = reqValue.Field(idx)
+	}
+
+	// 父 struct 有可能也是一个指针，所以需要再处理一次才能得到最终的父Value(非nil的reflect.Value)
+	for reqValue.Kind() == reflect.Ptr {
+		if reqValue.IsNil() {
+			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
+			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
+		}
+		reqValue = reqValue.Elem()
 	}
 
 	field := reqValue.Field(d.index)
@@ -71,7 +100,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 
 // 数组/切片类型的decoder，
 // 对于map和struct类型的数组元素直接使用unmarshal，不做嵌套处理
-func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo) ([]decoder, error) {
+func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
 	if !(field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array) {
 		return nil, fmt.Errorf("unexpected type %s, expected slice or array", field.Type.String())
 	}
@@ -100,16 +129,17 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	}
 
 	fieldType := field.Type
-	if field.Type.Kind() == reflect.Ptr {
+	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
 	}
 
 	fieldDecoder := &sliceTypeFieldTextDecoder{
-		index:     index,
-		fieldName: field.Name,
-		tagInfos:  tagInfos,
-		fieldType: fieldType,
-		isArray:   isArray,
+		index:       index,
+		parentIndex: parentIdx,
+		fieldName:   field.Name,
+		tagInfos:    tagInfos,
+		fieldType:   fieldType,
+		isArray:     isArray,
 	}
 
 	return []decoder{fieldDecoder}, nil

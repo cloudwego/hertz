@@ -38,6 +38,9 @@ func (b *Bind) Bind(req *protocol.Request, params PathParams, v interface{}) err
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
+	if rv.Kind() == reflect.Map {
+		return nil
+	}
 	cached, ok := b.decoderCache.Load(typeID)
 	if ok {
 		// cached decoder, fast path

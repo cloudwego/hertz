@@ -1,24 +1,25 @@
 package binding_v2
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 
-	"github.com/cloudwego/hertz/pkg/app/server/binding_v2/text_decoder"
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-type baseTypeFieldTextDecoder struct {
+type mapTypeFieldTextDecoder struct {
 	index       int
 	parentIndex []int
 	fieldName   string
 	tagInfos    []TagInfo // query,param,header,respHeader ...
 	fieldType   reflect.Type
-	decoder     text_decoder.TextDecoder
 }
 
-func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
 	var text string
 	var defaultValue string
 	// 最大努力交付，对齐 hertz 现有设计
@@ -46,8 +47,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 		return nil
 	}
 
-	var err error
-	// 找到该 field 的父 struct 的 reflect.Value
+	// todo 多重指针
 	for _, idx := range d.parentIndex {
 		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
 			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
@@ -68,7 +68,6 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 		reqValue = reqValue.Elem()
 	}
 
-	// 根据最终的 Struct，获取对应 field 的 reflect.Value
 	field := reqValue.Field(d.index)
 	if field.Kind() == reflect.Ptr {
 		// 如果是指针则新建一个reflect.Value，然后赋值给指针
@@ -81,14 +80,13 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 		var vv reflect.Value
 		vv, err := stringToValue(t, text)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 		}
 		field.Set(ReferenceValue(vv, ptrDepth))
 		return nil
 	}
 
-	// Non-pointer elems
-	err = d.decoder.UnmarshalString(text, field)
+	err := json.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 	}
@@ -96,7 +94,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 	return nil
 }
 
-func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
+func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
@@ -121,18 +119,11 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
 	}
-
-	textDecoder, err := text_decoder.SelectTextDecoder(fieldType)
-	if err != nil {
-		return nil, err
-	}
-
-	fieldDecoder := &baseTypeFieldTextDecoder{
+	fieldDecoder := &mapTypeFieldTextDecoder{
 		index:       index,
 		parentIndex: parentIdx,
 		fieldName:   field.Name,
 		tagInfos:    tagInfos,
-		decoder:     textDecoder,
 		fieldType:   fieldType,
 	}
 
