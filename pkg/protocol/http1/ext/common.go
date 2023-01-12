@@ -457,7 +457,7 @@ func parseTrailer(t *protocol.Trailer, buf []byte) (int, error) {
 				err = fmt.Errorf("invalid trailer key %q", s.Key)
 				continue
 			}
-			err = t.SetArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
+			err = t.UpdateArgBytes(s.Key, s.Value)
 		}
 	}
 	if s.Err != nil {

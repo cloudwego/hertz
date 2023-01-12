@@ -93,6 +93,15 @@ func (t *Trailer) SetArgBytes(key, value []byte, noValue bool) error {
 	return nil
 }
 
+func (t *Trailer) UpdateArgBytes(key, value []byte) error {
+	if IsBadTrailer(key) {
+		return errs.NewPublicf("forbidden trailer key: %q", key)
+	}
+
+	t.h = updateArgBytes(t.h, key, value)
+	return nil
+}
+
 func (t *Trailer) GetTrailers() []argsKV {
 	return t.h
 }

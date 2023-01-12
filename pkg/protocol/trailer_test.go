@@ -71,6 +71,17 @@ func TestTrailerGet(t *testing.T) {
 	assert.DeepEqual(t, tr.Get("bar"), "value3")
 }
 
+func TestTrailerUpdateArgBytes(t *testing.T) {
+	var tr Trailer
+	assert.Nil(t, tr.AddArgBytes([]byte("Foo"), []byte("value0"), argsNoValue))
+	assert.Nil(t, tr.UpdateArgBytes([]byte("Foo"), []byte("value1")))
+	assert.Nil(t, tr.UpdateArgBytes([]byte("Foo"), []byte("value2")))
+	assert.Nil(t, tr.UpdateArgBytes([]byte("Bar"), []byte("value3")))
+	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value1"))
+	assert.False(t, strings.Contains(string(tr.Header()), "Foo: value2"))
+	assert.False(t, strings.Contains(string(tr.Header()), "Bar: value3"))
+}
+
 func TestTrailerEmpty(t *testing.T) {
 	var tr Trailer
 	assert.DeepEqual(t, tr.Empty(), true)
