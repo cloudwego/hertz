@@ -58,7 +58,7 @@ func (t *Trailer) VisitAll(f func(key, value []byte)) {
 
 // Set sets the given 'key: value' trailer.
 //
-// if the key is forbidden by RFC 7230, section 4.1.2, Set will return error
+// If the key is forbidden by RFC 7230, section 4.1.2, Set will return error
 func (t *Trailer) Set(key, value string) error {
 	initHeaderKV(&t.bufKV, key, value, t.disableNormalizing)
 	return t.SetArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
@@ -69,7 +69,7 @@ func (t *Trailer) Set(key, value string) error {
 // Multiple headers with the same key may be added with this function.
 // Use Set for setting a single header for the given key.
 //
-// if the key is forbidden by RFC 7230, section 4.1.2, Add will return error
+// If the key is forbidden by RFC 7230, section 4.1.2, Add will return error
 func (t *Trailer) Add(key, value string) error {
 	initHeaderKV(&t.bufKV, key, value, t.disableNormalizing)
 	return t.AddArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
