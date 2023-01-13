@@ -240,7 +240,7 @@ func (resp *Response) BodyWriteTo(w io.Writer) error {
 func (resp *Response) CopyTo(dst *Response) {
 	resp.CopyToSkipBody(dst)
 	if resp.bodyRaw != nil {
-		dst.bodyRaw = resp.bodyRaw
+		dst.bodyRaw = append(dst.bodyRaw[:0], resp.bodyRaw...)
 		if dst.body != nil {
 			dst.body.Reset()
 		}
