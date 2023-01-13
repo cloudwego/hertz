@@ -259,7 +259,7 @@ func readBodyChunked(r network.Reader, maxBodySize int, dst []byte) ([]byte, err
 		if err != nil {
 			return dst, err
 		}
-		// If is end chunk, Read CRLF after reading trailer
+		// If it is the end of chunk, Read CRLF after reading trailer
 		if chunkSize == 0 {
 			return dst, nil
 		}
@@ -301,7 +301,7 @@ func writeChunk(w network.Writer, b []byte) (err error) {
 		return err
 	}
 
-	// if is end chunk, write CRLF after writing trailer
+	// If it is the end of chunk, write CRLF after writing trailer
 	if n > 0 {
 		w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
 	}

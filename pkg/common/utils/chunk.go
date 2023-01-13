@@ -57,7 +57,6 @@ func ParseChunkSize(r network.Reader) (int, error) {
 	if err != nil {
 		return -1, errors.NewPublic(fmt.Sprintf("cannot read '\n' char at the end of chunk size: %s", err))
 	}
-	// todo support chunk extension
 	if c != '\n' {
 		return -1, errors.NewPublic(
 			fmt.Sprintf("unexpected char %q at the end of chunk size. Expected %q", c, '\n'),

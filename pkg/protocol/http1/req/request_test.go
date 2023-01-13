@@ -767,9 +767,11 @@ func TestRequestReadChunked(t *testing.T) {
 
 func verifyTrailer(t *testing.T, r network.Reader, exceptedTrailers map[string]string) {
 	trailer := protocol.Trailer{}
+	keys := make([]string, 0, len(exceptedTrailers))
 	for k := range exceptedTrailers {
-		trailer.AddArgBytes([]byte(k), []byte{}, true)
+		keys = append(keys, k)
 	}
+	trailer.SetTrailers([]byte(strings.Join(keys, ", ")))
 	err := ext.ReadTrailer(&trailer, r)
 	if err == io.EOF && exceptedTrailers == nil {
 		return

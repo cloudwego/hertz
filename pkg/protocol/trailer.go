@@ -61,7 +61,7 @@ func (t *Trailer) VisitAll(f func(key, value []byte)) {
 // If the key is forbidden by RFC 7230, section 4.1.2, Set will return error
 func (t *Trailer) Set(key, value string) error {
 	initHeaderKV(&t.bufKV, key, value, t.disableNormalizing)
-	return t.SetArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
+	return t.setArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
 }
 
 // Add adds the given 'key: value' trailer.
@@ -72,10 +72,10 @@ func (t *Trailer) Set(key, value string) error {
 // If the key is forbidden by RFC 7230, section 4.1.2, Add will return error
 func (t *Trailer) Add(key, value string) error {
 	initHeaderKV(&t.bufKV, key, value, t.disableNormalizing)
-	return t.AddArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
+	return t.addArgBytes(t.bufKV.key, t.bufKV.value, ArgsHasValue)
 }
 
-func (t *Trailer) AddArgBytes(key, value []byte, noValue bool) error {
+func (t *Trailer) addArgBytes(key, value []byte, noValue bool) error {
 	if IsBadTrailer(key) {
 		return errs.NewPublicf("forbidden trailer key: %q", key)
 	}
@@ -83,7 +83,7 @@ func (t *Trailer) AddArgBytes(key, value []byte, noValue bool) error {
 	return nil
 }
 
-func (t *Trailer) SetArgBytes(key, value []byte, noValue bool) error {
+func (t *Trailer) setArgBytes(key, value []byte, noValue bool) error {
 	if IsBadTrailer(key) {
 		return errs.NewPublicf("forbidden trailer key: %q", key)
 	}
@@ -163,7 +163,7 @@ func (t *Trailer) SetTrailers(trailers []byte) (err error) {
 		}
 
 		utils.NormalizeHeaderKey(trailerKey, t.disableNormalizing)
-		err = t.AddArgBytes(trailerKey, nilByteSlice, argsNoValue)
+		err = t.addArgBytes(trailerKey, nilByteSlice, argsNoValue)
 	}
 	return
 }

@@ -73,7 +73,7 @@ func TestTrailerGet(t *testing.T) {
 
 func TestTrailerUpdateArgBytes(t *testing.T) {
 	var tr Trailer
-	assert.Nil(t, tr.AddArgBytes([]byte("Foo"), []byte("value0"), argsNoValue))
+	assert.Nil(t, tr.addArgBytes([]byte("Foo"), []byte("value0"), argsNoValue))
 	assert.Nil(t, tr.UpdateArgBytes([]byte("Foo"), []byte("value1")))
 	assert.Nil(t, tr.UpdateArgBytes([]byte("Foo"), []byte("value2")))
 	assert.Nil(t, tr.UpdateArgBytes([]byte("Bar"), []byte("value3")))
