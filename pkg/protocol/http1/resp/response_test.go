@@ -189,13 +189,13 @@ func TestResponseReadSuccess(t *testing.T) {
 		consts.StatusInternalServerError, 0, "foo/bar", "", nil)
 
 	// response with trailer
-	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"Foo": "bar"})
 
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
 	resp.Header.Trailer.DisableNormalizing()
-	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"foo": "bar"})
 
 	// no content-length ('identity' transfer-encoding)
@@ -212,15 +212,15 @@ func TestResponseReadSuccess(t *testing.T) {
 		consts.StatusOK, 100500, "aa", body, nil)
 
 	// chunked response
-	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
+	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo2\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
 		200, -1, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
 
 	// chunked response with non-chunked Transfer-Encoding.
-	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
+	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTrailer: Foo3\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
 		230, -1, "text", "erty", map[string]string{"Foo3": "bar3"})
 
 	// chunked response with empty body
-	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
+	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
 		consts.StatusOK, -1, "text/html", "", map[string]string{"Foo5": "bar5"})
 }
 
@@ -417,7 +417,7 @@ func TestResponseReadWithoutBody(t *testing.T) {
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\n", false,
 		consts.StatusNotModified, 1235, "aa", nil, "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\n", false,
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\n", false,
 		consts.StatusNoContent, -1, "aab", map[string]string{"Foo": "bar"}, "deflate")
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\n", false,
@@ -743,13 +743,13 @@ func TestResponseReadBodyStream(t *testing.T) {
 		consts.StatusInternalServerError, 0, "foo/bar", "", nil)
 
 	// response with trailer
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: Foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"Foo": "bar"})
 
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
 	resp.Header.Trailer.DisableNormalizing()
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"foo": "bar"})
 
 	// no content-length ('identity' transfer-encoding)
@@ -766,15 +766,15 @@ func TestResponseReadBodyStream(t *testing.T) {
 		consts.StatusOK, -2, "aa", body, nil)
 
 	// chunked response
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo2\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
 		200, -1, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
 
 	// chunked response with non-chunked Transfer-Encoding.
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTrailer: Foo3\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
 		230, -1, "text", "erty", map[string]string{"Foo3": "bar3"})
 
 	// chunked response with empty body
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
 		consts.StatusOK, -1, "text/html", "", map[string]string{"Foo5": "bar5"})
 }
 

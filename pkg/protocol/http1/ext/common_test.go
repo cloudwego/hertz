@@ -51,6 +51,9 @@ func TestReadTrailer(t *testing.T) {
 	exceptedTrailers := map[string]string{"Hertz": "test"}
 	zr := mock.NewZeroCopyReader("0\r\nHertz: test\r\n\r\n")
 	trailer := protocol.Trailer{}
+	for k := range exceptedTrailers {
+		trailer.AddArgBytes([]byte(k), []byte{}, true)
+	}
 	err := ReadTrailer(&trailer, zr)
 	if err != nil {
 		t.Fatalf("Cannot read trailer: %v", err)
@@ -71,5 +74,22 @@ func TestReadTrailerError(t *testing.T) {
 	err := ReadTrailer(&trailer, zr)
 	if err == nil {
 		t.Fatalf("expecting error.")
+	}
+}
+
+func TestReadTrailer1(t *testing.T) {
+	exceptedTrailers := map[string]string{}
+	zr := mock.NewZeroCopyReader("0\r\n\r\n")
+	trailer := protocol.Trailer{}
+	err := ReadTrailer(&trailer, zr)
+	if err != nil {
+		t.Fatalf("Cannot read trailer: %v", err)
+	}
+
+	for k, v := range exceptedTrailers {
+		got := trailer.Peek(k)
+		if !bytes.Equal(got, []byte(v)) {
+			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
+		}
 	}
 }
