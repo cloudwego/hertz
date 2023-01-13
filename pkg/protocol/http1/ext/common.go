@@ -468,3 +468,9 @@ func parseTrailer(t *protocol.Trailer, buf []byte) (int, error) {
 	}
 	return s.HLen, nil
 }
+
+// writeTrailer writes response trailer to w
+func WriteTrailer(t *protocol.Trailer, w network.Writer) error {
+	_, err := w.WriteBinary(t.Header())
+	return err
+}

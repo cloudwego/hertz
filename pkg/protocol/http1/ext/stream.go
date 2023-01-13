@@ -129,10 +129,10 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 			}
 			if chunkSize == 0 {
 				err = ReadTrailer(rs.trailer, rs.reader)
-				if err != nil && err != io.EOF {
-					return 0, err
+				if err == nil {
+					err = io.EOF
 				}
-				return 0, io.EOF
+				return 0, err
 			}
 
 			rs.chunkLeft = chunkSize

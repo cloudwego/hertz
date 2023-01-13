@@ -96,12 +96,6 @@ func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
 	return nil
 }
 
-// writeTrailer writes response trailer to w
-func WriteTrailer(h *protocol.ResponseHeader, w network.Writer) error {
-	_, err := w.WriteBinary(h.Trailer.Header())
-	return err
-}
-
 // ConnectionUpgrade returns true if 'Connection: Upgrade' header is set.
 func ConnectionUpgrade(h *protocol.ResponseHeader) bool {
 	return ext.HasHeaderValue(h.Peek(consts.HeaderConnection), bytestr.StrKeepAlive)

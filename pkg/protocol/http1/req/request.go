@@ -430,7 +430,7 @@ func writeBodyStream(req *protocol.Request, w network.Writer) error {
 			err = ext.WriteBodyChunked(w, req.BodyStream())
 		}
 		if err == nil {
-			err = WriteTrailer(&req.Header, w)
+			err = ext.WriteTrailer(&req.Header.Trailer, w)
 		}
 	}
 	err1 := req.CloseBodyStream()

@@ -65,12 +65,6 @@ func WriteHeader(h *protocol.RequestHeader, w network.Writer) error {
 	return err
 }
 
-// writeTrailer writes request trailer to w
-func WriteTrailer(h *protocol.RequestHeader, w network.Writer) error {
-	_, err := w.WriteBinary(h.Trailer.Header())
-	return err
-}
-
 func ReadHeader(h *protocol.RequestHeader, r network.Reader) error {
 	n := 1
 	for {

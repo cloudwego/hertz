@@ -125,9 +125,8 @@ type ResponseHeader struct {
 	server      []byte
 	mulHeader   [][]byte
 
-	h     []argsKV
-	bufKV argsKV
-
+	h       []argsKV
+	bufKV   argsKV
 	Trailer Trailer
 
 	cookies []argsKV
