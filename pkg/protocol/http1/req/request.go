@@ -364,7 +364,6 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		if err != nil && err != io.EOF {
 			return err
 		}
-		return nil
 	}
 
 	req.Header.SetContentLength(len(bodyBuf.B))

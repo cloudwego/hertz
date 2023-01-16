@@ -761,7 +761,7 @@ func TestRequestReadChunked(t *testing.T) {
 	if string(req.Body()) != expectedBody {
 		t.Fatalf("Unexpected body %q. Expected %q", req.Body(), expectedBody)
 	}
-	verifyRequestHeader(t, &req.Header, -1, "/foo", "google.com", "", "aa/bb")
+	verifyRequestHeader(t, &req.Header, 8, "/foo", "google.com", "", "aa/bb")
 	verifyTrailer(t, zr, map[string]string{"Trail": "test"})
 }
 

@@ -190,13 +190,13 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// response with trailer
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
-		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"Foo": "bar"})
+		consts.StatusMultipleChoices, 5, "bar", "56789", map[string]string{"Foo": "bar"})
 
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
 	resp.Header.Trailer.DisableNormalizing()
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
-		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"foo": "bar"})
+		consts.StatusMultipleChoices, 5, "bar", "56789", map[string]string{"foo": "bar"})
 
 	// no content-length ('identity' transfer-encoding)
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxxx",
@@ -213,15 +213,15 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// chunked response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo2\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
-		200, -1, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
+		200, 6, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
 
 	// chunked response with non-chunked Transfer-Encoding.
 	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTrailer: Foo3\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
-		230, -1, "text", "erty", map[string]string{"Foo3": "bar3"})
+		230, 4, "text", "erty", map[string]string{"Foo3": "bar3"})
 
 	// chunked response with empty body
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
-		consts.StatusOK, -1, "text/html", "", map[string]string{"Foo5": "bar5"})
+		consts.StatusOK, 0, "text/html", "", map[string]string{"Foo5": "bar5"})
 }
 
 func TestResponseReadError(t *testing.T) {

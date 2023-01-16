@@ -123,7 +123,6 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		if err != nil && err != io.EOF {
 			return err
 		}
-		return nil
 	}
 
 	if !resp.MustSkipBody() {
