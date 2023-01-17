@@ -66,10 +66,18 @@ type PackageReference struct {
 	Referred    bool
 }
 
-func getReferPkgMap(pkgMap map[string]string, incs []*descriptorpb.FileDescriptorProto) (map[string]*PackageReference, error) {
+func getReferPkgMap(pkgMap map[string]string, incs []*descriptorpb.FileDescriptorProto, mainModel *model.Model) (map[string]*PackageReference, error) {
 	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
 	pkgAliasMap := make(map[string]string, len(incs))
+	// bugfix: add main package to avoid namespace conflict
+	mainPkg := mainModel.Package
+	mainPkgName := mainModel.PackageName
+	mainPkgName, err = util.GetPackageUniqueName(mainPkgName)
+	if err != nil {
+		return nil, err
+	}
+	pkgAliasMap[mainPkg] = mainPkgName
 	for _, inc := range incs {
 		pkg := getGoPackage(inc, pkgMap)
 		path := inc.GetName()
@@ -157,7 +165,7 @@ func NewResolver(ast *descriptorpb.FileDescriptorProto, files FileInfos, model *
 			return nil, fmt.Errorf("%s not found", dep)
 		}
 	}
-	pm, err := getReferPkgMap(pkgMap, incs)
+	pm, err := getReferPkgMap(pkgMap, incs, model)
 	if err != nil {
 		return nil, fmt.Errorf("get package map failed, err: %v", err)
 	}
