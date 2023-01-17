@@ -257,3 +257,18 @@ func TestSetBodyStreamNoReset(t *testing.T) {
 	resp.SetBodyStream(bsC, 1)
 	assert.DeepEqual(t, bsA.String(), "")
 }
+
+func TestRespSafeCopy(t *testing.T) {
+	resp := AcquireResponse()
+	resp.bodyRaw = make([]byte, 1)
+	resps := make([]*Response, 10)
+	for i := 0; i < 10; i++ {
+		resp.bodyRaw[0] = byte(i)
+		tmpResq := AcquireResponse()
+		resp.CopyTo(tmpResq)
+		resps[i] = tmpResq
+	}
+	for i := 0; i < 10; i++ {
+		assert.DeepEqual(t, []byte{byte(i)}, resps[i].Body())
+	}
+}
