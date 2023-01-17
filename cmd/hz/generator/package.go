@@ -59,6 +59,7 @@ type HttpPackageGenerator struct {
 	IdlClientDir    string
 	NeedModel       bool
 	HandlerByMethod bool
+	BaseDomain      string
 
 	loadedBackend   Backend
 	curModel        *model.Model

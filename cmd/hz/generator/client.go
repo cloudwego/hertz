@@ -35,6 +35,7 @@ type ClientMethod struct {
 
 type ClientFile struct {
 	FilePath      string
+	PackageName   string
 	ServiceName   string
 	BaseDomain    string
 	Imports       map[string]*model.Model
@@ -49,17 +50,22 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 		if err != nil {
 			return err
 		}
-		if !isExist {
-			err := pkgGen.TemplateGenerator.Generate(nil, hertzClientTplName, hertzClientPath, false)
-			if err != nil {
-				return err
-			}
+		baseDomain := s.BaseDomain
+		if len(pkgGen.BaseDomain) != 0 {
+			baseDomain = pkgGen.BaseDomain
 		}
 		client := ClientFile{
 			FilePath:      filepath.Join(cliDir, util.ToSnakeCase(s.Name)+".go"),
+			PackageName:   util.ToSnakeCase(s.Name),
 			ServiceName:   util.ToCamelCase(s.Name),
 			ClientMethods: s.ClientMethods,
-			BaseDomain:    s.BaseDomain,
+			BaseDomain:    baseDomain,
+		}
+		if !isExist {
+			err := pkgGen.TemplateGenerator.Generate(client, hertzClientTplName, hertzClientPath, false)
+			if err != nil {
+				return err
+			}
 		}
 		client.Imports = make(map[string]*model.Model, len(client.ClientMethods))
 		for _, m := range client.ClientMethods {
