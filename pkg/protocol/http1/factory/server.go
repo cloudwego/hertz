@@ -30,10 +30,10 @@ type serverFactory struct {
 
 // New is called by Hertz during engine.Run()
 func (s *serverFactory) New(core suite.Core) (server protocol.Server, err error) {
-	return &http1.Server{
-		Option: *s.option,
-		Core:   core,
-	}, nil
+	serv := http1.NewServer()
+	serv.Option = *s.option
+	serv.Core = core
+	return serv, nil
 }
 
 func NewServerFactory(option *http1.Option) suite.ServerFactory {
