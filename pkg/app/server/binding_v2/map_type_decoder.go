@@ -12,11 +12,7 @@ import (
 )
 
 type mapTypeFieldTextDecoder struct {
-	index       int
-	parentIndex []int
-	fieldName   string
-	tagInfos    []TagInfo // query,param,header,respHeader ...
-	fieldType   reflect.Type
+	fieldInfo
 }
 
 func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
@@ -28,14 +24,12 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParam
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tmp := []byte(tagInfo.Value)
-			utils.NormalizeHeaderKey(tmp, req.Header.IsDisableNormalizing())
-			tagInfo.Value = string(tmp)
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		ret := tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
 		if len(ret) != 0 {
-			// 非数组/切片类型，只取第一个值作为只
+			// 非数组/切片类型，只取第一个值作为值
 			text = ret[0]
 			break
 		}
@@ -47,27 +41,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParam
 		return nil
 	}
 
-	// todo 多重指针
-	for _, idx := range d.parentIndex {
-		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		for reqValue.Kind() == reflect.Ptr {
-			reqValue = reqValue.Elem()
-		}
-		reqValue = reqValue.Field(idx)
-	}
-
-	// 父 struct 有可能也是一个指针，所以需要再处理一次才能得到最终的父Value(非nil的reflect.Value)
-	for reqValue.Kind() == reflect.Ptr {
-		if reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		reqValue = reqValue.Elem()
-	}
-
+	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
 	if field.Kind() == reflect.Ptr {
 		// 如果是指针则新建一个reflect.Value，然后赋值给指针
@@ -120,11 +94,13 @@ func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagI
 		fieldType = field.Type.Elem()
 	}
 	fieldDecoder := &mapTypeFieldTextDecoder{
-		index:       index,
-		parentIndex: parentIdx,
-		fieldName:   field.Name,
-		tagInfos:    tagInfos,
-		fieldType:   fieldType,
+		fieldInfo: fieldInfo{
+			index:       index,
+			parentIndex: parentIdx,
+			fieldName:   field.Name,
+			tagInfos:    tagInfos,
+			fieldType:   fieldType,
+		},
 	}
 
 	return []decoder{fieldDecoder}, nil

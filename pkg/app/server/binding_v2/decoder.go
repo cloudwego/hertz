@@ -62,10 +62,13 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	}
 	if reflect.PtrTo(field.Type).Implements(fieldDecoderType) {
 		return []decoder{&customizedFieldTextDecoder{
-			index:       index,
-			parentIndex: parentIdx,
-			fieldName:   field.Name,
-			fieldType:   field.Type}}, nil
+			fieldInfo: fieldInfo{
+				index:       index,
+				parentIndex: parentIdx,
+				fieldName:   field.Name,
+				fieldType:   field.Type,
+			},
+		}}, nil
 	}
 
 	fieldTagInfos := lookupFieldTags(field)
@@ -75,10 +78,6 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	//	return nil, nil
 	//}
 
-	// todo: 用户自定义text信息解析
-	//if reflect.PtrTo(field.Type).Implements(textUnmarshalerType) {
-	//	return compileTextBasedDecoder(field, index, tagScope, tagContent)
-	//}
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
 		return getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
 	}

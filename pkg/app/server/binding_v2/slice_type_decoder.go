@@ -5,20 +5,15 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/cloudwego/hertz/pkg/common/utils"
-
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app/server/binding_v2/text_decoder"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type sliceTypeFieldTextDecoder struct {
-	index       int
-	parentIndex []int
-	fieldName   string
-	isArray     bool
-	tagInfos    []TagInfo // query,param,header,respHeader ...
-	fieldType   reflect.Type
+	fieldInfo
+	isArray bool
 }
 
 func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
@@ -28,9 +23,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tmp := []byte(tagInfo.Value)
-			utils.NormalizeHeaderKey(tmp, req.Header.IsDisableNormalizing())
-			tagInfo.Value = string(tmp)
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
 		// todo: 数组默认值
@@ -43,27 +36,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 		return nil
 	}
 
-	// todo 多重指针
-	for _, idx := range d.parentIndex {
-		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		for reqValue.Kind() == reflect.Ptr {
-			reqValue = reqValue.Elem()
-		}
-		reqValue = reqValue.Field(idx)
-	}
-
-	// 父 struct 有可能也是一个指针，所以需要再处理一次才能得到最终的父Value(非nil的reflect.Value)
-	for reqValue.Kind() == reflect.Ptr {
-		if reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		reqValue = reqValue.Elem()
-	}
-
+	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
 
 	if d.isArray {
@@ -134,12 +107,14 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	}
 
 	fieldDecoder := &sliceTypeFieldTextDecoder{
-		index:       index,
-		parentIndex: parentIdx,
-		fieldName:   field.Name,
-		tagInfos:    tagInfos,
-		fieldType:   fieldType,
-		isArray:     isArray,
+		fieldInfo: fieldInfo{
+			index:       index,
+			parentIndex: parentIdx,
+			fieldName:   field.Name,
+			tagInfos:    tagInfos,
+			fieldType:   fieldType,
+		},
+		isArray: isArray,
 	}
 
 	return []decoder{fieldDecoder}, nil

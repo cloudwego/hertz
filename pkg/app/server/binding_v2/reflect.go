@@ -46,3 +46,27 @@ func GetNonNilReferenceValue(v reflect.Value) (reflect.Value, int) {
 	val := reflect.New(t).Elem()
 	return val, ptrDepth
 }
+
+func GetFieldValue(reqValue reflect.Value, parentIndex []int) reflect.Value {
+	for _, idx := range parentIndex {
+		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
+			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
+			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
+		}
+		for reqValue.Kind() == reflect.Ptr {
+			reqValue = reqValue.Elem()
+		}
+		reqValue = reqValue.Field(idx)
+	}
+
+	// 父 struct 有可能也是一个指针，所以需要再处理一次才能得到最终的父Value(非nil的reflect.Value)
+	for reqValue.Kind() == reflect.Ptr {
+		if reqValue.IsNil() {
+			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
+			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
+		}
+		reqValue = reqValue.Elem()
+	}
+
+	return reqValue
+}

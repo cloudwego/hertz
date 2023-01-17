@@ -9,13 +9,17 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-type baseTypeFieldTextDecoder struct {
+type fieldInfo struct {
 	index       int
 	parentIndex []int
 	fieldName   string
 	tagInfos    []TagInfo // query,param,header,respHeader ...
 	fieldType   reflect.Type
-	decoder     text_decoder.TextDecoder
+}
+
+type baseTypeFieldTextDecoder struct {
+	fieldInfo
+	decoder text_decoder.TextDecoder
 }
 
 func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
@@ -27,9 +31,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tmp := []byte(tagInfo.Value)
-			utils.NormalizeHeaderKey(tmp, req.Header.IsDisableNormalizing())
-			tagInfo.Value = string(tmp)
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		ret := tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
@@ -47,27 +49,8 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 	}
 
 	var err error
-	// 找到该 field 的父 struct 的 reflect.Value
-	for _, idx := range d.parentIndex {
-		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		for reqValue.Kind() == reflect.Ptr {
-			reqValue = reqValue.Elem()
-		}
-		reqValue = reqValue.Field(idx)
-	}
-
-	// 父 struct 有可能也是一个指针，所以需要再处理一次才能得到最终的父Value(非nil的reflect.Value)
-	for reqValue.Kind() == reflect.Ptr {
-		if reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		reqValue = reqValue.Elem()
-	}
-
+	// 得到该field的非nil值
+	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	// 根据最终的 Struct，获取对应 field 的 reflect.Value
 	field := reqValue.Field(d.index)
 	if field.Kind() == reflect.Ptr {
@@ -128,12 +111,14 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 	}
 
 	fieldDecoder := &baseTypeFieldTextDecoder{
-		index:       index,
-		parentIndex: parentIdx,
-		fieldName:   field.Name,
-		tagInfos:    tagInfos,
-		decoder:     textDecoder,
-		fieldType:   fieldType,
+		fieldInfo: fieldInfo{
+			index:       index,
+			parentIndex: parentIdx,
+			fieldName:   field.Name,
+			tagInfos:    tagInfos,
+			fieldType:   fieldType,
+		},
+		decoder: textDecoder,
 	}
 
 	return []decoder{fieldDecoder}, nil
