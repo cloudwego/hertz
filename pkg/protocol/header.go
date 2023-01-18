@@ -885,7 +885,9 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
 	for i, n := 0, len(h.h); i < n; i++ {
 		kv := &h.h[i]
-		dst = appendHeaderLine(dst, kv.key, kv.value)
+		if h.noDefaultDate || !bytes.Equal(kv.key, bytestr.StrDate) {
+			dst = appendHeaderLine(dst, kv.key, kv.value)
+		}
 	}
 
 	if !h.Trailer.Empty() {

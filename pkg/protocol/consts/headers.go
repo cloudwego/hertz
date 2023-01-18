@@ -17,10 +17,7 @@
 package consts
 
 const (
-	HeaderServerLower    = "server"
-	HeaderSetCookieLower = "set-cookie"
-	HeaderTrailerLower   = "trailer"
-	HeaderDate           = "Date"
+	HeaderDate = "Date"
 
 	HeaderIfModifiedSince = "If-Modified-Since"
 	HeaderLastModified    = "Last-Modified"
@@ -31,13 +28,15 @@ const (
 	// Transfer coding
 	HeaderTE               = "TE"
 	HeaderTrailer          = "Trailer"
+	HeaderTrailerLower     = "trailer"
 	HeaderTransferEncoding = "Transfer-Encoding"
 
 	// Controls
-	HeaderCookie      = "Cookie"
-	HeaderExpect      = "Expect"
-	HeaderMaxForwards = "Max-Forwards"
-	HeaderSetCookie   = "Set-Cookie"
+	HeaderCookie         = "Cookie"
+	HeaderExpect         = "Expect"
+	HeaderMaxForwards    = "Max-Forwards"
+	HeaderSetCookie      = "Set-Cookie"
+	HeaderSetCookieLower = "set-cookie"
 
 	// Connection management
 	HeaderConnection      = "Connection"
@@ -57,8 +56,9 @@ const (
 	HeaderRange        = "Range"
 
 	// Response context
-	HeaderAllow  = "Allow"
-	HeaderServer = "Server"
+	HeaderAllow       = "Allow"
+	HeaderServer      = "Server"
+	HeaderServerLower = "server"
 
 	// Request context
 	HeaderFrom           = "From"
