@@ -64,3 +64,12 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 
 	return tagInfos
 }
+
+func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
+	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag}
+	for _, tag := range tags {
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name})
+	}
+
+	return
+}

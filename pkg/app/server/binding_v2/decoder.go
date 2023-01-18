@@ -73,10 +73,9 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 
 	fieldTagInfos := lookupFieldTags(field)
 	// todo: 没有 tag 也不直接返回
-	//if len(fieldTagInfos) == 0 {
-	//	// todo: 如果没定义尝试给其赋值所有 tag
-	//	return nil, nil
-	//}
+	if len(fieldTagInfos) == 0 {
+		fieldTagInfos = getDefaultFieldTags(field)
+	}
 
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
 		return getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)

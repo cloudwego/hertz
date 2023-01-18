@@ -299,13 +299,39 @@ func TestBind_UnexportedField(t *testing.T) {
 	}
 	bind := Bind{}
 	req := newMockRequest().
-		SetRequestURI("http://foobar.com?a=1&b=2}")
+		SetRequestURI("http://foobar.com?a=1&b=2")
 	err := bind.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.DeepEqual(t, 1, s.A)
 	assert.DeepEqual(t, 0, s.b)
+}
+
+func TestBind_NoTagField(t *testing.T) {
+	var s struct {
+		A string
+		B string
+		C string
+	}
+	bind := Bind{}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?B=b1&C=c1").
+		SetHeader("A", "a2")
+
+	var params param.Params
+	params = append(params, param.Param{
+		Key:   "B",
+		Value: "b2",
+	})
+
+	err := bind.Bind(req.Req, params, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, "a2", s.A)
+	assert.DeepEqual(t, "b2", s.B)
+	assert.DeepEqual(t, "c1", s.C)
 }
 
 func TestBind_TypedefType(t *testing.T) {

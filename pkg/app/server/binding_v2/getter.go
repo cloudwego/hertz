@@ -11,12 +11,18 @@ type getter func(req *protocol.Request, params PathParams, key string, defaultVa
 
 // todo string 强转优化
 func PathParam(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	value, _ := params.Get(key)
+	var value string
+	if params != nil {
+		value, _ = params.Get(key)
+	}
 
 	if len(value) == 0 && len(defaultValue) != 0 {
 		value = defaultValue[0]
 	}
-	ret = append(ret, value)
+	if len(value) != 0 {
+		ret = append(ret, value)
+	}
+
 	return
 }
 
