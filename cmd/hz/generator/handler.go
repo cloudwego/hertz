@@ -59,9 +59,10 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 		var handler Handler
 		if pkgGen.HandlerByMethod { // generate handler by method
 			for _, m := range s.Methods {
+				filePath := filepath.Join(handlerDir, m.OutputDir, util.ToSnakeCase(m.Name)+".go")
 				handler = Handler{
-					FilePath:    filepath.Join(handlerDir, m.OutputDir, util.ToSnakeCase(m.Name)+".go"),
-					PackageName: util.SplitPackage(handlerPackage, ""),
+					FilePath:    filePath,
+					PackageName: util.SplitPackage(filepath.Dir(filePath), ""),
 					Methods:     []*HttpMethod{m},
 					ProjPackage: pkgGen.ProjPackage,
 				}
