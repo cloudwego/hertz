@@ -400,7 +400,7 @@ func TestChunkedUnexpectedEOF(t *testing.T) {
 
 	var pool bytebufferpool.Pool
 	var req1 protocol.Request
-	bs := ext.AcquireBodyStream(pool.Get(), reader, &req1.Header.Trailer, -1)
+	bs := ext.AcquireBodyStream(pool.Get(), reader, req1.Header.Trailer(), -1)
 	byteSlice := make([]byte, 4096)
 	_, err = bs.Read(byteSlice)
 	if err != io.ErrUnexpectedEOF {
@@ -880,7 +880,7 @@ func testSetRequestBodyStreamChunked(t *testing.T, body string, trailer map[stri
 	var w bytes.Buffer
 	zw := netpoll.NewWriter(&w)
 	for k, v := range trailer {
-		err := req.Header.Trailer.Add(k, v)
+		err := req.Header.Trailer().Add(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -902,7 +902,7 @@ func testSetRequestBodyStreamChunked(t *testing.T, body string, trailer map[stri
 		t.Fatalf("unexpected body %q. Expecting %q", req1.Body(), body)
 	}
 	for k, v := range trailer {
-		r := req.Header.Trailer.Peek(k)
+		r := req.Header.Trailer().Peek(k)
 		if string(r) != v {
 			t.Fatalf("unexpected trailer %q. Expecting %q. Got %q", k, v, r)
 		}
@@ -1429,7 +1429,7 @@ func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormaliz
 	req1.SetHost("google.com")
 	req1.SetBodyStream(bytes.NewBuffer(body), -1)
 	for k, v := range expectedTrailer {
-		err := req1.Header.Trailer.Set(k, v)
+		err := req1.Header.Trailer().Set(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1462,7 +1462,7 @@ func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormaliz
 	for k, v := range expectedTrailer {
 		kBytes := []byte(k)
 		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
-		r := req2.Header.Trailer.Peek(k)
+		r := req2.Header.Trailer().Peek(k)
 		if string(r) != v {
 			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
 		}

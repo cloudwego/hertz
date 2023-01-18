@@ -194,7 +194,7 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
-	resp.Header.Trailer.DisableNormalizing()
+	resp.Header.Trailer().DisableNormalizing()
 	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, 5, "bar", "56789", map[string]string{"foo": "bar"})
 
@@ -514,7 +514,7 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 
 func verifyResponseTrailer(t *testing.T, h *protocol.ResponseHeader, expectedTrailers map[string]string) {
 	for k, v := range expectedTrailers {
-		got := h.Trailer.Peek(k)
+		got := h.Trailer().Peek(k)
 		if !bytes.Equal(got, []byte(v)) {
 			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
 		}
@@ -562,7 +562,7 @@ func testResponseBodyStreamWithTrailer(t *testing.T, body []byte, disableNormali
 	}
 	resp1.SetBodyStream(bytes.NewReader(body), -1)
 	for k, v := range expectedTrailer {
-		err := resp1.Header.Trailer.Add(k, v)
+		err := resp1.Header.Trailer().Add(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -595,7 +595,7 @@ func testResponseBodyStreamWithTrailer(t *testing.T, body []byte, disableNormali
 	for k, v := range expectedTrailer {
 		kBytes := []byte(k)
 		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
-		r := resp2.Header.Trailer.Peek(k)
+		r := resp2.Header.Trailer().Peek(k)
 		if string(r) != v {
 			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
 		}
@@ -666,7 +666,7 @@ func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[str
 	var w bytes.Buffer
 	zw := netpoll.NewWriter(&w)
 	for k, v := range trailer {
-		err := resp.Header.Trailer.Add(k, v)
+		err := resp.Header.Trailer().Add(k, v)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -687,7 +687,7 @@ func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[str
 		t.Fatalf("unexpected body %q. Expecting %q", resp1.Body(), body)
 	}
 	for k, v := range trailer {
-		r := resp.Header.Trailer.Peek(k)
+		r := resp.Header.Trailer().Peek(k)
 		if string(r) != v {
 			t.Fatalf("unexpected trailer %s. Expecting %s. Got %q", k, v, r)
 		}
@@ -748,7 +748,7 @@ func TestResponseReadBodyStream(t *testing.T) {
 
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
-	resp.Header.Trailer.DisableNormalizing()
+	resp.Header.Trailer().DisableNormalizing()
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"foo": "bar"})
 

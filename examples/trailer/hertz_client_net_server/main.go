@@ -57,17 +57,17 @@ func main() {
 
 	bs := bytes.NewReader([]byte("ping"))
 	req.SetBodyStream(bs, -1)
-	req.Header.Trailer.Set("AAB", "hertz")
-	req.Header.Trailer.Set("Hertz", "test")
+	req.Header.Trailer().Set("AAB", "hertz")
+	req.Header.Trailer().Set("Hertz", "test")
 
 	err := c.Do(context.Background(), req, resp)
 	if err != nil {
 		return
 	}
 	fmt.Println("client: ", string(resp.Body()))
-	resp.Header.Trailer.VisitAll(visitSingle)
-	fmt.Println("client: ", resp.Header.Trailer.Get("AAA"))
-	fmt.Println("client: ", resp.Header.Trailer.Get("Hertz"))
+	resp.Header.Trailer().VisitAll(visitSingle)
+	fmt.Println("client: ", resp.Header.Trailer().Get("AAA"))
+	fmt.Println("client: ", resp.Header.Trailer().Get("Hertz"))
 }
 
 func visitSingle(k, v []byte) {

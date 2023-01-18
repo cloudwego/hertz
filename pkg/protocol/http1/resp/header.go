@@ -184,7 +184,7 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
-					err = h.Trailer.SetTrailers(s.Value)
+					err = h.Trailer().SetTrailers(s.Value)
 					continue
 				}
 			}

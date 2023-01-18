@@ -87,7 +87,7 @@ type RequestHeader struct {
 
 	h       []argsKV
 	bufKV   argsKV
-	Trailer Trailer
+	trailer Trailer
 
 	cookies []argsKV
 
@@ -127,7 +127,7 @@ type ResponseHeader struct {
 
 	h       []argsKV
 	bufKV   argsKV
-	Trailer Trailer
+	trailer Trailer
 
 	cookies []argsKV
 
@@ -211,7 +211,7 @@ func (h *ResponseHeader) GetHeaders() []argsKV {
 // Reset clears response header.
 func (h *ResponseHeader) Reset() {
 	h.disableNormalizing = false
-	h.Trailer.disableNormalizing = false
+	h.Trailer().disableNormalizing = false
 	h.noDefaultContentType = false
 	h.noDefaultDate = false
 	h.ResetSkipNormalize()
@@ -235,7 +235,7 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.server = append(dst.server[:0], h.server...)
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
-	h.Trailer.CopyTo(&dst.Trailer)
+	h.Trailer().CopyTo(dst.Trailer())
 }
 
 // Multiple headers with the same key may be added with this function.
@@ -278,9 +278,8 @@ func (h *ResponseHeader) VisitAll(f func(key, value []byte)) {
 			f(bytestr.StrSetCookie, v)
 		})
 	}
-	if !h.Trailer.Empty() {
-		// todo add test
-		f(bytestr.StrTrailer, h.Trailer.GetBytes())
+	if !h.Trailer().Empty() {
+		f(bytestr.StrTrailer, h.Trailer().GetBytes())
 	}
 	visitArgs(h.h, f)
 	if h.ConnectionClose() {
@@ -400,8 +399,8 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 		dst = appendHeaderLine(dst, kv.key, kv.value)
 	}
 
-	if !h.Trailer.Empty() {
-		dst = appendHeaderLine(dst, bytestr.StrTrailer, h.Trailer.GetBytes())
+	if !h.Trailer().Empty() {
+		dst = appendHeaderLine(dst, bytestr.StrTrailer, h.Trailer().GetBytes())
 	}
 
 	// there is no need in h.collectCookies() here, since if cookies aren't collected yet,
@@ -500,7 +499,7 @@ func (h *ResponseHeader) ResetSkipNormalize() {
 
 	h.h = h.h[:0]
 	h.cookies = h.cookies[:0]
-	h.Trailer.ResetSkipNormalize()
+	h.Trailer().ResetSkipNormalize()
 	h.mulHeader = h.mulHeader[:0]
 }
 
@@ -699,7 +698,7 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 	case consts.HeaderSetCookie:
 		return appendResponseCookieBytes(nil, h.cookies)
 	case consts.HeaderTrailer:
-		return h.Trailer.GetBytes()
+		return h.Trailer().GetBytes()
 	default:
 		return peekArgBytes(h.h, key)
 	}
@@ -890,8 +889,8 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 		}
 	}
 
-	if !h.Trailer.Empty() {
-		dst = appendHeaderLine(dst, bytestr.StrTrailer, h.Trailer.GetBytes())
+	if !h.Trailer().Empty() {
+		dst = appendHeaderLine(dst, bytestr.StrTrailer, h.Trailer().GetBytes())
 	}
 
 	n := len(h.cookies)
@@ -981,7 +980,7 @@ func (h *ResponseHeader) del(key []byte) {
 	case consts.HeaderConnection:
 		h.connectionClose = false
 	case consts.HeaderTrailer:
-		h.Trailer.ResetSkipNormalize()
+		h.Trailer().ResetSkipNormalize()
 	}
 	h.h = delAllArgsBytes(h.h, key)
 }
@@ -1013,7 +1012,7 @@ func (h *RequestHeader) Len() int {
 // Reset clears request header.
 func (h *RequestHeader) Reset() {
 	h.disableNormalizing = false
-	h.Trailer.disableNormalizing = false
+	h.Trailer().disableNormalizing = false
 	h.ResetSkipNormalize()
 }
 
@@ -1066,7 +1065,7 @@ func (h *RequestHeader) del(key []byte) {
 	case consts.HeaderConnection:
 		h.connectionClose = false
 	case consts.HeaderTrailer:
-		h.Trailer.ResetSkipNormalize()
+		h.Trailer().ResetSkipNormalize()
 	}
 	h.h = delAllArgsBytes(h.h, key)
 }
@@ -1087,7 +1086,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.host = append(dst.host[:0], h.host...)
 	dst.contentType = append(dst.contentType[:0], h.contentType...)
 	dst.userAgent = append(dst.userAgent[:0], h.userAgent...)
-	h.Trailer.CopyTo(&dst.Trailer)
+	h.Trailer().CopyTo(dst.Trailer())
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
 	dst.cookiesCollected = h.cookiesCollected
@@ -1416,7 +1415,7 @@ func (h *RequestHeader) ResetSkipNormalize() {
 
 	h.rawHeaders = h.rawHeaders[:0]
 	h.mulHeader = h.mulHeader[:0]
-	h.Trailer.ResetSkipNormalize()
+	h.Trailer().ResetSkipNormalize()
 }
 
 func peekRawHeader(buf, key []byte) []byte {
@@ -1507,8 +1506,8 @@ func (h *RequestHeader) VisitAll(f func(key, value []byte)) {
 	if len(userAgent) > 0 {
 		f(bytestr.StrUserAgent, userAgent)
 	}
-	if !h.Trailer.Empty() {
-		f(bytestr.StrTrailer, h.Trailer.GetBytes())
+	if !h.Trailer().Empty() {
+		f(bytestr.StrTrailer, h.Trailer().GetBytes())
 	}
 
 	h.collectCookies()
@@ -1591,7 +1590,7 @@ func (h *RequestHeader) peek(key []byte) []byte {
 		}
 		return peekArgBytes(h.h, key)
 	case consts.HeaderTrailer:
-		return h.Trailer.GetBytes()
+		return h.Trailer().GetBytes()
 	default:
 		return peekArgBytes(h.h, key)
 	}
@@ -1721,7 +1720,7 @@ func (h *ResponseHeader) setSpecialHeader(key, value []byte) bool {
 			// Transfer-Encoding is managed automatically.
 			return true
 		} else if utils.CaseInsensitiveCompare(bytestr.StrTrailer, key) {
-			h.Trailer.SetTrailers(value)
+			h.Trailer().SetTrailers(value)
 			return true
 		}
 	case 'd':
@@ -1769,7 +1768,7 @@ func (h *RequestHeader) setSpecialHeader(key, value []byte) bool {
 			// Transfer-Encoding is managed automatically.
 			return true
 		} else if utils.CaseInsensitiveCompare(bytestr.StrTrailer, key) {
-			h.Trailer.SetTrailers(value)
+			h.Trailer().SetTrailers(value)
 			return true
 		}
 	case 'h':
@@ -1785,4 +1784,14 @@ func (h *RequestHeader) setSpecialHeader(key, value []byte) bool {
 	}
 
 	return false
+}
+
+// Trailer returns the Trailer of HTTP Header.
+func (h *ResponseHeader) Trailer() *Trailer {
+	return &h.trailer
+}
+
+// Trailer returns the Trailer of HTTP Header.
+func (h *RequestHeader) Trailer() *Trailer {
+	return &h.trailer
 }

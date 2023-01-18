@@ -67,15 +67,15 @@ func main() {
 
 func handler(ctx context.Context, c *app.RequestContext) {
 	fmt.Printf("server: %q\n", c.Request.Body())
-	c.Request.Header.Trailer.VisitAll(visitSingle)
-	fmt.Println("server: ", c.Request.Header.Trailer.Get("AAB"))
-	fmt.Println("server: ", c.Request.Header.Trailer.Get("Hertz"))
+	c.Request.Header.Trailer().VisitAll(visitSingle)
+	fmt.Println("server: ", c.Request.Header.Trailer().Get("AAB"))
+	fmt.Println("server: ", c.Request.Header.Trailer().Get("Hertz"))
 	fmt.Println()
 
 	bs := bytes.NewReader([]byte("Hello World"))
 	c.SetBodyStream(bs, -1)
-	c.Response.Header.Trailer.Set("AAA", "hertz")
-	c.Response.Header.Trailer.Set("Hertz", "trailer_test")
+	c.Response.Header.Trailer().Set("AAA", "hertz")
+	c.Response.Header.Trailer().Set("Hertz", "trailer_test")
 }
 
 func visitSingle(k, v []byte) {
