@@ -22,11 +22,11 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"syscall"
 	"time"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -47,7 +47,7 @@ type Conn struct {
 }
 
 func (c *Conn) ToHertzError(err error) error {
-	if errors.Is(err, unix.EPIPE) || errors.Is(err, unix.ENOTCONN) {
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ENOTCONN) {
 		return errs.ErrConnectionClosed
 	}
 	return err

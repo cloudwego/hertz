@@ -137,6 +137,7 @@ func (plugin *Plugin) Run() int {
 		HandlerByMethod: args.HandlerByMethod,
 		CmdType:         args.CmdType,
 		IdlClientDir:    util.SubDir(modelDir, pkgInfo.Package),
+		BaseDomain:      args.BaseDomain,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)

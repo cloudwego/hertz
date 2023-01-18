@@ -37,6 +37,7 @@ type Argument struct {
 	ModelDir   string // model path
 	RouterDir  string // router path
 	ClientDir  string // client path
+	BaseDomain string // request domain
 
 	IdlType   string   // idl type
 	IdlPaths  []string // master idl path

@@ -54,10 +54,18 @@ type PackageReference struct {
 	Referred    bool
 }
 
-func getReferPkgMap(pkgMap map[string]string, incs []*parser.Include) (map[string]*PackageReference, error) {
+func getReferPkgMap(pkgMap map[string]string, incs []*parser.Include, mainModel *model.Model) (map[string]*PackageReference, error) {
 	var err error
 	out := make(map[string]*PackageReference, len(pkgMap))
 	pkgAliasMap := make(map[string]string, len(incs))
+	// bugfix: add main package to avoid namespace conflict
+	mainPkg := mainModel.Package
+	mainPkgName := mainModel.PackageName
+	mainPkgName, err = util.GetPackageUniqueName(mainPkgName)
+	if err != nil {
+		return nil, err
+	}
+	pkgAliasMap[mainPkg] = mainPkgName
 	for _, inc := range incs {
 		pkg := getGoPackage(inc.Reference, pkgMap)
 		impt := inc.GetPath()
@@ -102,7 +110,7 @@ type Resolver struct {
 }
 
 func NewResolver(ast *parser.Thrift, model *model.Model, pkgMap map[string]string) (*Resolver, error) {
-	pm, err := getReferPkgMap(pkgMap, ast.GetIncludes())
+	pm, err := getReferPkgMap(pkgMap, ast.GetIncludes(), model)
 	if err != nil {
 		return nil, fmt.Errorf("get package map failed, err: %v", err)
 	}

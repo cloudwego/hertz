@@ -748,3 +748,18 @@ func testBodyWriteTo(t *testing.T, bw bodyWriterTo, expectedS string, isRetained
 		}
 	}
 }
+
+func TestReqSafeCopy(t *testing.T) {
+	req := AcquireRequest()
+	req.bodyRaw = make([]byte, 1)
+	reqs := make([]*Request, 10)
+	for i := 0; i < 10; i++ {
+		req.bodyRaw[0] = byte(i)
+		tmpReq := AcquireRequest()
+		req.CopyTo(tmpReq)
+		reqs[i] = tmpReq
+	}
+	for i := 0; i < 10; i++ {
+		assert.DeepEqual(t, []byte{byte(i)}, reqs[i].Body())
+	}
+}

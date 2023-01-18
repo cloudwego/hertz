@@ -595,6 +595,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		HandlerByMethod: args.HandlerByMethod,
 		CmdType:         args.CmdType,
 		IdlClientDir:    plugin.IdlClientDir,
+		BaseDomain:      args.BaseDomain,
 	}
 
 	if args.ModelBackend != "" {

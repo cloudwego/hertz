@@ -14,30 +14,28 @@
  * limitations under the License.
  */
 
-package factory
+package generator
 
 import (
-	"github.com/cloudwego/hertz/pkg/protocol"
-	"github.com/cloudwego/hertz/pkg/protocol/http1"
-	"github.com/cloudwego/hertz/pkg/protocol/suite"
+	"text/template"
+
+	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
-var _ suite.ServerFactory = (*serverFactory)(nil)
-
-type serverFactory struct {
-	option *http1.Option
+var funcMap = template.FuncMap{
+	"GetUniqueHandlerOutDir": getUniqueHandlerOutDir,
+	"ToSnakeCase":            util.ToSnakeCase,
 }
 
-// New is called by Hertz during engine.Run()
-func (s *serverFactory) New(core suite.Core) (server protocol.Server, err error) {
-	serv := http1.NewServer()
-	serv.Option = *s.option
-	serv.Core = core
-	return serv, nil
-}
-
-func NewServerFactory(option *http1.Option) suite.ServerFactory {
-	return &serverFactory{
-		option: option,
+// getUniqueHandlerOutDir uses to get unique "api.handler_path"
+func getUniqueHandlerOutDir(methods []*HttpMethod) (ret []string) {
+	outDirMap := make(map[string]string)
+	for _, method := range methods {
+		if _, exist := outDirMap[method.OutputDir]; !exist {
+			outDirMap[method.OutputDir] = method.OutputDir
+			ret = append(ret, method.OutputDir)
+		}
 	}
+
+	return ret
 }
