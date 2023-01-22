@@ -1,0 +1,35 @@
+# Options for analysis running.
+run:
+  # include `vendor` `third_party` `testdata` `examples` `Godeps` `builtin`
+  skip-dirs-use-default: true
+# output configuration options
+
+  # Timeout for analysis, e.g. 30s, 5m.
+  # Default: 1m
+  timeout: 30m
+
+output:
+  # Format: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
+  format: colored-line-number
+# All available settings of specific linters.
+# Refer to https://golangci-lint.run/usage/linters
+linters-settings:
+  govet:
+    # Disable analyzers by name.
+    # Run `go tool vet help` to see all analyzers.
+    disable:
+      - stdmethods
+linters:
+  enable:
+    - gofumpt
+    - goimports
+    - gofmt
+    - govet
+  disable:
+    - errcheck
+    - typecheck
+    - deadcode
+    - varcheck
+    - staticcheck
+issues:
+  exclude-use-default: true
