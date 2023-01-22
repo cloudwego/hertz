@@ -2,8 +2,6 @@
 run:
   # include `vendor` `third_party` `testdata` `examples` `Godeps` `builtin`
   skip-dirs-use-default: true
-  skip-files:
-    - ".*\\.mock\\.go$"
 # output configuration options
 output:
   # Format: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
