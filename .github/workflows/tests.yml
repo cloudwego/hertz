@@ -53,10 +53,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Lint
-        run: |
-          go vet -stdmethods=false $(go list ./...)
-          go install mvdan.cc/gofumpt@v0.2.0
-          test -z "$(gofumpt -l -extra .)"
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
       - name: Unit Test
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 #
