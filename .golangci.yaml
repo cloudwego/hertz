@@ -27,6 +27,7 @@ linters:
     - gofumpt
     - goimports
     - gofmt
+    - govet
   disable:
     - errcheck
     - typecheck
