@@ -18,6 +18,7 @@ type sliceTypeFieldTextDecoder struct {
 
 func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
 	var texts []string
+	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Key == jsonTag {
 			continue
@@ -27,10 +28,13 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
 		// todo: 数组默认值
-		// defaultValue = tagInfo.Default
+		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
 			break
 		}
+	}
+	if len(texts) == 0 && len(defaultValue) != 0 {
+		texts = append(texts, defaultValue)
 	}
 	if len(texts) == 0 {
 		return nil

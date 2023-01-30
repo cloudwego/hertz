@@ -16,6 +16,10 @@ const (
 )
 
 const (
+	defaultTag = "default"
+)
+
+const (
 	requiredTagOpt = "required"
 )
 
@@ -44,8 +48,13 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 			ret = append(ret, tag)
 		}
 	}
-	var tagInfos []TagInfo
 
+	defaultVal := ""
+	if val, ok := field.Tag.Lookup(defaultTag); ok {
+		defaultVal = val
+	}
+
+	var tagInfos []TagInfo
 	for _, tag := range ret {
 		tagContent := field.Tag.Get(tag)
 		tagValue, opts := head(tagContent, ",")
@@ -59,16 +68,21 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 				required = true
 			}
 		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required})
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Default: defaultVal})
 	}
 
 	return tagInfos
 }
 
 func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
+	defaultVal := ""
+	if val, ok := field.Tag.Lookup(defaultTag); ok {
+		defaultVal = val
+	}
+
 	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag}
 	for _, tag := range tags {
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name})
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name, Default: defaultVal})
 	}
 
 	return

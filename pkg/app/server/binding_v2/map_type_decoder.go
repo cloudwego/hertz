@@ -7,7 +7,6 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
-
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 

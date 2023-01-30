@@ -334,6 +334,53 @@ func TestBind_NoTagField(t *testing.T) {
 	assert.DeepEqual(t, "c1", s.C)
 }
 
+func TestBind_ZeroValueBind(t *testing.T) {
+	var s struct {
+		A int     `query:"a"`
+		B float64 `query:"b"`
+	}
+	bind := Bind{}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?a=&b")
+
+	err := bind.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 0, s.A)
+	assert.DeepEqual(t, float64(0), s.B)
+}
+
+func TestBind_DefaultValueBind(t *testing.T) {
+	var s struct {
+		A int      `default:"15"`
+		B float64  `query:"b" default:"17"`
+		C []int    `default:"15"`
+		D []string `default:"qwe"`
+	}
+	bind := Bind{}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com")
+
+	err := bind.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 15, s.A)
+	assert.DeepEqual(t, float64(17), s.B)
+	assert.DeepEqual(t, 15, s.C[0])
+	assert.DeepEqual(t, "qwe", s.D[0])
+
+	var d struct {
+		D [2]string `default:"qwe"`
+	}
+
+	err = bind.Bind(req.Req, nil, &d)
+	if err == nil {
+		t.Fatal("expected err")
+	}
+}
+
 func TestBind_TypedefType(t *testing.T) {
 	type Foo string
 	type Bar *int
