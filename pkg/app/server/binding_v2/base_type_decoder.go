@@ -23,6 +23,7 @@ type baseTypeFieldTextDecoder struct {
 }
 
 func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+	var err error
 	var text string
 	var defaultValue string
 	// 最大努力交付，对齐 hertz 现有设计
@@ -38,8 +39,15 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 		if len(ret) != 0 {
 			// 非数组/切片类型，只取第一个值作为只
 			text = ret[0]
+			err = nil
 			break
 		}
+		if tagInfo.Required {
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+		}
+	}
+	if err != nil {
+		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
@@ -48,7 +56,6 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 		return nil
 	}
 
-	var err error
 	// 得到该field的非nil值
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	// 根据最终的 Struct，获取对应 field 的 reflect.Value

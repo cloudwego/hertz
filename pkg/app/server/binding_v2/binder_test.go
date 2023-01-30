@@ -381,6 +381,30 @@ func TestBind_DefaultValueBind(t *testing.T) {
 	}
 }
 
+func TestBind_RequiredBind(t *testing.T) {
+	var s struct {
+		A int `query:"a,required"`
+	}
+	bind := Bind{}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetHeader("A", "1")
+
+	err := bind.Bind(req.Req, nil, &s)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var d struct {
+		A int `query:"a,required" header:"A"`
+	}
+	err = bind.Bind(req.Req, nil, &d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 1, d.A)
+}
+
 func TestBind_TypedefType(t *testing.T) {
 	type Foo string
 	type Bar *int
