@@ -1,7 +1,6 @@
 package binding_v2
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -59,7 +58,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParam
 		return nil
 	}
 
-	err := json.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
+	err := jsonUnmarshalFunc(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 	}

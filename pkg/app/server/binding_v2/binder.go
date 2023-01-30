@@ -1,11 +1,11 @@
 package binding_v2
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"google.golang.org/protobuf/proto"
 )
@@ -67,10 +67,10 @@ func (b *Bind) PreBindBody(req *protocol.Request, v interface{}) error {
 	if req.Header.ContentLength() <= 0 {
 		return nil
 	}
-	switch string(req.Header.ContentType()) {
+	switch bytesconv.B2s(req.Header.ContentType()) {
 	case jsonContentTypeBytes:
 		// todo: 对齐gin， 添加 "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" 接口
-		return json.Unmarshal(req.Body(), v)
+		return jsonUnmarshalFunc(req.Body(), v)
 	case protobufContentType:
 		msg, ok := v.(proto.Message)
 		if !ok {

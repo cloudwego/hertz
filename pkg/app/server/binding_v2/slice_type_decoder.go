@@ -1,7 +1,6 @@
 package binding_v2
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -130,9 +129,9 @@ func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err err
 
 	switch elemType.Kind() {
 	case reflect.Struct:
-		err = json.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
+		err = jsonUnmarshalFunc(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Map:
-		err = json.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
+		err = jsonUnmarshalFunc(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Array, reflect.Slice:
 		// do nothing
 	default:

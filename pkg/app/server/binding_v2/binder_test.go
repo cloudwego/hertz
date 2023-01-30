@@ -501,6 +501,36 @@ func TestBind_JSON(t *testing.T) {
 	}
 }
 
+func TestBind_ResetJSONUnmarshal(t *testing.T) {
+	ResetStdJSONUnmarshaler()
+	bind := Bind{}
+	type Req struct {
+		J1 string    `json:"j1"`
+		J2 int       `json:"j2"`
+		J3 []byte    `json:"j3"`
+		J4 [2]string `json:"j4"`
+	}
+	J3s := []byte("12")
+	J4s := [2]string{"qwe", "asd"}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
+	var result Req
+	err := bind.Bind(req.Req, nil, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "j1", result.J1)
+	assert.DeepEqual(t, 12, result.J2)
+	for idx, val := range J3s {
+		assert.DeepEqual(t, val, result.J3[idx])
+	}
+	for idx, val := range J4s {
+		assert.DeepEqual(t, val, result.J4[idx])
+	}
+}
+
 func Benchmark_V2(b *testing.B) {
 	bind := Bind{}
 	type Req struct {
