@@ -1898,7 +1898,10 @@ func (m *mockDialer) DialConnection(network, address string, timeout time.Durati
 func TestClientRetry(t *testing.T) {
 	t.Parallel()
 	client, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		// Default dial function performs different in different os. So unit the performance of dial function.
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(3),
 			retry.WithInitDelay(100*time.Millisecond),
@@ -1927,7 +1930,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client2, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(500*time.Millisecond),
@@ -1956,7 +1961,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client3, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(100*time.Millisecond),
@@ -1986,7 +1993,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client4, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(1*time.Second),

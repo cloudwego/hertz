@@ -21,11 +21,14 @@ package server
 import (
 	"context"
 	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
@@ -33,6 +36,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"golang.org/x/sys/unix"
 )
 
 func TestReusePorts(t *testing.T) {
@@ -71,4 +75,62 @@ func TestReusePorts(t *testing.T) {
 		assert.DeepEqual(t, consts.StatusOK, statusCode)
 		assert.DeepEqual(t, "{\"ping\":\"pong\"}", string(body))
 	}
+}
+
+func TestHertz_Spin(t *testing.T) {
+	engine := New(WithHostPorts("127.0.0.1:6668"))
+	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(time.Second * 2)
+		path := ctx.Request.URI().PathOriginal()
+		ctx.SetBodyString(string(path))
+	})
+	engine.GET("/test2", func(c context.Context, ctx *app.RequestContext) {})
+
+	testint := uint32(0)
+	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
+		atomic.StoreUint32(&testint, 1)
+	})
+
+	go engine.Spin()
+	time.Sleep(time.Millisecond)
+
+	hc := http.Client{Timeout: time.Second}
+	var err error
+	var resp *http.Response
+	ch := make(chan struct{})
+	ch2 := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(time.Millisecond * 100)
+		defer ticker.Stop()
+		for range ticker.C {
+			_, err := hc.Get("http://127.0.0.1:6668/test2")
+			t.Logf("[%v]begin listening\n", time.Now())
+			if err != nil {
+				t.Logf("[%v]listening closed: %v", time.Now(), err)
+				ch2 <- struct{}{}
+				break
+			}
+		}
+	}()
+	go func() {
+		t.Logf("[%v]begin request\n", time.Now())
+		resp, err = http.Get("http://127.0.0.1:6668/test")
+		t.Logf("[%v]end request\n", time.Now())
+		ch <- struct{}{}
+	}()
+
+	time.Sleep(time.Second * 1)
+	pid := strconv.Itoa(os.Getpid())
+	cmd := exec.Command("kill", "-SIGHUP", pid)
+	t.Logf("[%v]begin SIGHUP\n", time.Now())
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("[%v]end SIGHUP\n", time.Now())
+	<-ch
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
+
+	<-ch2
 }

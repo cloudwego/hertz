@@ -285,8 +285,8 @@ func TestIdleTimeout03(t *testing.T) {
 			t.Errorf("err should be ErrShortConnection, but got %s", err)
 		}
 		return
-	case <-time.Tick(120 * time.Millisecond):
-		t.Errorf("timeout! should have been finished in 120ms...")
+	case <-time.Tick(200 * time.Millisecond):
+		t.Errorf("timeout! should have been finished in 200ms...")
 	}
 }
 

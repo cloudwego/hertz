@@ -113,7 +113,6 @@ type HTMLDebug struct {
 	sync.Once
 	Template        *template.Template
 	RefreshInterval time.Duration
-	updateTimeStamp time.Time
 
 	Files   []string
 	FuncMap template.FuncMap
@@ -161,14 +160,10 @@ func (h *HTMLDebug) startChecker() {
 	if h.RefreshInterval > 0 {
 		go func() {
 			hlog.SystemLogger().Debugf("[HTMLDebug] HTML template reloader started with interval %v", h.RefreshInterval)
-			for {
-				n := time.Now()
-				if n.UTC().Sub(h.updateTimeStamp.UTC()) > h.RefreshInterval {
-					hlog.SystemLogger().Debugf("[HTMLDebug] triggering HTML template reloader")
-					h.reloadCh <- struct{}{}
-					hlog.SystemLogger().Debugf("[HTMLDebug] HTML template has been reloaded, next reload in %v", h.RefreshInterval)
-					h.updateTimeStamp = time.Now()
-				}
+			for range time.Tick(h.RefreshInterval) {
+				hlog.SystemLogger().Debugf("[HTMLDebug] triggering HTML template reloader")
+				h.reloadCh <- struct{}{}
+				hlog.SystemLogger().Debugf("[HTMLDebug] HTML template has been reloaded, next reload in %v", h.RefreshInterval)
 			}
 		}()
 		return

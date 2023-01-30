@@ -25,9 +25,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -143,64 +140,6 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 	<-ch2
 
 	cancel()
-}
-
-func TestHertz_Spin(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:6668"))
-	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 2)
-		path := ctx.Request.URI().PathOriginal()
-		ctx.SetBodyString(string(path))
-	})
-	engine.GET("/test2", func(c context.Context, ctx *app.RequestContext) {})
-
-	testint := uint32(0)
-	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
-		atomic.StoreUint32(&testint, 1)
-	})
-
-	go engine.Spin()
-	time.Sleep(time.Millisecond)
-
-	hc := http.Client{Timeout: time.Second}
-	var err error
-	var resp *http.Response
-	ch := make(chan struct{})
-	ch2 := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
-		defer ticker.Stop()
-		for range ticker.C {
-			_, err := hc.Get("http://127.0.0.1:6668/test2")
-			t.Logf("[%v]begin listening\n", time.Now())
-			if err != nil {
-				t.Logf("[%v]listening closed: %v", time.Now(), err)
-				ch2 <- struct{}{}
-				break
-			}
-		}
-	}()
-	go func() {
-		t.Logf("[%v]begin request\n", time.Now())
-		resp, err = http.Get("http://127.0.0.1:6668/test")
-		t.Logf("[%v]end request\n", time.Now())
-		ch <- struct{}{}
-	}()
-
-	time.Sleep(time.Second * 1)
-	pid := strconv.Itoa(os.Getpid())
-	cmd := exec.Command("kill", "-SIGHUP", pid)
-	t.Logf("[%v]begin SIGHUP\n", time.Now())
-	if err := cmd.Run(); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("[%v]end SIGHUP\n", time.Now())
-	<-ch
-	assert.Nil(t, err)
-	assert.NotNil(t, resp)
-	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
-
-	<-ch2
 }
 
 func TestLoadHTMLGlob(t *testing.T) {
@@ -413,8 +352,6 @@ func TestEnoughBodySize(t *testing.T) {
 }
 
 func TestRequestCtxHijack(t *testing.T) {
-	t.Parallel()
-
 	hijackStartCh := make(chan struct{})
 	hijackStopCh := make(chan struct{})
 	engine := New()
@@ -743,6 +680,10 @@ func TestReuseCtx(t *testing.T) {
 	}
 }
 
+type CloseWithoutResetBuffer interface {
+	CloseNoResetBuffer() error
+}
+
 func TestOnprepare(t *testing.T) {
 	h := New(
 		WithHostPorts("localhost:9229"),
@@ -750,7 +691,11 @@ func TestOnprepare(t *testing.T) {
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
 			assert.DeepEqual(t, string(b), "GET")
-			conn.Close()
+			if c, ok := conn.(CloseWithoutResetBuffer); ok {
+				c.CloseNoResetBuffer()
+			} else {
+				conn.Close()
+			}
 			return ctx
 		}))
 	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {

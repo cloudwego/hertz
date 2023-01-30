@@ -18,10 +18,15 @@ package network
 
 import (
 	"os"
+	"runtime"
 	"testing"
 )
 
 func TestUnlinkUdsFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
 	tmp := "tmpFile"
 	var err error
 
