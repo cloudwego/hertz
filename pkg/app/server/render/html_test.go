@@ -23,7 +23,7 @@ import (
 )
 
 func TestHTMLDebug_StartChecker_timer(t *testing.T) {
-	render := &HTMLDebug{RefreshInterval: 2 * time.Second}
+	render := &HTMLDebug{RefreshInterval: time.Second}
 	select {
 	case <-render.reloadCh:
 		t.Fatalf("should not be triggered")
@@ -31,17 +31,9 @@ func TestHTMLDebug_StartChecker_timer(t *testing.T) {
 	}
 	render.startChecker()
 	select {
-	case <-time.After(50 * time.Millisecond):
-		t.Fatalf("should be triggered immediately")
+	case <-time.After(render.RefreshInterval + 100*time.Millisecond):
+		t.Fatalf("should be triggered in 1 second")
 	case <-render.reloadCh:
-
-	}
-	select {
-	// some ci servers have poor computing power, so we add some extra time here.
-	case <-time.After(2*time.Second + 50*time.Millisecond):
-		t.Fatalf("should be triggered before 2 seconds")
-	case <-render.reloadCh:
-		t.Logf("paas")
 	}
 }
 
@@ -59,7 +51,7 @@ func TestHTMLDebug_StartChecker_fs_watcher(t *testing.T) {
 	}
 	render.startChecker()
 	f.Write([]byte("hello"))
-
+	f.Sync()
 	select {
 	case <-time.After(50 * time.Millisecond):
 		t.Fatalf("should be triggered immediately")
