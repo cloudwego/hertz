@@ -54,9 +54,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding_v2"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
-	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
@@ -1305,19 +1306,24 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
+	err := binding_v2.DefaultBinder.Bind(&ctx.Request, ctx.Params, obj)
+	if err != nil {
+		return err
+	}
+	err = binding_v2.DefaultValidator.ValidateStruct(obj)
+	return err
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.Bind(&ctx.Request, obj, ctx.Params)
+	return binding_v2.DefaultBinder.Bind(&ctx.Request, ctx.Params, obj)
 }
 
 // Validate validates obj with "vd" tag
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.Validate(obj)
+	return binding_v2.DefaultValidator.ValidateStruct(obj)
 }
 
 // VisitAllQueryArgs calls f for each existing query arg.

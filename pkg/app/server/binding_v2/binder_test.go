@@ -57,7 +57,6 @@ func (m *mockRequest) SetBody(data []byte) *mockRequest {
 }
 
 func TestBind_BaseType(t *testing.T) {
-	bind := Bind{}
 	type Req struct {
 		Version int    `path:"v"`
 		ID      int    `query:"id"`
@@ -78,7 +77,7 @@ func TestBind_BaseType(t *testing.T) {
 
 	var result Req
 
-	err := bind.Bind(req.Req, params, &result)
+	err := DefaultBinder.Bind(req.Req, params, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -89,7 +88,6 @@ func TestBind_BaseType(t *testing.T) {
 }
 
 func TestBind_SliceType(t *testing.T) {
-	bind := Bind{}
 	type Req struct {
 		ID   []int     `query:"id"`
 		Str  [3]string `query:"str"`
@@ -104,7 +102,7 @@ func TestBind_SliceType(t *testing.T) {
 
 	var result Req
 
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -143,13 +141,11 @@ func TestBind_StructType(t *testing.T) {
 		B2 Foo    `query:"B2"`
 	}
 
-	bind := Bind{}
-
 	var result Bar
 
 	req := newMockRequest().SetRequestURI("http://foobar.com?F1=f1&B1=b1").SetHeader("f2", "f2")
 
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -178,8 +174,6 @@ func TestBind_PointerType(t *testing.T) {
 		B4 [2]*int   `query:"B4"`
 	}
 
-	bind := Bind{}
-
 	result := Bar{}
 
 	F1 := "f1"
@@ -191,7 +185,7 @@ func TestBind_PointerType(t *testing.T) {
 	req := newMockRequest().SetRequestURI(fmt.Sprintf("http://foobar.com?F1=%s&B1=%s&B2=%s&B3=%s&B3=%s&B4=%d&B4=%d", F1, B1, B2, B3s[0], B3s[1], B4s[0], B4s[1])).
 		SetHeader("f2", "f2")
 
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -220,12 +214,10 @@ func TestBind_NestedStruct(t *testing.T) {
 		}
 	}
 
-	bind := Bind{}
-
 	result := Bar{}
 
 	req := newMockRequest().SetRequestURI("http://foobar.com?F1=qwe")
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -242,13 +234,11 @@ func TestBind_SliceStruct(t *testing.T) {
 		B1 []Foo `query:"F1"`
 	}
 
-	bind := Bind{}
-
 	result := Bar{}
 	B1s := []string{"1", "2", "3"}
 
 	req := newMockRequest().SetRequestURI(fmt.Sprintf("http://foobar.com?F1={\"f1\":\"%s\"}&F1={\"f1\":\"%s\"}&F1={\"f1\":\"%s\"}", B1s[0], B1s[1], B1s[2]))
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -260,11 +250,10 @@ func TestBind_SliceStruct(t *testing.T) {
 
 func TestBind_MapType(t *testing.T) {
 	var result map[string]string
-	bind := Bind{}
 	req := newMockRequest().
 		SetJSONContentType().
 		SetBody([]byte(`{"j1":"j1", "j2":"j2"}`))
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,13 +267,12 @@ func TestBind_MapFieldType(t *testing.T) {
 		F1 ***map[string]string `query:"f1" json:"f1"`
 	}
 
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?f1={\"f1\":\"f1\"}").
 		SetJSONContentType().
 		SetBody([]byte(`{"j1":"j1", "j2":"j2"}`))
 	result := Foo{}
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,10 +285,9 @@ func TestBind_UnexportedField(t *testing.T) {
 		A int `query:"a"`
 		b int `query:"b"`
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
-	err := bind.Bind(req.Req, nil, &s)
+	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +301,6 @@ func TestBind_NoTagField(t *testing.T) {
 		B string
 		C string
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?B=b1&C=c1").
 		SetHeader("A", "a2")
@@ -325,7 +311,7 @@ func TestBind_NoTagField(t *testing.T) {
 		Value: "b2",
 	})
 
-	err := bind.Bind(req.Req, params, &s)
+	err := DefaultBinder.Bind(req.Req, params, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,11 +325,10 @@ func TestBind_ZeroValueBind(t *testing.T) {
 		A int     `query:"a"`
 		B float64 `query:"b"`
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=&b")
 
-	err := bind.Bind(req.Req, nil, &s)
+	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,11 +343,10 @@ func TestBind_DefaultValueBind(t *testing.T) {
 		C []int    `default:"15"`
 		D []string `default:"qwe"`
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
 
-	err := bind.Bind(req.Req, nil, &s)
+	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +359,7 @@ func TestBind_DefaultValueBind(t *testing.T) {
 		D [2]string `default:"qwe"`
 	}
 
-	err = bind.Bind(req.Req, nil, &d)
+	err = DefaultBinder.Bind(req.Req, nil, &d)
 	if err == nil {
 		t.Fatal("expected err")
 	}
@@ -385,12 +369,11 @@ func TestBind_RequiredBind(t *testing.T) {
 	var s struct {
 		A int `query:"a,required"`
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com").
 		SetHeader("A", "1")
 
-	err := bind.Bind(req.Req, nil, &s)
+	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -398,7 +381,7 @@ func TestBind_RequiredBind(t *testing.T) {
 	var d struct {
 		A int `query:"a,required" header:"A"`
 	}
-	err = bind.Bind(req.Req, nil, &d)
+	err = DefaultBinder.Bind(req.Req, nil, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,16 +401,46 @@ func TestBind_TypedefType(t *testing.T) {
 		B  Bar `query:"b"`
 		T1 TT
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
-	err := bind.Bind(req.Req, nil, &s)
+	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.DeepEqual(t, Foo("1"), s.A)
 	assert.DeepEqual(t, 2, *s.B)
 	assert.DeepEqual(t, "1", s.T1.T1)
+}
+
+// 枚举类型BaseType
+type EnumType int64
+
+const (
+	EnumType_TWEET   EnumType = 0
+	EnumType_RETWEET EnumType = 2
+)
+
+func (p EnumType) String() string {
+	switch p {
+	case EnumType_TWEET:
+		return "TWEET"
+	case EnumType_RETWEET:
+		return "RETWEET"
+	}
+	return "<UNSET>"
+}
+
+func TestBind_EnumBind(t *testing.T) {
+	var s struct {
+		A EnumType `query:"a"`
+		B EnumType `query:"b"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?a=0&b=2")
+	err := DefaultBinder.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 type CustomizedDecode struct {
@@ -448,11 +461,10 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	type Foo struct {
 		F ***CustomizedDecode
 	}
-	bind := Bind{}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
 	result := Foo{}
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +475,7 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	}
 
 	result2 := Bar{}
-	err = bind.Bind(req.Req, nil, &result2)
+	err = DefaultBinder.Bind(req.Req, nil, &result2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -471,7 +483,6 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 }
 
 func TestBind_JSON(t *testing.T) {
-	bind := Bind{}
 	type Req struct {
 		J1 string `json:"j1"`
 		J2 int    `json:"j2" query:"j2"` // 1. json unmarshal 2. query binding cover
@@ -487,7 +498,7 @@ func TestBind_JSON(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -503,7 +514,6 @@ func TestBind_JSON(t *testing.T) {
 
 func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	ResetStdJSONUnmarshaler()
-	bind := Bind{}
 	type Req struct {
 		J1 string    `json:"j1"`
 		J2 int       `json:"j2"`
@@ -517,7 +527,7 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
-	err := bind.Bind(req.Req, nil, &result)
+	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -532,7 +542,6 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 }
 
 func Benchmark_V2(b *testing.B) {
-	bind := Bind{}
 	type Req struct {
 		Version string `path:"v"`
 		ID      int    `query:"id"`
@@ -555,7 +564,7 @@ func Benchmark_V2(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var result Req
-		err := bind.Bind(req.Req, params, &result)
+		err := DefaultBinder.Bind(req.Req, params, &result)
 		if err != nil {
 			b.Error(err)
 		}
