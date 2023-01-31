@@ -572,3 +572,72 @@ func TestRequestHeaderSetNoDefaultContentType(t *testing.T) {
 	b = h.AppendBytes(nil)
 	assert.DeepEqual(t, b, []byte("POST / HTTP/1.1\r\n\r\n"))
 }
+
+func TestRequestHeader_PeekAll(t *testing.T) {
+	t.Parallel()
+	h := &RequestHeader{}
+	h.Add(consts.HeaderConnection, "keep-alive")
+	h.Add("Content-Type", "aaa")
+	h.Add(consts.HeaderHost, "aaabbb")
+	h.Add("User-Agent", "asdfas")
+	h.Add("Content-Length", "1123")
+	h.Add("Cookie", "foobar=baz")
+	h.Add("aaa", "aaa")
+	h.Add("aaa", "bbb")
+
+	expectRequestHeaderAll(t, h, consts.HeaderConnection, [][]byte{[]byte("keep-alive")})
+	expectRequestHeaderAll(t, h, "Content-Type", [][]byte{[]byte("aaa")})
+	expectRequestHeaderAll(t, h, consts.HeaderHost, [][]byte{[]byte("aaabbb")})
+	expectRequestHeaderAll(t, h, "User-Agent", [][]byte{[]byte("asdfas")})
+	expectRequestHeaderAll(t, h, "Content-Length", [][]byte{[]byte("1123")})
+	expectRequestHeaderAll(t, h, "Cookie", [][]byte{[]byte("foobar=baz")})
+	expectRequestHeaderAll(t, h, "aaa", [][]byte{[]byte("aaa"), []byte("bbb")})
+
+	h.DelBytes([]byte("Content-Type"))
+	h.DelBytes([]byte((consts.HeaderHost)))
+	h.DelBytes([]byte("aaa"))
+	expectRequestHeaderAll(t, h, "Content-Type", [][]byte{})
+	expectRequestHeaderAll(t, h, consts.HeaderHost, [][]byte{})
+	expectRequestHeaderAll(t, h, "aaa", [][]byte{})
+}
+
+func expectRequestHeaderAll(t *testing.T, h *RequestHeader, key string, expectedValue [][]byte) {
+	if len(h.PeekAll(key)) != len(expectedValue) {
+		t.Fatalf("Unexpected size for key %q: %d. Expected %d", key, len(h.PeekAll(key)), len(expectedValue))
+	}
+	assert.DeepEqual(t, h.PeekAll(key), expectedValue)
+}
+
+func TestResponseHeader_PeekAll(t *testing.T) {
+	t.Parallel()
+
+	h := &ResponseHeader{}
+	h.Add(consts.HeaderContentType, "aaa/bbb")
+	h.Add(consts.HeaderContentEncoding, "gzip")
+	h.Add(consts.HeaderConnection, "close")
+	h.Add(consts.HeaderContentLength, "1234")
+	h.Add(consts.HeaderServer, "aaaa")
+	h.Add(consts.HeaderSetCookie, "cccc")
+	h.Add("aaa", "aaa")
+	h.Add("aaa", "bbb")
+
+	expectResponseHeaderAll(t, h, consts.HeaderContentType, [][]byte{[]byte("aaa/bbb")})
+	expectResponseHeaderAll(t, h, consts.HeaderContentEncoding, [][]byte{[]byte("gzip")})
+	expectResponseHeaderAll(t, h, consts.HeaderConnection, [][]byte{[]byte("close")})
+	expectResponseHeaderAll(t, h, consts.HeaderContentLength, [][]byte{[]byte("1234")})
+	expectResponseHeaderAll(t, h, consts.HeaderServer, [][]byte{[]byte("aaaa")})
+	expectResponseHeaderAll(t, h, consts.HeaderSetCookie, [][]byte{[]byte("cccc")})
+	expectResponseHeaderAll(t, h, "aaa", [][]byte{[]byte("aaa"), []byte("bbb")})
+
+	h.Del(consts.HeaderContentType)
+	h.Del(consts.HeaderContentEncoding)
+	expectResponseHeaderAll(t, h, consts.HeaderContentType, [][]byte{bytestr.DefaultContentType})
+	expectResponseHeaderAll(t, h, consts.HeaderContentEncoding, [][]byte{})
+}
+
+func expectResponseHeaderAll(t *testing.T, h *ResponseHeader, key string, expectedValue [][]byte) {
+	if len(h.PeekAll(key)) != len(expectedValue) {
+		t.Fatalf("Unexpected size for key %q: %d. Expected %d", key, len(h.PeekAll(key)), len(expectedValue))
+	}
+	assert.DeepEqual(t, h.PeekAll(key), expectedValue)
+}

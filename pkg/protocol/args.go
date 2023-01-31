@@ -224,6 +224,16 @@ func peekArgBytes(h []argsKV, k []byte) []byte {
 	return nil
 }
 
+func peekAllArgBytesToDst(dst [][]byte, h []argsKV, k []byte) [][]byte {
+	for i, n := 0, len(h); i < n; i++ {
+		kv := &h[i]
+		if bytes.Equal(kv.key, k) {
+			dst = append(dst, kv.value)
+		}
+	}
+	return dst
+}
+
 func delAllArgsBytes(args []argsKV, key []byte) []argsKV {
 	return delAllArgs(args, bytesconv.B2s(key))
 }
