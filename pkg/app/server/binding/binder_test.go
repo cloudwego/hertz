@@ -1,10 +1,49 @@
-package binding_v2
+/*
+ * Copyright 2022 CloudWeGo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * MIT License
+ *
+ * Copyright (c) 2019-present Fenny and Contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * This file may have been modified by CloudWeGo authors. All CloudWeGo
+ * Modifications are Copyright 2022 CloudWeGo Authors
+ */
+
+package binding
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
@@ -412,7 +451,6 @@ func TestBind_TypedefType(t *testing.T) {
 	assert.DeepEqual(t, "1", s.T1.T1)
 }
 
-// 枚举类型BaseType
 type EnumType int64
 
 const (
@@ -484,9 +522,8 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 
 func TestBind_JSON(t *testing.T) {
 	type Req struct {
-		J1 string `json:"j1"`
-		J2 int    `json:"j2" query:"j2"` // 1. json unmarshal 2. query binding cover
-		// todo: map
+		J1 string    `json:"j1"`
+		J2 int       `json:"j2" query:"j2"` // 1. json unmarshal 2. query binding cover
 		J3 []byte    `json:"j3"`
 		J4 [2]string `json:"j4"`
 	}
@@ -541,7 +578,7 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	}
 }
 
-func Benchmark_V2(b *testing.B) {
+func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
 		ID      int    `query:"id"`
@@ -565,47 +602,6 @@ func Benchmark_V2(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var result Req
 		err := DefaultBinder.Bind(req.Req, params, &result)
-		if err != nil {
-			b.Error(err)
-		}
-		if result.ID != 12 {
-			b.Error("Id failed")
-		}
-		if result.Form != "form" {
-			b.Error("form failed")
-		}
-		if result.Header != "header" {
-			b.Error("header failed")
-		}
-		if result.Version != "1" {
-			b.Error("path failed")
-		}
-	}
-}
-
-func Benchmark_V1(b *testing.B) {
-	type Req struct {
-		Version string `path:"v"`
-		ID      int    `query:"id"`
-		Header  string `header:"h"`
-		Form    string `form:"f"`
-	}
-
-	req := newMockRequest().
-		SetRequestURI("http://foobar.com?id=12").
-		SetHeaders("h", "header").
-		SetPostArg("f", "form").
-		SetUrlEncodeContentType()
-	var params param.Params
-	params = append(params, param.Param{
-		Key:   "v",
-		Value: "1",
-	})
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var result Req
-		err := binding.Bind(req.Req, &result, params)
 		if err != nil {
 			b.Error(err)
 		}

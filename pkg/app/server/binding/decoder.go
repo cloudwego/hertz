@@ -1,4 +1,44 @@
-package binding_v2
+/*
+ * Copyright 2022 CloudWeGo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * MIT License
+ *
+ * Copyright (c) 2019-present Fenny and Contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * This file may have been modified by CloudWeGo authors. All CloudWeGo
+ * Modifications are Copyright 2022 CloudWeGo Authors
+ */
+
+package binding
 
 import (
 	"fmt"
@@ -24,7 +64,7 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 
 	el := rt.Elem()
 	if el.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("unsupport \"%s\" type binding", el.String())
+		return nil, fmt.Errorf("unsupported \"%s\" type binding", el.String())
 	}
 
 	for i := 0; i < el.NumField(); i++ {
@@ -56,7 +96,6 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 }
 
 func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]decoder, error) {
-	// 去掉每一个filed的指针，使其指向最终内容
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -72,7 +111,6 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	}
 
 	fieldTagInfos := lookupFieldTags(field)
-	// todo: 没有 tag 也不直接返回
 	if len(fieldTagInfos) == 0 {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
@@ -81,12 +119,10 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 		return getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
 	}
 
-	// todo: reflect Map
 	if field.Type.Kind() == reflect.Map {
 		return getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
 	}
 
-	// 递归每一个 struct
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []decoder
 		el := field.Type
@@ -96,7 +132,6 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 				// ignore unexported field
 				continue
 			}
-			// todo: 优化一下？ idxes := append(parentIdx, index)
 			var idxes []int
 			if len(parentIdx) > 0 {
 				idxes = append(idxes, parentIdx...)

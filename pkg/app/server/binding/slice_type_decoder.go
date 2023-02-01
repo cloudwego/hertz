@@ -1,11 +1,51 @@
-package binding_v2
+/*
+ * Copyright 2022 CloudWeGo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * MIT License
+ *
+ * Copyright (c) 2019-present Fenny and Contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * This file may have been modified by CloudWeGo authors. All CloudWeGo
+ * Modifications are Copyright 2022 CloudWeGo Authors
+ */
+
+package binding
 
 import (
 	"fmt"
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/app/server/binding_v2/text_decoder"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/text_decoder"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
@@ -26,7 +66,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
-		// todo: 数组默认值
+		// todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
 			break
@@ -74,8 +114,6 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 	return nil
 }
 
-// 数组/切片类型的decoder，
-// 对于map和struct类型的数组元素直接使用unmarshal，不做嵌套处理
 func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
 	if !(field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array) {
 		return nil, fmt.Errorf("unexpected type %s, expected slice or array", field.Type.String())
@@ -125,7 +163,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 
 func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
-	// todo：自定义类型解析
+	// todo: customized type binding
 
 	switch elemType.Kind() {
 	case reflect.Struct:
@@ -137,7 +175,7 @@ func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err err
 	default:
 		decoder, err := text_decoder.SelectTextDecoder(elemType)
 		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unsupport type %s for slice/array", elemType.String())
+			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
 		}
 		err = decoder.UnmarshalString(text, v)
 		if err != nil {
@@ -145,5 +183,5 @@ func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err err
 		}
 	}
 
-	return v, nil
+	return v, err
 }

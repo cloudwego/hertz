@@ -1419,7 +1419,7 @@ func TestRequestContext_GetResponse(t *testing.T) {
 func TestBindAndValidate(t *testing.T) {
 	type Test struct {
 		A string `query:"a"`
-		B int    `query:"b" vd:"$>10"`
+		B int    `query:"b" validate:"gt=10"`
 	}
 
 	c := &RequestContext{}
