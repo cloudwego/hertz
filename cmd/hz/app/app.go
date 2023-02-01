@@ -136,7 +136,7 @@ func Init() *cli.App {
 	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "turn on verbose mode", Destination: &globalArgs.Verbose}
 
 	idlFlag := cli.StringSliceFlag{Name: "idl", Usage: "Specify the IDL file path. (.thrift or .proto)"}
-	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name to generate go.mod.", Destination: &globalArgs.Gomod}
+	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name.", Destination: &globalArgs.Gomod}
 	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name.", Destination: &globalArgs.ServiceName}
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
 	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
@@ -212,6 +212,7 @@ func Init() *cli.App {
 			Usage: "Update an existing Hertz project",
 			Flags: []cli.Flag{
 				&idlFlag,
+				&moduleFlag,
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
