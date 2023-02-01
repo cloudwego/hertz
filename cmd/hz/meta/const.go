@@ -65,9 +65,9 @@ const (
 
 // Package Dir
 const (
-	ModelDir   = "biz/model"
-	RouterDir  = "biz/router"
-	HandlerDir = "biz/handler"
+	ModelDir   = "internal/model"
+	RouterDir  = "internal/router"
+	HandlerDir = "internal/handler"
 )
 
 // Backend Model Backends

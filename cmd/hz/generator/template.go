@@ -44,7 +44,7 @@ const (
 
 type Template struct {
 	Default        bool           // Update command behavior; skip/cover/append
-	Path           string         `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
+	Path           string         `yaml:"path"`            // The generated path and its filename, such as internal/handler/ping.go
 	Delims         [2]string      `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
 	Body           string         `yaml:"body"`            // Render template, currently only supports go template syntax
 	LoopMethod     bool           `yaml:"loop_method"`     // Loop generate files based on "method"

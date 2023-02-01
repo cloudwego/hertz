@@ -53,10 +53,10 @@ func TestFixModelPathAndPackage(t *testing.T) {
 	plu.ModelDir = meta.ModelDir
 	// default model dir
 	ret1 := [][]string{
-		{"a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
-		{"biz/model/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
-		{"cloudwego/hertz/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
-		{"cloudwego/hertz/biz/model/a/b/c", "cloudwego/hertz/biz/model/a/b/c"},
+		{"a/b/c", "cloudwego/hertz/internal/model/a/b/c"},
+		{"internal/model/a/b/c", "cloudwego/hertz/internal/model/a/b/c"},
+		{"cloudwego/hertz/a/b/c", "cloudwego/hertz/internal/model/a/b/c"},
+		{"cloudwego/hertz/internal/model/a/b/c", "cloudwego/hertz/internal/model/a/b/c"},
 	}
 	for _, r := range ret1 {
 		tmp := r[0]

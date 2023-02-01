@@ -23,15 +23,15 @@ import "path/filepath"
 const (
 	sp = string(filepath.Separator)
 
-	defaultBizDir     = "biz"
-	defaultModelDir   = "biz" + sp + "model"
-	defaultHandlerDir = "biz" + sp + "handler"
-	defaultServiceDir = "biz" + sp + "service"
-	defaultDalDir     = "biz" + sp + "dal"
+	defaultBizDir     = "internal"
+	defaultModelDir   = "internal" + sp + "model"
+	defaultHandlerDir = "internal" + sp + "handler"
+	defaultServiceDir = "internal" + sp + "service"
+	defaultDalDir     = "internal" + sp + "dal"
 	defaultScriptDir  = "script"
 	defaultConfDir    = "conf"
-	defaultRouterDir  = "biz" + sp + "router"
-	defaultClientDir  = "biz" + sp + "client"
+	defaultRouterDir  = "internal" + sp + "router"
+	defaultClientDir  = "internal" + sp + "client"
 )
 
 const (
