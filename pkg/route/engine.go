@@ -292,7 +292,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
-	ch := make(chan struct{})
+	ch := make(chan struct{}, 1)
 	// trigger hooks if any
 	go engine.executeOnShutdownHooks(ctx, ch)
 
