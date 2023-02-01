@@ -303,6 +303,7 @@ func GenerateLayout(args *config.Argument) error {
 	}
 
 	layout := generator.Layout{
+		OutDir:          args.OutDir,
 		GoModule:        args.Gomod,
 		ServiceName:     args.ServiceName,
 		UseApacheThrift: args.IdlType == meta.IdlThrift,

@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
 	"reflect"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -30,6 +32,7 @@ import (
 
 // Layout contains the basic information of idl
 type Layout struct {
+	OutDir          string
 	GoModule        string
 	ServiceName     string
 	UseApacheThrift bool
@@ -134,10 +137,15 @@ func serviceToLayoutData(service Layout) (map[string]interface{}, error) {
 
 // serviceToRouterData stores the registers function, router import path, handler import path
 func serviceToRouterData(service Layout) (map[string]interface{}, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("get current path failed: %s", err)
+	}
+	outRelDir, _ := filepath.Rel(dir, service.OutDir)
 	return map[string]interface{}{
 		"Registers":      []string{},
-		"RouterPkgPath":  service.GoModule + util.PathToImport(sp+defaultRouterDir, ""),
-		"HandlerPkgPath": service.GoModule + util.PathToImport(sp+defaultHandlerDir, ""),
+		"RouterPkgPath":  path.Clean(util.PathToImport(path.Join(service.GoModule, outRelDir+sp+defaultRouterDir), "")),
+		"HandlerPkgPath": path.Clean(util.PathToImport(path.Join(service.GoModule, outRelDir+sp+defaultHandlerDir), "")),
 	}, nil
 }
 
