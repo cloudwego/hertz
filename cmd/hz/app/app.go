@@ -62,8 +62,7 @@ func Update(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
-	manifest := new(meta.Manifest)
-	err = manifest.Validate(args.OutDir)
+
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
@@ -76,11 +75,6 @@ func Update(c *cli.Context) error {
 		return cli.Exit(err, meta.PluginError)
 	}
 
-	manifest.Version = meta.GoVersion
-	err = manifest.Persist(".")
-	if err != nil {
-		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
-	}
 	return nil
 }
 
@@ -139,8 +133,9 @@ func Init() *cli.App {
 	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name.", Destination: &globalArgs.Gomod}
 	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name.", Destination: &globalArgs.ServiceName}
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
-	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
-	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
+	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler relative path (based on \"out_dir\").", Destination: &globalArgs.HandlerDir}
+	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model relative path (based on \"out_dir\").", Destination: &globalArgs.ModelDir}
+	routerDirFlag := cli.StringFlag{Name: "router_dir", Usage: "Specify the router relative path (based on \"out_dir\").", Destination: &globalArgs.RouterDir}
 	baseDomainFlag := cli.StringFlag{Name: "base_domain", Usage: "Specify the request domain.", Destination: &globalArgs.BaseDomain}
 	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
 
@@ -186,6 +181,7 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
+				&routerDirFlag,
 				&clientDirFlag,
 
 				&includesFlag,
@@ -216,6 +212,7 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
+				&routerDirFlag,
 				&clientDirFlag,
 
 				&includesFlag,

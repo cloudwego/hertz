@@ -86,6 +86,16 @@ func (arg *Argument) Parse(c *cli.Context, cmd string) (*Argument, error) {
 	args := arg.Fork()
 	args.CmdType = cmd
 
+	manifest := new(meta.Manifest)
+	if cmd == meta.CmdUpdate {
+		err := manifest.Validate(args.OutDir)
+		if err != nil {
+			return nil, err
+		}
+
+		args.UpdateByManifest(manifest)
+	}
+
 	err := args.checkPath()
 	if err != nil {
 		return nil, err
@@ -101,6 +111,13 @@ func (arg *Argument) Parse(c *cli.Context, cmd string) (*Argument, error) {
 		return nil, err
 	}
 
+	manifest = args.UpdateManifest(manifest)
+
+	err = manifest.Persist(args.OutDir)
+	if err != nil {
+		return nil, cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
+	}
+
 	return args, nil
 }
 
@@ -113,6 +130,27 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.ProtocOptions = c.StringSlice("protoc")
 	arg.ThriftPlugins = c.StringSlice("thrift-plugins")
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
+}
+
+func (arg *Argument) UpdateManifest(m *meta.Manifest) *meta.Manifest {
+	m.Version = meta.GoVersion.String()
+	m.HandlerDir = arg.HandlerDir
+	m.ModelDir = arg.ModelDir
+	m.RouterDir = arg.RouterDir
+
+	return m
+}
+
+func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
+	if arg.HandlerDir == "" && m.HandlerDir != "" {
+		arg.HandlerDir = m.HandlerDir
+	}
+	if arg.ModelDir == "" && m.ModelDir != "" {
+		arg.ModelDir = m.ModelDir
+	}
+	if arg.RouterDir == "" && m.RouterDir != "" {
+		arg.RouterDir = m.RouterDir
+	}
 }
 
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
