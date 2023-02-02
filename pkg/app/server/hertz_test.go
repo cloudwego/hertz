@@ -157,7 +157,9 @@ func TestLoadHTMLGlob(t *testing.T) {
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
-	assert.DeepEqual(t, "<html>\n<h1>\n    Main website\n</h1>\n</html>", string(b[0:n]))
+	const expected = `<html><h1>Main website</h1></html>`
+
+	assert.DeepEqual(t, expected, string(b[0:n]))
 }
 
 func TestLoadHTMLFiles(t *testing.T) {
