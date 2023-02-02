@@ -83,6 +83,7 @@ type RequestHeader struct {
 	host        []byte
 	contentType []byte
 	userAgent   []byte
+	mulHeader   [][]byte
 
 	h     []argsKV
 	bufKV argsKV
@@ -121,6 +122,7 @@ type ResponseHeader struct {
 
 	contentType []byte
 	server      []byte
+	mulHeader   [][]byte
 
 	h     []argsKV
 	bufKV argsKV
@@ -486,6 +488,7 @@ func (h *ResponseHeader) ResetSkipNormalize() {
 
 	h.h = h.h[:0]
 	h.cookies = h.cookies[:0]
+	h.mulHeader = h.mulHeader[:0]
 }
 
 // ContentLength returns Content-Length header value.
@@ -685,6 +688,94 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 	default:
 		return peekArgBytes(h.h, key)
 	}
+}
+
+// PeekAll returns all header value for the given key.
+//
+// The returned value is valid until the request is released,
+// either though ReleaseResponse or your request handler returning.
+// Any future calls to the Peek* will modify the returned value.
+// Do not store references to returned value. Use ResponseHeader.GetAll(key) instead.
+func (h *ResponseHeader) PeekAll(key string) [][]byte {
+	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	return h.peekAll(k)
+}
+
+func (h *ResponseHeader) peekAll(key []byte) [][]byte {
+	h.mulHeader = h.mulHeader[:0]
+	switch string(key) {
+	case consts.HeaderContentType:
+		if contentType := h.ContentType(); len(contentType) > 0 {
+			h.mulHeader = append(h.mulHeader, contentType)
+		}
+	case consts.HeaderContentEncoding:
+		if contentEncoding := h.ContentEncoding(); len(contentEncoding) > 0 {
+			h.mulHeader = append(h.mulHeader, contentEncoding)
+		}
+	case consts.HeaderServer:
+		if server := h.Server(); len(server) > 0 {
+			h.mulHeader = append(h.mulHeader, server)
+		}
+	case consts.HeaderConnection:
+		if h.ConnectionClose() {
+			h.mulHeader = append(h.mulHeader, bytestr.StrClose)
+		} else {
+			h.mulHeader = peekAllArgBytesToDst(h.mulHeader, h.h, key)
+		}
+	case consts.HeaderContentLength:
+		h.mulHeader = append(h.mulHeader, h.contentLengthBytes)
+	case consts.HeaderSetCookie:
+		h.mulHeader = append(h.mulHeader, appendResponseCookieBytes(nil, h.cookies))
+	default:
+		h.mulHeader = peekAllArgBytesToDst(h.mulHeader, h.h, key)
+	}
+	return h.mulHeader
+}
+
+// PeekAll returns all header value for the given key.
+//
+// The returned value is valid until the request is released,
+// either though ReleaseRequest or your request handler returning.
+// Any future calls to the Peek* will modify the returned value.
+// Do not store references to returned value. Use RequestHeader.GetAll(key) instead.
+func (h *RequestHeader) PeekAll(key string) [][]byte {
+	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	return h.peekAll(k)
+}
+
+func (h *RequestHeader) peekAll(key []byte) [][]byte {
+	h.mulHeader = h.mulHeader[:0]
+	switch string(key) {
+	case consts.HeaderHost:
+		if host := h.Host(); len(host) > 0 {
+			h.mulHeader = append(h.mulHeader, host)
+		}
+	case consts.HeaderContentType:
+		if contentType := h.ContentType(); len(contentType) > 0 {
+			h.mulHeader = append(h.mulHeader, contentType)
+		}
+	case consts.HeaderUserAgent:
+		if ua := h.UserAgent(); len(ua) > 0 {
+			h.mulHeader = append(h.mulHeader, ua)
+		}
+	case consts.HeaderConnection:
+		if h.ConnectionClose() {
+			h.mulHeader = append(h.mulHeader, bytestr.StrClose)
+		} else {
+			h.mulHeader = peekAllArgBytesToDst(h.mulHeader, h.h, key)
+		}
+	case consts.HeaderContentLength:
+		h.mulHeader = append(h.mulHeader, h.contentLengthBytes)
+	case consts.HeaderCookie:
+		if h.cookiesCollected {
+			h.mulHeader = append(h.mulHeader, appendRequestCookieBytes(nil, h.cookies))
+		} else {
+			h.mulHeader = peekAllArgBytesToDst(h.mulHeader, h.h, key)
+		}
+	default:
+		h.mulHeader = peekAllArgBytesToDst(h.mulHeader, h.h, key)
+	}
+	return h.mulHeader
 }
 
 // SetContentTypeBytes sets Content-Type header value.
@@ -1299,6 +1390,7 @@ func (h *RequestHeader) ResetSkipNormalize() {
 	h.cookiesCollected = false
 
 	h.rawHeaders = h.rawHeaders[:0]
+	h.mulHeader = h.mulHeader[:0]
 }
 
 func peekRawHeader(buf, key []byte) []byte {
@@ -1480,6 +1572,28 @@ func (h *RequestHeader) Get(key string) string {
 
 func (h *ResponseHeader) Get(key string) string {
 	return string(h.Peek(key))
+}
+
+// GetAll returns all header value for the given key
+// it is concurrent safety and long lifetime.
+func (h *RequestHeader) GetAll(key string) []string {
+	res := make([]string, 0)
+	headers := h.PeekAll(key)
+	for _, header := range headers {
+		res = append(res, string(header))
+	}
+	return res
+}
+
+// GetAll returns all header value for the given key and is concurrent safety.
+// it is concurrent safety and long lifetime.
+func (h *ResponseHeader) GetAll(key string) []string {
+	res := make([]string, 0)
+	headers := h.PeekAll(key)
+	for _, header := range headers {
+		res = append(res, string(header))
+	}
+	return res
 }
 
 func appendHeaderLine(dst, key, value []byte) []byte {

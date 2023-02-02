@@ -48,7 +48,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -70,7 +69,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -1897,24 +1895,13 @@ func (m *mockDialer) DialConnection(network, address string, timeout time.Durati
 	return m.Dialer.DialConnection(m.network, m.address, m.timeout, tlsConfig)
 }
 
-func newMockDialerWithCustomFunc(network, address string, timeout time.Duration, f func(network, address string, timeout time.Duration, tlsConfig *tls.Config)) network.Dialer {
-	dialer := standard.NewDialer()
-	if rand.Intn(2) == 0 {
-		dialer = netpoll.NewDialer()
-	}
-	return &mockDialer{
-		Dialer:           dialer,
-		customDialerFunc: f,
-		network:          network,
-		address:          address,
-		timeout:          timeout,
-	}
-}
-
 func TestClientRetry(t *testing.T) {
 	t.Parallel()
 	client, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		// Default dial function performs different in different os. So unit the performance of dial function.
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(3),
 			retry.WithInitDelay(100*time.Millisecond),
@@ -1943,7 +1930,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client2, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(500*time.Millisecond),
@@ -1972,7 +1961,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client3, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(100*time.Millisecond),
@@ -2002,7 +1993,9 @@ func TestClientRetry(t *testing.T) {
 	}
 
 	client4, err := NewClient(
-		WithDialTimeout(2*time.Second),
+		WithDialFunc(func(addr string) (network.Conn, error) {
+			return nil, fmt.Errorf("dial tcp %s: i/o timeout", addr)
+		}),
 		WithRetryConfig(
 			retry.WithMaxAttemptTimes(2),
 			retry.WithInitDelay(1*time.Second),
@@ -2045,12 +2038,12 @@ func TestClientDialerName(t *testing.T) {
 		t.Errorf("expected 'netpoll', but get %s", dName)
 	}
 
-	client, _ = NewClient(WithDialer(netpoll.NewDialer()))
+	client, _ = NewClient(WithDialer(&mockDialer{}))
 	dName, err = client.GetDialerName()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if dName != "netpoll" {
+	if dName != "client" {
 		t.Errorf("expected 'standard', but get %s", dName)
 	}
 

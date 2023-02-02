@@ -180,8 +180,7 @@ type customDialer struct {
 	dialFunc network.DialFunc
 }
 
-func (m *customDialer) DialConnection(network, address string, timeout time.Duration,
-	tlsConfig *tls.Config) (conn network.Conn, err error) {
+func (m *customDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
 	if m.dialFunc != nil {
 		return m.dialFunc(address)
 	}
