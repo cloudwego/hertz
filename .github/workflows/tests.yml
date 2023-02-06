@@ -16,17 +16,12 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
 
-      - uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Golangci Lint
         # https://golangci-lint.run/
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+          skip-cache: true
       - name: Unit Test
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
@@ -46,11 +41,5 @@ jobs:
         with:
           go-version: ${{ matrix.version }}
 
-      - uses: actions/cache@v3
-        with:
-          path: $HOME/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: Unit Test
         run: go test -race -covermode=atomic  ./...
