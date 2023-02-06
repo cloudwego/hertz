@@ -25,6 +25,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 )
@@ -166,6 +167,7 @@ func (tg *TemplateGenerator) Generate(input interface{}, tplName, filepath strin
 		if all == nil {
 			all = map[string]interface{}{}
 		}
+		all["hzVersion"] = meta.Version
 	}
 
 	file := bytes.NewBuffer(nil)

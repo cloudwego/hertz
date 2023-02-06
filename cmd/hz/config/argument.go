@@ -18,13 +18,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
+	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"github.com/urfave/cli/v2"
 )
 
@@ -185,7 +185,7 @@ func (arg *Argument) checkIDL() error {
 	return nil
 }
 
-func (arg Argument) IsUpdate() bool {
+func (arg *Argument) IsUpdate() bool {
 	return arg.CmdType == meta.CmdUpdate
 }
 

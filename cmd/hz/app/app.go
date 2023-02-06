@@ -77,12 +77,14 @@ func Update(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
+	// update argument by ".hz", can automatically get "handler_dir"/"model_dir"/"router_dir"
 	args.UpdateByManifest(manifest)
 
 	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
+	// If the "handler_dir"/"model_dir" is updated, write it back to ".hz"
 	args.UpdateManifest(manifest)
 	err = manifest.Persist(args.OutDir)
 	if err != nil {
