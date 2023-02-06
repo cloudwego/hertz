@@ -160,6 +160,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			if err != nil {
 				return nil, err
 			}
+
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
 			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
