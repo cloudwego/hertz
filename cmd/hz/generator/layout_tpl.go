@@ -35,8 +35,8 @@ const (
 )
 
 const (
-	routerGenIndex = 9
-	routerIndex    = 10
+	routerGenIndex = 8
+	routerIndex    = 9
 
 	RegisterFile = "router_gen.go"
 )

@@ -53,6 +53,13 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
+	// ".hz" file converges to the hz tool
+	manifest := new(meta.Manifest)
+	args.InitManifest(manifest)
+	err = manifest.Persist(args.OutDir)
+	if err != nil {
+		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
+	}
 	return nil
 }
 
@@ -62,17 +69,24 @@ func Update(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
 
+	manifest := new(meta.Manifest)
+	err = manifest.InitAndValidate(args.OutDir)
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
-
-	setLogVerbose(args.Verbose)
-	logs.Debugf("Args: %#v\n", args)
+	args.UpdateByManifest(manifest)
 
 	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
+	}
+	args.UpdateManifest(manifest)
+	err = manifest.Persist(args.OutDir)
+	if err != nil {
+		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
 
 	return nil
@@ -212,7 +226,6 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
-				&routerDirFlag,
 				&clientDirFlag,
 
 				&includesFlag,
@@ -305,6 +318,9 @@ func GenerateLayout(args *config.Argument) error {
 		ServiceName:     args.ServiceName,
 		UseApacheThrift: args.IdlType == meta.IdlThrift,
 		HasIdl:          0 != len(args.IdlPaths),
+		ModelDir:        args.ModelDir,
+		HandlerDir:      args.HandlerDir,
+		RouterDir:       args.RouterDir,
 	}
 
 	if args.CustomizeLayout == "" {

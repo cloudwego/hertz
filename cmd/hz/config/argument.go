@@ -18,6 +18,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,16 +87,6 @@ func (arg *Argument) Parse(c *cli.Context, cmd string) (*Argument, error) {
 	args := arg.Fork()
 	args.CmdType = cmd
 
-	manifest := new(meta.Manifest)
-	if cmd == meta.CmdUpdate {
-		err := manifest.Validate(args.OutDir)
-		if err != nil {
-			return nil, err
-		}
-
-		args.UpdateByManifest(manifest)
-	}
-
 	err := args.checkPath()
 	if err != nil {
 		return nil, err
@@ -109,13 +100,6 @@ func (arg *Argument) Parse(c *cli.Context, cmd string) (*Argument, error) {
 	err = args.checkPackage()
 	if err != nil {
 		return nil, err
-	}
-
-	manifest = args.UpdateManifest(manifest)
-
-	err = manifest.Persist(args.OutDir)
-	if err != nil {
-		return nil, cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
 
 	return args, nil
@@ -132,23 +116,17 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
 }
 
-func (arg *Argument) UpdateManifest(m *meta.Manifest) *meta.Manifest {
-	m.Version = meta.GoVersion.String()
-	m.HandlerDir = arg.HandlerDir
-	m.ModelDir = arg.ModelDir
-	m.RouterDir = arg.RouterDir
-
-	return m
-}
-
 func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
 	if arg.HandlerDir == "" && m.HandlerDir != "" {
+		logs.Infof("use \"handler_dir\" in \".hz\" as the handler generated dir\n")
 		arg.HandlerDir = m.HandlerDir
 	}
 	if arg.ModelDir == "" && m.ModelDir != "" {
+		logs.Infof("use \"model_dir\" in \".hz\" as the model generated dir\n")
 		arg.ModelDir = m.ModelDir
 	}
-	if arg.RouterDir == "" && m.RouterDir != "" {
+	if len(m.RouterDir) != 0 {
+		logs.Infof("use \"router_dir\" in \".hz\" as the router generated dir\n")
 		arg.RouterDir = m.RouterDir
 	}
 }
@@ -367,4 +345,33 @@ func (arg *Argument) GetClientDir() (string, error) {
 		return "", nil
 	}
 	return util.RelativePath(arg.ClientDir)
+}
+
+func (arg *Argument) InitManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+
+	sp := string(filepath.Separator)
+	m.HandlerDir = arg.HandlerDir
+	if len(arg.HandlerDir) == 0 {
+		m.HandlerDir = "biz" + sp + "handler"
+	}
+	m.ModelDir = arg.ModelDir
+	if len(arg.ModelDir) == 0 {
+		m.ModelDir = "biz" + sp + "model"
+	}
+	m.RouterDir = arg.RouterDir
+	if len(arg.RouterDir) == 0 {
+		m.RouterDir = "biz" + sp + "router"
+	}
+}
+
+func (arg *Argument) UpdateManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+	if arg.HandlerDir != m.HandlerDir {
+		m.HandlerDir = arg.HandlerDir
+	}
+	if arg.HandlerDir != m.ModelDir {
+		m.ModelDir = arg.ModelDir
+	}
+	// "router_dir" must not be defined by "update" command
 }
