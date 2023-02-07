@@ -97,7 +97,7 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 
-	cf, _ := util.GetColonPair(args.CustomizePackage)
+	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		logs.Errorf("get go package failed: %s", err.Error())

@@ -560,7 +560,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		return nil, err
 	}
 
-	cf, _ := util.GetColonPair(args.CustomizePackage)
+	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		return nil, err

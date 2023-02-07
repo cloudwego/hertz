@@ -213,8 +213,8 @@ func GetFirstKV(m map[string][]string) (string, []string) {
 	return "", nil
 }
 
-func GetColonPair(str string) (string, string) {
-	ps := strings.Split(str, ":")
+func GetVerticalBarPair(str string) (string, string) {
+	ps := strings.Split(str, "|")
 	if len(ps) != 2 {
 		return "", ""
 	}
