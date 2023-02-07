@@ -349,7 +349,6 @@ func (arg *Argument) GetClientDir() (string, error) {
 
 func (arg *Argument) InitManifest(m *meta.Manifest) {
 	m.Version = meta.Version
-
 	m.HandlerDir = arg.HandlerDir
 	m.ModelDir = arg.ModelDir
 	m.RouterDir = arg.RouterDir
