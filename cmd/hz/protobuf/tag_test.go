@@ -17,7 +17,7 @@
 package protobuf
 
 import (
-	"os"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -104,7 +104,7 @@ func TestTagGenerate(t *testing.T) {
 		},
 	}
 
-	in, err := os.ReadFile("./test_data/protobuf_tag_test.out")
+	in, err := ioutil.ReadFile("./test_data/protobuf_tag_test.out")
 	if err != nil {
 		t.Fatal(err)
 	}

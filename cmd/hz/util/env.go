@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/build"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +85,7 @@ var goModReg = regexp.MustCompile(`^\s*module\s+(\S+)\s*`)
 func SearchGoMod(cwd string, recurse bool) (moduleName, path string, found bool) {
 	for {
 		path = filepath.Join(cwd, "go.mod")
-		data, err := os.ReadFile(path)
+		data, err := ioutil.ReadFile(path)
 		if err == nil {
 			for _, line := range strings.Split(string(data), "\n") {
 				m := goModReg.FindStringSubmatch(line)

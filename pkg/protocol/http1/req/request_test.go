@@ -47,6 +47,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/url"
 	"strings"
@@ -659,7 +660,7 @@ func TestRequestReadPostNoBody(t *testing.T) {
 		t.Fatalf("unexpected content-length: %d. Expecting 0", r.Header.ContentLength())
 	}
 
-	tail, err := io.ReadAll(zr)
+	tail, err := ioutil.ReadAll(zr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1123,7 +1124,7 @@ tailfoobar`
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	tail, err := io.ReadAll(mr)
+	tail, err := ioutil.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1204,7 +1205,7 @@ func testReadIncompleteStream(t *testing.T, header, body string) {
 	if err := ContinueReadBodyStream(&r, mr, 1, true); err != nil {
 		t.Fatalf("error when reading request body stream: %s", err)
 	}
-	readBody, err := io.ReadAll(r.BodyStream())
+	readBody, err := ioutil.ReadAll(r.BodyStream())
 	if !bytes.Equal(readBody, []byte(body)) || len(readBody) != len(body) {
 		t.Fatalf("readBody is not equal to the rawBody: %b(len: %d)", readBody, len(readBody))
 	}
@@ -1234,7 +1235,7 @@ func testReadChunked(t *testing.T, header, body string, firstRead, leftBytes int
 	if fr != firstRead {
 		t.Fatalf("should read %d from stream body, but got %d", streamRead, fr)
 	}
-	leftB, _ := io.ReadAll(r.BodyStream())
+	leftB, _ := ioutil.ReadAll(r.BodyStream())
 	if len(leftB) != leftBytes {
 		t.Fatalf("should left %d bytes from stream body, but left %d", leftBytes, len(leftB))
 	}
@@ -1257,7 +1258,7 @@ func testContinueReadBodyStream(t *testing.T, header, body string, maxBodySize, 
 		t.Fatalf("should read %d from stream body, but got %d", firstRead, sR)
 	}
 
-	leftB, _ := io.ReadAll(r.BodyStream())
+	leftB, _ := ioutil.ReadAll(r.BodyStream())
 	if len(leftB) != leftBytes {
 		t.Fatalf("should left %d bytes from stream body, but left %d", leftBytes, len(leftB))
 	}
@@ -1329,7 +1330,7 @@ tailfoobar`
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	tail, err := io.ReadAll(mr)
+	tail, err := ioutil.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

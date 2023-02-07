@@ -18,6 +18,7 @@ package meta
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,7 +43,7 @@ func init() {
 var regVersion = regexp.MustCompile(`hz version: v([0-9a-z.]*)`)
 
 func (manifest *Manifest) Validate(dir string) error {
-	rd, err := os.ReadFile(filepath.Join(dir, ManifestFile))
+	rd, err := ioutil.ReadFile(filepath.Join(dir, ManifestFile))
 	if err != nil {
 		return err
 	}

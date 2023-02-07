@@ -43,6 +43,7 @@ package route
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -397,7 +398,7 @@ func TestRouteParamsByNameWithExtraSlash(t *testing.T) {
 func TestRouteStaticFile(t *testing.T) {
 	// SETUP file
 	testRoot, _ := os.Getwd()
-	f, err := os.CreateTemp(testRoot, "")
+	f, err := ioutil.TempFile(testRoot, "")
 	if err != nil {
 		t.Error(err)
 	}

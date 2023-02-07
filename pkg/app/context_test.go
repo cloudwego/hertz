@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"reflect"
 	"strings"
 	"testing"
@@ -401,7 +401,7 @@ tailfoobar`
 	if err := req.Read(&ctx.Request, mr); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	tail, err := io.ReadAll(mr)
+	tail, err := ioutil.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
