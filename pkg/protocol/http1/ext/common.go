@@ -61,9 +61,6 @@ const maxContentLengthInStream = 8 * 1024
 
 var errBrokenChunk = errs.NewPublic("cannot find crlf at the end of chunk").SetMeta("when read body chunk")
 
-// Deprecated: Use github.com/cloudwego/hertz/pkg/protocol.NoBody instead.
-var NoBody = protocol.NoBody
-
 func MustPeekBuffered(r network.Reader) []byte {
 	l := r.Len()
 	buf, err := r.Peek(l)

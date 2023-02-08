@@ -63,6 +63,9 @@ var (
 	}
 )
 
+// Deprecated: Use github.com/cloudwego/hertz/pkg/protocol.NoBody instead.
+var NoBody = protocol.NoBody
+
 type bodyStream struct {
 	prefetchedBytes *bytes.Reader
 	reader          network.Reader
