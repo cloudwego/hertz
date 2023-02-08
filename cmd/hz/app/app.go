@@ -157,8 +157,8 @@ func Init() *cli.App {
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
 	protoCamelJSONTag := cli.BoolFlag{Name: "pb_camel_json_tag", Usage: "Convert Name style for json tag to camel(Only works protobuf).", Destination: &globalArgs.ProtobufCamelJSONTag}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
-	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}:{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
-	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}:)", Destination: &globalArgs.CustomizePackage}
+	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}|{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
+	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}|)", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
 
 	// app
@@ -318,9 +318,9 @@ func GenerateLayout(args *config.Argument) error {
 		}
 	} else {
 		// generate by customized layout
-		sp := strings.Split(args.CustomizeLayout, ":")
+		sp := strings.Split(args.CustomizeLayout, "|")
 		if len(sp) != 2 || sp[0] == "" {
-			return errors.New("custom_layout must be like: {{layout_config_path}}:{{template_data_config_path}}")
+			return errors.New("custom_layout must be like: {{layout_config_path}}|{{template_data_config_path}}")
 		}
 		configPath, dataPath := sp[0], sp[1]
 		logs.Infof("get customized layout info, layout_config_path: %s, template_data_path: %s", configPath, dataPath)

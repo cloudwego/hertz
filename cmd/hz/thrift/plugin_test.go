@@ -54,7 +54,7 @@ func TestRun(t *testing.T) {
 	}
 
 	args := plu.args
-	cf, _ := util.GetColonPair(args.CustomizePackage)
+	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		t.Fatal(err)
