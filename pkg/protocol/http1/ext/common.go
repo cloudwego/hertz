@@ -43,14 +43,17 @@ package ext
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -253,6 +256,10 @@ func readBodyChunked(r network.Reader, maxBodySize int, dst []byte) ([]byte, err
 		if err != nil {
 			return dst, err
 		}
+		// If it is the end of chunk, Read CRLF after reading trailer
+		if chunkSize == 0 {
+			return dst, nil
+		}
 		if maxBodySize > 0 && len(dst)+chunkSize > maxBodySize {
 			return dst, errBodyTooLarge
 		}
@@ -264,9 +271,6 @@ func readBodyChunked(r network.Reader, maxBodySize int, dst []byte) ([]byte, err
 			return dst, errBrokenChunk
 		}
 		dst = dst[:len(dst)-strCRLFLen]
-		if chunkSize == 0 {
-			return dst, nil
-		}
 	}
 }
 
@@ -293,7 +297,11 @@ func writeChunk(w network.Writer, b []byte) (err error) {
 	if _, err = w.WriteBinary(b); err != nil {
 		return err
 	}
-	w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
+
+	// If it is the end of chunk, write CRLF after writing trailer
+	if n > 0 {
+		w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
+	}
 
 	err = w.Flush()
 	return
@@ -377,4 +385,89 @@ func stripSpace(b []byte) []byte {
 		b = b[:len(b)-1]
 	}
 	return b
+}
+
+func ReadTrailer(t *protocol.Trailer, r network.Reader) error {
+	n := 1
+	for {
+		err := tryReadTrailer(t, r, n)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, errs.ErrNeedMore) {
+			t.ResetSkipNormalize()
+			return err
+		}
+		// No more data available on the wire, try block peek(by netpoll)
+		if n == r.Len() {
+			n++
+
+			continue
+		}
+		n = r.Len()
+	}
+}
+
+func tryReadTrailer(t *protocol.Trailer, r network.Reader, n int) error {
+	b, err := r.Peek(n)
+	if len(b) == 0 {
+		// Return ErrTimeout on any timeout.
+		if err != nil && strings.Contains(err.Error(), "timeout") {
+			return errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read response header")
+		}
+
+		if n == 1 || err == io.EOF {
+			return io.EOF
+		}
+
+		return errs.NewPublicf("error when reading request trailer: %w", err)
+	}
+	b = MustPeekBuffered(r)
+	headersLen, errParse := parseTrailer(t, b)
+	if errParse != nil {
+		if err == io.EOF {
+			return err
+		}
+		return HeaderError("response", err, errParse, b)
+	}
+	MustDiscard(r, headersLen)
+	return nil
+}
+
+func parseTrailer(t *protocol.Trailer, buf []byte) (int, error) {
+	// Skip any 0 length chunk.
+	if buf[0] == '0' {
+		skip := len(bytestr.StrCRLF) + 1
+		if len(buf) < skip {
+			return 0, io.EOF
+		}
+		buf = buf[skip:]
+	}
+
+	var s HeaderScanner
+	s.B = buf
+	s.DisableNormalizing = t.IsDisableNormalizing()
+	var err error
+	for s.Next() {
+		if len(s.Key) > 0 {
+			if bytes.IndexByte(s.Key, ' ') != -1 || bytes.IndexByte(s.Key, '\t') != -1 {
+				err = fmt.Errorf("invalid trailer key %q", s.Key)
+				continue
+			}
+			err = t.UpdateArgBytes(s.Key, s.Value)
+		}
+	}
+	if s.Err != nil {
+		return 0, s.Err
+	}
+	if err != nil {
+		return 0, err
+	}
+	return s.HLen, nil
+}
+
+// writeTrailer writes response trailer to w
+func WriteTrailer(t *protocol.Trailer, w network.Writer) error {
+	_, err := w.WriteBinary(t.Header())
+	return err
 }

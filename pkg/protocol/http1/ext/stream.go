@@ -50,6 +50,7 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 var (
@@ -62,24 +63,17 @@ var (
 	}
 )
 
+// Deprecated: Use github.com/cloudwego/hertz/pkg/protocol.NoBody instead.
+var NoBody = protocol.NoBody
+
 type bodyStream struct {
 	prefetchedBytes *bytes.Reader
 	reader          network.Reader
+	trailer         *protocol.Trailer
 	offset          int
 	contentLength   int
 	chunkLeft       int
 }
-
-// NoBody is an io.ReadCloser with no bytes. Read always returns EOF
-// and Close always returns nil. It can be used in an outgoing client
-// request to explicitly signal that a request has zero bytes.
-// An alternative, however, is to simply set Request.Body to nil.
-var NoBody = noBody{}
-
-type noBody struct{}
-
-func (noBody) Read([]byte) (int, error) { return 0, io.EOF }
-func (noBody) Close() error             { return nil }
 
 func ReadBodyWithStreaming(zr network.Reader, contentLength, maxBodySize int, dst []byte) (b []byte, err error) {
 	if contentLength == -1 {
@@ -114,11 +108,12 @@ func ReadBodyWithStreaming(zr network.Reader, contentLength, maxBodySize int, ds
 	return b, nil
 }
 
-func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, contentLength int) io.Reader {
+func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, t *protocol.Trailer, contentLength int) io.Reader {
 	rs := bodyStreamPool.Get().(*bodyStream)
 	rs.prefetchedBytes = bytes.NewReader(b.B)
 	rs.reader = r
 	rs.contentLength = contentLength
+	rs.trailer = t
 
 	return rs
 }
@@ -136,7 +131,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 				return 0, err
 			}
 			if chunkSize == 0 {
-				err = utils.SkipCRLF(rs.reader)
+				err = ReadTrailer(rs.trailer, rs.reader)
 				if err == nil {
 					err = io.EOF
 				}
@@ -274,6 +269,7 @@ func ReleaseBodyStream(requestReader io.Reader) (err error) {
 		rs.prefetchedBytes = nil
 		rs.offset = 0
 		rs.reader = nil
+		rs.trailer = nil
 		bodyStreamPool.Put(rs)
 	}
 	return

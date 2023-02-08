@@ -62,7 +62,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
 var (
@@ -74,6 +73,17 @@ var (
 
 	requestPool sync.Pool
 )
+
+// NoBody is an io.ReadCloser with no bytes. Read always returns EOF
+// and Close always returns nil. It can be used in an outgoing client
+// request to explicitly signal that a request has zero bytes.
+// An alternative, however, is to simply set Request.Body to nil.
+var NoBody = noBody{}
+
+type noBody struct{}
+
+func (noBody) Read([]byte) (int, error) { return 0, io.EOF }
+func (noBody) Close() error             { return nil }
 
 type Request struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
@@ -615,12 +625,12 @@ func (req *Request) HasMultipartForm() bool {
 
 // IsBodyStream returns true if body is set via SetBodyStream*
 func (req *Request) IsBodyStream() bool {
-	return req.bodyStream != nil && req.bodyStream != ext.NoBody
+	return req.bodyStream != nil && req.bodyStream != NoBody
 }
 
 func (req *Request) BodyStream() io.Reader {
 	if req.bodyStream == nil {
-		req.bodyStream = ext.NoBody
+		req.bodyStream = NoBody
 	}
 	return req.bodyStream
 }

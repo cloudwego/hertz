@@ -17,8 +17,6 @@
 package assert
 
 import (
-	"bytes"
-	"io"
 	"reflect"
 	"testing"
 )
@@ -113,14 +111,4 @@ func NotPanic(t testing.TB, fn func()) {
 		}
 	}()
 	fn()
-}
-
-func VerifyTrailer(t *testing.T, r io.Reader, expectedTrailer string) {
-	trailer, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("Cannot read trailer: %s", err)
-	}
-	if !bytes.Equal(trailer, []byte(expectedTrailer)) {
-		t.Fatalf("Unexpected trailer %q. Expected %q", trailer, expectedTrailer)
-	}
 }

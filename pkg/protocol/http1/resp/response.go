@@ -106,6 +106,8 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		}
 	}
 
+	var cLen int
+
 	if !resp.MustSkipBody() {
 		bodyBuf := resp.BodyBuffer()
 		bodyBuf.Reset()
@@ -113,8 +115,20 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		if err != nil {
 			return err
 		}
-		resp.Header.SetContentLength(len(bodyBuf.B))
+		cLen = len(bodyBuf.B)
 	}
+
+	if resp.Header.ContentLength() == -1 {
+		err = ext.ReadTrailer(resp.Header.Trailer(), r)
+		if err != nil && err != io.EOF {
+			return err
+		}
+	}
+
+	if !resp.MustSkipBody() {
+		resp.Header.SetContentLength(cLen)
+	}
+
 	return nil
 }
 
@@ -179,13 +193,13 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 	bodyBuf.B, err = ext.ReadBodyWithStreaming(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
 	if err != nil {
 		if errors.Is(err, errs.ErrBodyTooLarge) {
-			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.ContentLength())
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), resp.Header.ContentLength())
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
 
 		if errors.Is(err, errs.ErrChunkedStream) {
-			bodyStream := ext.AcquireBodyStream(bodyBuf, r, -1)
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), -1)
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
@@ -194,7 +208,7 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 		return err
 	}
 
-	bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.ContentLength())
+	bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), resp.Header.ContentLength())
 	resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 	return nil
 }
@@ -276,6 +290,9 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 			}
 			if err == nil {
 				err = ext.WriteBodyChunked(w, resp.BodyStream())
+			}
+			if err == nil {
+				err = ext.WriteTrailer(resp.Header.Trailer(), w)
 			}
 		}
 	}
