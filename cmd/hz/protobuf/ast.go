@@ -141,15 +141,28 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 				handlerOutDir = ""
 			}
 
+			// protoGoInfo can get generated "Go Info" for proto file.
+			// the type name may be different between "***.proto" and "***.pb.go"
+			protoGoInfo, exist := gen.FilesByPath[ast.GetName()]
+			if !exist {
+				return nil, fmt.Errorf("file(%s) can not exist", ast.GetName())
+			}
+			methodGoInfo, err := getMethod(protoGoInfo, m)
+			if err != nil {
+				return nil, err
+			}
+			inputGoType := methodGoInfo.Input
+			outputGoType := methodGoInfo.Output
+
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
-			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + sb.Name
+			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
-			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + st.Name
+			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
@@ -191,10 +204,10 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			merges = service.Models
 			merges.MergeMap(method.Models)
 			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
-				reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + sb.Name
+				reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + inputGoType.GoIdent.GoName
 			}
 			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
-				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + st.Name
+				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + outputGoType.GoIdent.GoName
 			}
 			method.RequestTypeName = reqName
 			method.ReturnTypeName = respName
