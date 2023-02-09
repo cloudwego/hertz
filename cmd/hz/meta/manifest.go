@@ -89,7 +89,7 @@ func loadConfigFile(path string) (*Manifest, error) {
 	}
 	var manifest Manifest
 	file = bytes.TrimPrefix(file, []byte(hzTitle))
-	if cmdErr := yaml.Unmarshal(file, &manifest); cmdErr != nil {
+	if err = yaml.Unmarshal(file, &manifest); err != nil {
 		return nil, fmt.Errorf("decode \".hz\" failed, err: %v", err)
 	}
 	return &manifest, nil
