@@ -23,9 +23,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-func createChunkedBody(body, rest []byte) []byte {
+func createChunkedBody(body, rest []byte, trailer map[string]string, hasTrailer bool) []byte {
 	var b []byte
 	chunkSize := 1
 	for len(body) > 0 {
@@ -38,7 +39,16 @@ func createChunkedBody(body, rest []byte) []byte {
 		body = body[chunkSize:]
 		chunkSize++
 	}
-	b = append(b, []byte("0\r\n\r\n")...)
+	if hasTrailer {
+		b = append(b, "0\r\n"...)
+		for k, v := range trailer {
+			b = append(b, k...)
+			b = append(b, ": "...)
+			b = append(b, v...)
+			b = append(b, "\r\n"...)
+		}
+		b = append(b, "\r\n"...)
+	}
 	return append(b, rest...)
 }
 
@@ -46,7 +56,7 @@ func testChunkedSkipRest(t *testing.T, data, rest string) {
 	var pool bytebufferpool.Pool
 	reader := mock.NewZeroCopyReader(data)
 
-	bs := AcquireBodyStream(pool.Get(), reader, -1)
+	bs := AcquireBodyStream(pool.Get(), reader, &protocol.Trailer{}, -1)
 	err := bs.(*bodyStream).skipRest()
 	assert.Nil(t, err)
 
@@ -58,7 +68,7 @@ func testChunkedSkipRest(t *testing.T, data, rest string) {
 func testChunkedSkipRestWithBodySize(t *testing.T, bodySize int) {
 	body := mock.CreateFixedBody(bodySize)
 	rest := mock.CreateFixedBody(bodySize)
-	data := createChunkedBody(body, rest)
+	data := createChunkedBody(body, rest, map[string]string{"foo": "bar"}, true)
 
 	testChunkedSkipRest(t, string(data), string(rest))
 }
@@ -68,6 +78,7 @@ func TestChunkedSkipRest(t *testing.T) {
 
 	testChunkedSkipRest(t, "0\r\n\r\n", "")
 	testChunkedSkipRest(t, "0\r\n\r\nHTTP/1.1 / POST", "HTTP/1.1 / POST")
+	testChunkedSkipRest(t, "0\r\nHertz: test\r\nfoo: bar\r\n\r\nHTTP/1.1 / POST", "HTTP/1.1 / POST")
 
 	testChunkedSkipRestWithBodySize(t, 5)
 

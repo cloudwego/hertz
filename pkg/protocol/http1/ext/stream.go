@@ -251,7 +251,7 @@ func (rs *bodyStream) skipRest() error {
 
 			if chunkSize == 0 {
 				rs.chunkEOF = true
-				return utils.SkipCRLF(rs.reader)
+				return SkipTrailer(rs.reader)
 			}
 
 			err = rs.reader.Skip(chunkSize)
