@@ -17,7 +17,6 @@
 package meta
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +87,6 @@ func loadConfigFile(path string) (*Manifest, error) {
 		return nil, err
 	}
 	var manifest Manifest
-	file = bytes.TrimPrefix(file, []byte(hzTitle))
 	if cmdErr := yaml.Unmarshal(file, &manifest); cmdErr != nil {
 		return nil, fmt.Errorf("decode \".hz\" failed, err: %v", err)
 	}
