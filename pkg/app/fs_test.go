@@ -46,6 +46,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -184,13 +185,13 @@ func TestServeFileSmallNoReadFrom(t *testing.T) {
 
 	teststr := "hello, world!"
 
-	tempdir, err := os.MkdirTemp("", "httpexpect")
+	tempdir, err := ioutil.TempDir("", "httpexpect")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tempdir)
 
-	if err := os.WriteFile(
+	if err := ioutil.WriteFile(
 		path.Join(tempdir, "hello"), []byte(teststr), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +399,7 @@ func getFileContents(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return io.ReadAll(f)
+	return ioutil.ReadAll(f)
 }
 
 func TestParseByteRangeSuccess(t *testing.T) {

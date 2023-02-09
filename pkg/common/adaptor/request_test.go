@@ -18,7 +18,7 @@ package adaptor
 
 import (
 	"context"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,7 +87,7 @@ func makeACall(t *testing.T, method, url string, header http.Header, body string
 		}
 	}
 
-	b, err := io.ReadAll(resp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Read body error: %s", err)
 	}
@@ -116,7 +116,7 @@ func handlerAndCheck(t *testing.T, writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	body, err := io.ReadAll(request.Body)
+	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
 		t.Fatalf("Read body error: %s", err)
 	}

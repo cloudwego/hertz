@@ -17,7 +17,7 @@
 package protobuf
 
 import (
-	"os"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -27,7 +27,7 @@ import (
 )
 
 func TestPlugin_Handle(t *testing.T) {
-	in, err := os.ReadFile("../testdata/request_protoc.out")
+	in, err := ioutil.ReadFile("../testdata/request_protoc.out")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -46,6 +46,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -704,7 +705,7 @@ func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, re
 	}
 	assert.True(t, resp.IsBodyStream())
 
-	body, err := io.ReadAll(resp.BodyStream())
+	body, err := ioutil.ReadAll(resp.BodyStream())
 	if err != nil && err != io.EOF {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -723,7 +724,7 @@ func testResponseReadBodyStreamBadTrailer(t *testing.T, resp *protocol.Response,
 	}
 	assert.True(t, resp.IsBodyStream())
 
-	_, err = io.ReadAll(resp.BodyStream())
+	_, err = ioutil.ReadAll(resp.BodyStream())
 	if err == nil || err == io.EOF {
 		t.Fatalf("expected error when reading response.")
 	}

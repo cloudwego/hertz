@@ -19,7 +19,7 @@ package generator
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"reflect"
 	"text/template"
@@ -73,7 +73,7 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 	customConfig := TemplateConfig{}
 	// unmarshal from user-defined config file if it exists
 	if pkgGen.ConfigPath != "" {
-		cdata, err := os.ReadFile(pkgGen.ConfigPath)
+		cdata, err := ioutil.ReadFile(pkgGen.ConfigPath)
 		if err != nil {
 			return fmt.Errorf("read layout config from  %s failed, err: %v", pkgGen.ConfigPath, err.Error())
 		}
