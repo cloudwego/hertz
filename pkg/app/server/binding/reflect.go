@@ -111,3 +111,11 @@ func GetFieldValue(reqValue reflect.Value, parentIndex []int) reflect.Value {
 
 	return reqValue
 }
+
+func getElemType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	return t
+}

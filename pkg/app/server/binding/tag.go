@@ -22,13 +22,14 @@ import (
 )
 
 const (
-	pathTag    = "path"
-	formTag    = "form"
-	queryTag   = "query"
-	cookieTag  = "cookie"
-	headerTag  = "header"
-	jsonTag    = "json"
-	rawBodyTag = "raw_body"
+	pathTag     = "path"
+	formTag     = "form"
+	queryTag    = "query"
+	cookieTag   = "cookie"
+	headerTag   = "header"
+	jsonTag     = "json"
+	rawBodyTag  = "raw_body"
+	fileNameTag = "file_name"
 )
 
 const (
@@ -58,7 +59,7 @@ func head(str, sep string) (head, tail string) {
 
 func lookupFieldTags(field reflect.StructField) []TagInfo {
 	var ret []string
-	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag}
+	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag}
 	for _, tag := range tags {
 		if _, ok := field.Tag.Lookup(tag); ok {
 			ret = append(ret, tag)
@@ -96,7 +97,7 @@ func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
 		defaultVal = val
 	}
 
-	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag}
+	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, fileNameTag}
 	for _, tag := range tags {
 		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name, Default: defaultVal})
 	}

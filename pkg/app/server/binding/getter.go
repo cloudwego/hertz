@@ -155,3 +155,8 @@ func RawBody(req *protocol.Request, params PathParams, key string, defaultValue 
 	}
 	return
 }
+
+func FileName(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
+	// do nothing
+	return
+}

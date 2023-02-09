@@ -42,6 +42,7 @@ package binding
 
 import (
 	"fmt"
+	"mime/multipart"
 	"reflect"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -126,6 +127,11 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []decoder
 		el := field.Type
+		// todo: built-in bindings for some common structs, code need to be optimized
+		switch el {
+		case reflect.TypeOf(multipart.FileHeader{}):
+			return getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
+		}
 
 		for i := 0; i < el.NumField(); i++ {
 			if !el.Field(i).IsExported() {

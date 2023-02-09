@@ -67,7 +67,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
-		if tagInfo.Key == jsonTag {
+		if tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			continue
 		}
 		if tagInfo.Key == headerTag {
@@ -139,6 +139,8 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 			// do nothing
 		case rawBodyTag:
 			tagInfo.Getter = RawBody
+		case fileNameTag:
+			// do nothing
 		default:
 		}
 	}

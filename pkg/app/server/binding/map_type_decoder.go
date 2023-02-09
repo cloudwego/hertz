@@ -57,7 +57,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParam
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
-		if tagInfo.Key == jsonTag {
+		if tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			continue
 		}
 		if tagInfo.Key == headerTag {
@@ -120,6 +120,8 @@ func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagI
 			// do nothing
 		case rawBodyTag:
 			tagInfo.Getter = RawBody
+		case fileNameTag:
+			// do nothing
 		default:
 		}
 	}

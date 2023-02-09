@@ -42,10 +42,12 @@ package binding
 
 import (
 	"fmt"
+	"mime/multipart"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	req2 "github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -61,6 +63,11 @@ func newMockRequest() *mockRequest {
 
 func (m *mockRequest) SetRequestURI(uri string) *mockRequest {
 	m.Req.SetRequestURI(uri)
+	return m
+}
+
+func (m *mockRequest) SetFile(param, fileName string) *mockRequest {
+	m.Req.SetFile(param, fileName)
 	return m
 }
 
@@ -128,7 +135,7 @@ func TestBind_BaseType(t *testing.T) {
 
 func TestBind_SliceType(t *testing.T) {
 	type Req struct {
-		ID   []int     `query:"id"`
+		ID   *[]int    `query:"id"`
 		Str  [3]string `query:"str"`
 		Byte []byte    `query:"b"`
 	}
@@ -145,9 +152,9 @@ func TestBind_SliceType(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	assert.DeepEqual(t, 3, len(result.ID))
+	assert.DeepEqual(t, 3, len(*result.ID))
 	for idx, val := range IDs {
-		assert.DeepEqual(t, val, result.ID[idx])
+		assert.DeepEqual(t, val, (*result.ID)[idx])
 	}
 	assert.DeepEqual(t, 3, len(result.Str))
 	for idx, val := range Strs {
@@ -575,6 +582,79 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	}
 	for idx, val := range J4s {
 		assert.DeepEqual(t, val, result.J4[idx])
+	}
+}
+
+func TestBind_FileBind(t *testing.T) {
+	type Nest struct {
+		N multipart.FileHeader `file_name:"d"`
+	}
+
+	var s struct {
+		A *multipart.FileHeader `file_name:"a"`
+		B *multipart.FileHeader `form:"b"`
+		C multipart.FileHeader
+		D **Nest `file_name:"d"`
+	}
+	fileName := "binder_test.go"
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetFile("a", fileName).
+		SetFile("b", fileName).
+		SetFile("C", fileName).
+		SetFile("d", fileName)
+	req2 := req2.GetHTTP1Request(req.Req)
+	req2.String()
+	err := DefaultBinder.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, fileName, s.A.Filename)
+	assert.DeepEqual(t, fileName, s.B.Filename)
+	assert.DeepEqual(t, fileName, s.C.Filename)
+	assert.DeepEqual(t, fileName, (**s.D).N.Filename)
+}
+
+func TestBind_FileSliceBind(t *testing.T) {
+	type Nest struct {
+		N *[]*multipart.FileHeader `form:"b"`
+	}
+	var s struct {
+		A []multipart.FileHeader  `form:"a"`
+		B [3]multipart.FileHeader `form:"b"`
+		C []*multipart.FileHeader `form:"b"`
+		D Nest
+	}
+	fileName := "binder_test.go"
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetFile("a", fileName).
+		SetFile("a", fileName).
+		SetFile("a", fileName).
+		SetFile("b", fileName).
+		SetFile("b", fileName).
+		SetFile("b", fileName)
+	req2 := req2.GetHTTP1Request(req.Req)
+	req2.String()
+	err := DefaultBinder.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 3, len(s.A))
+	for _, file := range s.A {
+		assert.DeepEqual(t, fileName, file.Filename)
+	}
+	assert.DeepEqual(t, 3, len(s.B))
+	for _, file := range s.B {
+		assert.DeepEqual(t, fileName, file.Filename)
+	}
+	assert.DeepEqual(t, 3, len(s.C))
+	for _, file := range s.C {
+		assert.DeepEqual(t, fileName, file.Filename)
+	}
+	assert.DeepEqual(t, 3, len(*s.D.N))
+	for _, file := range *s.D.N {
+		assert.DeepEqual(t, fileName, file.Filename)
 	}
 }
 

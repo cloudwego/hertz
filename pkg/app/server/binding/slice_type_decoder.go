@@ -42,6 +42,7 @@ package binding
 
 import (
 	"fmt"
+	"mime/multipart"
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -59,7 +60,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 	var texts []string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
-		if tagInfo.Key == jsonTag {
+		if tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			continue
 		}
 		if tagInfo.Key == headerTag {
@@ -81,6 +82,17 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			nonNilVal, ptrDepth := GetNonNilReferenceValue(field)
+			field.Set(ReferenceValue(nonNilVal, ptrDepth))
+		}
+	}
+	var parentPtrDepth int
+	for field.Kind() == reflect.Ptr {
+		field = field.Elem()
+		parentPtrDepth++
+	}
 
 	if d.isArray {
 		if len(texts) != field.Len() {
@@ -109,7 +121,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 		}
 		field.Index(idx).Set(ReferenceValue(vv, ptrDepth))
 	}
-	reqValue.Field(d.index).Set(field)
+	reqValue.Field(d.index).Set(ReferenceValue(field, parentPtrDepth))
 
 	return nil
 }
@@ -138,6 +150,8 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 			// do nothing
 		case rawBodyTag:
 			tagInfo.Getter = RawBody
+		case fileNameTag:
+			// do nothing
 		default:
 		}
 	}
@@ -145,6 +159,10 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	fieldType := field.Type
 	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
+	}
+	t := getElemType(fieldType.Elem())
+	if t == reflect.TypeOf(multipart.FileHeader{}) {
+		return getMultipartFileDecoder(field, index, tagInfos, parentIdx)
 	}
 
 	fieldDecoder := &sliceTypeFieldTextDecoder{
