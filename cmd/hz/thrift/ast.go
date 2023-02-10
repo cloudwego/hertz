@@ -181,39 +181,45 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 		hasFormAnnotation bool
 	)
 	for _, field := range st.Fields() {
-		//rwctx, err := thriftgoUtil.MkRWCtx(thriftgoUtil.RootScope(), field)
-		//if err != nil {
-		//	fmt.Errorf("can not get field info for %s", field.Name)
-		//}
+		hasAnnotation := false
 		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
+			hasAnnotation = true
 			query := anno[0]
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", query, field.GoName().String())
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
+			hasAnnotation = true
 			path := anno[0]
 			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
+			hasAnnotation = true
 			header := anno[0]
 			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
+			hasAnnotation = true
 			form := anno[0]
 			hasFormAnnotation = true
 			clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", form, field.GoName().String())
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {
+			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
+			hasAnnotation = true
 			fileName := anno[0]
 			hasFormAnnotation = true
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
+		}
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", field.GoName().String(), field.GoName().String())
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

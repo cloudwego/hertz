@@ -249,25 +249,30 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		hasFormAnnotation bool
 	)
 	for _, f := range inputType.Fields {
+		hasAnnotation := false
 		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
+			hasAnnotation = true
 			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
 			val := queryAnnos.(string)
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
+			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
 			val := pathAnnos.(string)
 			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
+			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
 			val := headerAnnos.(string)
 			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+			hasAnnotation = true
 			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
 			val := formAnnos.(string)
@@ -275,14 +280,19 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Body) {
+			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+			hasAnnotation = true
 			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
 			val := fileAnnos.(string)
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam
