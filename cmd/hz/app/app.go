@@ -228,7 +228,6 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
-				&routerDirFlag,
 				&clientDirFlag,
 
 				&includesFlag,
