@@ -922,6 +922,12 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 
 var defaultClient, _ = New{{.ServiceName}}Client("{{.BaseDomain}}")
 
+func ConfigDefaultClient(ops ...Option) error {
+	var err error
+	defaultClient, err = NewHertzClient("{{.BaseDomain}}", ops...)
+	return err
+}
+
 {{range $_, $MethodInfo := .ClientMethods}}
 func {{$MethodInfo.Name}}(context context.Context, req *{{$MethodInfo.RequestTypeName}}, reqOpt ...config.RequestOption) (resp *{{$MethodInfo.ReturnTypeName}}, rawResponse *protocol.Response, err error) {
 	return defaultClient.{{$MethodInfo.Name}}(context, req, reqOpt...)
