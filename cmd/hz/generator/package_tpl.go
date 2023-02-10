@@ -588,9 +588,9 @@ func (r *request) setError(err interface{}) *request {
 	return r
 }
 
-func (r *request) setHeaders(headers map[string]string) *request {
+func (r *request) setHeaders(headers map[string]interface{}) *request {
 	for h, v := range headers {
-		r.setHeader(h, v)
+		r.setHeader(h, fmt.Sprint(v))
 	}
 
 	return r
@@ -604,16 +604,16 @@ func (r *request) setQueryParams(params map[string]interface{}) *request {
 	return r
 }
 
-func (r *request) setPathParams(params map[string]string) *request {
+func (r *request) setPathParams(params map[string]interface{}) *request {
 	for p, v := range params {
-		r.pathParam[p] = v
+		r.pathParam[p] = fmt.Sprint(v)
 	}
 	return r
 }
 
-func (r *request) setFormParams(params map[string]string) *request {
+func (r *request) setFormParams(params map[string]interface{}) *request {
 	for p, v := range params {
-		r.formParam[p] = v
+		r.formParam[p] = fmt.Sprint(v)
 	}
 	return r
 }
@@ -894,13 +894,13 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 		setQueryParams(map[string]interface{}{
 			{{$MethodInfo.QueryParamsCode}}
 		}).
-		setPathParams(map[string]string{
+		setPathParams(map[string]interface{}{
 			{{$MethodInfo.PathParamsCode}}
 		}).
-		setHeaders(map[string]string{
+		setHeaders(map[string]interface{}{
 			{{$MethodInfo.HeaderParamsCode}}
 		}).
-		setFormParams(map[string]string{
+		setFormParams(map[string]interface{}{
 			{{$MethodInfo.FormValueCode}}
 		}).
 		setFormFileParams(map[string]string{
