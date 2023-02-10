@@ -164,6 +164,7 @@ func Init() *cli.App {
 	useFlag := cli.StringFlag{Name: "use", Usage: "Specify the model package to import for handler.", Destination: &globalArgs.Use}
 	baseDomainFlag := cli.StringFlag{Name: "base_domain", Usage: "Specify the request domain.", Destination: &globalArgs.BaseDomain}
 	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
+	forceClientDirFlag := cli.StringFlag{Name: "force_client_dir", Usage: "Specify the client path, and do not use namespace as a subpath", Destination: &globalArgs.ForceClientDir}
 
 	optPkgFlag := cli.StringSliceFlag{Name: "option_package", Aliases: []string{"P"}, Usage: "Specify the package path. ({include_path}={import_path})"}
 	includesFlag := cli.StringSliceFlag{Name: "proto_path", Aliases: []string{"I"}, Usage: "Add an IDL search path for includes. (Valid only if idl is protobuf)"}
@@ -294,6 +295,7 @@ func Init() *cli.App {
 				&modelDirFlag,
 				&clientDirFlag,
 				&useFlag,
+				&forceClientDirFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,

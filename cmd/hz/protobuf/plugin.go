@@ -602,6 +602,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		HandlerByMethod: args.HandlerByMethod,
 		CmdType:         args.CmdType,
 		IdlClientDir:    plugin.IdlClientDir,
+		ForceClientDir:  args.ForceClientDir,
 		BaseDomain:      args.BaseDomain,
 	}
 
