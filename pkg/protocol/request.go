@@ -111,6 +111,9 @@ type Request struct {
 	multipartFiles  []*File
 	multipartFields []*MultipartField
 
+	// only for Client
+	sendDone <-chan struct{} // close after client send all data to server
+
 	// Request level options, service discovery options etc.
 	options *config.RequestOptions
 }
@@ -204,6 +207,7 @@ func (req *Request) Reset() {
 	req.ResetSkipHeader()
 	req.CloseBodyStream()
 
+	req.sendDone = nil
 	req.options = nil
 }
 
@@ -814,6 +818,36 @@ func (req *Request) SetConnectionClose() {
 	req.Header.SetConnectionClose(true)
 }
 
+// IsSendEnd return true if the client has sent all data of this request
+func (req *Request) IsSendEnd() bool {
+	if req.sendDone == nil {
+		return true
+	}
+
+	select {
+	case <-req.sendDone:
+		return true
+	default:
+		return false
+	}
+}
+
+// WaitSendEnd will wait until the client has sent all data of this request
+func (req *Request) WaitSendEnd() {
+	if req.sendDone == nil {
+		return
+	}
+
+	<-req.sendDone
+}
+
+// SetSendDone set a sendDone channel to Request
+//
+// NOTE: It is an internal function. You should not use it.
+func (req *Request) SetSendDone(sendDone <-chan struct{}) {
+	req.sendDone = sendDone
+}
+
 // AcquireRequest returns an empty Request instance from request pool.
 //
 // The returned Request instance may be passed to ReleaseRequest when it is
@@ -832,6 +866,17 @@ func AcquireRequest() *Request {
 // It is forbidden accessing req and/or its members after returning
 // it to request pool.
 func ReleaseRequest(req *Request) {
+	if req.IsSendEnd() {
+		req.Reset()
+		requestPool.Put(req)
+		return
+	}
+
+	go releaseRequestAsync(req)
+}
+
+func releaseRequestAsync(req *Request) {
+	req.WaitSendEnd()
 	req.Reset()
 	requestPool.Put(req)
 }
