@@ -182,6 +182,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 	)
 	for _, field := range st.Fields() {
 		hasAnnotation := false
+		isStringFieldType := false
+		if field.GetType().String() == "string" {
+			isStringFieldType = true
+		}
 		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
 			hasAnnotation = true
 			query := anno[0]
@@ -191,20 +195,32 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
 			hasAnnotation = true
 			path := anno[0]
-			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
+			} else {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", path, field.GoName().String())
+			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
 			hasAnnotation = true
 			header := anno[0]
-			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
+			} else {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", header, field.GoName().String())
+			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
 			hasAnnotation = true
 			form := anno[0]
 			hasFormAnnotation = true
-			clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", form, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", form, field.GoName().String())
+			} else {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", form, field.GoName().String())
+			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {

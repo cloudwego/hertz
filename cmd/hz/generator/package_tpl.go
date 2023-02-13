@@ -588,9 +588,9 @@ func (r *request) setError(err interface{}) *request {
 	return r
 }
 
-func (r *request) setHeaders(headers map[string]interface{}) *request {
+func (r *request) setHeaders(headers map[string]string) *request {
 	for h, v := range headers {
-		r.setHeader(h, fmt.Sprint(v))
+		r.setHeader(h, v)
 	}
 
 	return r
@@ -604,16 +604,16 @@ func (r *request) setQueryParams(params map[string]interface{}) *request {
 	return r
 }
 
-func (r *request) setPathParams(params map[string]interface{}) *request {
+func (r *request) setPathParams(params map[string]string) *request {
 	for p, v := range params {
-		r.pathParam[p] = fmt.Sprint(v)
+		r.pathParam[p] = v
 	}
 	return r
 }
 
-func (r *request) setFormParams(params map[string]interface{}) *request {
+func (r *request) setFormParams(params map[string]string) *request {
 	for p, v := range params {
-		r.formParam[p] = fmt.Sprint(v)
+		r.formParam[p] = v
 	}
 	return r
 }
@@ -710,7 +710,7 @@ func parseRequestHeader(c *cli, r *request) error {
 		hdr[k] = append(hdr[k], r.header[k]...)
 	}
 
-	if len(r.formParam) != 0 && len(r.fileParam) != 0 {
+	if len(r.formParam) != 0 || len(r.fileParam) != 0 {
 		hdr.Add(hdrContentTypeKey, formContentType)
 	}
 
@@ -857,12 +857,18 @@ package {{.PackageName}}
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/protocol"
 {{- range $k, $v := .Imports}}
 	{{$k}} "{{$v.Package}}"
 {{- end}}
+)
+
+// unused protection
+var (
+	_ = fmt.Formatter(nil)
 )
 
 type Client interface {
@@ -894,13 +900,13 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 		setQueryParams(map[string]interface{}{
 			{{$MethodInfo.QueryParamsCode}}
 		}).
-		setPathParams(map[string]interface{}{
+		setPathParams(map[string]string{
 			{{$MethodInfo.PathParamsCode}}
 		}).
-		setHeaders(map[string]interface{}{
+		setHeaders(map[string]string{
 			{{$MethodInfo.HeaderParamsCode}}
 		}).
-		setFormParams(map[string]interface{}{
+		setFormParams(map[string]string{
 			{{$MethodInfo.FormValueCode}}
 		}).
 		setFormFileParams(map[string]string{
@@ -922,10 +928,9 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 
 var defaultClient, _ = New{{.ServiceName}}Client("{{.BaseDomain}}")
 
-func ConfigDefaultClient(ops ...Option) error {
-	var err error
+func ConfigDefaultClient(ops ...Option) (err error) {
 	defaultClient, err = NewHertzClient("{{.BaseDomain}}", ops...)
-	return err
+	return
 }
 
 {{range $_, $MethodInfo := .ClientMethods}}
