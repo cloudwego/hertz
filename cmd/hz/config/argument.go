@@ -64,6 +64,7 @@ type Argument struct {
 	Excludes             []string
 	NoRecurse            bool
 	HandlerByMethod      bool
+	ForceNew             bool
 
 	CustomizeLayout  string
 	CustomizePackage string
