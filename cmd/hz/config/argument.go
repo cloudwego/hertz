@@ -24,6 +24,7 @@ import (
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
+	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"github.com/urfave/cli/v2"
 )
 
@@ -115,6 +116,21 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
 }
 
+func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
+	if arg.HandlerDir == "" && m.HandlerDir != "" {
+		logs.Infof("use \"handler_dir\" in \".hz\" as the handler generated dir\n")
+		arg.HandlerDir = m.HandlerDir
+	}
+	if arg.ModelDir == "" && m.ModelDir != "" {
+		logs.Infof("use \"model_dir\" in \".hz\" as the model generated dir\n")
+		arg.ModelDir = m.ModelDir
+	}
+	if len(m.RouterDir) != 0 {
+		logs.Infof("use \"router_dir\" in \".hz\" as the router generated dir\n")
+		arg.RouterDir = m.RouterDir
+	}
+}
+
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
 func (arg *Argument) checkPath() error {
 	dir, err := os.Getwd()
@@ -169,7 +185,7 @@ func (arg *Argument) checkIDL() error {
 	return nil
 }
 
-func (arg Argument) IsUpdate() bool {
+func (arg *Argument) IsUpdate() bool {
 	return arg.CmdType == meta.CmdUpdate
 }
 
@@ -329,4 +345,22 @@ func (arg *Argument) GetClientDir() (string, error) {
 		return "", nil
 	}
 	return util.RelativePath(arg.ClientDir)
+}
+
+func (arg *Argument) InitManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+	m.HandlerDir = arg.HandlerDir
+	m.ModelDir = arg.ModelDir
+	m.RouterDir = arg.RouterDir
+}
+
+func (arg *Argument) UpdateManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+	if arg.HandlerDir != m.HandlerDir {
+		m.HandlerDir = arg.HandlerDir
+	}
+	if arg.HandlerDir != m.ModelDir {
+		m.ModelDir = arg.ModelDir
+	}
+	// "router_dir" must not be defined by "update" command
 }

@@ -53,6 +53,13 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
+	// ".hz" file converges to the hz tool
+	manifest := new(meta.Manifest)
+	args.InitManifest(manifest)
+	err = manifest.Persist(args.OutDir)
+	if err != nil {
+		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
+	}
 	return nil
 }
 
@@ -62,25 +69,28 @@ func Update(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
+	setLogVerbose(args.Verbose)
+	logs.Debugf("Args: %#v\n", args)
+
 	manifest := new(meta.Manifest)
-	err = manifest.Validate(args.OutDir)
+	err = manifest.InitAndValidate(args.OutDir)
 	if err != nil {
 		return cli.Exit(err, meta.LoadError)
 	}
-
-	setLogVerbose(args.Verbose)
-	logs.Debugf("Args: %#v\n", args)
+	// update argument by ".hz", can automatically get "handler_dir"/"model_dir"/"router_dir"
+	args.UpdateByManifest(manifest)
 
 	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
-
-	manifest.Version = meta.GoVersion
-	err = manifest.Persist(".")
+	// If the "handler_dir"/"model_dir" is updated, write it back to ".hz"
+	args.UpdateManifest(manifest)
+	err = manifest.Persist(args.OutDir)
 	if err != nil {
 		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
+
 	return nil
 }
 
@@ -139,8 +149,9 @@ func Init() *cli.App {
 	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name.", Destination: &globalArgs.Gomod}
 	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name.", Destination: &globalArgs.ServiceName}
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
-	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
-	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
+	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler relative path (based on \"out_dir\").", Destination: &globalArgs.HandlerDir}
+	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model relative path (based on \"out_dir\").", Destination: &globalArgs.ModelDir}
+	routerDirFlag := cli.StringFlag{Name: "router_dir", Usage: "Specify the router relative path (based on \"out_dir\").", Destination: &globalArgs.RouterDir}
 	baseDomainFlag := cli.StringFlag{Name: "base_domain", Usage: "Specify the request domain.", Destination: &globalArgs.BaseDomain}
 	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
 
@@ -186,6 +197,7 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
+				&routerDirFlag,
 				&clientDirFlag,
 
 				&includesFlag,
@@ -308,6 +320,9 @@ func GenerateLayout(args *config.Argument) error {
 		ServiceName:     args.ServiceName,
 		UseApacheThrift: args.IdlType == meta.IdlThrift,
 		HasIdl:          0 != len(args.IdlPaths),
+		ModelDir:        args.ModelDir,
+		HandlerDir:      args.HandlerDir,
+		RouterDir:       args.RouterDir,
 	}
 
 	if args.CustomizeLayout == "" {
