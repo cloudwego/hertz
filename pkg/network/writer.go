@@ -103,3 +103,11 @@ func NewWriter(w io.Writer) Writer {
 		w: w,
 	}
 }
+
+type ExtWriter interface {
+	io.Writer
+	Flush() error
+
+	// Finalize will be called before the writer is released.
+	Finalize() error
+}

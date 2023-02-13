@@ -118,14 +118,14 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 				panic("BUG: io.Reader returned 0, nil")
 			}
 			if err == io.EOF {
-				if err = writeChunk(w, buf[:0]); err != nil {
+				if err = WriteChunk(w, buf[:0]); err != nil {
 					break
 				}
 				err = nil
 			}
 			break
 		}
-		if err = writeChunk(w, buf[:n]); err != nil {
+		if err = WriteChunk(w, buf[:n]); err != nil {
 			break
 		}
 	}
@@ -287,7 +287,7 @@ func round2(n int) int {
 	return 1 << x
 }
 
-func writeChunk(w network.Writer, b []byte) (err error) {
+func WriteChunk(w network.Writer, b []byte) (err error) {
 	n := len(b)
 	if err = bytesconv.WriteHexInt(w, n); err != nil {
 		return err

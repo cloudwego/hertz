@@ -413,6 +413,11 @@ func writeErrorResponse(zw network.Writer, ctx *app.RequestContext, serverName [
 }
 
 func writeResponse(ctx *app.RequestContext, w network.Writer) error {
+	// Skip default response writing logic if it has been hijacked
+	if ctx.Response.GetHijackWriter() != nil {
+		return ctx.Response.GetHijackWriter().Finalize()
+	}
+
 	err := resp.Write(&ctx.Response, w)
 	if err != nil {
 		return err

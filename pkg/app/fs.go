@@ -276,8 +276,6 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 // Directory contents is returned if path points to directory.
 //
 // Use ServeFileUncompressed is you don't need serving compressed file contents.
-//
-// See also RequestCtx.SendFile.
 func ServeFile(ctx *RequestContext, path string) {
 	rootFSOnce.Do(func() {
 		rootFSHandler = rootFS.NewRequestHandler()
@@ -1204,8 +1202,6 @@ func stripLeadingSlashes(path []byte, stripSlashes int) []byte {
 //
 // ServeFile may be used for saving network traffic when serving files
 // with good compression ratio.
-//
-// See also RequestCtx.SendFile.
 func ServeFileUncompressed(ctx *RequestContext, path string) {
 	ctx.Request.Header.DelBytes(bytestr.StrAcceptEncoding)
 	ServeFile(ctx, path)
