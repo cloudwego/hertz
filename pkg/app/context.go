@@ -161,6 +161,15 @@ type RequestContext struct {
 	formValueFunc FormValueFunc
 }
 
+// Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
+// Will return nil if the response writer is not hijacked.
+func (ctx *RequestContext) Flush() error {
+	if ctx.Response.GetHijackWriter() == nil {
+		return nil
+	}
+	return ctx.Response.GetHijackWriter().Flush()
+}
+
 func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {
 	ctx.clientIPFunc = f
 }
