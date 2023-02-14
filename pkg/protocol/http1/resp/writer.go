@@ -1,12 +1,16 @@
 package resp
 
 import (
+	"sync"
+
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
 type chunkedBodyWriter struct {
+	sync.Once
+	finalizeErr error
 	wroteHeader bool
 	r           *protocol.Response
 	w           network.Writer
@@ -31,13 +35,17 @@ func (c *chunkedBodyWriter) Flush() error {
 	return c.w.Flush()
 }
 
-// Finalize will write the ending chunk and flush the writer
+// Finalize will write the ending chunk as well as trailer and flush the writer.
+// Warning: do not call this method by yourself, unless you know what you are doing.
 func (c *chunkedBodyWriter) Finalize() error {
-	err := ext.WriteChunk(c.w, nil)
-	if err != nil {
-		return err
-	}
-	return ext.WriteTrailer(c.r.Header.Trailer(), c.w)
+	c.Do(func() {
+		c.finalizeErr = ext.WriteChunk(c.w, nil)
+		if c.finalizeErr != nil {
+			return
+		}
+		c.finalizeErr = ext.WriteTrailer(c.r.Header.Trailer(), c.w)
+	})
+	return c.finalizeErr
 }
 
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {

@@ -108,6 +108,7 @@ type ExtWriter interface {
 	io.Writer
 	Flush() error
 
-	// Finalize will be called before the writer is released.
+	// Finalize will be called by framework before the writer is released.
+	// Implementations must guarantee that Finalize is safe for multiple calls.
 	Finalize() error
 }
