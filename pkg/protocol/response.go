@@ -316,8 +316,22 @@ func (resp *Response) StatusCode() int {
 //
 // It is safe re-using body argument after the function returns.
 func (resp *Response) SetBody(body []byte) {
-	resp.CloseBodyStream()      //nolint:errcheck
-	resp.BodyBuffer().Set(body) //nolint:errcheck
+	resp.CloseBodyStream() //nolint:errcheck
+	if resp.GetHijackWriter() == nil {
+		resp.BodyBuffer().Set(body) //nolint:errcheck
+		return
+	}
+
+	// If the hijack writer support .SetBody() api, then use it.
+	if setter, ok := resp.GetHijackWriter().(interface {
+		SetBody(b []byte)
+	}); ok {
+		setter.SetBody(body)
+		return
+	}
+
+	// Otherwise, call .Write() api instead.
+	resp.GetHijackWriter().Write(body) //nolint:errcheck
 }
 
 func (resp *Response) BodyStream() io.Reader {
