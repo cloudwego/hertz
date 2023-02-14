@@ -18,6 +18,9 @@ type chunkedBodyWriter struct {
 
 // Write will encode chunked p before writing
 // It will only return the length of p and a nil error if the writing is successful or 0, error otherwise.
+//
+// NOTE: Write will use the user buffer to flush.
+// Before flush successfully, the buffer b should be valid.
 func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 	if !c.wroteHeader {
 		c.r.Header.SetContentLength(-1)
@@ -26,7 +29,7 @@ func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 		}
 		c.wroteHeader = true
 	}
-	if err = ext.WriteChunk(c.w, p); err != nil {
+	if err = ext.WriteChunk(c.w, p, false); err != nil {
 		return
 	}
 	return len(p), nil
@@ -40,7 +43,7 @@ func (c *chunkedBodyWriter) Flush() error {
 // Warning: do not call this method by yourself, unless you know what you are doing.
 func (c *chunkedBodyWriter) Finalize() error {
 	c.Do(func() {
-		c.finalizeErr = ext.WriteChunk(c.w, nil)
+		c.finalizeErr = ext.WriteChunk(c.w, nil, true)
 		if c.finalizeErr != nil {
 			return
 		}
