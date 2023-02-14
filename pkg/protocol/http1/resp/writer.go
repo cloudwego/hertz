@@ -20,6 +20,7 @@ type chunkedBodyWriter struct {
 // It will only return the length of p and a nil error if the writing is successful or 0, error otherwise.
 func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 	if !c.wroteHeader {
+		c.r.Header.SetContentLength(-1)
 		if err = WriteHeader(&c.r.Header, c.w); err != nil {
 			return
 		}
