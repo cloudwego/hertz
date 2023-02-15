@@ -2,10 +2,10 @@ header:
   license:
     spdx-id: Apache-2.0
     copyright-owner: CloudWeGo Authors
+    copyright-year: 2022
 
   paths:
     - '**/*.go'
-    - '**/*.s'
 
   paths-ignore:
     - pkg/common/testdata/**
