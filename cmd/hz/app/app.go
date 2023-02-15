@@ -44,6 +44,15 @@ func New(c *cli.Context) error {
 	setLogVerbose(args.Verbose)
 	logs.Debugf("args: %#v\n", args)
 
+	exist, err := util.PathExist(filepath.Join(args.OutDir, meta.ManifestFile))
+	if err != nil {
+		return cli.Exit(err, meta.LoadError)
+	}
+
+	if exist && !args.ForceNew {
+		return cli.Exit(fmt.Errorf("the current is already a hertz project, if you want to regenerate it you can specify \"-force\""), meta.LoadError)
+	}
+
 	err = GenerateLayout(args)
 	if err != nil {
 		return cli.Exit(err, meta.GenerateLayoutError)
@@ -163,6 +172,7 @@ func Init() *cli.App {
 	thriftPluginsFlag := cli.StringSliceFlag{Name: "thrift-plugins", Usage: "Specify plugins for the thriftgo. ({plugin_name}:{options})"}
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
+	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
@@ -205,6 +215,7 @@ func Init() *cli.App {
 				&protoOptionsFlag,
 				&optPkgFlag,
 				&noRecurseFlag,
+				&forceNewFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
