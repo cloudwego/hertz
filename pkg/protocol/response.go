@@ -47,7 +47,6 @@ import (
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
