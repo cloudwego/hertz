@@ -48,6 +48,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/test/mock"
+
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -271,4 +273,25 @@ func TestRespSafeCopy(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		assert.DeepEqual(t, []byte{byte(i)}, resps[i].Body())
 	}
+}
+
+func TestResponse_HijackWriter(t *testing.T) {
+	resp := AcquireResponse()
+	buf := new(bytes.Buffer)
+	isFinal := false
+	resp.HijackWriter(&mock.ExtWriter{Buf: buf, IsFinal: &isFinal})
+	resp.AppendBody([]byte("hello"))
+	assert.DeepEqual(t, 0, buf.Len())
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello", buf.String())
+	resp.AppendBodyString(", world")
+	assert.DeepEqual(t, "hello", buf.String())
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello, world", buf.String())
+	resp.SetBody([]byte("hello, hertz"))
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello, hertz", buf.String())
+	assert.False(t, isFinal)
+	resp.GetHijackWriter().Finalize()
+	assert.True(t, isFinal)
 }

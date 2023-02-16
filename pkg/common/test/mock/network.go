@@ -32,6 +32,12 @@ type Conn struct {
 	readTimeout time.Duration
 	zr          network.Reader
 	zw          network.ReadWriter
+	wroteLen    int
+}
+
+type Recorder interface {
+	network.Reader
+	WroteLen() int
 }
 
 func (m *Conn) SetWriteTimeout(t time.Duration) error {
@@ -98,19 +104,31 @@ func (m *Conn) Len() int {
 }
 
 func (m *Conn) Malloc(n int) (buf []byte, err error) {
+	m.wroteLen += n
 	return m.zw.Malloc(n)
 }
 
 func (m *Conn) WriteBinary(b []byte) (n int, err error) {
-	return m.zw.WriteBinary(b)
+	n, err = m.zw.WriteBinary(b)
+	m.wroteLen += n
+	return n, err
 }
 
 func (m *Conn) Flush() error {
 	return m.zw.Flush()
 }
 
-func (m *Conn) WriterRecorder() network.Reader {
-	return m.zw
+func (m *Conn) WriterRecorder() Recorder {
+	return &recorder{c: m, Reader: m.zw}
+}
+
+type recorder struct {
+	c *Conn
+	network.Reader
+}
+
+func (r *recorder) WroteLen() int {
+	return r.c.wroteLen
 }
 
 func (m *SlowReadConn) Peek(i int) ([]byte, error) {
