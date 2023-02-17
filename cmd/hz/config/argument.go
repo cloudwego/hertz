@@ -52,6 +52,7 @@ type Argument struct {
 	Gomod       string
 	Gopkg       string // $GOPATH/src/{{gopkg}}
 	ServiceName string // service name
+	Use         string
 
 	JSONEnumStr          bool
 	UnsetOmitempty       bool

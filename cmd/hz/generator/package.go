@@ -55,6 +55,7 @@ type HttpPackageGenerator struct {
 	HandlerDir      string
 	RouterDir       string
 	ModelDir        string
+	UseDir          string
 	ClientDir       string
 	IdlClientDir    string
 	NeedModel       bool

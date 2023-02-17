@@ -161,6 +161,7 @@ func Init() *cli.App {
 	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler relative path (based on \"out_dir\").", Destination: &globalArgs.HandlerDir}
 	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model relative path (based on \"out_dir\").", Destination: &globalArgs.ModelDir}
 	routerDirFlag := cli.StringFlag{Name: "router_dir", Usage: "Specify the router relative path (based on \"out_dir\").", Destination: &globalArgs.RouterDir}
+	useFlag := cli.StringFlag{Name: "use", Usage: "Specify the model package to import for handler.", Destination: &globalArgs.Use}
 	baseDomainFlag := cli.StringFlag{Name: "base_domain", Usage: "Specify the request domain.", Destination: &globalArgs.BaseDomain}
 	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
 
@@ -209,6 +210,7 @@ func Init() *cli.App {
 				&modelDirFlag,
 				&routerDirFlag,
 				&clientDirFlag,
+				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -267,6 +269,7 @@ func Init() *cli.App {
 				&moduleFlag,
 				&outDirFlag,
 				&modelDirFlag,
+				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -290,6 +293,7 @@ func Init() *cli.App {
 				&baseDomainFlag,
 				&modelDirFlag,
 				&clientDirFlag,
+				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -397,7 +401,10 @@ func TriggerPlugin(args *config.Argument) error {
 	logs.Debugf("begin to trigger plugin, compiler: %s, idl_paths: %v", compiler, args.IdlPaths)
 	buf, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause:\n%v", compiler, err, string(buf))
+		out := strings.TrimSpace(string(buf))
+		if !strings.HasSuffix(out, meta.TheUseOptionMessage) {
+			return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause:\n%v", compiler, err, string(buf))
+		}
 	}
 
 	// If len(buf) != 0, the plugin returned the log.
