@@ -226,6 +226,8 @@ func (arg *Argument) checkPackage() error {
 			return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
 		}
 		arg.Gomod = module
+	} else if !ok && len(arg.Gomod) == 0 {
+		return fmt.Errorf("can not get go module name for current path, please use '--module' to specify go module name")
 	}
 
 	if len(arg.RawOptPkg) > 0 {
