@@ -81,3 +81,6 @@ const (
 const (
 	SetBodyParam = "setBodyParam(req).\n"
 )
+
+// TheUseOptionMessage indicates that the generating of 'model code' is aborted due to the -use option for thrift IDL.
+const TheUseOptionMessage = "'model code' is not generated due to the '-use' option"

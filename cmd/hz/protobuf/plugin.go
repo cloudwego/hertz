@@ -74,6 +74,7 @@ type Plugin struct {
 	Recursive    bool
 	OutDir       string
 	ModelDir     string
+	UseDir       string
 	IdlClientDir string
 	PkgMap       map[string]string
 	logger       *logs.StdLogger
@@ -165,6 +166,7 @@ func (plugin *Plugin) parseArgs(param string) (*config.Argument, error) {
 	}
 	plugin.OutDir = args.OutDir
 	plugin.PkgMap = args.OptPkgMap
+	plugin.UseDir = args.Use
 	return args, nil
 }
 
@@ -349,7 +351,10 @@ func (plugin *Plugin) GenerateFile(gen *protogen.Plugin, f *protogen.File) error
 	}
 	f.GeneratedFilenamePrefix = filepath.Join(util.ImportToPath(impt, ""), util.BaseName(f.Proto.GetName(), ".proto"))
 	f.Generate = true
-
+	// if use third-party model, no model code is generated within the project
+	if len(plugin.UseDir) != 0 {
+		return nil
+	}
 	file, err := generateFile(gen, f)
 	if err != nil || file == nil {
 		return fmt.Errorf("generate file %s failed: %s", f.Proto.GetName(), err.Error())
@@ -586,9 +591,11 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
+		UseDir:     args.Use,
 		ClientDir:  clientDir,
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
+			Excludes:  args.Excludes,
 		},
 		ProjPackage:     pkg,
 		Options:         options,
