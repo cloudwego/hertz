@@ -19,14 +19,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
 type Test struct {
@@ -51,17 +48,6 @@ func main() {
 
 	h.GET("/redirect", func(c context.Context, ctx *app.RequestContext) {
 		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://www.google.com/"))
-	})
-
-	h.GET("/flush/chunk", func(c context.Context, ctx *app.RequestContext) {
-		// Hijack the writer of response
-		ctx.Response.HijackWriter(resp.NewChunkedBodyWriter(&ctx.Response, ctx.GetWriter()))
-
-		for i := 0; i < 10; i++ {
-			ctx.Write([]byte(fmt.Sprintf("chunk %d: %s", i, strings.Repeat("hi~", i)))) // nolint: errcheck
-			ctx.Flush()                                                                 // nolint: errcheck
-			time.Sleep(200 * time.Millisecond)
-		}
 	})
 
 	v1 := h.Group("/v1")

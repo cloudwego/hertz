@@ -48,11 +48,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/common/test/mock"
-
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
