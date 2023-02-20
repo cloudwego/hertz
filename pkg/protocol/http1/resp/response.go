@@ -45,6 +45,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
@@ -138,6 +139,7 @@ type clientRespStream struct {
 }
 
 func (c *clientRespStream) Close() (err error) {
+	runtime.SetFinalizer(c, nil)
 	ext.ReleaseBodyStream(c.r)
 	if c.closeCallback != nil {
 		err = c.closeCallback()
@@ -166,6 +168,7 @@ func convertClientRespStream(bs io.Reader, fn func() error) *clientRespStream {
 	clientStream := clientRespStreamPool.Get().(*clientRespStream)
 	clientStream.r = bs
 	clientStream.closeCallback = fn
+	runtime.SetFinalizer(clientStream, (*clientRespStream).Close)
 	return clientStream
 }
 

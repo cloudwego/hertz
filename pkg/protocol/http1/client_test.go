@@ -49,6 +49,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -56,11 +58,11 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
-
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
+	hertzNetpoll "github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
@@ -371,4 +373,36 @@ type writeErrConn struct {
 
 func (w writeErrConn) WriteBinary(b []byte) (n int, err error) {
 	return 0, errs.ErrConnectionClosed
+}
+
+func TestGcBodyStream(t *testing.T) {
+	srv := &http.Server{Addr: ":11001", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello\n"))
+		time.Sleep(time.Second)
+		w.Write([]byte("world\n"))
+	})}
+	go srv.ListenAndServe()
+	time.Sleep(100 * time.Millisecond)
+
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer:             hertzNetpoll.NewDialer(),
+			ResponseBodyStream: true,
+		},
+		Addr: "127.0.0.1:11001",
+	}
+
+	for i := 0; i < 10; i++ {
+		req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+		req.SetRequestURI("http://127.0.0.1:11001")
+		req.SetMethod(consts.MethodPost)
+		err := c.Do(context.Background(), req, resp)
+		if err != nil {
+			t.Errorf("client Do error=%v", err.Error())
+		}
+	}
+
+	runtime.GC()
+	c.CloseIdleConnections()
+	assert.DeepEqual(t, 0, c.ConnPoolState().TotalConnNum)
 }
