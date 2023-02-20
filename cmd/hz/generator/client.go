@@ -18,6 +18,7 @@ package generator
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -76,6 +77,15 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 					continue
 				}
 				client.Imports[mm.PackageName] = mm
+			}
+		}
+		if len(pkgGen.UseDir) != 0 {
+			oldModelDir := filepath.Clean(filepath.Join(pkgGen.ProjPackage, pkgGen.ModelDir))
+			newModelDir := filepath.Clean(pkgGen.UseDir)
+			for _, m := range client.ClientMethods {
+				for _, mm := range m.Models {
+					mm.Package = strings.Replace(mm.Package, oldModelDir, newModelDir, 1)
+				}
 			}
 		}
 		err = pkgGen.TemplateGenerator.Generate(client, idlClientName, client.FilePath, false)

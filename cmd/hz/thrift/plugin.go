@@ -17,6 +17,7 @@
 package thrift
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -128,9 +129,11 @@ func (plugin *Plugin) Run() int {
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
+		UseDir:     args.Use,
 		ClientDir:  clientDir,
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
+			Excludes:  args.Excludes,
 		},
 		ProjPackage:     pkg,
 		Options:         options,
@@ -149,6 +152,20 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("generate package failed: %s", err.Error())
 		return meta.PluginError
 	}
+	if len(args.Use) != 0 {
+		err = sg.Persist()
+		if err != nil {
+			logs.Errorf("persist file failed within '-use' option: %s", err.Error())
+			return meta.PluginError
+		}
+		res := thriftgo_plugin.BuildErrorResponse(errors.New(meta.TheUseOptionMessage).Error())
+		err = plugin.response(res)
+		if err != nil {
+			logs.Errorf("response failed: %s", err.Error())
+			return meta.PluginError
+		}
+		return 0
+	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
 		logs.Errorf("format file failed: %s", err.Error())
@@ -159,7 +176,7 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("get response failed: %s", err.Error())
 		return meta.PluginError
 	}
-	plugin.response(res)
+	err = plugin.response(res)
 	if err != nil {
 		logs.Errorf("response failed: %s", err.Error())
 		return meta.PluginError
