@@ -48,9 +48,10 @@ type RouterNode struct {
 	HttpMethod          string
 }
 
-type RegisterDependency struct {
-	PkgAlias string
-	Pkg      string
+type RegisterInfo struct {
+	PackageName string
+	DepPkgAlias string
+	DepPkg      string
 }
 
 // NewRouterTree contains "/" as root node
@@ -237,9 +238,10 @@ var (
 )
 
 func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) error {
-	register := RegisterDependency{
-		PkgAlias: strings.ReplaceAll(pkgName, "/", "_"),
-		Pkg:      pkg,
+	register := RegisterInfo{
+		PackageName: filepath.Base(rDir),
+		DepPkgAlias: strings.ReplaceAll(pkgName, "/", "_"),
+		DepPkg:      pkg,
 	}
 	registerPath := filepath.Join(rDir, registerTplName)
 	isExist, err := util.PathExist(registerPath)
@@ -255,13 +257,13 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		return fmt.Errorf("read register '%s' failed, err: %v", registerPath, err.Error())
 	}
 
-	if !bytes.Contains(file, []byte(register.Pkg)) {
-		file, err = util.AddImport(registerPath, register.PkgAlias, register.Pkg)
+	if !bytes.Contains(file, []byte(register.DepPkg)) {
+		file, err = util.AddImport(registerPath, register.DepPkgAlias, register.DepPkg)
 		if err != nil {
 			return err
 		}
 
-		insertReg := register.PkgAlias + ".Register(r)\n"
+		insertReg := register.DepPkgAlias + ".Register(r)\n"
 		if bytes.Contains(file, []byte(insertReg)) {
 			return fmt.Errorf("the router(%s) has been registered", insertReg)
 		}
@@ -289,7 +291,7 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 	}
 	router := Router{
 		FilePath:    filepath.Join(routerDir, util.BaseNameAndTrim(pkg.IdlName)+".go"),
-		PackageName: util.ToCamelCase(util.BaseName(routerPackage, "")),
+		PackageName: filepath.Base(routerDir),
 		HandlerPackages: map[string]string{
 			util.BaseName(handlerPackage, ""): handlerPackage,
 		},

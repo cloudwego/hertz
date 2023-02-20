@@ -153,11 +153,21 @@ func serviceToLayoutData(service Layout) (map[string]interface{}, error) {
 	if goMod == "" {
 		return nil, errors.New("please specify go-module")
 	}
+	handlerPkg := filepath.Base(defaultHandlerDir)
+	if len(service.HandlerDir) != 0 {
+		handlerPkg = filepath.Base(service.HandlerDir)
+	}
+	routerPkg := filepath.Base(defaultRouterDir)
+	if len(service.RouterDir) != 0 {
+		routerPkg = filepath.Base(service.RouterDir)
+	}
 
 	return map[string]interface{}{
 		"GoModule":        goMod,
 		"ServiceName":     service.ServiceName,
 		"UseApacheThrift": service.UseApacheThrift,
+		"HandlerPkg":      handlerPkg,
+		"RouterPkg":       routerPkg,
 	}, nil
 }
 

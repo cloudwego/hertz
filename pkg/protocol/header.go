@@ -87,7 +87,7 @@ type RequestHeader struct {
 
 	h       []argsKV
 	bufKV   argsKV
-	trailer Trailer
+	trailer *Trailer
 
 	cookies []argsKV
 
@@ -127,7 +127,7 @@ type ResponseHeader struct {
 
 	h       []argsKV
 	bufKV   argsKV
-	trailer Trailer
+	trailer *Trailer
 
 	cookies []argsKV
 
@@ -1788,10 +1788,16 @@ func (h *RequestHeader) setSpecialHeader(key, value []byte) bool {
 
 // Trailer returns the Trailer of HTTP Header.
 func (h *ResponseHeader) Trailer() *Trailer {
-	return &h.trailer
+	if h.trailer == nil {
+		h.trailer = new(Trailer)
+	}
+	return h.trailer
 }
 
 // Trailer returns the Trailer of HTTP Header.
 func (h *RequestHeader) Trailer() *Trailer {
-	return &h.trailer
+	if h.trailer == nil {
+		h.trailer = new(Trailer)
+	}
+	return h.trailer
 }
