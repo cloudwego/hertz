@@ -181,59 +181,61 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 		hasFormAnnotation bool
 	)
 	for _, field := range st.Fields() {
-		rwctx, err := thriftgoUtil.MkRWCtx(thriftgoUtil.RootScope(), field)
-		if err != nil {
-			fmt.Errorf("can not get field info for %s", field.Name)
+		hasAnnotation := false
+		isStringFieldType := false
+		if field.GetType().String() == "string" {
+			isStringFieldType = true
 		}
 		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
+			hasAnnotation = true
 			query := anno[0]
-			if rwctx.IsPointer {
-				clientMethod.QueryParamsCode += fmt.Sprintf("%q: *req.%v,\n", query, field.GoName().String())
-			} else {
-				clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.%v,\n", query, field.GoName().String())
-			}
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", query, field.GoName().String())
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
+			hasAnnotation = true
 			path := anno[0]
-			if rwctx.IsPointer {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: *req.%v,\n", path, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
 			} else {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.%v,\n", path, field.GoName().String())
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", path, field.GoName().String())
 			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
+			hasAnnotation = true
 			header := anno[0]
-			if rwctx.IsPointer {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: *req.%v,\n", header, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
 			} else {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.%v,\n", header, field.GoName().String())
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", header, field.GoName().String())
 			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
+			hasAnnotation = true
 			form := anno[0]
 			hasFormAnnotation = true
-			if rwctx.IsPointer {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: *req.%v,\n", form, field.GoName().String())
+			if isStringFieldType {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", form, field.GoName().String())
 			} else {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: req.%v,\n", form, field.GoName().String())
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", form, field.GoName().String())
 			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {
+			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
+			hasAnnotation = true
 			fileName := anno[0]
 			hasFormAnnotation = true
-			if rwctx.IsPointer {
-				clientMethod.FormFileCode += fmt.Sprintf("%q: *req.%v,\n", fileName, field.GoName().String())
-			} else {
-				clientMethod.FormFileCode += fmt.Sprintf("%q: req.%v,\n", fileName, field.GoName().String())
-			}
+			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
+		}
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", field.GoName().String(), field.GoName().String())
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

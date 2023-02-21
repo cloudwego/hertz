@@ -143,6 +143,7 @@ func (plugin *Plugin) Run() int {
 		HandlerByMethod: args.HandlerByMethod,
 		CmdType:         args.CmdType,
 		IdlClientDir:    util.SubDir(modelDir, pkgInfo.Package),
+		ForceClientDir:  args.ForceClientDir,
 		BaseDomain:      args.BaseDomain,
 	}
 	if args.ModelBackend != "" {

@@ -710,7 +710,7 @@ func parseRequestHeader(c *cli, r *request) error {
 		hdr[k] = append(hdr[k], r.header[k]...)
 	}
 
-	if len(r.formParam) != 0 && len(r.fileParam) != 0 {
+	if len(r.formParam) != 0 || len(r.fileParam) != 0 {
 		hdr.Add(hdrContentTypeKey, formContentType)
 	}
 
@@ -857,12 +857,18 @@ package {{.PackageName}}
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/protocol"
 {{- range $k, $v := .Imports}}
 	{{$k}} "{{$v.Package}}"
 {{- end}}
+)
+
+// unused protection
+var (
+	_ = fmt.Formatter(nil)
 )
 
 type Client interface {
@@ -921,6 +927,11 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 {{end}}
 
 var defaultClient, _ = New{{.ServiceName}}Client("{{.BaseDomain}}")
+
+func ConfigDefaultClient(ops ...Option) (err error) {
+	defaultClient, err = NewHertzClient("{{.BaseDomain}}", ops...)
+	return
+}
 
 {{range $_, $MethodInfo := .ClientMethods}}
 func {{$MethodInfo.Name}}(context context.Context, req *{{$MethodInfo.RequestTypeName}}, reqOpt ...config.RequestOption) (resp *{{$MethodInfo.ReturnTypeName}}, rawResponse *protocol.Response, err error) {

@@ -30,6 +30,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -249,40 +250,66 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		hasFormAnnotation bool
 	)
 	for _, f := range inputType.Fields {
+		hasAnnotation := false
+		isStringFieldType := false
+		if f.Desc.Kind() == protoreflect.StringKind {
+			isStringFieldType = true
+		}
 		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
+			hasAnnotation = true
 			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
 			val := queryAnnos.(string)
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
+			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
 			val := pathAnnos.(string)
-			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
+			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
 			val := headerAnnos.(string)
-			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+			hasAnnotation = true
 			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
 			val := formAnnos.(string)
-			clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Body) {
+			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+			hasAnnotation = true
 			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
 			val := fileAnnos.(string)
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

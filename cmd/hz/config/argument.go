@@ -30,15 +30,16 @@ import (
 
 type Argument struct {
 	// Mode              meta.Mode // operating mode（0-compiler, 1-plugin)
-	CmdType    string // command type
-	Verbose    bool   // print verbose log
-	Cwd        string // execution path
-	OutDir     string // output path
-	HandlerDir string // handler path
-	ModelDir   string // model path
-	RouterDir  string // router path
-	ClientDir  string // client path
-	BaseDomain string // request domain
+	CmdType        string // command type
+	Verbose        bool   // print verbose log
+	Cwd            string // execution path
+	OutDir         string // output path
+	HandlerDir     string // handler path
+	ModelDir       string // model path
+	RouterDir      string // router path
+	ClientDir      string // client path
+	BaseDomain     string // request domain
+	ForceClientDir string // client dir (not use namespace as a subpath)
 
 	IdlType   string   // idl type
 	IdlPaths  []string // master idl path
