@@ -929,7 +929,7 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 var defaultClient, _ = New{{.ServiceName}}Client("{{.BaseDomain}}")
 
 func ConfigDefaultClient(ops ...Option) (err error) {
-	defaultClient, err = NewHertzClient("{{.BaseDomain}}", ops...)
+	defaultClient, err = New{{.ServiceName}}Client("{{.BaseDomain}}", ops...)
 	return
 }
 
