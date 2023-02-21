@@ -58,6 +58,7 @@ type HttpPackageGenerator struct {
 	UseDir          string
 	ClientDir       string
 	IdlClientDir    string
+	ForceClientDir  string
 	NeedModel       bool
 	HandlerByMethod bool
 	BaseDomain      string
