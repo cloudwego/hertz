@@ -17,6 +17,7 @@
 package http1
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -31,6 +32,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
 var pool = &sync.Pool{New: func() interface{} {
@@ -189,9 +192,65 @@ func TestEventStack(t *testing.T) {
 	}
 }
 
+func TestDefaultWriter(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			ctx.Write([]byte("hello, hertz"))
+			ctx.Flush()
+		},
+	}
+	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	defaultResponseResult := defaultConn.WriterRecorder()
+	assert.DeepEqual(t, 0, defaultResponseResult.Len()) // all data is flushed so the buffer length is 0
+	response := protocol.AcquireResponse()
+	resp.Read(response, defaultResponseResult)
+	assert.DeepEqual(t, "hello, hertz", string(response.Body()))
+}
+
+func TestHijackResponseWriter(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	buf := new(bytes.Buffer)
+	isFinal := false
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			// response before write will be dropped
+			ctx.Write([]byte("invalid data"))
+
+			ctx.Response.HijackWriter(&mock.ExtWriter{
+				Buf:     buf,
+				IsFinal: &isFinal,
+			})
+
+			ctx.Write([]byte("hello, hertz"))
+			ctx.Flush()
+		},
+	}
+	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	defaultResponseResult := defaultConn.WriterRecorder()
+	response := protocol.AcquireResponse()
+	resp.Read(response, defaultResponseResult)
+	assert.DeepEqual(t, 0, len(response.Body()))
+	assert.DeepEqual(t, "hello, hertz", buf.String())
+	assert.True(t, isFinal)
+}
+
 type mockCore struct {
-	ctxPool    *sync.Pool
-	controller tracer.Controller
+	ctxPool     *sync.Pool
+	controller  tracer.Controller
+	mockHandler func(c context.Context, ctx *app.RequestContext)
 }
 
 func (m *mockCore) IsRunning() bool {
@@ -202,7 +261,11 @@ func (m *mockCore) GetCtxPool() *sync.Pool {
 	return m.ctxPool
 }
 
-func (m *mockCore) ServeHTTP(c context.Context, ctx *app.RequestContext) {}
+func (m *mockCore) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	if m.mockHandler != nil {
+		m.mockHandler(c, ctx)
+	}
+}
 
 func (m *mockCore) GetTracer() tracer.Controller {
 	return m.controller

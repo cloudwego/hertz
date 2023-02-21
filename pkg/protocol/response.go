@@ -46,6 +46,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
@@ -90,6 +91,17 @@ type Response struct {
 	raddr net.Addr
 	// Local TCPAddr from concurrently net.Conn
 	laddr net.Addr
+
+	// If set a hijackWriter, hertz will skip the default header/body writer process.
+	hijackWriter network.ExtWriter
+}
+
+func (resp *Response) GetHijackWriter() network.ExtWriter {
+	return resp.hijackWriter
+}
+
+func (resp *Response) HijackWriter(writer network.ExtWriter) {
+	resp.hijackWriter = writer
 }
 
 type responseBodyWriter struct {
@@ -133,7 +145,7 @@ func (resp *Response) ConstructBodyStream(body *bytebufferpool.ByteBuffer, bodyS
 // BodyWriter returns writer for populating response body.
 //
 // If used inside RequestHandler, the returned writer must not be used
-// after returning from RequestHandler. Use RequestCtx.Write
+// after returning from RequestHandler. Use RequestContext.Write
 // or SetBodyStreamWriter in this case.
 func (resp *Response) BodyWriter() io.Writer {
 	resp.w.r = resp
@@ -265,6 +277,7 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
+	resp.hijackWriter = nil
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -302,8 +315,22 @@ func (resp *Response) StatusCode() int {
 //
 // It is safe re-using body argument after the function returns.
 func (resp *Response) SetBody(body []byte) {
-	resp.CloseBodyStream()      //nolint:errcheck
-	resp.BodyBuffer().Set(body) //nolint:errcheck
+	resp.CloseBodyStream() //nolint:errcheck
+	if resp.GetHijackWriter() == nil {
+		resp.BodyBuffer().Set(body) //nolint:errcheck
+		return
+	}
+
+	// If the hijack writer support .SetBody() api, then use it.
+	if setter, ok := resp.GetHijackWriter().(interface {
+		SetBody(b []byte)
+	}); ok {
+		setter.SetBody(body)
+		return
+	}
+
+	// Otherwise, call .Write() api instead.
+	resp.GetHijackWriter().Write(body) //nolint:errcheck
 }
 
 func (resp *Response) BodyStream() io.Reader {
@@ -314,13 +341,21 @@ func (resp *Response) BodyStream() io.Reader {
 //
 // It is safe re-using p after the function returns.
 func (resp *Response) AppendBody(p []byte) {
-	resp.CloseBodyStream()     //nolint:errcheck
+	resp.CloseBodyStream() //nolint:errcheck
+	if resp.hijackWriter != nil {
+		resp.hijackWriter.Write(p) //nolint:errcheck
+		return
+	}
 	resp.BodyBuffer().Write(p) //nolint:errcheck
 }
 
 // AppendBodyString appends s to response body.
 func (resp *Response) AppendBodyString(s string) {
-	resp.CloseBodyStream()           //nolint:errcheck
+	resp.CloseBodyStream() //nolint:errcheck
+	if resp.hijackWriter != nil {
+		resp.hijackWriter.Write(bytesconv.S2b(s)) //nolint:errcheck
+		return
+	}
 	resp.BodyBuffer().WriteString(s) //nolint:errcheck
 }
 

@@ -84,6 +84,9 @@ func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
 	defer func() {
+		if args == nil {
+			return
+		}
 		if args.Verbose {
 			verboseLog := plugin.recvVerboseLogger()
 			if len(verboseLog) != 0 {
