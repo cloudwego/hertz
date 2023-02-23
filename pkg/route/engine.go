@@ -459,7 +459,7 @@ func errProcess(conn io.Closer, err error) {
 		}
 	}
 	// other errors
-	hlog.SystemLogger().Errorf("Error=%s, remoteAddr=%s", err.Error(), rip)
+	hlog.SystemLogger().Warnf("Error=%s, remoteAddr=%s", err.Error(), rip)
 }
 
 func getRemoteAddrFromCloser(conn io.Closer) string {
