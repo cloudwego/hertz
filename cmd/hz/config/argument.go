@@ -54,6 +54,7 @@ type Argument struct {
 	Gopkg       string // $GOPATH/src/{{gopkg}}
 	ServiceName string // service name
 	Use         string
+	NeedGoMod   bool
 
 	JSONEnumStr          bool
 	UnsetOmitempty       bool
@@ -192,6 +193,10 @@ func (arg *Argument) IsUpdate() bool {
 	return arg.CmdType == meta.CmdUpdate
 }
 
+func (arg *Argument) IsNew() bool {
+	return arg.CmdType == meta.CmdNew
+}
+
 // checkPackage check and set the gopath、 module and package name
 func (arg *Argument) checkPackage() error {
 	gopath, err := util.GetGOPATH()
@@ -212,23 +217,37 @@ func (arg *Argument) checkPackage() error {
 		} else {
 			arg.Gopkg = gopkg
 		}
-		if arg.Gomod == "" {
+	}
+	if len(arg.Gomod) == 0 { // not specified "go module"
+		// search go.mod recursively
+		module, path, ok := util.SearchGoMod(arg.Cwd, true)
+		if ok {
+			logs.Debugf("find module '%s' form '%s/go.mod'", module, path)
+			rel, err := filepath.Rel(path, arg.Cwd)
+			if err != nil {
+				return fmt.Errorf("can not get relative path, err :%v", err)
+			}
+			module = filepath.Join(module, rel)
+			arg.Gomod = module
+		}
+		if len(arg.Gomod) == 0 {
 			arg.Gomod = arg.Gopkg
 		}
-	}
-	if !arg.IsUpdate() && arg.Gomod == "" {
-		return fmt.Errorf("output directory %s is not under GOPATH/src. Please specify a module name with the '-module' flag", arg.Cwd)
+	} else { // specified "go module"
+		// search go.mod in current path
+		module, path, ok := util.SearchGoMod(arg.Cwd, false)
+		if ok {
+			// go.mod exists in current path
+			if module != arg.Gomod {
+				return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
+			}
+		} else {
+			arg.NeedGoMod = true
+		}
 	}
 
-	module, path, ok := util.SearchGoMod(".", false)
-	if ok {
-		// go.mod exists
-		if module != arg.Gomod && !arg.IsUpdate() {
-			return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
-		}
-		arg.Gomod = module
-	} else if !ok && len(arg.Gomod) == 0 {
-		return fmt.Errorf("can not get go module name for current path, please use '--module' to specify go module name")
+	if len(arg.Gomod) == 0 {
+		return fmt.Errorf("can not get go module, please specify a module name with the '-module' flag")
 	}
 
 	if len(arg.RawOptPkg) > 0 {
