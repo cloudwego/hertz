@@ -36,6 +36,7 @@ type Layout struct {
 	ServiceName     string
 	UseApacheThrift bool
 	HasIdl          bool
+	NeedGoMod       bool
 	ModelDir        string
 	HandlerDir      string
 	RouterDir       string
@@ -117,6 +118,13 @@ func (lg *LayoutGenerator) GenerateByService(service Layout) error {
 			delete(lg.tpls, defaultRegisterDir)
 			newRegisterDir := filepath.Clean(service.RouterDir + sp + registerTplName)
 			lg.tpls[newRegisterDir] = tpl
+		}
+	}
+
+	if !service.NeedGoMod {
+		gomodFile := "go.mod"
+		if _, exist := lg.tpls["go.mod"]; exist {
+			delete(lg.tpls, gomodFile)
 		}
 	}
 

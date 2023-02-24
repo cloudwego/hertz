@@ -69,6 +69,10 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
+	if !args.NeedGoMod && args.IsNew() {
+		fmt.Println(meta.AddThriftReplace)
+	}
+
 	return nil
 }
 
@@ -243,6 +247,7 @@ func Init() *cli.App {
 				&handlerDirFlag,
 				&modelDirFlag,
 				&clientDirFlag,
+				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -270,7 +275,6 @@ func Init() *cli.App {
 				&moduleFlag,
 				&outDirFlag,
 				&modelDirFlag,
-				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -340,6 +344,7 @@ func GenerateLayout(args *config.Argument) error {
 		ModelDir:        args.ModelDir,
 		HandlerDir:      args.HandlerDir,
 		RouterDir:       args.RouterDir,
+		NeedGoMod:       args.NeedGoMod,
 	}
 
 	if args.CustomizeLayout == "" {
