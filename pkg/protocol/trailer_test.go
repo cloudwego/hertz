@@ -36,6 +36,42 @@ func TestTrailerAdd(t *testing.T) {
 	assert.True(t, strings.Contains(string(tr.Header()), "Bar: value3"))
 }
 
+func TestHeaderTrailerSet(t *testing.T) {
+	h := &RequestHeader{}
+
+	// only one trailer
+	h.Set("Trailer", "Foo")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo:"))
+
+	// multi trailer
+	h.Set("Trailer", "Foo, bar, HERtz")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Bar:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Hertz:"))
+
+	// all lowercase
+	h.Set("Trailer", "foo,hertz,aaa")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Hertz:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Aaa:"))
+
+	// all uppercase
+	h.Set("Trailer", "FOO,HERTZ,AAA")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Hertz:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Aaa:"))
+
+	// with '-'
+	h.Set("Trailer", "FOO-HERTZ-AAA")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo-Hertz-Aaa:"))
+
+	// more space
+	h.Set("Trailer", "      foo,      hertz       ,        aaa      ")
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Foo:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Hertz:"))
+	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Aaa:"))
+}
+
 func TestTrailerAddError(t *testing.T) {
 	var tr Trailer
 	assert.NotNil(t, tr.Add(consts.HeaderContentType, ""))
