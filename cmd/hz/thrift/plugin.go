@@ -101,7 +101,7 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 
-	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
+	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		logs.Errorf("get go package failed: %s", err.Error())
@@ -128,7 +128,7 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 	sg := generator.HttpPackageGenerator{
-		ConfigPath: cf,
+		ConfigPath: customPackageTemplate,
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,

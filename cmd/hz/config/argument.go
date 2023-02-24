@@ -69,9 +69,10 @@ type Argument struct {
 	HandlerByMethod      bool
 	ForceNew             bool
 
-	CustomizeLayout  string
-	CustomizePackage string
-	ModelBackend     string
+	CustomizeLayout     string
+	CustomizeLayoutData string
+	CustomizePackage    string
+	ModelBackend        string
 }
 
 func NewArgument() *Argument {

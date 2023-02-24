@@ -213,14 +213,6 @@ func GetFirstKV(m map[string][]string) (string, []string) {
 	return "", nil
 }
 
-func GetVerticalBarPair(str string) (string, string) {
-	ps := strings.Split(str, "|")
-	if len(ps) != 2 {
-		return "", ""
-	}
-	return ps[0], ps[1]
-}
-
 func ToCamelCase(name string) string {
 	return CamelString(name)
 }

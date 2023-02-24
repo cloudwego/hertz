@@ -568,7 +568,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		return nil, err
 	}
 
-	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
+	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		return nil, err
@@ -590,7 +590,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		return nil, err
 	}
 	sg := generator.HttpPackageGenerator{
-		ConfigPath: cf,
+		ConfigPath: customPackageTemplate,
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
