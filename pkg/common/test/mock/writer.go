@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 CloudWeGo Authors
+ * Copyright 2023 CloudWeGo Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,34 @@
  * limitations under the License.
  */
 
-package hertz
+package mock
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.6.0"
-)
+import "bytes"
+
+type ExtWriter struct {
+	tmp     []byte
+	Buf     *bytes.Buffer
+	IsFinal *bool
+}
+
+func (m *ExtWriter) Write(p []byte) (n int, err error) {
+	m.tmp = p
+	return len(p), nil
+}
+
+func (m *ExtWriter) Flush() error {
+	_, err := m.Buf.Write(m.tmp)
+	return err
+}
+
+func (m *ExtWriter) Finalize() error {
+	if !*m.IsFinal {
+		*m.IsFinal = true
+	}
+	return nil
+}
+
+func (m *ExtWriter) SetBody(body []byte) {
+	m.Buf.Reset()
+	m.tmp = body
+}

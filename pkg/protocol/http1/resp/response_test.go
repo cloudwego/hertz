@@ -46,6 +46,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -53,6 +54,7 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/netpoll"
@@ -155,11 +157,11 @@ func testResponseReadError(t *testing.T, resp *protocol.Response, response strin
 	}
 
 	testResponseReadSuccess(t, resp, "HTTP/1.1 303 Redisred sedfs sdf\r\nContent-Type: aaa\r\nContent-Length: 5\r\n\r\nHELLOaaa",
-		consts.StatusSeeOther, 5, "aaa", "HELLO", "aaa")
+		consts.StatusSeeOther, 5, "aaa", "HELLO", nil)
 }
 
 func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
-	expectedContentType, expectedBody, expectedTrailer string,
+	expectedContentType, expectedBody string, expectedTrailer map[string]string,
 ) {
 	zr := mock.NewZeroCopyReader(response)
 	err := Read(resp, zr)
@@ -171,7 +173,7 @@ func testResponseReadSuccess(t *testing.T, resp *protocol.Response, response str
 	if !bytes.Equal(resp.Body(), []byte(expectedBody)) {
 		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
 	}
-	assert.VerifyTrailer(t, zr, expectedTrailer)
+	verifyResponseTrailer(t, &resp.Header, expectedTrailer)
 }
 
 func TestResponseReadSuccess(t *testing.T) {
@@ -181,40 +183,46 @@ func TestResponseReadSuccess(t *testing.T) {
 
 	// usual response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
-		consts.StatusOK, 10, "foo/bar", "0123456789", "")
+		consts.StatusOK, 10, "foo/bar", "0123456789", nil)
 
 	// zero response
 	testResponseReadSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
-		consts.StatusInternalServerError, 0, "foo/bar", "", "")
+		consts.StatusInternalServerError, 0, "foo/bar", "", nil)
 
 	// response with trailer
-	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
+	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+		consts.StatusMultipleChoices, 5, "bar", "56789", map[string]string{"Foo": "bar"})
+
+	// response with trailer disableNormalizing
+	resp.Header.DisableNormalizing()
+	resp.Header.Trailer().DisableNormalizing()
+	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+		consts.StatusMultipleChoices, 5, "bar", "56789", map[string]string{"foo": "bar"})
 
 	// no content-length ('identity' transfer-encoding)
-	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
-		consts.StatusOK, 4, "foobar", "zxxc", "")
+	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxxx",
+		consts.StatusOK, 5, "foobar", "zxxxx", nil)
 
 	// explicitly stated 'Transfer-Encoding: identity'
 	testResponseReadSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
-		234, 3, "xxx", "xag", "")
+		234, 3, "xxx", "xag", nil)
 
 	// big 'identity' response
 	body := string(mock.CreateFixedBody(100500))
 	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
-		consts.StatusOK, 100500, "aa", body, "")
+		consts.StatusOK, 100500, "aa", body, nil)
 
 	// chunked response
-	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
-		consts.StatusOK, 6, "text/html", "qwerty", "zzzzz")
+	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo2\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
+		200, 6, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
 
 	// chunked response with non-chunked Transfer-Encoding.
-	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
-		230, 4, "text", "erty", "we")
+	testResponseReadSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTrailer: Foo3\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
+		230, 4, "text", "erty", map[string]string{"Foo3": "bar3"})
 
-	// zero chunked response
-	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
-		consts.StatusOK, 0, "text/html", "", "zzz")
+	// chunked response with empty body
+	testResponseReadSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
+		consts.StatusOK, 0, "text/html", "", map[string]string{"Foo5": "bar5"})
 }
 
 func TestResponseReadError(t *testing.T) {
@@ -391,10 +399,12 @@ func TestResponseReadLimitBody(t *testing.T) {
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\n\r\n9876543210", 10)
 	// chunked response
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\n\r\n", 9)
+	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\nFoo: bar\r\n\r\n", 9)
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\n\r\n", 100)
+	testResponseReadLimitBodySuccess(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\nfoobar\r\n\r\n", 100)
 	testResponseReadLimitBodyError(t, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\nTransfer-Encoding: chunked\r\n\r\n6\r\nfoobar\r\n3\r\nbaz\r\n0\r\n\r\n", 2)
-	//
-	//// identity response
+
+	// identity response
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 400 OK\r\nContent-Type: aa\r\n\r\n123456", 6)
 	testResponseReadLimitBodySuccess(t, "HTTP/1.1 400 OK\r\nContent-Type: aa\r\n\r\n123456", 106)
 	testResponseReadLimitBodyError(t, "HTTP/1.1 400 OK\r\nContent-Type: aa\r\n\r\n123456", 5)
@@ -405,21 +415,21 @@ func TestResponseReadWithoutBody(t *testing.T) {
 
 	var resp protocol.Response
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\nfoobar", false,
-		consts.StatusNotModified, 1235, "aa", "foobar", "gzip")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\n", false,
+		consts.StatusNotModified, 1235, "aa", nil, "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n123\r\nss", false,
-		consts.StatusNoContent, -1, "aab", "123\r\nss", "deflate")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\n", false,
+		consts.StatusNoContent, -1, "aab", map[string]string{"Foo": "bar"}, "deflate")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\naaaa", false,
-		123, 3434, "xxx", "aaaa", "gzip")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\n", false,
+		123, 3434, "xxx", nil, "gzip")
 
-	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Encoding: deflate\r\nContent-Length: 123\r\n\r\nxxxx", true,
-		consts.StatusOK, 123, "text/xml", "xxxx", "deflate")
+	testResponseReadWithoutBody(t, &resp, "HTTP 200 OK\r\nContent-Type: text/xml\r\nContent-Encoding: deflate\r\nContent-Length: 123\r\n\r\nfoobar\r\n", true,
+		consts.StatusOK, 123, "text/xml", nil, "deflate")
 
 	// '100 Continue' must be skipped.
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Encoding: gzip\r\nContent-Length: 894\r\n\r\nfoobar", true,
-		329, 894, "qwe", "foobar", "gzip")
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 100 Continue\r\nFoo-bar: baz\r\n\r\nHTTP/1.1 329 aaa\r\nContent-Type: qwe\r\nContent-Encoding: gzip\r\nContent-Length: 894\r\n\r\n", true,
+		329, 894, "qwe", nil, "gzip")
 }
 
 func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStatusCode, expectedContentLength int, expectedContentType, expectedContentEncoding string) {
@@ -482,7 +492,7 @@ func testResponseSuccess(t *testing.T, statusCode int, contentType, serverName, 
 }
 
 func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string, skipBody bool,
-	expectedStatusCode, expectedContentLength int, expectedContentType, expectedTrailer, expectedContentEncoding string,
+	expectedStatusCode, expectedContentLength int, expectedContentType string, expectedTrailer map[string]string, expectedContentEncoding string,
 ) {
 	zr := mock.NewZeroCopyReader(s)
 	resp.SkipBody = skipBody
@@ -493,13 +503,23 @@ func testResponseReadWithoutBody(t *testing.T, resp *protocol.Response, s string
 	if len(resp.Body()) != 0 {
 		t.Fatalf("Unexpected response body %q. Expected %q. response=%q", resp.Body(), "", s)
 	}
+
 	verifyResponseHeader(t, &resp.Header, expectedStatusCode, expectedContentLength, expectedContentType, expectedContentEncoding)
-	assert.VerifyTrailer(t, zr, expectedTrailer)
+	verifyResponseTrailer(t, &resp.Header, expectedTrailer)
 
 	// verify that ordinal response is read after null-body response
 	resp.SkipBody = false
-	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
+	testResponseReadSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789",
+		consts.StatusMultipleChoices, 5, "bar", "56789", nil)
+}
+
+func verifyResponseTrailer(t *testing.T, h *protocol.ResponseHeader, expectedTrailers map[string]string) {
+	for k, v := range expectedTrailers {
+		got := h.Trailer().Peek(k)
+		if !bytes.Equal(got, []byte(v)) {
+			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
+		}
+	}
 }
 
 func testResponseReadLimitBodyError(t *testing.T, s string, maxBodySize int) {
@@ -522,8 +542,161 @@ func testResponseReadLimitBodySuccess(t *testing.T, s string, maxBodySize int) {
 	}
 }
 
+func TestResponseBodyStreamWithTrailer(t *testing.T) {
+	t.Parallel()
+
+	testResponseBodyStreamWithTrailer(t, nil, false)
+
+	body := mock.CreateFixedBody(1e5)
+	testResponseBodyStreamWithTrailer(t, body, false)
+	testResponseBodyStreamWithTrailer(t, body, true)
+}
+
+func testResponseBodyStreamWithTrailer(t *testing.T, body []byte, disableNormalizing bool) {
+	expectedTrailer := map[string]string{
+		"foo": "testfoo",
+		"bar": "testbar",
+	}
+	var resp1 protocol.Response
+	if disableNormalizing {
+		resp1.Header.DisableNormalizing()
+	}
+	resp1.SetBodyStream(bytes.NewReader(body), -1)
+	for k, v := range expectedTrailer {
+		err := resp1.Header.Trailer().Add(k, v)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&resp1, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var resp2 protocol.Response
+	if disableNormalizing {
+		resp2.Header.DisableNormalizing()
+	}
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp2, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	respBody := resp2.Body()
+	if !bytes.Equal(respBody, body) {
+		t.Fatalf("unexpected body: %q. Expecting %q", respBody, body)
+	}
+
+	for k, v := range expectedTrailer {
+		kBytes := []byte(k)
+		utils.NormalizeHeaderKey(kBytes, disableNormalizing)
+		r := resp2.Header.Trailer().Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
+		}
+	}
+}
+
+func TestSetResponseBodyStreamFixedSize(t *testing.T) {
+	t.Parallel()
+
+	testSetResponseBodyStream(t, "a")
+	testSetResponseBodyStream(t, string(mock.CreateFixedBody(4097)))
+	testSetResponseBodyStream(t, string(mock.CreateFixedBody(100500)))
+}
+
+func TestSetResponseBodyStreamChunked(t *testing.T) {
+	t.Parallel()
+
+	testSetResponseBodyStreamChunked(t, "", map[string]string{"Foo": "bar"})
+
+	body := "foobar baz aaa bbb ccc"
+	testSetResponseBodyStreamChunked(t, body, nil)
+
+	body = string(mock.CreateFixedBody(10001))
+	testSetResponseBodyStreamChunked(t, body, map[string]string{"Foo": "test", "Bar": "test"})
+}
+
+func testSetResponseBodyStream(t *testing.T, body string) {
+	var resp protocol.Response
+	bodySize := len(body)
+	if resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return false")
+	}
+	resp.SetBodyStream(bytes.NewBufferString(body), bodySize)
+	if !resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return true")
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&resp, zw); err != nil {
+		t.Fatalf("unexpected error when writing response: %s. body=%q", err, body)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error when flushing response: %s. body=%q", err, body)
+	}
+
+	var resp1 protocol.Response
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp1, zr); err != nil {
+		t.Fatalf("unexpected error when reading response: %s. body=%q", err, body)
+	}
+	if string(resp1.Body()) != body {
+		t.Fatalf("unexpected body %q. Expecting %q", resp1.Body(), body)
+	}
+}
+
+func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[string]string) {
+	var resp protocol.Response
+	if resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return false")
+	}
+	resp.SetBodyStream(bytes.NewBufferString(body), -1)
+	if !resp.IsBodyStream() {
+		t.Fatalf("IsBodyStream must return true")
+	}
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	for k, v := range trailer {
+		err := resp.Header.Trailer().Add(k, v)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+	}
+	if err := Write(&resp, zw); err != nil {
+		t.Fatalf("unexpected error when writing response: %s. body=%q", err, body)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error when flushing response: %s. body=%q", err, body)
+	}
+	var resp1 protocol.Response
+	br := bufio.NewReader(&w)
+	zr := netpoll.NewReader(br)
+	if err := Read(&resp1, zr); err != nil {
+		t.Fatalf("unexpected error when reading response: %s. body=%q", err, body)
+	}
+	if string(resp1.Body()) != body {
+		t.Fatalf("unexpected body %q. Expecting %q", resp1.Body(), body)
+	}
+	for k, v := range trailer {
+		r := resp.Header.Trailer().Peek(k)
+		if string(r) != v {
+			t.Fatalf("unexpected trailer %s. Expecting %s. Got %q", k, v, r)
+		}
+	}
+}
+
 func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, response string, expectedStatusCode, expectedContentLength int,
-	expectedContentType, expectedBody, expectedTrailer string,
+	expectedContentType, expectedBody string, expectedTrailer map[string]string,
 ) {
 	zr := mock.NewZeroCopyReader(response)
 	err := ReadBodyStream(resp, zr, 0, nil)
@@ -532,7 +705,7 @@ func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, re
 	}
 	assert.True(t, resp.IsBodyStream())
 
-	body, err := io.ReadAll(resp.BodyStream())
+	body, err := ioutil.ReadAll(resp.BodyStream())
 	if err != nil && err != io.EOF {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -540,7 +713,21 @@ func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, re
 	if !bytes.Equal(body, []byte(expectedBody)) {
 		t.Fatalf("Unexpected body %q. Expected %q", resp.Body(), []byte(expectedBody))
 	}
-	assert.VerifyTrailer(t, zr, expectedTrailer)
+	verifyResponseTrailer(t, &resp.Header, expectedTrailer)
+}
+
+func testResponseReadBodyStreamBadTrailer(t *testing.T, resp *protocol.Response, response string) {
+	zr := mock.NewZeroCopyReader(response)
+	err := ReadBodyStream(resp, zr, 0, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	assert.True(t, resp.IsBodyStream())
+
+	_, err = ioutil.ReadAll(resp.BodyStream())
+	if err == nil || err == io.EOF {
+		t.Fatalf("expected error when reading response.")
+	}
 }
 
 func TestResponseReadBodyStream(t *testing.T) {
@@ -550,38 +737,53 @@ func TestResponseReadBodyStream(t *testing.T) {
 
 	// usual response
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789",
-		consts.StatusOK, 10, "foo/bar", "0123456789", "")
+		consts.StatusOK, 10, "foo/bar", "0123456789", nil)
 
 	// zero response
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 500 OK\r\nContent-Length: 0\r\nContent-Type: foo/bar\r\n\r\n",
-		consts.StatusInternalServerError, 0, "foo/bar", "", "")
+		consts.StatusInternalServerError, 0, "foo/bar", "", nil)
 
 	// response with trailer
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nContent-Length: 5\r\nContent-Type: bar\r\n\r\n56789aaa",
-		consts.StatusMultipleChoices, 5, "bar", "56789", "aaa")
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: Foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"Foo": "bar"})
+
+	// response with trailer disableNormalizing
+	resp.Header.DisableNormalizing()
+	resp.Header.Trailer().DisableNormalizing()
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
+		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"foo": "bar"})
 
 	// no content-length ('identity' transfer-encoding)
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxc",
-		consts.StatusOK, -2, "foobar", "zxxc", "")
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: foobar\r\n\r\nzxxxx",
+		consts.StatusOK, -2, "foobar", "zxxxx", nil)
 
 	// explicitly stated 'Transfer-Encoding: identity'
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 234 ss\r\nContent-Type: xxx\r\n\r\nxag",
-		234, -2, "xxx", "xag", "")
+		234, -2, "xxx", "xag", nil)
 
 	// big 'identity' response
 	body := string(mock.CreateFixedBody(100500))
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: aa\r\n\r\n"+body,
-		consts.StatusOK, -2, "aa", body, "")
+		consts.StatusOK, -2, "aa", body, nil)
 
 	// chunked response
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\n\r\nzzzzz",
-		consts.StatusOK, -1, "text/html", "qwerty", "zzzzz")
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo2\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nFoo2: bar2\r\n\r\n",
+		200, -1, "text/html", "qwerty", map[string]string{"Foo2": "bar2"})
 
 	// chunked response with non-chunked Transfer-Encoding.
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\n\r\nwe",
-		230, -1, "text", "erty", "we")
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 230 OK\r\nContent-Type: text\r\nTrailer: Foo3\r\nTransfer-Encoding: aaabbb\r\n\r\n2\r\ner\r\n2\r\nty\r\n0\r\nFoo3: bar3\r\n\r\n",
+		230, -1, "text", "erty", map[string]string{"Foo3": "bar3"})
 
-	// zero chunked response
-	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nzzz",
-		consts.StatusOK, -1, "text/html", "", "zzz")
+	// chunked response with empty body
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTrailer: Foo5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo5: bar5\r\n\r\n",
+		consts.StatusOK, -1, "text/html", "", map[string]string{"Foo5": "bar5"})
+}
+
+func TestResponseReadBodyStreamBadTrailer(t *testing.T) {
+	t.Parallel()
+
+	resp := &protocol.Response{}
+
+	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\ncontent-type: bar\r\n\r\n")
+	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nproxy-connection: bar2\r\n\r\n")
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -141,15 +142,28 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 				handlerOutDir = ""
 			}
 
+			// protoGoInfo can get generated "Go Info" for proto file.
+			// the type name may be different between "***.proto" and "***.pb.go"
+			protoGoInfo, exist := gen.FilesByPath[ast.GetName()]
+			if !exist {
+				return nil, fmt.Errorf("file(%s) can not exist", ast.GetName())
+			}
+			methodGoInfo, err := getMethod(protoGoInfo, m)
+			if err != nil {
+				return nil, err
+			}
+			inputGoType := methodGoInfo.Input
+			outputGoType := methodGoInfo.Output
+
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
-			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + sb.Name
+			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
-			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + st.Name
+			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
@@ -191,10 +205,10 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			merges = service.Models
 			merges.MergeMap(method.Models)
 			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
-				reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + sb.Name
+				reqName = goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] + "." + inputGoType.GoIdent.GoName
 			}
 			if goOptMapAlias[sb.Scope.GetOptions().GetGoPackage()] != "" {
-				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + st.Name
+				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + outputGoType.GoIdent.GoName
 			}
 			method.RequestTypeName = reqName
 			method.ReturnTypeName = respName
@@ -236,40 +250,66 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		hasFormAnnotation bool
 	)
 	for _, f := range inputType.Fields {
+		hasAnnotation := false
+		isStringFieldType := false
+		if f.Desc.Kind() == protoreflect.StringKind {
+			isStringFieldType = true
+		}
 		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
+			hasAnnotation = true
 			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
 			val := queryAnnos.(string)
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
+			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
 			val := pathAnnos.(string)
-			clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
+			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
 			val := headerAnnos.(string)
-			clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+			hasAnnotation = true
 			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
 			val := formAnnos.(string)
-			clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			if isStringFieldType {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			} else {
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+			}
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Body) {
+			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+			hasAnnotation = true
 			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
 			val := fileAnnos.(string)
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

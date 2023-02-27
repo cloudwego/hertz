@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"reflect"
 	"strings"
 	"testing"
@@ -401,7 +401,7 @@ tailfoobar`
 	if err := req.Read(&ctx.Request, mr); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	tail, err := io.ReadAll(mr)
+	tail, err := ioutil.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -673,17 +673,47 @@ func TestContextContentType(t *testing.T) {
 func TestClientIp(t *testing.T) {
 	c := NewContext(0)
 	c.conn = mock.NewConn("")
-	// Case 1
-	c.Request.Header.Set("X-Forwarded-For", "126.0.0.2")
+	// 0.0.0.0 simulates a trusted proxy server
+	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
 	val := c.ClientIP()
 	if val != "126.0.0.2" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
 	}
-	// Case 2
+	// no proxy server
+	c = NewContext(0)
+	c.conn = mock.NewConn("")
 	c.Request.Header.Set("X-Real-Ip", "126.0.0.1")
 	val = c.ClientIP()
 	if val != "126.0.0.1" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.1")
+	}
+	// custom RemoteIPHeaders and TrustedProxies
+	opts := ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedProxies: map[string]bool{
+			"0.0.0.0": true,
+		},
+	}
+	c = NewContext(0)
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	c.conn = mock.NewConn("")
+	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
+	val = c.ClientIP()
+	if val != "126.0.0.2" {
+		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
+	}
+	// no trusted proxy server
+	opts = ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedProxies:  nil,
+	}
+	c = NewContext(0)
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	c.conn = mock.NewConn("")
+	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
+	val = c.ClientIP()
+	if val != "0.0.0.0" {
+		t.Fatalf("unexpected %v. Expecting %v", val, "0.0.0.0")
 	}
 }
 

@@ -78,21 +78,71 @@ type Handler interface {
 
 type ClientIP func(ctx *RequestContext) string
 
-var defaultClientIP = func(ctx *RequestContext) string {
-	RemoteIPHeaders := []string{"X-Real-IP", "X-Forwarded-For"}
-	for _, headerName := range RemoteIPHeaders {
-		ip := ctx.Request.Header.Get(headerName)
-		if ip != "" {
-			return ip
+type ClientIPOptions struct {
+	RemoteIPHeaders []string
+	TrustedProxies  map[string]bool
+}
+
+var defaultClientIPOptions = ClientIPOptions{
+	RemoteIPHeaders: []string{"X-Real-IP", "X-Forwarded-For"},
+	TrustedProxies: map[string]bool{
+		"0.0.0.0": true,
+	},
+}
+
+// ClientIPWithOption used to generate custom ClientIP function and set by engine.SetClientIPFunc
+func ClientIPWithOption(opts ClientIPOptions) ClientIP {
+	return func(ctx *RequestContext) string {
+		RemoteIPHeaders := opts.RemoteIPHeaders
+		TrustedProxies := opts.TrustedProxies
+
+		remoteIP, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String()))
+		if err != nil {
+			return ""
+		}
+		trusted := isTrustedProxy(TrustedProxies, remoteIP)
+
+		if trusted {
+			for _, headerName := range RemoteIPHeaders {
+				ip, valid := validateHeader(TrustedProxies, ctx.Request.Header.Get(headerName))
+				if valid {
+					return ip
+				}
+			}
+		}
+
+		return remoteIP
+	}
+}
+
+// isTrustedProxy will check whether the IP address is included in the trusted list according to TrustedProxies
+func isTrustedProxy(trustedProxies map[string]bool, remoteIP string) bool {
+	return trustedProxies[remoteIP]
+}
+
+// validateHeader will parse X-Real-IP and X-Forwarded-For header and return the Initial client IP address or an untrusted IP address
+func validateHeader(trustedProxies map[string]bool, header string) (clientIP string, valid bool) {
+	if header == "" {
+		return "", false
+	}
+	items := strings.Split(header, ",")
+	for i := len(items) - 1; i >= 0; i-- {
+		ipStr := strings.TrimSpace(items[i])
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			break
+		}
+
+		// X-Forwarded-For is appended by proxy
+		// Check IPs in reverse order and stop when find untrusted proxy
+		if (i == 0) || (!isTrustedProxy(trustedProxies, ipStr)) {
+			return ipStr, true
 		}
 	}
-
-	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String())); err == nil {
-		return ip
-	}
-
-	return ""
+	return "", false
 }
+
+var defaultClientIP = ClientIPWithOption(defaultClientIPOptions)
 
 // SetClientIPFunc sets ClientIP function implementation to get ClientIP.
 // Deprecated: Use engine.SetClientIPFunc instead of SetClientIPFunc
@@ -159,6 +209,15 @@ type RequestContext struct {
 
 	// clientIPFunc get form value by use custom function.
 	formValueFunc FormValueFunc
+}
+
+// Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
+// Will return nil if the response writer is not hijacked.
+func (ctx *RequestContext) Flush() error {
+	if ctx.Response.GetHijackWriter() == nil {
+		return nil
+	}
+	return ctx.Response.GetHijackWriter().Flush()
 }
 
 func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {

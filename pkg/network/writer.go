@@ -103,3 +103,12 @@ func NewWriter(w io.Writer) Writer {
 		w: w,
 	}
 }
+
+type ExtWriter interface {
+	io.Writer
+	Flush() error
+
+	// Finalize will be called by framework before the writer is released.
+	// Implementations must guarantee that Finalize is safe for multiple calls.
+	Finalize() error
+}

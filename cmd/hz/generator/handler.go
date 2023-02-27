@@ -19,7 +19,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -130,6 +130,16 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 		}
 	}
 
+	if len(pkgGen.UseDir) != 0 {
+		oldModelDir := filepath.Clean(filepath.Join(pkgGen.ProjPackage, pkgGen.ModelDir))
+		newModelDir := filepath.Clean(pkgGen.UseDir)
+		for _, m := range handler.Methods {
+			for _, mm := range m.Models {
+				mm.Package = strings.Replace(mm.Package, oldModelDir, newModelDir, 1)
+			}
+		}
+	}
+
 	handler.Format()
 	return nil
 }
@@ -143,7 +153,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return pkgGen.TemplateGenerator.Generate(handler, handlerTpl, filePath, noRepeat)
 	}
 
-	file, err := os.ReadFile(filePath)
+	file, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return err
 	}

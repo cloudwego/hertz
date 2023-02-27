@@ -177,6 +177,19 @@ func releaseArg(h []argsKV) []argsKV {
 	return h[:len(h)-1]
 }
 
+func updateArgBytes(h []argsKV, key, value []byte) []argsKV {
+	n := len(h)
+	for i := 0; i < n; i++ {
+		kv := &h[i]
+		if kv.noValue && bytes.Equal(key, kv.key) {
+			kv.value = append(kv.value[:0], value...)
+			kv.noValue = ArgsHasValue
+			return h
+		}
+	}
+	return h
+}
+
 func setArgBytes(h []argsKV, key, value []byte, noValue bool) []argsKV {
 	n := len(h)
 	for i := 0; i < n; i++ {

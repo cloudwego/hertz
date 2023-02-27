@@ -17,17 +17,16 @@
 package thrift
 
 import (
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
-	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/thriftgo/plugin"
 )
 
 func TestRun(t *testing.T) {
-	data, err := os.ReadFile("../testdata/request_thrift.out")
+	data, err := ioutil.ReadFile("../testdata/request_thrift.out")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestRun(t *testing.T) {
 	}
 
 	args := plu.args
-	cf, _ := util.GetColonPair(args.CustomizePackage)
+	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +75,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	sg := generator.HttpPackageGenerator{
-		ConfigPath: cf,
+		ConfigPath: customPackageTemplate,
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,

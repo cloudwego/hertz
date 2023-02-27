@@ -183,6 +183,10 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					}
 					continue
 				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
+					err = h.Trailer().SetTrailers(s.Value)
+					continue
+				}
 			}
 			h.AddArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
 		}
@@ -205,7 +209,7 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 		h.SetConnectionClose(!ext.HasHeaderValue(v, bytestr.StrKeepAlive))
 	}
 
-	return len(buf) - len(s.B), nil
+	return len(buf) - len(s.B), err
 }
 
 func parse(h *protocol.ResponseHeader, buf []byte) (int, error) {

@@ -24,20 +24,22 @@ import (
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
+	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 	"github.com/urfave/cli/v2"
 )
 
 type Argument struct {
 	// Mode              meta.Mode // operating mode（0-compiler, 1-plugin)
-	CmdType    string // command type
-	Verbose    bool   // print verbose log
-	Cwd        string // execution path
-	OutDir     string // output path
-	HandlerDir string // handler path
-	ModelDir   string // model path
-	RouterDir  string // router path
-	ClientDir  string // client path
-	BaseDomain string // request domain
+	CmdType        string // command type
+	Verbose        bool   // print verbose log
+	Cwd            string // execution path
+	OutDir         string // output path
+	HandlerDir     string // handler path
+	ModelDir       string // model path
+	RouterDir      string // router path
+	ClientDir      string // client path
+	BaseDomain     string // request domain
+	ForceClientDir string // client dir (not use namespace as a subpath)
 
 	IdlType   string   // idl type
 	IdlPaths  []string // master idl path
@@ -51,6 +53,8 @@ type Argument struct {
 	Gomod       string
 	Gopkg       string // $GOPATH/src/{{gopkg}}
 	ServiceName string // service name
+	Use         string
+	NeedGoMod   bool
 
 	JSONEnumStr          bool
 	UnsetOmitempty       bool
@@ -63,10 +67,12 @@ type Argument struct {
 	Excludes             []string
 	NoRecurse            bool
 	HandlerByMethod      bool
+	ForceNew             bool
 
-	CustomizeLayout  string
-	CustomizePackage string
-	ModelBackend     string
+	CustomizeLayout     string
+	CustomizeLayoutData string
+	CustomizePackage    string
+	ModelBackend        string
 }
 
 func NewArgument() *Argument {
@@ -113,6 +119,21 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.ProtocOptions = c.StringSlice("protoc")
 	arg.ThriftPlugins = c.StringSlice("thrift-plugins")
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
+}
+
+func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
+	if arg.HandlerDir == "" && m.HandlerDir != "" {
+		logs.Infof("use \"handler_dir\" in \".hz\" as the handler generated dir\n")
+		arg.HandlerDir = m.HandlerDir
+	}
+	if arg.ModelDir == "" && m.ModelDir != "" {
+		logs.Infof("use \"model_dir\" in \".hz\" as the model generated dir\n")
+		arg.ModelDir = m.ModelDir
+	}
+	if len(m.RouterDir) != 0 {
+		logs.Infof("use \"router_dir\" in \".hz\" as the router generated dir\n")
+		arg.RouterDir = m.RouterDir
+	}
 }
 
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
@@ -169,8 +190,12 @@ func (arg *Argument) checkIDL() error {
 	return nil
 }
 
-func (arg Argument) IsUpdate() bool {
+func (arg *Argument) IsUpdate() bool {
 	return arg.CmdType == meta.CmdUpdate
+}
+
+func (arg *Argument) IsNew() bool {
+	return arg.CmdType == meta.CmdNew
 }
 
 // checkPackage check and set the gopath、 module and package name
@@ -193,21 +218,37 @@ func (arg *Argument) checkPackage() error {
 		} else {
 			arg.Gopkg = gopkg
 		}
-		if arg.Gomod == "" {
+	}
+	if len(arg.Gomod) == 0 { // not specified "go module"
+		// search go.mod recursively
+		module, path, ok := util.SearchGoMod(arg.Cwd, true)
+		if ok {
+			logs.Debugf("find module '%s' form '%s/go.mod'", module, path)
+			rel, err := filepath.Rel(path, arg.Cwd)
+			if err != nil {
+				return fmt.Errorf("can not get relative path, err :%v", err)
+			}
+			module = filepath.Join(module, rel)
+			arg.Gomod = module
+		}
+		if len(arg.Gomod) == 0 {
 			arg.Gomod = arg.Gopkg
 		}
-	}
-	if !arg.IsUpdate() && arg.Gomod == "" {
-		return fmt.Errorf("output directory %s is not under GOPATH/src. Please specify a module name with the '-module' flag", arg.Cwd)
+	} else { // specified "go module"
+		// search go.mod in current path
+		module, path, ok := util.SearchGoMod(arg.Cwd, false)
+		if ok {
+			// go.mod exists in current path
+			if module != arg.Gomod {
+				return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
+			}
+		} else {
+			arg.NeedGoMod = true
+		}
 	}
 
-	module, path, ok := util.SearchGoMod(".", false)
-	if ok {
-		// go.mod exists
-		if module != arg.Gomod && !arg.IsUpdate() {
-			return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
-		}
-		arg.Gomod = module
+	if len(arg.Gomod) == 0 {
+		return fmt.Errorf("can not get go module, please specify a module name with the '-module' flag")
 	}
 
 	if len(arg.RawOptPkg) > 0 {
@@ -329,4 +370,22 @@ func (arg *Argument) GetClientDir() (string, error) {
 		return "", nil
 	}
 	return util.RelativePath(arg.ClientDir)
+}
+
+func (arg *Argument) InitManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+	m.HandlerDir = arg.HandlerDir
+	m.ModelDir = arg.ModelDir
+	m.RouterDir = arg.RouterDir
+}
+
+func (arg *Argument) UpdateManifest(m *meta.Manifest) {
+	m.Version = meta.Version
+	if arg.HandlerDir != m.HandlerDir {
+		m.HandlerDir = arg.HandlerDir
+	}
+	if arg.HandlerDir != m.ModelDir {
+		m.ModelDir = arg.ModelDir
+	}
+	// "router_dir" must not be defined by "update" command
 }

@@ -17,6 +17,7 @@
 package thrift
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -45,6 +46,9 @@ func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
 	defer func() {
+		if args == nil {
+			return
+		}
 		if args.Verbose {
 			verboseLog := plugin.recvVerboseLogger()
 			if len(verboseLog) != 0 {
@@ -97,7 +101,7 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 
-	cf, _ := util.GetColonPair(args.CustomizePackage)
+	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		logs.Errorf("get go package failed: %s", err.Error())
@@ -124,19 +128,22 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 	sg := generator.HttpPackageGenerator{
-		ConfigPath: cf,
+		ConfigPath: customPackageTemplate,
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
+		UseDir:     args.Use,
 		ClientDir:  clientDir,
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
+			Excludes:  args.Excludes,
 		},
 		ProjPackage:     pkg,
 		Options:         options,
 		HandlerByMethod: args.HandlerByMethod,
 		CmdType:         args.CmdType,
 		IdlClientDir:    util.SubDir(modelDir, pkgInfo.Package),
+		ForceClientDir:  args.ForceClientDir,
 		BaseDomain:      args.BaseDomain,
 	}
 	if args.ModelBackend != "" {
@@ -149,6 +156,20 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("generate package failed: %s", err.Error())
 		return meta.PluginError
 	}
+	if len(args.Use) != 0 {
+		err = sg.Persist()
+		if err != nil {
+			logs.Errorf("persist file failed within '-use' option: %s", err.Error())
+			return meta.PluginError
+		}
+		res := thriftgo_plugin.BuildErrorResponse(errors.New(meta.TheUseOptionMessage).Error())
+		err = plugin.response(res)
+		if err != nil {
+			logs.Errorf("response failed: %s", err.Error())
+			return meta.PluginError
+		}
+		return 0
+	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
 		logs.Errorf("format file failed: %s", err.Error())
@@ -159,7 +180,7 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("get response failed: %s", err.Error())
 		return meta.PluginError
 	}
-	plugin.response(res)
+	err = plugin.response(res)
 	if err != nil {
 		logs.Errorf("response failed: %s", err.Error())
 		return meta.PluginError

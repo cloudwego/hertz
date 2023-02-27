@@ -19,7 +19,7 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.5.2"
+const Version = "v0.6.0"
 
 // Mode hz run modes
 type Mode int
@@ -81,3 +81,8 @@ const (
 const (
 	SetBodyParam = "setBodyParam(req).\n"
 )
+
+// TheUseOptionMessage indicates that the generating of 'model code' is aborted due to the -use option for thrift IDL.
+const TheUseOptionMessage = "'model code' is not generated due to the '-use' option"
+
+const AddThriftReplace = "do not generate 'go.mod', please add 'replace github.com/apache/thrift => github.com/apache/thrift v0.13.0' to your 'go.mod'"
