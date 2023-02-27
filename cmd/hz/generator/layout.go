@@ -191,8 +191,8 @@ func serviceToRouterData(service Layout) (map[string]interface{}, error) {
 	}
 	return map[string]interface{}{
 		"Registers":      []string{},
-		"RouterPkgPath":  filepath.Clean(service.GoModule + util.PathToImport(routerDir, "")),
-		"HandlerPkgPath": filepath.Clean(service.GoModule + util.PathToImport(handlerDir, "")),
+		"RouterPkgPath":  service.GoModule + util.PathToImport(routerDir, ""),
+		"HandlerPkgPath": service.GoModule + util.PathToImport(handlerDir, ""),
 	}, nil
 }
 
