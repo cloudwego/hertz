@@ -22,7 +22,6 @@ import (
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
-	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/thriftgo/plugin"
 )
 
@@ -54,7 +53,7 @@ func TestRun(t *testing.T) {
 	}
 
 	args := plu.args
-	cf, _ := util.GetVerticalBarPair(args.CustomizePackage)
+	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +75,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	sg := generator.HttpPackageGenerator{
-		ConfigPath: cf,
+		ConfigPath: customPackageTemplate,
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
