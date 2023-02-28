@@ -99,10 +99,14 @@ func SearchGoMod(cwd string, recurse bool) (moduleName, path string, found bool)
 		if !os.IsNotExist(err) {
 			return
 		}
-		if !recurse || cwd == "/" {
+		if !recurse {
 			break
 		}
 		cwd = filepath.Dir(cwd)
+		// the root directory will return itself by using "filepath.Dir()"; to prevent dead loops, so jump out
+		if cwd == filepath.Dir(cwd) {
+			break
+		}
 	}
 	return
 }

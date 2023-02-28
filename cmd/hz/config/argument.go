@@ -228,12 +228,12 @@ func (arg *Argument) checkPackage() error {
 			if err != nil {
 				return fmt.Errorf("can not get relative path, err :%v", err)
 			}
-			module = filepath.Join(module, rel)
-			arg.Gomod = module
+			arg.Gomod = filepath.Join(module, rel)
 		}
 		if len(arg.Gomod) == 0 {
 			arg.Gomod = arg.Gopkg
 		}
+		arg.Gomod = util.PathToImport(arg.Gomod, "")
 	} else { // specified "go module"
 		// search go.mod in current path
 		module, path, ok := util.SearchGoMod(arg.Cwd, false)
