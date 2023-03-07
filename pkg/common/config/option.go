@@ -17,13 +17,9 @@
 package config
 
 import (
-	"context"
-	"crypto/tls"
-	"net"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
-	"github.com/cloudwego/hertz/pkg/network"
 )
 
 // Option is the only struct that can be used to set Options.
@@ -41,63 +37,6 @@ const (
 	defaultWaitExitTimeout    = time.Second * 5
 	defaultReadBufferSize     = 4 * 1024
 )
-
-type Options struct {
-	KeepAliveTimeout             time.Duration
-	ReadTimeout                  time.Duration
-	WriteTimeout                 time.Duration
-	IdleTimeout                  time.Duration
-	RedirectTrailingSlash        bool
-	MaxRequestBodySize           int
-	MaxKeepBodySize              int
-	GetOnly                      bool
-	DisableKeepalive             bool
-	RedirectFixedPath            bool
-	HandleMethodNotAllowed       bool
-	UseRawPath                   bool
-	RemoveExtraSlash             bool
-	UnescapePathValues           bool
-	DisablePreParseMultipartForm bool
-	StreamRequestBody            bool
-	NoDefaultServerHeader        bool
-	DisablePrintRoute            bool
-	Network                      string
-	Addr                         string
-	BasePath                     string
-	ExitWaitTimeout              time.Duration
-	TLS                          *tls.Config
-	H2C                          bool
-	ReadBufferSize               int
-	ALPN                         bool
-	Tracers                      []interface{}
-	TraceLevel                   interface{}
-	ListenConfig                 *net.ListenConfig
-
-	// TransporterNewer is the function to create a transporter.
-	TransporterNewer    func(opt *Options) network.Transporter
-	AltTransporterNewer func(opt *Options) network.Transporter
-
-	// In netpoll library, OnAccept is called after connection accepted
-	// but before adding it to epoll. OnConnect is called after adding it to epoll.
-	// The difference is that onConnect can get data but OnAccept cannot.
-	// If you'd like to check whether the peer IP is in the blacklist, you can use OnAccept.
-	// In go net, OnAccept is executed after connection accepted but before establishing
-	// tls connection. OnConnect is executed after establishing tls connection.
-	OnAccept  func(conn net.Conn) context.Context
-	OnConnect func(ctx context.Context, conn network.Conn) context.Context
-
-	// Registry is used for service registry.
-	Registry registry.Registry
-	// RegistryInfo is base info used for service registry.
-	RegistryInfo *registry.Info
-	// Enable automatically HTML template reloading mechanism.
-
-	AutoReloadRender bool
-	// If AutoReloadInterval is set to 0(default).
-	// The HTML template will reload according to files' changing event
-	// otherwise it will reload after AutoReloadInterval.
-	AutoReloadInterval time.Duration
-}
 
 func (o *Options) Apply(opts []Option) {
 	for _, op := range opts {

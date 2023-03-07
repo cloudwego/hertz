@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"net"
 	"sync"
 	"time"
 
@@ -427,9 +426,7 @@ func writeResponse(ctx *app.RequestContext, w network.Writer) error {
 }
 
 func defaultErrorHandler(ctx *app.RequestContext, err error) {
-	if netErr, ok := err.(*net.OpError); ok && netErr.Timeout() {
-		ctx.AbortWithMsg("Request timeout", consts.StatusRequestTimeout)
-	} else if errors.Is(err, errs.ErrBodyTooLarge) {
+	if errors.Is(err, errs.ErrBodyTooLarge) {
 		ctx.AbortWithMsg("Request Entity Too Large", consts.StatusRequestEntityTooLarge)
 	} else {
 		ctx.AbortWithMsg("Error when parsing request", consts.StatusBadRequest)

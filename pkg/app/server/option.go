@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 	"strings"
 	"time"
@@ -28,7 +27,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/standard"
 )
 
 // WithKeepAliveTimeout sets keep-alive timeout.
@@ -232,26 +230,6 @@ func WithNetwork(nw string) config.Option {
 func WithExitWaitTime(timeout time.Duration) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ExitWaitTimeout = timeout
-	}}
-}
-
-// WithTLS sets TLS config to start a tls server.
-//
-// NOTE: If a tls server is started, it won't accept non-tls request.
-func WithTLS(cfg *tls.Config) config.Option {
-	return config.Option{F: func(o *config.Options) {
-		// If there is no explicit transporter, change it to standard one. Netpoll do not support tls yet.
-		if o.TransporterNewer == nil {
-			o.TransporterNewer = standard.NewTransporter
-		}
-		o.TLS = cfg
-	}}
-}
-
-// WithListenConfig sets listener config.
-func WithListenConfig(l *net.ListenConfig) config.Option {
-	return config.Option{F: func(o *config.Options) {
-		o.ListenConfig = l
 	}}
 }
 

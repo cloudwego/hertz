@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build !tinygo
+// +build !tinygo
 
-//go:build !tinygo && !windows
-// +build !tinygo,!windows
-
-package route
+package client
 
 import (
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
+	"crypto/tls"
+
+	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/network/standard"
 )
 
-func init() {
-	defaultTransporter = netpoll.NewTransporter
+// WithTLSConfig sets tlsConfig to create a tls connection.
+func WithTLSConfig(cfg *tls.Config) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.TLSConfig = cfg
+		o.Dialer = standard.NewDialer()
+	}}
 }

@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+//go:build tinygo
+// +build tinygo
 
-//go:build !tinygo && !windows
-// +build !tinygo,!windows
+package server
 
-package route
-
-import (
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
-)
-
-func init() {
-	defaultTransporter = netpoll.NewTransporter
+// Default implementation for signal waiter.
+// SIGTERM triggers immediately close.
+// SIGHUP|SIGINT triggers graceful shutdown.
+func waitSignal(errCh chan error) error {
+	select {
+	case err := <-errCh:
+		// error occurs, exit immediately
+		return err
+	}
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
-	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -74,14 +73,6 @@ func WithKeepAlive(b bool) config.ClientOption {
 func WithClientReadTimeout(t time.Duration) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.ReadTimeout = t
-	}}
-}
-
-// WithTLSConfig sets tlsConfig to create a tls connection.
-func WithTLSConfig(cfg *tls.Config) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.TLSConfig = cfg
-		o.Dialer = standard.NewDialer()
 	}}
 }
 

@@ -1,3 +1,6 @@
+//go:build !tinygo
+// +build !tinygo
+
 /*
  * Copyright 2022 CloudWeGo Authors
  *

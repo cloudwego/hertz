@@ -18,10 +18,6 @@ package server
 
 import (
 	"context"
-	"errors"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
@@ -89,37 +85,6 @@ func (h *Hertz) Spin() {
 // Hertz will exit immediately if f returns an error, otherwise it will exit gracefully.
 func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
 	h.signalWaiter = f
-}
-
-// Default implementation for signal waiter.
-// SIGTERM triggers immediately close.
-// SIGHUP|SIGINT triggers graceful shutdown.
-func waitSignal(errCh chan error) error {
-	signalToNotify := []os.Signal{syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM}
-	if signal.Ignored(syscall.SIGHUP) {
-		signalToNotify = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
-	}
-
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, signalToNotify...)
-
-	select {
-	case sig := <-signals:
-		switch sig {
-		case syscall.SIGTERM:
-			// force exit
-			return errors.New(sig.String()) // nolint
-		case syscall.SIGHUP, syscall.SIGINT:
-			hlog.SystemLogger().Infof("Received signal: %s\n", sig)
-			// graceful shutdown
-			return nil
-		}
-	case err := <-errCh:
-		// error occurs, exit immediately
-		return err
-	}
-
-	return nil
 }
 
 func (h *Hertz) initOnRunHooks(errChan chan error) {

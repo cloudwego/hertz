@@ -68,7 +68,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
@@ -79,7 +78,7 @@ import (
 const unknownTransporterName = "unknown"
 
 var (
-	defaultTransporter = standard.NewTransporter
+	defaultTransporter func(options *config.Options) network.Transporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")
 	errAlreadyRunning   = errs.NewPrivate("engine is already running")
