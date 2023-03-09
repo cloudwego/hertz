@@ -8,39 +8,28 @@ SHELL := /bin/bash
 	fmt \
 	version
 
-all: imports fmt lint vet errors build
+help: ## Show this help screen.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make  \033[36m<OPTIONS>\033[0m ... \033[36m<TARGETS>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-help:
-	@echo 'Usage: make <OPTIONS> ... <TARGETS>'
-	@echo ''
-	@echo 'Available targets are:'
-	@echo ''
-	@echo '    help               Show this help screen.'
-	@echo '    coverage           Report code tests coverage.'
-	@echo '    vet                Run go vet.'
-	@echo '    lint               Run golint.'
-	@echo '    fmt                Run go fmt.'
-	@echo '    version            Display Go version.'
-	@echo ''
-	@echo 'Targets run by default are: lint, vet.'
-	@echo ''
+
+all: imports fmt lint vet errors build
 
 print-%:
 	@echo $* = $($*)
 
-deps:
+deps: 
 	go get golang.org/x/lint/golint
 
-coverage:
+coverage: ## Report code tests coverage.
 	go test $(go list ./... | grep -v examples) -coverprofile coverage.txt ./...
 
-vet:
+vet: ##  Run go vet.
 	go vet ./...
 
 lint: deps
 	golint ./...
 
-fmt:
+fmt: ## Run go fmt.
 	go install mvdan.cc/gofumpt@latest
 	gofumpt -l -w -extra .
 
@@ -52,5 +41,5 @@ pre-commit:
 
 release: package-release sign-release
 
-version:
+version: ## Display Go version.
 	@go version
