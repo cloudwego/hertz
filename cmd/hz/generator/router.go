@@ -36,8 +36,9 @@ type Router struct {
 }
 
 type RouterNode struct {
-	GroupName  string
-	MiddleWare string
+	GroupName         string
+	MiddleWare        string
+	HandlerMiddleware string
 
 	Path     string
 	Children childrenRouterInfo
@@ -57,9 +58,10 @@ type RegisterInfo struct {
 // NewRouterTree contains "/" as root node
 func NewRouterTree() *RouterNode {
 	return &RouterNode{
-		GroupName:  "root",
-		MiddleWare: "root",
-		Path:       "/",
+		GroupName:         "root",
+		MiddleWare:        "root",
+		HandlerMiddleware: "_",
+		Path:              "/",
 	}
 }
 
@@ -93,21 +95,42 @@ func (routerNode *RouterNode) DyeGroupName() error {
 		node.GroupName = groups[layer]
 		if node.MiddleWare == "" {
 			pname := node.Path
+			handlerMiddlewareName := ""
 			if len(pname) > 1 && pname[0] == '/' {
 				pname = pname[1:]
 			}
-			if len(node.Children) == 0 && node.Handler != "" {
-				handleName := strings.Split(node.Handler, ".")
-				pname = handleName[len(handleName)-1]
+			if len(node.Handler) != 0 {
+				handlerName := strings.Split(node.Handler, ".")
+				handlerMiddlewareName = handlerName[len(handlerName)-1]
+				// If it is a leaf node, then "group middleware name" and "handler middleware name" are the same
+				if len(node.Children) == 0 {
+					pname = handlerName[len(handlerName)-1]
+				}
 			}
-			pname = util.ToVarName([]string{pname})
-			// The tolow operation is placed here, unifying the middleware raw name
-			pname = strings.ToLower(pname)
-			pname, err := util.GetMiddlewareUniqueName(pname)
-			if err != nil {
-				return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
+
+			pname = util.ConvertToMiddlewareName(pname)
+			handlerMiddlewareName = util.ConvertToMiddlewareName(handlerMiddlewareName)
+
+			if pname == handlerMiddlewareName {
+				name, err := util.GetMiddlewareUniqueName(pname)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", name, err)
+				}
+				pname = name
+				handlerMiddlewareName = name
+			} else {
+				var err error
+				pname, err = util.GetMiddlewareUniqueName(pname)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
+				}
+				handlerMiddlewareName, err = util.GetMiddlewareUniqueName(handlerMiddlewareName)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", handlerMiddlewareName, err)
+				}
 			}
 			node.MiddleWare = "_" + pname
+			node.HandlerMiddleware = "_" + handlerMiddlewareName
 		}
 		if layer >= len(groups)-1 {
 			groups = append(groups, node.MiddleWare)
@@ -334,10 +357,16 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	if !isExist {
 		return pkgGen.TemplateGenerator.Generate(router, middlewareTpl, filePath, false)
 	}
-	middlewareList := make([]string, 1)
+	var middlewareList []string
 
 	_ = router.(Router).Router.DFS(0, func(layer int, node *RouterNode) error {
 		middlewareList = append(middlewareList, node.MiddleWare)
+		if len(node.MiddleWare) > 1 {
+			middlewareList = append(middlewareList, node.MiddleWare)
+		}
+		if len(node.HandlerMiddleware) > 1 {
+			middlewareList = append(middlewareList, node.HandlerMiddleware)
+		}
 		return nil
 	})
 

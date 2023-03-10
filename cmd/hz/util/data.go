@@ -420,3 +420,9 @@ func SubPackageDir(path string) string {
 	}
 	return path[:index]
 }
+
+func ConvertToMiddlewareName(name string) string {
+	name = ToVarName([]string{name})
+	name = strings.ToLower(name)
+	return name
+}
