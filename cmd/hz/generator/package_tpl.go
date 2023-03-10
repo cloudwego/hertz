@@ -120,7 +120,7 @@ import (
 
 {{define "G"}}
 {{- if ne .Handler ""}}
-	{{- .GroupName}}.{{.HttpMethod}}("{{.Path}}", append({{.MiddleWare}}Mw(), {{.Handler}})...)
+	{{- .GroupName}}.{{.HttpMethod}}("{{.Path}}", append({{.HandlerMiddleware}}Mw(), {{.Handler}})...)
 {{- end}}
 {{- if ne (len .Children) 0}}
 {{.MiddleWare}} := {{template "g" .}}.Group("{{.Path}}", {{.MiddleWare}}Mw()...)
@@ -181,6 +181,14 @@ func {{.MiddleWare}}Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+{{if ne .HandlerMiddleware .MiddleWare -}}
+{{if ne .HandlerMiddleware "_" -}}
+func {{.HandlerMiddleware}}Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+{{end}}
+{{end}}
 {{range $_, $router := $.Children}}{{template "M" $router}}{{end}}
 {{- end}}
 
