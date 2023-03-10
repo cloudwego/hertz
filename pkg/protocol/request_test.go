@@ -362,6 +362,15 @@ func TestRequestSetQueryString(t *testing.T) {
 	assert.DeepEqual(t, "test", string(r.URI().queryString))
 }
 
+func TestRequestSetQuerySParams(t *testing.T) {
+	r := &Request{}
+	r.SetQueryParams(map[string]string{
+		"name": "cxk",
+		"age":  "25",
+	})
+	assert.DeepEqual(t, "?name=cxk&age=25", string(r.URI().queryString))
+}
+
 func TestRequestSetFormData(t *testing.T) {
 	r := &Request{}
 	data := map[string]string{"username": "admin"}

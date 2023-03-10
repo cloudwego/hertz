@@ -450,6 +450,20 @@ func (req *Request) SetQueryString(queryString string) {
 	req.URI().SetQueryString(queryString)
 }
 
+// SetQueryParams sets query Params.
+func (req *Request) SetQueryParams(params map[string]string) {
+	var builder strings.Builder
+	builder.Write([]byte("?"))
+	for k, v := range params {
+		builder.Write([]byte(k))
+		builder.Write([]byte("="))
+		builder.Write([]byte(v))
+		builder.Write([]byte("&"))
+	}
+	queryString := builder.String()
+	req.URI().SetQueryString(queryString[:len(queryString)-1])
+}
+
 // SetFormData sets x-www-form-urlencoded params
 func (req *Request) SetFormData(data map[string]string) {
 	for k, v := range data {
