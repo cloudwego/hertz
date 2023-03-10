@@ -23,7 +23,7 @@ deps:
 coverage: ## Report code tests coverage.
 	go test $(go list ./... | grep -v examples) -coverprofile coverage.txt ./...
 
-vet: ##  Run go vet.
+vet: ## Run go vet.
 	go vet ./...
 
 lint: deps
