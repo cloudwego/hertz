@@ -26,7 +26,7 @@ import (
 
 func TestIoutilCopyBuffer(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	str := string("hertz is very good!!!")
+	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	var buf []byte
@@ -41,7 +41,7 @@ func TestIoutilCopyBuffer(t *testing.T) {
 
 func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	str := string("hertz is very good!!!")
+	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	// src.Len() will change, when use src.read(p []byte)
@@ -55,7 +55,7 @@ func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
 
 func TestIoutilCopyZeroAlloc(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	str := string("hertz is very good!!!")
+	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	srcLen := int64(src.Len())
