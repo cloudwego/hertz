@@ -168,7 +168,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 	}
 	scope, err := golang.BuildScope(thriftgoUtil, symbol.Scope)
 	if err != nil {
-		fmt.Errorf("can not build scope for %s", p.Name)
+		return fmt.Errorf("can not build scope for %s", p.Name)
 	}
 	thriftgoUtil.SetRootScope(scope)
 	st := scope.StructLike(typeName)
