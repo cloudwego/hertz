@@ -129,7 +129,7 @@ func TestUtilsNextLine(t *testing.T) {
 	singleHeaderStrWithFirstNewLine := []byte("\nContent-Type: application/x-www-form-urlencoded")
 	firstStr, secondStr, sErr := NextLine(singleHeaderStrWithFirstNewLine)
 	assert.DeepEqual(t, nil, sErr)
-	assert.DeepEqual(t, "", string(firstStr))
+	assert.DeepEqual(t, []byte{}, firstStr)
 	assert.DeepEqual(t, "Content-Type: application/x-www-form-urlencoded", string(secondStr))
 
 	singleHeaderStr := []byte("Content-Type: application/x-www-form-urlencoded")

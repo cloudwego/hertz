@@ -25,31 +25,35 @@ import (
 )
 
 func TestIoutilCopyBuffer(t *testing.T) {
-	var writeBuffer bytes.Buffer
-	str := "hertz is very good!!!"
-	src := bytes.NewBufferString(str)
-	dst := network.NewWriter(&writeBuffer)
-	var buf []byte
-	// src.Len() will change, when use src.read(p []byte)
-	srcLen := int64(src.Len())
-	written, err := CopyBuffer(dst, src, buf)
+	var (
+		writeBuffer bytes.Buffer
+		buf         []byte
+		str         = "hertz is very good!!!"
+		src         = bytes.NewBufferString(str)
+		dst         = network.NewWriter(&writeBuffer)
+		srcLen      = int64(src.Len())
+	)
 
-	assert.DeepEqual(t, written, srcLen)
+	// src.Len() will change, when use src.read(p []byte)
+	written, err := CopyBuffer(dst, src, buf)
 	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, written, srcLen)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
 
 func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
-	var writeBuffer bytes.Buffer
-	str := "hertz is very good!!!"
-	src := bytes.NewBufferString(str)
-	dst := network.NewWriter(&writeBuffer)
-	// src.Len() will change, when use src.read(p []byte)
-	srcLen := int64(src.Len())
-	written, err := CopyBuffer(dst, src, nil)
+	var (
+		writeBuffer bytes.Buffer
+		str         = "hertz is very good!!!"
+		src         = bytes.NewBufferString(str)
+		dst         = network.NewWriter(&writeBuffer)
+		srcLen      = int64(src.Len())
+	)
 
-	assert.DeepEqual(t, written, srcLen)
+	// src.Len() will change, when use src.read(p []byte)
+	written, err := CopyBuffer(dst, src, nil)
 	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, written, srcLen)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
 
