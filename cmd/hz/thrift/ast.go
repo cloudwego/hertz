@@ -18,6 +18,8 @@ package thrift
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/config"
+	"github.com/cloudwego/thriftgo/semantic"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
@@ -48,7 +50,7 @@ func getGoPackage(ast *parser.Thrift, pkgMap map[string]string) string {
 
 /*---------------------------Service-----------------------------*/
 
-func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*generator.Service, error) {
+func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument) ([]*generator.Service, error) {
 	ss := ast.GetServices()
 	out := make([]*generator.Service, 0, len(ss))
 	var models model.Models
@@ -61,7 +63,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*ge
 		service.BaseDomain = ""
 		domainAnno := getAnnotation(s.Annotations, ApiBaseDomain)
 		if len(domainAnno) == 1 {
-			if cmdType == meta.CmdClient {
+			if args.CmdType == meta.CmdClient {
 				service.BaseDomain = domainAnno[0]
 			}
 		}
@@ -134,14 +136,14 @@ func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*ge
 			}
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
-			if cmdType == meta.CmdClient {
+			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
 				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
 				if err != nil {
 					return nil, err
 				}
-				err = parseAnnotationToClient(clientMethod, m.Arguments[0].GetType(), rt)
+				err = parseAnnotationToClient(clientMethod, m.Arguments[0].GetType(), rt, args)
 				if err != nil {
 					return nil, err
 				}
@@ -157,7 +159,149 @@ func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*ge
 	return out, nil
 }
 
-func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol) error {
+type FieldDecoder struct {
+	RawField *golang.Field
+	Getter   string
+}
+
+func ParseFieldDecoder(structLike *golang.StructLike, scope *golang.Scope) ([]FieldDecoder, error) {
+	var fieldDecoders []FieldDecoder
+	for _, field := range structLike.Fields() {
+		dec, err := getFieldDecoder(field, scope, "")
+		if err != nil {
+			return nil, err
+		}
+		if dec != nil {
+			fieldDecoders = append(fieldDecoders, dec...)
+		}
+	}
+
+	return fieldDecoders, nil
+}
+
+func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([]FieldDecoder, error) {
+	if field.Type.Category == parser.Category_Struct {
+		var decoders []FieldDecoder
+		typeName := field.Type.Name
+		tmp := semantic.SplitType(typeName)
+		switch len(tmp) {
+		case 0:
+			return decoders, nil
+		case 1:
+			goTypeName := scope.Namespace().Get(tmp[0])
+			st := scope.StructLike(goTypeName)
+			if st == nil {
+				if field.Type.GetIsTypedef() {
+					var err error
+					st, err = resolveTypedefStruct(scope, tmp[0])
+					if err != nil {
+						return nil, fmt.Errorf("can not resolve typedef for '%s'", tmp[0])
+					}
+				}
+				if st == nil {
+					logs.Warnf("struct is nil for '%s' in '%s'", tmp[0], scope.AST().Filename)
+					return nil, nil
+				}
+			}
+			for _, f := range st.Fields() {
+				dec, err := getFieldDecoder(f, scope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
+				if err != nil {
+					return nil, err
+				}
+				if dec != nil {
+					decoders = append(decoders, dec...)
+				}
+			}
+		case 2:
+			ref, typ := tmp[0], tmp[1]
+			if strings.Contains(ref, ".") {
+				logs.Warnf("unsupported type name for '%s' in '%s'", typeName, scope.AST().Filename)
+				return nil, nil
+			}
+
+			refAst, found := scope.AST().GetReference(ref)
+			if !found {
+				return nil, fmt.Errorf("can not find include file '%s' for %s", ref, scope.AST().Filename)
+			}
+			refScope := scope.Includes().ByAST(refAst)
+			if refScope == nil {
+				return nil, fmt.Errorf("can not find reference package for %s", ref)
+			}
+			goTypeName := refScope.Namespace().Get(typ)
+			st := refScope.StructLike(goTypeName)
+			if st == nil {
+				if field.Type.GetIsTypedef() {
+					var err error
+					st, err = resolveTypedefStruct(scope, typ)
+					if err != nil {
+						return nil, fmt.Errorf("can not resolve typedef for '%s'", tmp[0])
+					}
+				}
+				if st == nil {
+					logs.Warnf("struct is nil for '%s' in '%s'", tmp[0], scope.AST().Filename)
+					return nil, nil
+				}
+			}
+			for _, f := range st.Fields() {
+				dec, err := getFieldDecoder(f, refScope.Scope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
+				if err != nil {
+					return nil, err
+				}
+				if dec != nil {
+					decoders = append(decoders, dec...)
+				}
+			}
+		}
+		return decoders, nil
+	}
+
+	switch field.Type.Category {
+	case parser.Category_Map, parser.Category_Exception,
+		parser.Category_Union, parser.Category_Service:
+		logs.Warnf("skip collect field info for %s, because it's type is %s", field.Field.Name, field.Type.Name)
+		return []FieldDecoder{}, nil
+
+	default:
+		dec := FieldDecoder{
+			RawField: field,
+			Getter:   Getter + fmt.Sprintf(".Get%s()", field.GoName().String()),
+		}
+		return []FieldDecoder{dec}, nil
+	}
+}
+
+func resolveTypedefStruct(scope *golang.Scope, rawTypeName string) (st *golang.StructLike, err error) {
+	typeDef, found := scope.AST().GetTypedef(rawTypeName)
+	if !found {
+		return st, fmt.Errorf("can not find typedef for '%s'", rawTypeName)
+	}
+	tmp := semantic.SplitType(typeDef.Type.Name)
+	if len(tmp) == 1 {
+		goTypeName := scope.Namespace().Get(tmp[0])
+		st = scope.StructLike(goTypeName)
+	} else if len(tmp) == 2 {
+		ref, typ := tmp[0], tmp[1]
+		if strings.Contains(ref, ".") {
+			logs.Warnf("unsupported type name for '%s' in '%s'", rawTypeName, scope.AST().Filename)
+			return nil, nil
+		}
+
+		refAst, found := scope.AST().GetReference(ref)
+		if !found {
+			return nil, fmt.Errorf("can not find include file '%s' for %s", ref, scope.AST().Filename)
+		}
+		refScope := scope.Includes().ByAST(refAst)
+		if refScope == nil {
+			return nil, fmt.Errorf("can not find reference package for %s", ref)
+		}
+		goTypeName := refScope.Namespace().Get(typ)
+		st = refScope.StructLike(goTypeName)
+	}
+
+	return
+}
+
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol, args *config.Argument) error {
 	if p == nil {
 		return fmt.Errorf("get type failed for parse annotatoon to client")
 	}
@@ -176,66 +320,72 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 		logs.Infof("the type '%s' for method '%s' is base type, so skip parse client info\n")
 		return nil
 	}
+
+	fieldDecoders, err := ParseFieldDecoder(st, scope)
+	if err != nil {
+		return err
+	}
+
 	var (
 		hasBodyAnnotation bool
 		hasFormAnnotation bool
 	)
-	for _, field := range st.Fields() {
+	for _, field := range fieldDecoders {
 		hasAnnotation := false
 		isStringFieldType := false
-		if field.GetType().String() == "string" {
+		if field.RawField.GetType().String() == "string" {
 			isStringFieldType = true
 		}
-		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationQuery); len(anno) > 0 {
 			hasAnnotation = true
 			query := anno[0]
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", query, field.GoName().String())
+			clientMethod.QueryParamsCode += fmt.Sprintf("{%q, req%s},\n", query, field.Getter)
 		}
 
-		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationPath); len(anno) > 0 {
 			hasAnnotation = true
 			path := anno[0]
 			if isStringFieldType {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req%s,\n", path, field.Getter)
 			} else {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", path, field.GoName().String())
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", path, field.Getter)
 			}
 		}
 
-		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationHeader); len(anno) > 0 {
 			hasAnnotation = true
 			header := anno[0]
 			if isStringFieldType {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req%s,\n", header, field.Getter)
 			} else {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", header, field.GoName().String())
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", header, field.Getter)
 			}
 		}
 
-		if anno := getAnnotation(field.Annotations, AnnotationForm); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationForm); len(anno) > 0 {
 			hasAnnotation = true
 			form := anno[0]
 			hasFormAnnotation = true
 			if isStringFieldType {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", form, field.GoName().String())
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req%s,\n", form, field.Getter)
 			} else {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", form, field.GoName().String())
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", form, field.Getter)
 			}
 		}
 
-		if anno := getAnnotation(field.Annotations, AnnotationBody); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationBody); len(anno) > 0 {
 			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
-		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
+		if anno := getAnnotation(field.RawField.Annotations, AnnotationFileName); len(anno) > 0 {
 			hasAnnotation = true
 			fileName := anno[0]
 			hasFormAnnotation = true
-			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
+			clientMethod.FormFileCode += fmt.Sprintf("%q: req%s,\n", fileName, field.Getter)
 		}
-		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", field.GoName().String(), field.GoName().String())
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") && args.SetDefaultQuery {
+			clientMethod.QueryParamsCode += fmt.Sprintf("{%q, req%s},\n", field.RawField.GoName().String(), field.Getter)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

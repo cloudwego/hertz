@@ -222,5 +222,8 @@ func (arg *Argument) GetThriftgoOptions() (string, error) {
 		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
 	}
 	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments,gen_json_tag=false"
+	if arg.CmdType == meta.CmdClient {
+		gas += ",nil_safe"
+	}
 	return gas, nil
 }

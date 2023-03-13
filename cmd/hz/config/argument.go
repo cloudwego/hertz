@@ -68,6 +68,7 @@ type Argument struct {
 	NoRecurse            bool
 	HandlerByMethod      bool
 	ForceNew             bool
+	SetDefaultQuery      bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string
