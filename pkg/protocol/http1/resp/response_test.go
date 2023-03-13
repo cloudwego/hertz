@@ -68,8 +68,8 @@ type ErroneousBodyStream struct {
 }
 
 type testReader struct {
-	read chan (int)
-	cb   chan (struct{})
+	read chan int
+	cb   chan struct{}
 }
 
 func (r *testReader) Read(b []byte) (int, error) {

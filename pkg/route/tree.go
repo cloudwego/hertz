@@ -347,7 +347,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
 			searchIndex -= len((*paramsPointer)[paramIndex].Value)
-			(*paramsPointer) = (*paramsPointer)[:paramIndex]
+			*paramsPointer = (*paramsPointer)[:paramIndex]
 		}
 		search = path[searchIndex:]
 		return
@@ -409,7 +409,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			if i == -1 {
 				i = len(search)
 			}
-			(*paramsPointer) = (*paramsPointer)[:(paramIndex + 1)]
+			*paramsPointer = (*paramsPointer)[:(paramIndex + 1)]
 			val := search[:i]
 			if unescape {
 				if v, err := url.QueryUnescape(search[:i]); err == nil {
@@ -432,7 +432,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		if child := cn.anyChild; child != nil {
 			// If any node is found, use remaining path for paramValues
 			cn = child
-			(*paramsPointer) = (*paramsPointer)[:(paramIndex + 1)]
+			*paramsPointer = (*paramsPointer)[:(paramIndex + 1)]
 			index := len(cn.pnames) - 1
 			val := search
 			if unescape {
