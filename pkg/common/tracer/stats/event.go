@@ -89,8 +89,8 @@ var (
 
 // errors
 var (
-	errNotAllowed = errors.NewPublic("event definition is not allowed after initialization")
-	errDuplicated = errors.NewPublic("event name is already defined")
+	ErrNotAllowed = errors.NewPublic("event definition is not allowed after initialization")
+	ErrDuplicated = errors.NewPublic("event name is already defined")
 )
 
 var (
@@ -108,13 +108,13 @@ func FinishInitialization() {
 // DefineNewEvent allows user to add event definitions during program initialization.
 func DefineNewEvent(name string, level Level) (Event, error) {
 	if atomic.LoadInt32(&inited) == 1 {
-		return nil, errNotAllowed
+		return nil, ErrNotAllowed
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	evt, exist := userDefined[name]
 	if exist {
-		return evt, errDuplicated
+		return evt, ErrDuplicated
 	}
 	userDefined[name] = newEvent(EventIndex(maxEventNum), level)
 	maxEventNum++

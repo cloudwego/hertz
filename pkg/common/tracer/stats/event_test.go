@@ -35,7 +35,7 @@ func TestDefineNewEvent(t *testing.T) {
 
 	event2, err2 := DefineNewEvent("myevent", LevelBase)
 	num2 := MaxEventNum()
-	assert.Assert(t, err2 == errDuplicated)
+	assert.Assert(t, err2 == ErrDuplicated)
 	assert.Assert(t, event2 == event1)
 	assert.Assert(t, num2 == num1)
 	assert.Assert(t, event2.Level() == LevelDetailed)
@@ -44,7 +44,7 @@ func TestDefineNewEvent(t *testing.T) {
 
 	event3, err3 := DefineNewEvent("another", LevelDetailed)
 	num3 := MaxEventNum()
-	assert.Assert(t, err3 == errNotAllowed)
+	assert.Assert(t, err3 == ErrNotAllowed)
 	assert.Assert(t, event3 == nil)
 	assert.Assert(t, num3 == num1)
 }
