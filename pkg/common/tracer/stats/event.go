@@ -17,9 +17,10 @@
 package stats
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/cloudwego/hertz/pkg/common/errors"
 )
 
 // EventIndex indicates a unique event.
@@ -88,8 +89,8 @@ var (
 
 // errors
 var (
-	ErrNotAllowed = errors.New("event definition is not allowed after initialization")
-	ErrDuplicated = errors.New("event name is already defined")
+	errNotAllowed = errors.NewPublic("event definition is not allowed after initialization")
+	errDuplicated = errors.NewPublic("event name is already defined")
 )
 
 var (
@@ -107,13 +108,13 @@ func FinishInitialization() {
 // DefineNewEvent allows user to add event definitions during program initialization.
 func DefineNewEvent(name string, level Level) (Event, error) {
 	if atomic.LoadInt32(&inited) == 1 {
-		return nil, ErrNotAllowed
+		return nil, errNotAllowed
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	evt, exist := userDefined[name]
 	if exist {
-		return evt, ErrDuplicated
+		return evt, errDuplicated
 	}
 	userDefined[name] = newEvent(EventIndex(maxEventNum), level)
 	maxEventNum++

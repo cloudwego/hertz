@@ -18,12 +18,11 @@ package mock
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"strings"
 	"time"
 
-	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/netpoll"
 )
@@ -86,7 +85,7 @@ func (m *Conn) Peek(i int) ([]byte, error) {
 			select {}
 		}
 		time.Sleep(m.readTimeout)
-		return nil, errs.ErrTimeout
+		return nil, errors.ErrTimeout
 	}
 	return b, err
 }
@@ -136,7 +135,7 @@ func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 	time.Sleep(100 * time.Millisecond)
 	if err != nil || len(b) != i {
 		time.Sleep(m.readTimeout)
-		return nil, errs.ErrReadTimeout
+		return nil, errors.ErrReadTimeout
 	}
 	return b, err
 }
@@ -174,7 +173,7 @@ func (m *SlowWriteConn) Flush() error {
 	time.Sleep(100 * time.Millisecond)
 	if err == nil {
 		time.Sleep(m.writeTimeout)
-		return errs.ErrWriteTimeout
+		return errors.ErrWriteTimeout
 	}
 	return err
 }
@@ -251,7 +250,7 @@ func (m *StreamConn) Peek(n int) ([]byte, error) {
 		m.Data = m.Data[:cap(m.Data)]
 		return m.Data[:1], nil
 	}
-	return nil, errors.New("not enough data")
+	return nil, errors.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Skip(n int) error {
@@ -259,7 +258,7 @@ func (m *StreamConn) Skip(n int) error {
 		m.Data = m.Data[n:]
 		return nil
 	}
-	return errors.New("not enough data")
+	return errors.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Release() error {
