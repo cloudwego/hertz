@@ -18,10 +18,9 @@ package thrift
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/cmd/hz/config"
-	"github.com/cloudwego/thriftgo/semantic"
 	"strings"
 
+	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
@@ -30,6 +29,7 @@ import (
 	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
 	"github.com/cloudwego/thriftgo/parser"
+	"github.com/cloudwego/thriftgo/semantic"
 )
 
 /*---------------------------Import-----------------------------*/
@@ -185,15 +185,16 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 		typeName := field.Type.Name
 		tmp := semantic.SplitType(typeName)
 		switch len(tmp) {
-		case 0:
+		case 0: // typeName == ""
 			return decoders, nil
-		case 1:
+		case 1: // typeName == "typeName"
 			goTypeName := scope.Namespace().Get(tmp[0])
 			st := scope.StructLike(goTypeName)
+			finalScope := scope
 			if st == nil {
 				if field.Type.GetIsTypedef() {
 					var err error
-					st, err = resolveTypedefStruct(scope, tmp[0])
+					st, finalScope, err = resolveTypedefStruct(scope, tmp[0])
 					if err != nil {
 						return nil, fmt.Errorf("can not resolve typedef for '%s'", tmp[0])
 					}
@@ -204,7 +205,7 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 				}
 			}
 			for _, f := range st.Fields() {
-				dec, err := getFieldDecoder(f, scope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
+				dec, err := getFieldDecoder(f, finalScope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
 				if err != nil {
 					return nil, err
 				}
@@ -212,7 +213,7 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 					decoders = append(decoders, dec...)
 				}
 			}
-		case 2:
+		case 2: // typeName == "dependency.typeName"
 			ref, typ := tmp[0], tmp[1]
 			if strings.Contains(ref, ".") {
 				logs.Warnf("unsupported type name for '%s' in '%s'", typeName, scope.AST().Filename)
@@ -229,10 +230,11 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 			}
 			goTypeName := refScope.Namespace().Get(typ)
 			st := refScope.StructLike(goTypeName)
+			finalScope := refScope.Scope
 			if st == nil {
 				if field.Type.GetIsTypedef() {
 					var err error
-					st, err = resolveTypedefStruct(scope, typ)
+					st, finalScope, err = resolveTypedefStruct(refScope.Scope, typ)
 					if err != nil {
 						return nil, fmt.Errorf("can not resolve typedef for '%s'", tmp[0])
 					}
@@ -243,7 +245,7 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 				}
 			}
 			for _, f := range st.Fields() {
-				dec, err := getFieldDecoder(f, refScope.Scope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
+				dec, err := getFieldDecoder(f, finalScope, Getter+fmt.Sprintf(".Get%s()", field.GoName().String()))
 				if err != nil {
 					return nil, err
 				}
@@ -258,7 +260,7 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 	switch field.Type.Category {
 	case parser.Category_Map, parser.Category_Exception,
 		parser.Category_Union, parser.Category_Service:
-		logs.Warnf("skip collect field info for %s, because it's type is %s", field.Field.Name, field.Type.Name)
+		logs.Warnf("skip collect client field info for %s, because it's type is %s", field.Field.Name, field.Type.Name)
 		return []FieldDecoder{}, nil
 
 	default:
@@ -270,32 +272,42 @@ func getFieldDecoder(field *golang.Field, scope *golang.Scope, Getter string) ([
 	}
 }
 
-func resolveTypedefStruct(scope *golang.Scope, rawTypeName string) (st *golang.StructLike, err error) {
+func resolveTypedefStruct(scope *golang.Scope, rawTypeName string) (st *golang.StructLike, finalScope *golang.Scope, err error) {
 	typeDef, found := scope.AST().GetTypedef(rawTypeName)
 	if !found {
-		return st, fmt.Errorf("can not find typedef for '%s'", rawTypeName)
+		return st, finalScope, fmt.Errorf("can not find typedef for '%s'", rawTypeName)
 	}
 	tmp := semantic.SplitType(typeDef.Type.Name)
 	if len(tmp) == 1 {
 		goTypeName := scope.Namespace().Get(tmp[0])
 		st = scope.StructLike(goTypeName)
+		finalScope = scope
+		if st == nil {
+			// multiple typedef
+			st, finalScope, err = resolveTypedefStruct(scope, tmp[0])
+		}
 	} else if len(tmp) == 2 {
 		ref, typ := tmp[0], tmp[1]
 		if strings.Contains(ref, ".") {
 			logs.Warnf("unsupported type name for '%s' in '%s'", rawTypeName, scope.AST().Filename)
-			return nil, nil
+			return nil, finalScope, nil
 		}
 
 		refAst, found := scope.AST().GetReference(ref)
 		if !found {
-			return nil, fmt.Errorf("can not find include file '%s' for %s", ref, scope.AST().Filename)
+			return nil, finalScope, fmt.Errorf("can not find include file '%s' for %s", ref, scope.AST().Filename)
 		}
 		refScope := scope.Includes().ByAST(refAst)
 		if refScope == nil {
-			return nil, fmt.Errorf("can not find reference package for %s", ref)
+			return nil, finalScope, fmt.Errorf("can not find reference package for %s", ref)
 		}
 		goTypeName := refScope.Namespace().Get(typ)
 		st = refScope.StructLike(goTypeName)
+		finalScope = refScope.Scope
+		if st == nil {
+			// multiple typedef
+			st, finalScope, err = resolveTypedefStruct(refScope.Scope, typ)
+		}
 	}
 
 	return
