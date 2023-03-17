@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"log"
 	"math/big"
 	"net"
 	"testing"
@@ -115,7 +114,6 @@ func mockTLSServe(nw, addr string, handle func(conn net.Conn), listened chan str
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Println(err)
 			continue
 		}
 		go handle(conn)
