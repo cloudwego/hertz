@@ -69,7 +69,11 @@ func TestDialTLS(t *testing.T) {
 		}, listened)
 	}()
 
-	<-listened
+	select {
+	case <-listened:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout")
+	}
 
 	dial := NewDialer()
 	_, err := dial.DialConnection(nw, addr, time.Second, &tls.Config{
