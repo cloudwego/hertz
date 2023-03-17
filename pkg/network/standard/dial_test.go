@@ -27,7 +27,7 @@ import (
 
 func TestDial(t *testing.T) {
 	const nw = "tcp"
-	const addr = ":1234"
+	const addr = ":10103"
 	transporter := NewTransporter(&config.Options{
 		Addr:    addr,
 		Network: nw,

@@ -34,7 +34,7 @@ import (
 
 func TestTransport(t *testing.T) {
 	const nw = "tcp"
-	const addr = ":1234"
+	const addr = ":10102"
 	t.Run("TestDefault", func(t *testing.T) {
 		var onConnFlag, onAcceptFlag, onDataFlag int32
 		transporter := NewTransporter(&config.Options{

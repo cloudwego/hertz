@@ -32,7 +32,7 @@ import (
 func TestDial(t *testing.T) {
 	t.Run("NetpollDial", func(t *testing.T) {
 		const nw = "tcp"
-		const addr = ":1234"
+		const addr = ":10100"
 		transporter := NewTransporter(&config.Options{
 			Addr:    addr,
 			Network: nw,
@@ -62,7 +62,7 @@ func TestDial(t *testing.T) {
 		dial := NewDialer()
 		_, err := dial.AddTLS(mock.NewConn(""), nil)
 		assert.DeepEqual(t, errNotSupportTLS, err)
-		_, err = dial.DialConnection("tcp", ":1234", time.Microsecond, &tls.Config{})
+		_, err = dial.DialConnection("tcp", ":10101", time.Microsecond, &tls.Config{})
 		assert.DeepEqual(t, errNotSupportTLS, err)
 	})
 }
