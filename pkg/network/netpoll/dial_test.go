@@ -41,10 +41,11 @@ func TestDial(t *testing.T) {
 			return nil
 		})
 		defer transporter.Close()
+		time.Sleep(100 * time.Millisecond)
 
 		dial := NewDialer()
 		// DialConnection
-		_, err := dial.DialConnection("tcp", ":4567", time.Second, nil) // wrong addr
+		_, err := dial.DialConnection("tcp", ":10101", time.Second, nil) // wrong addr
 		assert.NotNil(t, err)
 
 		nwConn, err := dial.DialConnection(nw, addr, time.Second, nil)
@@ -62,7 +63,7 @@ func TestDial(t *testing.T) {
 		dial := NewDialer()
 		_, err := dial.AddTLS(mock.NewConn(""), nil)
 		assert.DeepEqual(t, errNotSupportTLS, err)
-		_, err = dial.DialConnection("tcp", ":10101", time.Microsecond, &tls.Config{})
+		_, err = dial.DialConnection("tcp", ":10102", time.Microsecond, &tls.Config{})
 		assert.DeepEqual(t, errNotSupportTLS, err)
 	})
 }
