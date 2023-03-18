@@ -652,7 +652,8 @@ func BenchmarkRouteAny(b *testing.B) {
 	req.CopyTo(&ctx.Request)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		req.CopyTo(&ctx.Request)
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.ResetWithoutConn()
 	}
 }

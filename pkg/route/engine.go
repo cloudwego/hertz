@@ -131,6 +131,8 @@ type Engine struct {
 	noRoute     app.HandlersChain
 	noMethod    app.HandlersChain
 
+	customServeHTTP app.HandlerFunc
+
 	// For render HTML
 	delims     render.Delims
 	funcMap    template.FuncMap
@@ -192,6 +194,13 @@ type Engine struct {
 	// Custom Functions
 	clientIPFunc  app.ClientIP
 	formValueFunc app.FormValueFunc
+}
+
+func (engine *Engine) SetCustomServeHTTP(f app.HandlerFunc) {
+	if engine.IsRunning() {
+		hlog.SystemLogger().Errorf("engine is running, can not set custom serve http")
+	}
+	engine.customServeHTTP = f
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -665,6 +674,10 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	if engine.customServeHTTP != nil {
+		engine.customServeHTTP(c, ctx)
+		return
+	}
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}
