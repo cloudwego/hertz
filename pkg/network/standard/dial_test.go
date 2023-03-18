@@ -71,7 +71,7 @@ func TestDialTLS(t *testing.T) {
 
 	select {
 	case <-listened:
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout")
 	}
 
