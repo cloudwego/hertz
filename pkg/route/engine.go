@@ -198,7 +198,7 @@ type Engine struct {
 
 func (engine *Engine) SetCustomServeHTTP(f app.HandlerFunc) {
 	if engine.IsRunning() {
-		hlog.SystemLogger().Errorf("engine is running, can not set custom serve http")
+		hlog.SystemLogger().Errorf("engine is running, can not set custom ServeHTTP handler")
 	}
 	engine.customServeHTTP = f
 }

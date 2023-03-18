@@ -60,7 +60,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
 func TestNew_Engine(t *testing.T) {
@@ -365,6 +367,25 @@ func TestEngine_Routes(t *testing.T) {
 		Path:    "/static/*filepath",
 		Handler: "github.com/cloudwego/hertz/pkg/app.(*fsHandler).handleRequest-fm",
 	})
+}
+
+func TestEngine_SetCustomServeHTTP(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.Init()
+	engine.SetCustomServeHTTP(func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(201, "custom body")
+	})
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "ok")
+	})
+
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
+	engine.Serve(context.Background(), conn)
+	conn.Flush()
+	response := protocol.AcquireResponse()
+	resp.Read(response, conn.WriterRecorder())
+	assert.DeepEqual(t, 201, response.StatusCode())
+	assert.DeepEqual(t, "custom body", string(response.Body()))
 }
 
 func handlerTest1(c context.Context, ctx *app.RequestContext) {}
