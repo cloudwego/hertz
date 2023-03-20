@@ -80,7 +80,7 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 				return mock.SlowReadDialer(addr)
 			}),
 			MaxConns:           1,
-			MaxConnWaitTimeout: 50 * time.Millisecond,
+			MaxConnWaitTimeout: 120 * time.Millisecond,
 		},
 		Addr: "foobar",
 	}

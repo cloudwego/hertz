@@ -51,6 +51,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -113,6 +114,10 @@ type Request struct {
 
 	// Request level options, service discovery options etc.
 	options *config.RequestOptions
+
+	// Request timeout. Usually set by DoDeadline or DoTimeout
+	// if <= 0, means not set
+	timeout time.Duration
 }
 
 type requestBodyWriter struct {
@@ -153,6 +158,14 @@ func (req *Request) AppendBody(p []byte) {
 	req.RemoveMultipartFormFiles()
 	req.CloseBodyStream()     //nolint:errcheck
 	req.BodyBuffer().Write(p) //nolint:errcheck
+}
+
+func (req *Request) SetTimeout(timeout time.Duration) {
+	req.timeout = timeout
+}
+
+func (req *Request) GetTimeout() time.Duration {
+	return req.timeout
 }
 
 func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
@@ -205,6 +218,7 @@ func (req *Request) Reset() {
 	req.CloseBodyStream()
 
 	req.options = nil
+	req.timeout = 0
 }
 
 func (req *Request) IsURIParsed() bool {
@@ -383,6 +397,8 @@ func (req *Request) CopyToSkipBody(dst *Request) {
 		dst.options = &config.RequestOptions{}
 		req.options.CopyTo(dst.options)
 	}
+
+	dst.timeout = req.timeout
 	// do not copy multipartForm - it will be automatically
 	// re-created on the first call to MultipartForm.
 }

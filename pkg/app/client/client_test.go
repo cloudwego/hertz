@@ -2174,3 +2174,14 @@ func TestClientState(t *testing.T) {
 	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
 	time.Sleep(time.Second * 22)
 }
+
+func BenchmarkClient(b *testing.B) {
+	c, _ := NewClient()
+	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	req.SetRequestURI("http://127.0.0.1:8888/ping")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = c.Do(context.Background(), req, resp)
+	}
+}

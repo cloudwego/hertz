@@ -51,7 +51,7 @@ type SlowReadConn struct {
 
 func (m *SlowReadConn) SetWriteTimeout(t time.Duration) error {
 	// TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func SlowReadDialer(addr string) (network.Conn, error) {

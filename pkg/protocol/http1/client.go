@@ -73,6 +73,7 @@ import (
 
 var errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
 	"Make sure the server returns 'Connection: close' response header before closing the connection")
+var errTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "host client")
 
 // HostClient balances http requests among hosts listed in Addr.
 //
@@ -465,6 +466,13 @@ func (c *HostClient) preHandleConfig(o *config.RequestOptions) requestConfig {
 	return rc
 }
 
+func updateReqTimeout(reqTimeout time.Duration, before time.Time) time.Duration {
+	if reqTimeout <= 0 {
+		return 0
+	}
+	return reqTimeout - time.Since(before)
+}
+
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
@@ -487,7 +495,16 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
-	cc, err := c.acquireConn(rc.dialTimeout)
+
+	var before time.Time
+	if req.GetTimeout() > 0 {
+		before = time.Now()
+	}
+	dialTimeout := rc.dialTimeout
+	if req.GetTimeout() < dialTimeout || dialTimeout == 0 {
+		dialTimeout = req.GetTimeout()
+	}
+	cc, err := c.acquireConn(dialTimeout)
 	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
@@ -495,7 +512,6 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	conn := cc.c
 
 	usingProxy := false
-
 	if c.ProxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
 		usingProxy = true
 		proxy.SetProxyAuthHeader(&req.Header, c.ProxyURI)
@@ -503,8 +519,17 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	resp.ParseNetAddr(conn)
 
-	if rc.writeTimeout > 0 {
-		if err = conn.SetWriteTimeout(rc.writeTimeout); err != nil {
+	left := updateReqTimeout(req.GetTimeout(), before)
+	if left < 0 {
+		c.closeConn(cc)
+		return true, errTimeout
+	}
+	writeTimeout := rc.writeTimeout
+	if req.GetTimeout() > 0 && (left < writeTimeout || writeTimeout == 0) {
+		writeTimeout = left
+	}
+	if writeTimeout > 0 {
+		if err = conn.SetWriteTimeout(writeTimeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
@@ -566,10 +591,19 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		return true, err
 	}
 
-	if rc.readTimeout > 0 {
+	readTimeout := rc.readTimeout
+	left = updateReqTimeout(req.GetTimeout(), before)
+	if left < 0 {
+		c.closeConn(cc)
+		return true, errTimeout
+	}
+	if req.GetTimeout() > 0 && (left < readTimeout || readTimeout == 0) {
+		readTimeout = left
+	}
+	if readTimeout > 0 {
 		// Set Deadline every time, since golang has fixed the performance issue
 		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		if err = conn.SetReadTimeout(rc.readTimeout); err != nil {
+		if err = conn.SetReadTimeout(readTimeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
