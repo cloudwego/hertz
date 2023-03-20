@@ -35,7 +35,7 @@ import (
 
 func TestDial(t *testing.T) {
 	const nw = "tcp"
-	const addr = ":10104"
+	const addr = "localhost:10104"
 	transporter := NewTransporter(&config.Options{
 		Addr:    addr,
 		Network: nw,
@@ -58,7 +58,7 @@ func TestDial(t *testing.T) {
 
 func TestDialTLS(t *testing.T) {
 	const nw = "tcp"
-	const addr = ":10104"
+	const addr = "localhost:10105"
 	data := []byte("abcdefg")
 	listened := make(chan struct{})
 	go func() {
