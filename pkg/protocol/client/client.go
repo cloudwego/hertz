@@ -348,6 +348,11 @@ func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Respo
 	}
 	timer.ReleaseTimer(tc)
 
+	select {
+	case <-ch:
+	default:
+	}
+
 	errorChPool.Put(chv)
 
 	return err
