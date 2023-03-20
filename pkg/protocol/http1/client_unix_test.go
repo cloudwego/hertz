@@ -32,9 +32,9 @@ import (
 
 func TestGcBodyStream(t *testing.T) {
 	srv := &http.Server{Addr: ":11001", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("hello\n"))
-		time.Sleep(time.Second)
-		w.Write([]byte("world\n"))
+		for range [1024]int{} {
+			w.Write([]byte("hello world\n"))
+		}
 	})}
 	go srv.ListenAndServe()
 	time.Sleep(100 * time.Millisecond)
@@ -58,6 +58,8 @@ func TestGcBodyStream(t *testing.T) {
 	}
 
 	runtime.GC()
+	// wait for gc
+	time.Sleep(100 * time.Millisecond)
 	c.CloseIdleConnections()
 	assert.DeepEqual(t, 0, c.ConnPoolState().TotalConnNum)
 }
