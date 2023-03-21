@@ -36,11 +36,14 @@ type Router struct {
 }
 
 type RouterNode struct {
-	GroupName         string
-	MiddleWare        string
+	GroupName         string // current group name(the parent middleware name), used to register route. example: {{.GroupName}}.{{HttpMethod}}
+	MiddleWare        string // current node middleware, used to be group name for children.
 	HandlerMiddleware string
+	GroupMiddleware   string
+	PathPrefix        string
 
 	Path     string
+	Parent   *RouterNode
 	Children childrenRouterInfo
 
 	Handler             string // {{HandlerPackage}}.{{HandlerName}}
@@ -58,10 +61,11 @@ type RegisterInfo struct {
 // NewRouterTree contains "/" as root node
 func NewRouterTree() *RouterNode {
 	return &RouterNode{
-		GroupName:         "root",
-		MiddleWare:        "root",
-		HandlerMiddleware: "_",
-		Path:              "/",
+		GroupName:       "root",
+		MiddleWare:      "root",
+		GroupMiddleware: "root",
+		Path:            "/",
+		Parent:          nil,
 	}
 }
 
@@ -87,8 +91,14 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg
 	return nil
 }
 
+func (routerNode *RouterNode) RawHandlerName() string {
+	parts := strings.Split(routerNode.Handler, ".")
+	handlerName := parts[len(parts)-1]
+	return handlerName
+}
+
 // DyeGroupName traverses the routing tree in depth and names the middleware for each node.
-func (routerNode *RouterNode) DyeGroupName() error {
+func (routerNode *RouterNode) DyeGroupName(internalMiddleware bool) error {
 	groups := []string{"root"}
 
 	hook := func(layer int, node *RouterNode) error {
@@ -96,22 +106,30 @@ func (routerNode *RouterNode) DyeGroupName() error {
 		if node.MiddleWare == "" {
 			pname := node.Path
 			handlerMiddlewareName := ""
+			isLeafNode := false
 			if len(pname) > 1 && pname[0] == '/' {
 				pname = pname[1:]
 			}
+
+			if node.Parent != nil {
+				node.PathPrefix = node.Parent.PathPrefix + "_" + util.ToGoFuncName(pname)
+			} else {
+				node.PathPrefix = "_" + util.ToGoFuncName(pname)
+			}
+
 			if len(node.Handler) != 0 {
-				handlerName := strings.Split(node.Handler, ".")
-				handlerMiddlewareName = handlerName[len(handlerName)-1]
+				handlerMiddlewareName = node.RawHandlerName()
 				// If it is a leaf node, then "group middleware name" and "handler middleware name" are the same
 				if len(node.Children) == 0 {
-					pname = handlerName[len(handlerName)-1]
+					pname = handlerMiddlewareName
+					isLeafNode = true
 				}
 			}
 
-			pname = util.ConvertToMiddlewareName(pname)
-			handlerMiddlewareName = util.ConvertToMiddlewareName(handlerMiddlewareName)
+			pname = convertToMiddlewareName(pname)
+			handlerMiddlewareName = convertToMiddlewareName(handlerMiddlewareName)
 
-			if pname == handlerMiddlewareName {
+			if isLeafNode {
 				name, err := util.GetMiddlewareUniqueName(pname)
 				if err != nil {
 					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", name, err)
@@ -130,7 +148,16 @@ func (routerNode *RouterNode) DyeGroupName() error {
 				}
 			}
 			node.MiddleWare = "_" + pname
-			node.HandlerMiddleware = "_" + handlerMiddlewareName
+			if len(node.Handler) != 0 {
+				node.HandlerMiddleware = "_" + handlerMiddlewareName
+				if internalMiddleware {
+					node.HandlerMiddleware = "_" + node.RawHandlerName()
+				}
+			}
+			node.GroupMiddleware = node.MiddleWare
+			if internalMiddleware {
+				node.GroupMiddleware = node.PathPrefix
+			}
 		}
 		if layer >= len(groups)-1 {
 			groups = append(groups, node.MiddleWare)
@@ -168,7 +195,8 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 	cur := routerNode
 	for i, p := range paths {
 		c := &RouterNode{
-			Path: "/" + p,
+			Path:   "/" + p,
+			Parent: cur,
 		}
 		if i == len(paths)-1 {
 			// generate handler by method
@@ -308,7 +336,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 }
 
 func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode, handlerPackage, routerDir, routerPackage string) error {
-	err := root.DyeGroupName()
+	err := root.DyeGroupName(pkgGen.InternalMiddleware)
 	if err != nil {
 		return err
 	}
@@ -360,11 +388,11 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	var middlewareList []string
 
 	_ = router.(Router).Router.DFS(0, func(layer int, node *RouterNode) error {
-		middlewareList = append(middlewareList, node.MiddleWare)
-		if len(node.MiddleWare) > 1 {
-			middlewareList = append(middlewareList, node.MiddleWare)
+		// non-leaf node will generate group middleware
+		if node.Children.Len() > 0 && len(node.GroupMiddleware) > 0 {
+			middlewareList = append(middlewareList, node.GroupMiddleware)
 		}
-		if len(node.HandlerMiddleware) > 1 {
+		if len(node.HandlerMiddleware) > 0 {
 			middlewareList = append(middlewareList, node.HandlerMiddleware)
 		}
 		return nil
@@ -376,7 +404,7 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	}
 
 	for _, mw := range middlewareList {
-		if bytes.Contains(file, []byte(mw+"Mw")) {
+		if bytes.Contains(file, []byte(mw)) {
 			continue
 		}
 		middlewareSingleTpl := pkgGen.tpls[middlewareSingleTplName]
@@ -406,4 +434,11 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, middlewareTplName})
 
 	return nil
+}
+
+// convertToMiddlewareName converts a route path to a middleware name
+func convertToMiddlewareName(path string) string {
+	path = util.ToVarName([]string{path})
+	path = strings.ToLower(path)
+	return path
 }

@@ -47,21 +47,23 @@ type Service struct {
 }
 
 type HttpPackageGenerator struct {
-	ConfigPath      string
-	Backend         meta.Backend
-	Options         []Option
-	CmdType         string
-	ProjPackage     string
-	HandlerDir      string
-	RouterDir       string
-	ModelDir        string
-	UseDir          string
-	ClientDir       string
-	IdlClientDir    string
-	ForceClientDir  string
-	NeedModel       bool
-	HandlerByMethod bool
-	BaseDomain      string
+	ConfigPath     string
+	Backend        meta.Backend
+	Options        []Option
+	CmdType        string
+	ProjPackage    string
+	HandlerDir     string
+	RouterDir      string
+	ModelDir       string
+	UseDir         string
+	ClientDir      string
+	IdlClientDir   string
+	ForceClientDir string
+	BaseDomain     string
+
+	NeedModel          bool
+	HandlerByMethod    bool
+	InternalMiddleware bool
 
 	loadedBackend   Backend
 	curModel        *model.Model
