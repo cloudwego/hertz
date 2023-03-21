@@ -279,7 +279,7 @@ func TestDoNonNilReqResp(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.doNonNilReqResp(req, resp, time.Now())
 	assert.False(t, retry)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, resp.StatusCode(), 400)
@@ -300,7 +300,7 @@ func TestDoNonNilReqResp1(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.doNonNilReqResp(req, resp, time.Now())
 	assert.True(t, retry)
 	assert.NotNil(t, err)
 }

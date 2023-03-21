@@ -379,8 +379,13 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 
 	atomic.AddInt32(&c.pendingRequests, 1)
 
+	var before time.Time
+	if req.GetTimeout() > 0 {
+		before = time.Now()
+	}
+
 	for {
-		canIdempotentRetry, err = c.do(req, resp)
+		canIdempotentRetry, err = c.do(req, resp, before)
 		if err == nil {
 			break
 		}
@@ -423,14 +428,14 @@ func (c *HostClient) PendingRequests() int {
 	return int(atomic.LoadInt32(&c.pendingRequests))
 }
 
-func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) do(req *protocol.Request, resp *protocol.Response, before time.Time) (bool, error) {
 	nilResp := false
 	if resp == nil {
 		nilResp = true
 		resp = protocol.AcquireResponse()
 	}
 
-	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
+	canIdempotentRetry, err := c.doNonNilReqResp(req, resp, before)
 
 	if nilResp {
 		protocol.ReleaseResponse(resp)
@@ -480,7 +485,7 @@ func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time
 	return false, left
 }
 
-func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response, before time.Time) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
 	}
@@ -501,11 +506,6 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
-	}
-
-	var before time.Time
-	if req.GetTimeout() > 0 {
-		before = time.Now()
 	}
 
 	dialTimeout := rc.dialTimeout
