@@ -378,14 +378,9 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	}
 
 	atomic.AddInt32(&c.pendingRequests, 1)
-
-	var before time.Time
-	if req.GetTimeout() > 0 {
-		before = time.Now()
-	}
-
+	req.Options().StartRequest()
 	for {
-		canIdempotentRetry, err = c.do(req, resp, before)
+		canIdempotentRetry, err = c.do(req, resp)
 		if err == nil {
 			break
 		}
@@ -428,14 +423,14 @@ func (c *HostClient) PendingRequests() int {
 	return int(atomic.LoadInt32(&c.pendingRequests))
 }
 
-func (c *HostClient) do(req *protocol.Request, resp *protocol.Response, before time.Time) (bool, error) {
+func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	nilResp := false
 	if resp == nil {
 		nilResp = true
 		resp = protocol.AcquireResponse()
 	}
 
-	canIdempotentRetry, err := c.doNonNilReqResp(req, resp, before)
+	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
 
 	if nilResp {
 		protocol.ReleaseResponse(resp)
@@ -479,13 +474,19 @@ func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time
 	if left <= 0 {
 		return true, 0
 	}
-	if compareTimeout <= 0 && left > compareTimeout {
+
+	if compareTimeout <= 0 {
+		return false, left
+	}
+
+	if left > compareTimeout {
 		return false, compareTimeout
 	}
+
 	return false, left
 }
 
-func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response, before time.Time) (bool, error) {
+func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
 	}
@@ -507,10 +508,12 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
+	reqTimeout := req.Options().RequestTimeout()
+	begin := req.Options().StartTime()
 
 	dialTimeout := rc.dialTimeout
-	if req.GetTimeout() < dialTimeout || dialTimeout == 0 {
-		dialTimeout = req.GetTimeout()
+	if reqTimeout < dialTimeout || dialTimeout == 0 {
+		dialTimeout = reqTimeout
 	}
 	cc, err := c.acquireConn(dialTimeout)
 	// if getting connection error, fast fail
@@ -527,17 +530,16 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	resp.ParseNetAddr(conn)
 
-	shouldClose, timeout := updateReqTimeout(req.GetTimeout(), rc.writeTimeout, before)
+	shouldClose, timeout := updateReqTimeout(reqTimeout, rc.writeTimeout, begin)
 	if shouldClose {
 		c.closeConn(cc)
-		return true, errTimeout
+		return false, errTimeout
 	}
-	if timeout > 0 {
-		if err = conn.SetWriteTimeout(timeout); err != nil {
-			c.closeConn(cc)
-			// try another connection if retry is enabled
-			return true, err
-		}
+
+	if err = conn.SetWriteTimeout(timeout); err != nil {
+		c.closeConn(cc)
+		// try another connection if retry is enabled
+		return true, err
 	}
 
 	resetConnection := false
@@ -595,19 +597,18 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		return true, err
 	}
 
-	shouldClose, timeout = updateReqTimeout(req.GetTimeout(), rc.readTimeout, before)
+	shouldClose, timeout = updateReqTimeout(reqTimeout, rc.readTimeout, begin)
 	if shouldClose {
 		c.closeConn(cc)
-		return true, errTimeout
+		return false, errTimeout
 	}
-	if timeout > 0 {
-		// Set Deadline every time, since golang has fixed the performance issue
-		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		if err = conn.SetReadTimeout(timeout); err != nil {
-			c.closeConn(cc)
-			// try another connection if retry is enabled
-			return true, err
-		}
+
+	// Set Deadline every time, since golang has fixed the performance issue
+	// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
+	if err = conn.SetReadTimeout(timeout); err != nil {
+		c.closeConn(cc)
+		// try another connection if retry is enabled
+		return true, err
 	}
 
 	if customSkipBody || req.Header.IsHead() || req.Header.IsConnect() {

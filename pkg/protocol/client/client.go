@@ -280,7 +280,8 @@ func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Respon
 	if timeout <= 0 {
 		return errTimeout
 	}
-	req.SetTimeout(timeout)
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
 	return c.Do(ctx, req, resp)
 }
 
@@ -289,6 +290,7 @@ func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Respo
 	if timeout <= 0 {
 		return errTimeout
 	}
-	req.SetTimeout(timeout)
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
 	return c.Do(ctx, req, resp)
 }

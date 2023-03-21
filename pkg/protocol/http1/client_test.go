@@ -80,7 +80,7 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 				return mock.SlowReadDialer(addr)
 			}),
 			MaxConns:           1,
-			MaxConnWaitTimeout: 120 * time.Millisecond,
+			MaxConnWaitTimeout: 50 * time.Millisecond,
 		},
 		Addr: "foobar",
 	}
@@ -279,7 +279,7 @@ func TestDoNonNilReqResp(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp, time.Now())
+	retry, err := c.doNonNilReqResp(req, resp)
 	assert.False(t, retry)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, resp.StatusCode(), 400)
@@ -300,7 +300,7 @@ func TestDoNonNilReqResp1(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp, time.Now())
+	retry, err := c.doNonNilReqResp(req, resp)
 	assert.True(t, retry)
 	assert.NotNil(t, err)
 }

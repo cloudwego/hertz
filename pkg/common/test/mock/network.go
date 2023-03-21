@@ -42,7 +42,7 @@ type Recorder interface {
 
 func (m *Conn) SetWriteTimeout(t time.Duration) error {
 	// TODO implement me
-	panic("implement me")
+	return nil
 }
 
 type SlowReadConn struct {
@@ -50,7 +50,11 @@ type SlowReadConn struct {
 }
 
 func (m *SlowReadConn) SetWriteTimeout(t time.Duration) error {
-	// TODO implement me
+	return nil
+}
+
+func (m *SlowReadConn) SetReadTimeout(t time.Duration) error {
+	m.Conn.readTimeout = t
 	return nil
 }
 
@@ -133,9 +137,12 @@ func (r *recorder) WroteLen() int {
 
 func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
-	time.Sleep(100 * time.Millisecond)
-	if err != nil || len(b) != i {
+	if m.readTimeout > 0 {
 		time.Sleep(m.readTimeout)
+	} else {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil || len(b) != i {
 		return nil, errs.ErrReadTimeout
 	}
 	return b, err
@@ -152,7 +159,7 @@ func NewConn(source string) *Conn {
 }
 
 func NewSlowReadConn(source string) *SlowReadConn {
-	return &SlowReadConn{NewConn(source)}
+	return &SlowReadConn{Conn: NewConn(source)}
 }
 
 type SlowWriteConn struct {
