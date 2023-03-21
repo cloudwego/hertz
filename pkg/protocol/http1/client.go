@@ -466,11 +466,18 @@ func (c *HostClient) preHandleConfig(o *config.RequestOptions) requestConfig {
 	return rc
 }
 
-func updateReqTimeout(reqTimeout time.Duration, before time.Time) time.Duration {
+func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time) (shouldCloseConn bool, timeout time.Duration) {
 	if reqTimeout <= 0 {
-		return 0
+		return false, compareTimeout
 	}
-	return reqTimeout - time.Since(before)
+	left := reqTimeout - time.Since(before)
+	if left <= 0 {
+		return true, 0
+	}
+	if compareTimeout <= 0 && left > compareTimeout {
+		return false, compareTimeout
+	}
+	return false, left
 }
 
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
@@ -500,6 +507,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if req.GetTimeout() > 0 {
 		before = time.Now()
 	}
+
 	dialTimeout := rc.dialTimeout
 	if req.GetTimeout() < dialTimeout || dialTimeout == 0 {
 		dialTimeout = req.GetTimeout()
@@ -519,17 +527,13 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	resp.ParseNetAddr(conn)
 
-	left := updateReqTimeout(req.GetTimeout(), before)
-	if left < 0 {
+	shouldClose, timeout := updateReqTimeout(req.GetTimeout(), rc.writeTimeout, before)
+	if shouldClose {
 		c.closeConn(cc)
 		return true, errTimeout
 	}
-	writeTimeout := rc.writeTimeout
-	if req.GetTimeout() > 0 && (left < writeTimeout || writeTimeout == 0) {
-		writeTimeout = left
-	}
-	if writeTimeout > 0 {
-		if err = conn.SetWriteTimeout(writeTimeout); err != nil {
+	if timeout > 0 {
+		if err = conn.SetWriteTimeout(timeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
@@ -591,19 +595,15 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		return true, err
 	}
 
-	readTimeout := rc.readTimeout
-	left = updateReqTimeout(req.GetTimeout(), before)
-	if left < 0 {
+	shouldClose, timeout = updateReqTimeout(req.GetTimeout(), rc.readTimeout, before)
+	if shouldClose {
 		c.closeConn(cc)
 		return true, errTimeout
 	}
-	if req.GetTimeout() > 0 && (left < readTimeout || readTimeout == 0) {
-		readTimeout = left
-	}
-	if readTimeout > 0 {
+	if timeout > 0 {
 		// Set Deadline every time, since golang has fixed the performance issue
 		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		if err = conn.SetReadTimeout(readTimeout); err != nil {
+		if err = conn.SetReadTimeout(timeout); err != nil {
 			c.closeConn(cc)
 			// try another connection if retry is enabled
 			return true, err
