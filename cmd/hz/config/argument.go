@@ -68,6 +68,7 @@ type Argument struct {
 	NoRecurse            bool
 	HandlerByMethod      bool
 	ForceNew             bool
+	InternalMiddleware   bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string

@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -307,7 +308,7 @@ func ToVarName(paths []string) string {
 		if c == ':' || c == '*' {
 			continue
 		}
-		if (c >= '0' && c <= '9' && i != 0) || (c >= 'a' && c <= 'z') || (c > 'A' && c <= 'Z') || (c == '_') {
+		if (c >= '0' && c <= '9' && i != 0) || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_') {
 			out = append(out, c)
 		} else {
 			out = append(out, '_')
@@ -421,8 +422,15 @@ func SubPackageDir(path string) string {
 	return path[:index]
 }
 
-func ConvertToMiddlewareName(name string) string {
-	name = ToVarName([]string{name})
-	name = strings.ToLower(name)
-	return name
+var validFuncReg = regexp.MustCompile("[_0-9a-zA-Z]")
+
+// ToGoFuncName converts a string to a function naming style for go
+func ToGoFuncName(s string) string {
+	ss := []byte(s)
+	for i := range ss {
+		if !validFuncReg.Match([]byte{s[i]}) {
+			ss[i] = '_'
+		}
+	}
+	return string(ss)
 }
