@@ -379,6 +379,17 @@ func (a *Args) PeekExists(key string) (string, bool) {
 	return peekArgStrExists(a.args, key)
 }
 
+// PeekMulti returns all the arg values for the given key.
+func (a *Args) PeekMulti(key string) [][]byte {
+	var values [][]byte
+	a.VisitAll(func(k, v []byte) {
+		if string(k) == key {
+			values = append(values, v)
+		}
+	})
+	return values
+}
+
 func visitArgs(args []argsKV, f func(k, v []byte)) {
 	for i, n := 0, len(args); i < n; i++ {
 		kv := &args[i]

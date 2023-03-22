@@ -129,3 +129,26 @@ func TestArgsVisitAll(t *testing.T) {
 	})
 	assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
 }
+
+func TestArgsPeekMulti(t *testing.T) {
+	var a Args
+	a.Add("cloudwego", "hertz")
+	a.Add("cloudwego", "kitex")
+	a.Add("cloudwego", "")
+	a.Add("hello", "world")
+
+	vv := a.PeekMulti("cloudwego")
+	expectedVV := [][]byte{
+		[]byte("hertz"),
+		[]byte("kitex"),
+		[]byte(nil),
+	}
+	assert.DeepEqual(t, expectedVV, vv)
+
+	vv = a.PeekMulti("aaaa")
+	assert.DeepEqual(t, 0, len(vv))
+
+	vv = a.PeekMulti("hello")
+	expectedVV = [][]byte{[]byte("world")}
+	assert.DeepEqual(t, expectedVV, vv)
+}
