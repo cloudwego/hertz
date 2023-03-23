@@ -452,15 +452,10 @@ func (req *Request) SetQueryString(queryString string) {
 
 // SetQueryParams sets query Params.
 func (req *Request) SetQueryParams(params map[string]string) {
-	var builder strings.Builder
-	builder.Write([]byte("?"))
+	queryString := "?"
 	for k, v := range params {
-		builder.Write([]byte(k))
-		builder.Write([]byte("="))
-		builder.Write([]byte(v))
-		builder.Write([]byte("&"))
+		queryString += fmt.Sprintf("%s=%s&", k, v)
 	}
-	queryString := builder.String()
 	req.URI().SetQueryString(queryString[:len(queryString)-1])
 }
 
