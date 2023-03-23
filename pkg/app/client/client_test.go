@@ -1810,6 +1810,56 @@ func TestClientMiddleware(t *testing.T) {
 	}
 }
 
+func TestClientLastMiddleware(t *testing.T) {
+	client, _ := NewClient()
+	mw0 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			finalValue0 := ctx.Value("final0")
+			assert.DeepEqual(t, "final3", finalValue0)
+			finalValue1 := ctx.Value("final1")
+			assert.DeepEqual(t, "final1", finalValue1)
+			finalValue2 := ctx.Value("final2")
+			assert.DeepEqual(t, "final2", finalValue2)
+			return nil
+		}
+	}
+	mw1 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final0")
+			return next(ctx, req, resp)
+		}
+	}
+	mw2 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final1", "final1")
+			return next(ctx, req, resp)
+		}
+	}
+	mw3 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final2", "final2")
+			return next(ctx, req, resp)
+		}
+	}
+	mw4 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final3")
+			return next(ctx, req, resp)
+		}
+	}
+	client.UseAsLast(mw0)
+	client.Use(mw1)
+	client.Use(mw2)
+	client.Use(mw3)
+	client.Use(mw4)
+
+	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	err := client.Do(context.Background(), req, resp)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
 func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	part1 := ""
 	for i := 0; i < 8192; i++ {

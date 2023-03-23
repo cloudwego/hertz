@@ -269,10 +269,11 @@ type Client struct {
 
 	clientFactory suite.ClientFactory
 
-	mLock sync.Mutex
-	m     map[string]client.HostClient
-	ms    map[string]client.HostClient
-	mws   Middleware
+	mLock          sync.Mutex
+	m              map[string]client.HostClient
+	ms             map[string]client.HostClient
+	mws            Middleware
+	lastMiddleware Middleware
 }
 
 func (c *Client) GetOptions() *config.ClientOptions {
@@ -454,6 +455,9 @@ func (c *Client) Do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if c.mws == nil {
 		return c.do(ctx, req, resp)
 	}
+	if c.lastMiddleware != nil {
+		return c.mws(c.lastMiddleware(c.do))(ctx, req, resp)
+	}
 	return c.mws(c.do)(ctx, req, resp)
 }
 
@@ -614,6 +618,11 @@ func (c *Client) Use(mws ...Middleware) {
 	}
 	middlewares = append(middlewares, mws...)
 	c.mws = chain(middlewares...)
+}
+
+// UseAsLast is used to add middleware to the end of the middleware chain.
+func (c *Client) UseAsLast(mw Middleware) {
+	c.lastMiddleware = mw
 }
 
 func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
