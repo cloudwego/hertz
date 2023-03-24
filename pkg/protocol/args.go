@@ -379,11 +379,11 @@ func (a *Args) PeekExists(key string) (string, bool) {
 	return peekArgStrExists(a.args, key)
 }
 
-// PeekMulti returns all the arg values for the given key.
-func (a *Args) PeekMulti(key string) [][]byte {
+// PeekAll returns all the arg values for the given key.
+func (a *Args) PeekAll(key string) [][]byte {
 	var values [][]byte
 	a.VisitAll(func(k, v []byte) {
-		if string(k) == key {
+		if bytesconv.B2s(k) == key {
 			values = append(values, v)
 		}
 	})

@@ -137,7 +137,7 @@ func TestArgsPeekMulti(t *testing.T) {
 	a.Add("cloudwego", "")
 	a.Add("hello", "world")
 
-	vv := a.PeekMulti("cloudwego")
+	vv := a.PeekAll("cloudwego")
 	expectedVV := [][]byte{
 		[]byte("hertz"),
 		[]byte("kitex"),
@@ -145,10 +145,10 @@ func TestArgsPeekMulti(t *testing.T) {
 	}
 	assert.DeepEqual(t, expectedVV, vv)
 
-	vv = a.PeekMulti("aaaa")
+	vv = a.PeekAll("aaaa")
 	assert.DeepEqual(t, 0, len(vv))
 
-	vv = a.PeekMulti("hello")
+	vv = a.PeekAll("hello")
 	expectedVV = [][]byte{[]byte("world")}
 	assert.DeepEqual(t, expectedVV, vv)
 }
