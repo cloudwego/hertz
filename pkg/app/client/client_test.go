@@ -55,6 +55,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -1803,8 +1804,12 @@ func TestClientMiddleware(t *testing.T) {
 	client.Use(mw1)
 	client.Use(mw2)
 
-	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-	err := client.Do(context.Background(), req, resp)
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err := client.Do(context.Background(), request, response)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err.Error())
 	}
@@ -1847,17 +1852,32 @@ func TestClientLastMiddleware(t *testing.T) {
 			return next(ctx, req, resp)
 		}
 	}
-	client.UseAsLast(mw0)
+	err := client.UseAsLast(mw0)
+	assert.Nil(t, err)
+	err = client.UseAsLast(func(endpoint Endpoint) Endpoint {
+		return nil
+	})
+	assert.DeepEqual(t, errorLastMiddlewareExist, err)
 	client.Use(mw1)
 	client.Use(mw2)
 	client.Use(mw3)
 	client.Use(mw4)
 
-	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-	err := client.Do(context.Background(), req, resp)
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err = client.Do(context.Background(), request, response)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err.Error())
 	}
+
+	last := client.TakeOutLastMiddleware()
+
+	assert.DeepEqual(t, reflect.ValueOf(last).Pointer(), reflect.ValueOf(mw0).Pointer())
+	last = client.TakeOutLastMiddleware()
+	assert.Nil(t, last)
 }
 
 func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
