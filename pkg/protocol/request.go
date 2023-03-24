@@ -383,6 +383,7 @@ func (req *Request) CopyToSkipBody(dst *Request) {
 		dst.options = &config.RequestOptions{}
 		req.options.CopyTo(dst.options)
 	}
+
 	// do not copy multipartForm - it will be automatically
 	// re-created on the first call to MultipartForm.
 }

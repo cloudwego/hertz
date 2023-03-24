@@ -109,9 +109,6 @@ func TestConn(t *testing.T) {
 		assert.DeepEqual(t, nil, conn.RemoteAddr())
 		assert.DeepEqual(t, nil, conn.SetIdleTimeout(du1))
 		assert.Panic(t, func() {
-			conn.SetWriteTimeout(du1)
-		})
-		assert.Panic(t, func() {
 			conn.SetDeadline(t1)
 		})
 		assert.Panic(t, func() {
@@ -153,13 +150,6 @@ func TestSlowConn(t *testing.T) {
 		conn.SetWriteTimeout(time.Millisecond * 100)
 		err = conn.Flush()
 		assert.DeepEqual(t, errs.ErrWriteTimeout, err)
-	})
-
-	t.Run("TestNotImplement", func(t *testing.T) {
-		conn := NewSlowReadConn("")
-		assert.Panic(t, func() {
-			conn.SetWriteTimeout(time.Second)
-		})
 	})
 }
 
