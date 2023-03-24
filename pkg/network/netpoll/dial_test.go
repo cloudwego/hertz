@@ -65,5 +65,7 @@ func TestDial(t *testing.T) {
 		assert.DeepEqual(t, errNotSupportTLS, err)
 		_, err = dial.DialConnection("tcp", "localhost:10102", time.Microsecond, &tls.Config{})
 		assert.DeepEqual(t, errNotSupportTLS, err)
+		_, err = dial.DialTimeout("tcp", "localhost:10102", time.Microsecond, &tls.Config{})
+		assert.DeepEqual(t, errNotSupportTLS, err)
 	})
 }

@@ -45,6 +45,10 @@ func (d dialer) DialConnection(n, address string, timeout time.Duration, tlsConf
 }
 
 func (d dialer) DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn net.Conn, err error) {
+	if tlsConfig != nil {
+		// https
+		return nil, errNotSupportTLS
+	}
 	conn, err = d.Dialer.DialTimeout(network, address, timeout)
 	return
 }
