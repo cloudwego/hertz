@@ -270,10 +270,10 @@ func reflectJsonTag(f protoreflect.FieldDescriptor) (ret model.Tag) {
 	if v := checkFirstOption(api.E_Body, f.Options()); v != nil {
 		ret.Value += ",string"
 	}
-	if !unsetOmitempty && descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
-		ret.Value += ",omitempty"
-	} else if descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
+	if descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
 		ret.Value += ",required"
+	} else if !unsetOmitempty {
+		ret.Value += ",omitempty"
 	}
 	return
 }
@@ -383,10 +383,11 @@ func getStructJsonValue(f protoreflect.FieldDescriptor, val string) string {
 	if v := checkFirstOption(api.E_JsConv, f.Options()); v != nil {
 		val += ",string"
 	}
-	if !unsetOmitempty && descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
-		val += ",omitempty"
-	} else if descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
+
+	if descriptorpb.FieldDescriptorProto_Label(f.Cardinality()) == descriptorpb.FieldDescriptorProto_LABEL_REQUIRED {
 		val += ",required"
+	} else if !unsetOmitempty {
+		val += ",omitempty"
 	}
 
 	return val

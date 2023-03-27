@@ -26,6 +26,7 @@ import (
 	"time"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
@@ -524,6 +525,14 @@ func (c *Conn) Flush() (err error) {
 		node.Release()
 	}
 	return nil
+}
+
+func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		hlog.SystemLogger().Debugf("Go net library error=%s, remoteAddr=%s", err.Error(), rip)
+		return true
+	}
+	return false
 }
 
 func (c *TLSConn) Handshake() error {
