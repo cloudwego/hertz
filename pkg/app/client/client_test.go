@@ -55,6 +55,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -1803,11 +1804,80 @@ func TestClientMiddleware(t *testing.T) {
 	client.Use(mw1)
 	client.Use(mw2)
 
-	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-	err := client.Do(context.Background(), req, resp)
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err := client.Do(context.Background(), request, response)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err.Error())
 	}
+}
+
+func TestClientLastMiddleware(t *testing.T) {
+	client, _ := NewClient()
+	mw0 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			finalValue0 := ctx.Value("final0")
+			assert.DeepEqual(t, "final3", finalValue0)
+			finalValue1 := ctx.Value("final1")
+			assert.DeepEqual(t, "final1", finalValue1)
+			finalValue2 := ctx.Value("final2")
+			assert.DeepEqual(t, "final2", finalValue2)
+			return nil
+		}
+	}
+	mw1 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final0")
+			return next(ctx, req, resp)
+		}
+	}
+	mw2 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final1", "final1")
+			return next(ctx, req, resp)
+		}
+	}
+	mw3 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final2", "final2")
+			return next(ctx, req, resp)
+		}
+	}
+	mw4 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final3")
+			return next(ctx, req, resp)
+		}
+	}
+	err := client.UseAsLast(mw0)
+	assert.Nil(t, err)
+	err = client.UseAsLast(func(endpoint Endpoint) Endpoint {
+		return nil
+	})
+	assert.DeepEqual(t, errorLastMiddlewareExist, err)
+	client.Use(mw1)
+	client.Use(mw2)
+	client.Use(mw3)
+	client.Use(mw4)
+
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err = client.Do(context.Background(), request, response)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+
+	last := client.TakeOutLastMiddleware()
+
+	assert.DeepEqual(t, reflect.ValueOf(last).Pointer(), reflect.ValueOf(mw0).Pointer())
+	last = client.TakeOutLastMiddleware()
+	assert.Nil(t, last)
 }
 
 func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {

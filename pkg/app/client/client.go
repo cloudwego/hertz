@@ -66,7 +66,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
-var errorInvalidURI = errors.NewPublic("invalid uri")
+var (
+	errorInvalidURI          = errors.NewPublic("invalid uri")
+	errorLastMiddlewareExist = errors.NewPublic("last middleware already set")
+)
 
 // Do performs the given http request and fills the given http response.
 //
@@ -269,10 +272,11 @@ type Client struct {
 
 	clientFactory suite.ClientFactory
 
-	mLock sync.Mutex
-	m     map[string]client.HostClient
-	ms    map[string]client.HostClient
-	mws   Middleware
+	mLock          sync.Mutex
+	m              map[string]client.HostClient
+	ms             map[string]client.HostClient
+	mws            Middleware
+	lastMiddleware Middleware
 }
 
 func (c *Client) GetOptions() *config.ClientOptions {
@@ -454,6 +458,9 @@ func (c *Client) Do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if c.mws == nil {
 		return c.do(ctx, req, resp)
 	}
+	if c.lastMiddleware != nil {
+		return c.mws(c.lastMiddleware(c.do))(ctx, req, resp)
+	}
 	return c.mws(c.do)(ctx, req, resp)
 }
 
@@ -614,6 +621,28 @@ func (c *Client) Use(mws ...Middleware) {
 	}
 	middlewares = append(middlewares, mws...)
 	c.mws = chain(middlewares...)
+}
+
+// UseAsLast is used to add middleware to the end of the middleware chain.
+//
+// Will return an error if last middleware has been set before, to ensure all middleware has the change to work,
+// Please use `TakeOutLastMiddleware` to take out the already set middleware.
+// Chain the middleware after or before is both Okay - but remember to put it back.
+func (c *Client) UseAsLast(mw Middleware) error {
+	if c.lastMiddleware != nil {
+		return errorLastMiddlewareExist
+	}
+	c.lastMiddleware = mw
+	return nil
+}
+
+// TakeOutLastMiddleware will return the set middleware and remove it from client.
+//
+// Remember to set it back after chain it with other middleware.
+func (c *Client) TakeOutLastMiddleware() Middleware {
+	last := c.lastMiddleware
+	c.lastMiddleware = nil
+	return last
 }
 
 func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
