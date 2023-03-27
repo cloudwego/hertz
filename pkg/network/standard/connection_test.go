@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -261,6 +262,12 @@ func TestInitializeTLSConn(t *testing.T) {
 	tlsConn := newTLSConn(&c, 8192).(*TLSConn)
 	assert.DeepEqual(t, errors.New("conn: method not supported"), tlsConn.Handshake())
 	assert.DeepEqual(t, tls.ConnectionState{}, tlsConn.ConnectionState())
+}
+
+func TestHandleSpecificError(t *testing.T) {
+	conn := &Conn{}
+	assert.DeepEqual(t, false, conn.HandleSpecificError(nil, ""))
+	assert.DeepEqual(t, true, conn.HandleSpecificError(syscall.EPIPE, ""))
 }
 
 type mockConn struct {
