@@ -128,20 +128,57 @@ func performRequestInGroup(t *testing.T, method string) {
 }
 
 func TestRouterGroupStatic(t *testing.T) {
-	router := NewEngine(config.NewOptions(nil))
-	router.Static("/", ".")
-	w := performRequest(router, "GET", "/engine.go")
-	fd, err := os.Open("./engine.go")
-	if err != nil {
-		panic(err)
-	}
-	assert.DeepEqual(t, http.StatusOK, w.Code)
-	defer fd.Close()
-	content, err := ioutil.ReadAll(fd)
-	if err != nil {
-		panic(err)
-	}
-	assert.DeepEqual(t, string(content), w.Body.String())
+	t.Run("TestNonRelativePath", func(t *testing.T) {
+		router := NewEngine(config.NewOptions(nil))
+		router.Static("/", ".")
+		w := performRequest(router, "GET", "/engine.go")
+		fd, err := os.Open("./engine.go")
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, http.StatusOK, w.Code)
+		defer fd.Close()
+		content, err := ioutil.ReadAll(fd)
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, string(content), w.Body.String())
+	})
+
+	t.Run("TestRelativePath", func(t *testing.T) {
+		router := NewEngine(config.NewOptions(nil))
+		router.Static("/prefix", ".")
+		w := performRequest(router, "GET", "/prefix/engine.go")
+		fd, err := os.Open("./engine.go")
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, http.StatusOK, w.Code)
+		defer fd.Close()
+		content, err := ioutil.ReadAll(fd)
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, string(content), w.Body.String())
+	})
+
+	t.Run("TestRouterGroup", func(t *testing.T) {
+		router := NewEngine(config.NewOptions(nil))
+		g := router.Group("/v1")
+		g.Static("/prefix", ".")
+		w := performRequest(router, "GET", "/v1/prefix/engine.go")
+		fd, err := os.Open("./engine.go")
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, http.StatusOK, w.Code)
+		defer fd.Close()
+		content, err := ioutil.ReadAll(fd)
+		if err != nil {
+			panic(err)
+		}
+		assert.DeepEqual(t, string(content), w.Body.String())
+	})
 }
 
 func TestRouterGroupStaticFile(t *testing.T) {

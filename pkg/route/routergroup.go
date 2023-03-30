@@ -211,6 +211,8 @@ func (group *RouterGroup) StaticFS(relativePath string, fs *app.FS) IRoutes {
 	if strings.Contains(relativePath, ":") || strings.Contains(relativePath, "*") {
 		panic("URL parameters can not be used when serving a static folder")
 	}
+	absolutePath := group.calculateAbsolutePath(relativePath)
+	fs.Prefix = absolutePath
 	handler := fs.NewRequestHandler()
 	urlPattern := path.Join(relativePath, "/*filepath")
 

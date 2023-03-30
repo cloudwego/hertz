@@ -108,6 +108,9 @@ type FS struct {
 	// Path to the root directory to serve files from.
 	Root string
 
+	// Matching prefix of the route
+	Prefix string
+
 	// List of index file names to try opening during directory access.
 	//
 	// For example:
@@ -331,6 +334,7 @@ func (fs *FS) initRequestHandler() {
 
 	h := &fsHandler{
 		root:                 root,
+		prefix:               fs.Prefix,
 		indexNames:           fs.IndexNames,
 		pathRewrite:          fs.PathRewrite,
 		generateIndexPages:   fs.GenerateIndexPages,
@@ -356,6 +360,7 @@ func (fs *FS) initRequestHandler() {
 
 type fsHandler struct {
 	root                 string
+	prefix               string
 	indexNames           []string
 	pathRewrite          PathRewriteFunc
 	pathNotFound         HandlerFunc
@@ -799,6 +804,9 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		path = h.pathRewrite(ctx)
 	} else {
 		path = ctx.Path()
+		if h.prefix != "" {
+			path = bytes.TrimPrefix(path, bytesconv.S2b(h.prefix))
+		}
 	}
 	path = stripTrailingSlashes(path)
 
@@ -835,7 +843,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 
 	if !ok {
 		pathStr := string(path)
-		filePath := h.root + pathStr
+		filePath := filepath.Join(h.root, pathStr)
 		var err error
 		ff, err = h.openFSFile(filePath, mustCompress)
 
