@@ -346,3 +346,11 @@ func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Conte
 		o.OnConnect = fn
 	}}
 }
+
+// WithCleanStaticFSPrefix sets whether enable clean router prefix in RouterGroup.StaticFS.
+// If we don't set it, it will default to false
+func WithCleanStaticFSPrefix(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CleanStaticFSPrefix = b
+	}}
+}

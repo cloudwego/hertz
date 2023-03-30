@@ -149,6 +149,15 @@ func TestRouterGroupStatic(t *testing.T) {
 		router := NewEngine(config.NewOptions(nil))
 		router.Static("/prefix", ".")
 		w := performRequest(router, "GET", "/prefix/engine.go")
+		assert.DeepEqual(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("TestRelativePathWithCleanPrefix", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		opt.CleanStaticFSPrefix = true
+		router := NewEngine(opt)
+		router.Static("/prefix", ".")
+		w := performRequest(router, "GET", "/prefix/engine.go")
 		fd, err := os.Open("./engine.go")
 		if err != nil {
 			panic(err)
@@ -162,8 +171,10 @@ func TestRouterGroupStatic(t *testing.T) {
 		assert.DeepEqual(t, string(content), w.Body.String())
 	})
 
-	t.Run("TestRouterGroup", func(t *testing.T) {
-		router := NewEngine(config.NewOptions(nil))
+	t.Run("TestRouterGroupWithCleanPrefix", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		opt.CleanStaticFSPrefix = true
+		router := NewEngine(opt)
 		g := router.Group("/v1")
 		g.Static("/prefix", ".")
 		w := performRequest(router, "GET", "/v1/prefix/engine.go")

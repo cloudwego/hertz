@@ -61,6 +61,7 @@ type Options struct {
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
 	DisablePrintRoute            bool
+	CleanStaticFSPrefix          bool
 	Network                      string
 	Addr                         string
 	BasePath                     string
