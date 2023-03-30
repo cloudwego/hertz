@@ -97,16 +97,15 @@ func (routerNode *RouterNode) RawHandlerName() string {
 	return handlerName
 }
 
-// DyeGroupName traverses the routing tree in depth and names the middleware for each node.
-func (routerNode *RouterNode) DyeGroupName(internalMiddleware bool) error {
+// DyeGroupName traverses the routing tree in depth and names the handler/group middleware for each node.
+// If snakeStyleMiddleware is set to true, the name style of the middleware will use snake name style.
+func (routerNode *RouterNode) DyeGroupName(snakeStyleMiddleware bool) error {
 	groups := []string{"root"}
 
 	hook := func(layer int, node *RouterNode) error {
 		node.GroupName = groups[layer]
 		if node.MiddleWare == "" {
 			pname := node.Path
-			handlerMiddlewareName := ""
-			isLeafNode := false
 			if len(pname) > 1 && pname[0] == '/' {
 				pname = pname[1:]
 			}
@@ -117,6 +116,8 @@ func (routerNode *RouterNode) DyeGroupName(internalMiddleware bool) error {
 				node.PathPrefix = "_" + util.ToGoFuncName(pname)
 			}
 
+			handlerMiddlewareName := ""
+			isLeafNode := false
 			if len(node.Handler) != 0 {
 				handlerMiddlewareName = node.RawHandlerName()
 				// If it is a leaf node, then "group middleware name" and "handler middleware name" are the same
@@ -150,12 +151,12 @@ func (routerNode *RouterNode) DyeGroupName(internalMiddleware bool) error {
 			node.MiddleWare = "_" + pname
 			if len(node.Handler) != 0 {
 				node.HandlerMiddleware = "_" + handlerMiddlewareName
-				if internalMiddleware {
+				if snakeStyleMiddleware {
 					node.HandlerMiddleware = "_" + node.RawHandlerName()
 				}
 			}
 			node.GroupMiddleware = node.MiddleWare
-			if internalMiddleware {
+			if snakeStyleMiddleware {
 				node.GroupMiddleware = node.PathPrefix
 			}
 		}
@@ -336,7 +337,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 }
 
 func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode, handlerPackage, routerDir, routerPackage string) error {
-	err := root.DyeGroupName(pkgGen.InternalMiddleware)
+	err := root.DyeGroupName(pkgGen.SnakeStyleMiddleware)
 	if err != nil {
 		return err
 	}

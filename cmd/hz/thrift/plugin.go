@@ -138,14 +138,14 @@ func (plugin *Plugin) Run() int {
 			OutputDir: args.OutDir,
 			Excludes:  args.Excludes,
 		},
-		ProjPackage:        pkg,
-		Options:            options,
-		HandlerByMethod:    args.HandlerByMethod,
-		CmdType:            args.CmdType,
-		IdlClientDir:       util.SubDir(modelDir, pkgInfo.Package),
-		ForceClientDir:     args.ForceClientDir,
-		BaseDomain:         args.BaseDomain,
-		InternalMiddleware: args.InternalMiddleware,
+		ProjPackage:          pkg,
+		Options:              options,
+		HandlerByMethod:      args.HandlerByMethod,
+		CmdType:              args.CmdType,
+		IdlClientDir:         util.SubDir(modelDir, pkgInfo.Package),
+		ForceClientDir:       args.ForceClientDir,
+		BaseDomain:           args.BaseDomain,
+		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)

@@ -600,14 +600,14 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 			OutputDir: args.OutDir,
 			Excludes:  args.Excludes,
 		},
-		ProjPackage:        pkg,
-		Options:            options,
-		HandlerByMethod:    args.HandlerByMethod,
-		CmdType:            args.CmdType,
-		IdlClientDir:       plugin.IdlClientDir,
-		ForceClientDir:     args.ForceClientDir,
-		BaseDomain:         args.BaseDomain,
-		InternalMiddleware: args.InternalMiddleware,
+		ProjPackage:          pkg,
+		Options:              options,
+		HandlerByMethod:      args.HandlerByMethod,
+		CmdType:              args.CmdType,
+		IdlClientDir:         plugin.IdlClientDir,
+		ForceClientDir:       args.ForceClientDir,
+		BaseDomain:           args.BaseDomain,
+		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
 	}
 
 	if args.ModelBackend != "" {
