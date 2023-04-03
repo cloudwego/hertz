@@ -22,13 +22,23 @@ import (
 	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
+
+var release_count uint32 = 0
+
+func init() {
+	linkBufferNodeReleaseHook = func(_ *linkBufferNode) {
+		atomic.AddUint32(&release_count, 1)
+	}
+}
 
 func TestRead(t *testing.T) {
 	c := mockConn{}
@@ -344,4 +354,19 @@ func (m *mockAddr) Network() string {
 
 func (m *mockAddr) String() string {
 	return m.address
+}
+
+func TestConnSetFinalizer(t *testing.T) {
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	atomic.StoreUint32(&release_count, 0)
+	_ = newConn(&mockConn{}, 4096)
+
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
+
+	linkBufferNodeReleaseHook = nil
 }
