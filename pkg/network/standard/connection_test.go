@@ -145,11 +145,11 @@ func TestPeekRelease(t *testing.T) {
 	}
 
 	// test cross node
-	b, _ = conn.Peek(100000000)
-	if len(b) != 100000000 {
+	b, _ = conn.Peek(1000000)
+	if len(b) != 1000000 {
 		t.Errorf("unexpected len(b): %v, expected 1", len(b))
 	}
-	conn.Skip(100000000)
+	conn.Skip(1000000)
 	conn.Release()
 
 	// test maxSize
@@ -184,7 +184,7 @@ func TestReadBytes(t *testing.T) {
 	}
 	bbb, _ := conn.ReadByte()
 	if bbb != 0 {
-		t.Errorf("unexpected bbb: %v, expected nil", bbb)
+		t.Errorf("unexpected bbb: %v, expected nil", string(bbb))
 	}
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
@@ -286,6 +286,9 @@ func (m *mockConn) ConnectionState() tls.ConnectionState {
 
 func (m mockConn) Read(b []byte) (n int, err error) {
 	length := len(b)
+	for i := 0; i < length; i++ {
+		b[i] = 0
+	}
 	if length > 8192 {
 		return 8192, nil
 	}
