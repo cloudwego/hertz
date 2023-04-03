@@ -603,8 +603,9 @@ func TestBind_FileBind(t *testing.T) {
 		SetFile("b", fileName).
 		SetFile("C", fileName).
 		SetFile("d", fileName)
+	// to parse multipart files
 	req2 := req2.GetHTTP1Request(req.Req)
-	req2.String()
+	_ = req2.String()
 	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
@@ -634,8 +635,9 @@ func TestBind_FileSliceBind(t *testing.T) {
 		SetFile("b", fileName).
 		SetFile("b", fileName).
 		SetFile("b", fileName)
+	// to parse multipart files
 	req2 := req2.GetHTTP1Request(req.Req)
-	req2.String()
+	_ = req2.String()
 	err := DefaultBinder.Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
