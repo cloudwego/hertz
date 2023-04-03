@@ -623,7 +623,11 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
 	} else {
 		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func() error {
-			c.releaseConn(cc)
+			if resetConnection || req.ConnectionClose() || resp.ConnectionClose() {
+				c.closeConn(cc)
+			} else {
+				c.releaseConn(cc)
+			}
 			return nil
 		})
 	}
