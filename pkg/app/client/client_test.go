@@ -1951,6 +1951,58 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	}
 }
 
+func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
+	part1 := ""
+	for i := 0; i < 8192; i++ {
+		part1 += "a"
+	}
+
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "127.0.0.1:10036"
+	engine := route.NewEngine(opt)
+	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
+		c.String(consts.StatusOK, part1)
+	})
+	go engine.Run()
+	time.Sleep(100 * time.Millisecond)
+
+	client, _ := NewClient(WithResponseBodyStream(true))
+
+	// first req
+	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(resp)
+	}()
+	req.SetConnectionClose()
+	req.SetMethod(consts.MethodPost)
+	req.SetRequestURI("http://127.0.0.1:10036")
+
+	err := client.Do(context.Background(), req, resp)
+	if err != nil {
+		t.Fatalf("client Do error=%v", err.Error())
+	}
+
+	assert.DeepEqual(t, part1, string(resp.Body()))
+
+	// second req
+	req1, resp1 := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req1)
+		protocol.ReleaseResponse(resp1)
+	}()
+	req1.SetConnectionClose()
+	req1.SetMethod(consts.MethodPost)
+	req1.SetRequestURI("http://127.0.0.1:10036")
+
+	err = client.Do(context.Background(), req1, resp1)
+	if err != nil {
+		t.Fatalf("client Do error=%v", err.Error())
+	}
+
+	assert.DeepEqual(t, part1, string(resp1.Body()))
+}
+
 type mockDialer struct {
 	network.Dialer
 	customDialerFunc func(network, address string, timeout time.Duration, tlsConfig *tls.Config)
