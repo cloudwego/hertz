@@ -24,8 +24,6 @@ import (
 
 var bufferPool = sync.Pool{}
 
-var linkBufferNodeReleaseHook func(node *linkBufferNode) = nil
-
 func init() {
 	bufferPool.New = func() interface{} {
 		return &linkBufferNode{}
@@ -91,10 +89,6 @@ func (b *linkBufferNode) Cap() int {
 
 // Release will recycle the buffer of node
 func (b *linkBufferNode) Release() {
-	if linkBufferNodeReleaseHook != nil {
-		linkBufferNodeReleaseHook(b)
-	}
-
 	if !b.readOnly {
 		free(b.buf)
 	}

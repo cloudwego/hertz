@@ -29,16 +29,9 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/bytedance/mockey"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
-
-var release_count uint32 = 0
-
-func init() {
-	linkBufferNodeReleaseHook = func(_ *linkBufferNode) {
-		atomic.AddUint32(&release_count, 1)
-	}
-}
 
 func TestRead(t *testing.T) {
 	c := mockConn{}
@@ -356,9 +349,26 @@ func (m *mockAddr) String() string {
 	return m.address
 }
 
+var release_count uint32 = 0
+
+func mockLinkBufferNodeRelease(b *linkBufferNode) {
+	atomic.AddUint32(&release_count, 1)
+
+	if !b.readOnly {
+		free(b.buf)
+	}
+	b.readOnly = false
+	b.buf = nil
+	b.next = nil
+	b.malloc, b.off = 0, 0
+	bufferPool.Put(b)
+}
+
 func TestConnSetFinalizer(t *testing.T) {
 	runtime.GC()
 	time.Sleep(time.Millisecond * 100)
+
+	Mock((*linkBufferNode).Release).To(mockLinkBufferNodeRelease).Build()
 
 	atomic.StoreUint32(&release_count, 0)
 	_ = newConn(&mockConn{}, 4096)
@@ -367,6 +377,4 @@ func TestConnSetFinalizer(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
-
-	linkBufferNodeReleaseHook = nil
 }
