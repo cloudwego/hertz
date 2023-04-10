@@ -40,9 +40,9 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 
 ## 详细文档
 ### [快速开始](https://www.cloudwego.io/zh/docs/hertz/getting-started/)
+### 代码示例
+hertz-examples 仓库提供了开箱即用的代码，详见 [example](https://www.cloudwego.io/zh/docs/hertz/tutorials/example/)。
 ### 开发指南
-#### 代码示例
-  hertz-examples 仓库提供了开箱即用的代码，详见 [example](https://www.cloudwego.io/zh/docs/hertz/tutorials/example/)。
 #### 基本特性
   通用中间件的介绍和使用、网络库、路由、绑定与校验、流式处理、错误处理、适配器等，详见[文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/basic-feature/)。
 #### 可观测性

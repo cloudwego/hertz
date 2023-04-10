@@ -15,7 +15,7 @@ English | [中文](README_cn.md)
 Hertz [həːts] is a high-usability, high-performance and high-extensibility Golang HTTP framework that helps developers build microservices. It was designed with reference to other open-source frameworks like [fasthttp](https://github.com/valyala/fasthttp), [gin](https://github.com/gin-gonic/gin), [echo](https://github.com/labstack/echo) and combined with the internal requirements in ByteDance. 
 At present, it has been widely used inside ByteDance. Nowadays, more and more microservices use Golang. If you have requirements for microservice performance and hope that the framework can fully meet the internal customizable requirements, Hertz will be a good choice.
 
-## Basic Features
+## Characteristics
 - High usability
 
   During the development process, it is often more important to write the correct code quickly. Therefore, in the iterative process of Hertz, we actively listen to users' opinions and continue to polish the framework, hoping to provide users with a better user experience and help users write correct code faster.
@@ -40,9 +40,9 @@ At present, it has been widely used inside ByteDance. Nowadays, more and more mi
 
 ## Documentation
 ### [Getting Started](https://www.cloudwego.io/docs/hertz/getting-started/)
+### Example Code
+The hertz-examples repository provides code out of the box. [more](https://www.cloudwego.io/docs/hertz/tutorials/example/)
 ### Tutorials
-#### Example Code
-  The hertz-examples repository provides code out of the box. [more](https://www.cloudwego.io/docs/hertz/tutorials/example/)
 #### Basic Features
   Introduction and use of general middleware, network lib, route, binding and validate, stream, error handling, adaptor, etc. [more](https://www.cloudwego.io/docs/hertz/tutorials/basic-feature/)
 #### Observability
