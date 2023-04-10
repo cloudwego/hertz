@@ -22,11 +22,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	. "github.com/bytedance/mockey"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -145,11 +148,11 @@ func TestPeekRelease(t *testing.T) {
 	}
 
 	// test cross node
-	b, _ = conn.Peek(100000000)
-	if len(b) != 100000000 {
+	b, _ = conn.Peek(1000000)
+	if len(b) != 1000000 {
 		t.Errorf("unexpected len(b): %v, expected 1", len(b))
 	}
-	conn.Skip(100000000)
+	conn.Skip(1000000)
 	conn.Release()
 
 	// test maxSize
@@ -184,7 +187,7 @@ func TestReadBytes(t *testing.T) {
 	}
 	bbb, _ := conn.ReadByte()
 	if bbb != 0 {
-		t.Errorf("unexpected bbb: %v, expected nil", bbb)
+		t.Errorf("unexpected bbb: %v, expected nil", string(bbb))
 	}
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
@@ -286,6 +289,9 @@ func (m *mockConn) ConnectionState() tls.ConnectionState {
 
 func (m mockConn) Read(b []byte) (n int, err error) {
 	length := len(b)
+	for i := 0; i < length; i++ {
+		b[i] = 0
+	}
 	if length > 8192 {
 		return 8192, nil
 	}
@@ -341,4 +347,34 @@ func (m *mockAddr) Network() string {
 
 func (m *mockAddr) String() string {
 	return m.address
+}
+
+var release_count uint32 = 0
+
+func mockLinkBufferNodeRelease(b *linkBufferNode) {
+	atomic.AddUint32(&release_count, 1)
+
+	if !b.readOnly {
+		free(b.buf)
+	}
+	b.readOnly = false
+	b.buf = nil
+	b.next = nil
+	b.malloc, b.off = 0, 0
+	bufferPool.Put(b)
+}
+
+func TestConnSetFinalizer(t *testing.T) {
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	Mock((*linkBufferNode).Release).To(mockLinkBufferNodeRelease).Build()
+
+	atomic.StoreUint32(&release_count, 0)
+	_ = newConn(&mockConn{}, 4096)
+
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
 }

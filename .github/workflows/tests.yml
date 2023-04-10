@@ -1,13 +1,30 @@
 name: Tests
 
-on: [ push, pull_request ]
+on: [push, pull_request]
 
 jobs:
+  compat-test:
+    strategy:
+      matrix:
+        version: ["1.16", "1.17"]
+    runs-on: [self-hosted, X64]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.version }}
+
+      # Just build tests without running them
+      - name: Build Test
+        run: go test -run=nope ./...
+
   lint-and-ut:
     strategy:
       matrix:
-        version: [ '1.18', '1.19', '1.20' ]
-    runs-on: [ self-hosted, X64 ]
+        version: ["1.18", "1.19", "1.20"]
+    runs-on: [self-hosted, X64]
     steps:
       - uses: actions/checkout@v3
 
@@ -31,7 +48,7 @@ jobs:
   ut-windows:
     strategy:
       matrix:
-        version: [ '1.18', '1.19', '1.20' ]
+        version: ["1.18", "1.19", "1.20"]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
@@ -43,3 +60,65 @@ jobs:
 
       - name: Unit Test
         run: go test -race -covermode=atomic  ./...
+
+  hz-test-unix:
+    strategy:
+      matrix:
+        version: [ '1.20' ]
+    runs-on: [ self-hosted, X64 ]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.version }}
+
+      - name: Setup Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v35
+
+      - name: Hz Test
+        if: contains(steps.changed-files.outputs.all_changed_files, 'cmd/hz')
+        run: |
+          cd cmd/hz
+          sh test_hz_unix.sh
+
+
+  hz-test-windows:
+    strategy:
+      matrix:
+        version: [ '1.20']
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.version }}
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v35
+
+      - name: Install Protobuf
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-win64.zip -OutFile protoc-3.19.4-win64.zip
+          Expand-Archive protoc-3.19.4-win64.zip -DestinationPath protoc-3.19.4-win64
+          $GOPATH=go env GOPATH
+          Copy-Item -Path protoc-3.19.4-win64\bin\protoc.exe -Destination $GOPATH\bin
+          Copy-Item -Path protoc-3.19.4-win64\include\* -Destination cmd\hz\testdata\include\google -Recurse
+          protoc --version
+
+      - name: Hz Test
+        if: contains(steps.changed-files.outputs.all_changed_files, 'cmd/hz')
+        run: |
+          cd cmd/hz
+          sh test_hz_windows.sh

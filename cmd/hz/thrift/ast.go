@@ -98,19 +98,19 @@ func astToService(ast *parser.Thrift, resolver *Resolver, cmdType string) ([]*ge
 				if len(m.Arguments) > 1 {
 					logs.Warnf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName())
 				}
-				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
+				var err error
+				reqName, err = resolver.ResolveTypeName(m.Arguments[0].GetType())
 				if err != nil {
 					return nil, err
 				}
-				reqName = rt.Expression()
 			}
 			var respName string
 			if !m.Oneway {
-				respType, err := resolver.ResolveIdentifier(m.GetFunctionType().GetName())
+				var err error
+				respName, err = resolver.ResolveTypeName(m.GetFunctionType())
 				if err != nil {
 					return nil, err
 				}
-				respName = respType.Expression()
 			}
 
 			sr, _ := util.GetFirstKV(getAnnotations(m.Annotations, SerializerTags))

@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package hertz.other;
+
+option go_package = "github.com/cloudwego/hertz/cmd/hz/test/hertz_model/other";
+
+message OtherBaseType {
+  optional string IsOtherBaseTypeString = 1;
+}
