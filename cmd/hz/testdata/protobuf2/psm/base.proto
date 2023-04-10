@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package base;
+
+option go_package = "github.com/cloudwego/hertz/cmd/hz/test/hertz_model/psm";
+
+message Base {
+  optional string IsBaseString = 1;
+}
+
+enum BaseEnumType {
+  TWEET = 0;
+  RETWEET = 1;
+}

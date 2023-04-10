@@ -68,6 +68,7 @@ type Argument struct {
 	NoRecurse            bool
 	HandlerByMethod      bool
 	ForceNew             bool
+	SnakeStyleMiddleware bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string

@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package hertz.other;
+
+import "other/other_base.proto";
+
+option go_package = "github.com/cloudwego/hertz/cmd/hz/test/hertz_model/other";
+
+message OtherType {
+  optional string IsBaseString = 1;
+  optional OtherBaseType IsOtherBaseType = 2;
+}

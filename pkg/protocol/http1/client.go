@@ -619,11 +619,21 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 	zr := c.acquireReader(conn)
 
+	// init here for passing in ReadBodyStream's closure
+	// and this value will be assigned after reading Response's Header
+	//
+	// This is to solve the circular dependency problem of Response and BodyStream
+	shouldCloseConn := false
+
 	if !c.ResponseBodyStream {
 		err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
 	} else {
 		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func() error {
-			c.releaseConn(cc)
+			if shouldCloseConn {
+				c.closeConn(cc)
+			} else {
+				c.releaseConn(cc)
+			}
 			return nil
 		})
 	}
@@ -638,11 +648,13 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	zr.Release() //nolint:errcheck
 
+	shouldCloseConn = resetConnection || req.ConnectionClose() || resp.ConnectionClose()
+
 	if c.ResponseBodyStream {
 		return false, err
 	}
 
-	if resetConnection || req.ConnectionClose() || resp.ConnectionClose() {
+	if shouldCloseConn {
 		c.closeConn(cc)
 	} else {
 		c.releaseConn(cc)
