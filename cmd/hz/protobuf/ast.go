@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
@@ -105,7 +106,7 @@ func switchBaseType(typ descriptorpb.FieldDescriptorProto_Type) *model.Type {
 	return nil
 }
 
-func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmdType string, gen *protogen.Plugin) ([]*generator.Service, error) {
+func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, args *config.Argument, gen *protogen.Plugin) ([]*generator.Service, error) {
 	resolver.ExportReferred(true, false)
 	ss := ast.GetService()
 	out := make([]*generator.Service, 0, len(ss))
@@ -118,7 +119,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 		service.BaseDomain = ""
 		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
-		if cmdType == meta.CmdClient {
+		if args.CmdType == meta.CmdClient {
 			val, ok := domainAnno.(string)
 			if ok && len(val) != 0 {
 				service.BaseDomain = val
@@ -215,10 +216,10 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 			methods = append(methods, method)
 
-			if cmdType == meta.CmdClient {
+			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
-				err := parseAnnotationToClient(clientMethod, gen, ast, m)
+				err := parseAnnotationToClient(clientMethod, gen, ast, m, args)
 				if err != nil {
 					return nil, err
 				}
@@ -234,7 +235,54 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 	return out, nil
 }
 
-func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
+type FieldDecoder struct {
+	RawField *protogen.Field
+	Getter   string
+}
+
+func ParseFieldDecoder(message *protogen.Message) ([]FieldDecoder, error) {
+	var fieldDecoders []FieldDecoder
+	for _, field := range message.Fields {
+		dec, err := getFieldDecoder(field, "")
+		if err != nil {
+			return nil, err
+		}
+		if dec != nil {
+			fieldDecoders = append(fieldDecoders, dec...)
+		}
+	}
+
+	return fieldDecoders, nil
+}
+
+func getFieldDecoder(field *protogen.Field, Getter string) ([]FieldDecoder, error) {
+	if field.Desc.Kind() == protoreflect.MessageKind {
+		if !(field.Desc.IsList() || field.Desc.IsMap()) {
+			var decoders []FieldDecoder
+			for _, f := range field.Message.Fields {
+				dec, err := getFieldDecoder(f, Getter+fmt.Sprintf(".Get%s()", field.GoName))
+				if err != nil {
+					return nil, err
+				}
+				if dec != nil {
+					decoders = append(decoders, dec...)
+				}
+			}
+			return decoders, nil
+		}
+	}
+	if field.Desc.IsMap() {
+		logs.Warnf("skip collect client field info for %s, because it's type is map", field.Desc.TextName())
+		return []FieldDecoder{}, nil
+	}
+	dec := FieldDecoder{
+		RawField: field,
+		Getter:   Getter + fmt.Sprintf(".Get%s()", field.GoName),
+	}
+	return []FieldDecoder{dec}, nil
+}
+
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto, args *config.Argument) error {
 	file, exist := gen.FilesByPath[ast.GetName()]
 	if !exist {
 		return fmt.Errorf("file(%s) can not exist", ast.GetName())
@@ -245,71 +293,75 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 	}
 	// pb input type must be message
 	inputType := method.Input
+	fieldDecoders, err := ParseFieldDecoder(inputType)
+	if err != nil {
+		return err
+	}
 	var (
 		hasBodyAnnotation bool
 		hasFormAnnotation bool
 	)
-	for _, f := range inputType.Fields {
+	for _, f := range fieldDecoders {
 		hasAnnotation := false
 		isStringFieldType := false
-		if f.Desc.Kind() == protoreflect.StringKind {
+		if f.RawField.Desc.Kind() == protoreflect.StringKind {
 			isStringFieldType = true
 		}
-		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_Query) {
 			hasAnnotation = true
-			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
+			queryAnnos := proto.GetExtension(f.RawField.Desc.Options(), api.E_Query)
 			val := queryAnnos.(string)
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			clientMethod.QueryParamsCode += fmt.Sprintf("{%q, req%s},\n", val, f.Getter)
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_Path) {
 			hasAnnotation = true
-			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
+			pathAnnos := proto.GetExtension(f.RawField.Desc.Options(), api.E_Path)
 			val := pathAnnos.(string)
 			if isStringFieldType {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: req%s,\n", val, f.Getter)
 			} else {
-				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+				clientMethod.PathParamsCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", val, f.Getter)
 			}
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_Header) {
 			hasAnnotation = true
-			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
+			headerAnnos := proto.GetExtension(f.RawField.Desc.Options(), api.E_Header)
 			val := headerAnnos.(string)
 			if isStringFieldType {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req%s,\n", val, f.Getter)
 			} else {
-				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", val, f.Getter)
 			}
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_Form) {
 			hasAnnotation = true
-			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
+			formAnnos := proto.GetExtension(f.RawField.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
 			val := formAnnos.(string)
 			if isStringFieldType {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+				clientMethod.FormValueCode += fmt.Sprintf("%q: req%s,\n", val, f.Getter)
 			} else {
-				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req.Get%s()),\n", val, f.GoName)
+				clientMethod.FormValueCode += fmt.Sprintf("%q: fmt.Sprint(req%s),\n", val, f.Getter)
 			}
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Body) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_Body) {
 			hasAnnotation = true
 			hasBodyAnnotation = true
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+		if proto.HasExtension(f.RawField.Desc.Options(), api.E_FileName) {
 			hasAnnotation = true
-			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
+			fileAnnos := proto.GetExtension(f.RawField.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
 			val := fileAnnos.(string)
-			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+			clientMethod.FormFileCode += fmt.Sprintf("%q: req%s,\n", val, f.Getter)
 		}
-		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
+		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") && args.SetDefaultQuery {
+			clientMethod.QueryParamsCode += fmt.Sprintf("{%q, req%s},\n", f.RawField.GoName, f.Getter)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

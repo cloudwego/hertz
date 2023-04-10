@@ -188,6 +188,7 @@ func Init() *cli.App {
 	customLayoutData := cli.StringFlag{Name: "customize_layout_data_path", Usage: "Specify the path for layout template render data.", Destination: &globalArgs.CustomizeLayoutData}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
+	setDefaultQueryFlag := cli.BoolFlag{Name: "set_default_query", Usage: "Set query parameters for field that has no tags.", Destination: &globalArgs.SetDefaultQuery}
 
 	// app
 	app := cli.NewApp()
@@ -313,6 +314,7 @@ func Init() *cli.App {
 				&protoCamelJSONTag,
 				&snakeNameFlag,
 				&excludeFilesFlag,
+				&setDefaultQueryFlag,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
 			},

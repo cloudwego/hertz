@@ -50,10 +50,6 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			cliDir = pkgGen.ForceClientDir
 		}
 		hertzClientPath := filepath.Join(cliDir, hertzClientTplName)
-		isExist, err := util.PathExist(hertzClientPath)
-		if err != nil {
-			return err
-		}
 		baseDomain := s.BaseDomain
 		if len(pkgGen.BaseDomain) != 0 {
 			baseDomain = pkgGen.BaseDomain
@@ -65,11 +61,9 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			ClientMethods: s.ClientMethods,
 			BaseDomain:    baseDomain,
 		}
-		if !isExist {
-			err := pkgGen.TemplateGenerator.Generate(client, hertzClientTplName, hertzClientPath, false)
-			if err != nil {
-				return err
-			}
+		err := pkgGen.TemplateGenerator.Generate(client, hertzClientTplName, hertzClientPath, false)
+		if err != nil {
+			return err
 		}
 		client.Imports = make(map[string]*model.Model, len(client.ClientMethods))
 		for _, m := range client.ClientMethods {

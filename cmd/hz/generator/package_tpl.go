@@ -596,9 +596,16 @@ func (r *request) setHeaders(headers map[string]string) *request {
 	return r
 }
 
-func (r *request) setQueryParams(params map[string]interface{}) *request {
-	for p, v := range params {
-		r.setQueryParam(p, v)
+type queryParam struct {
+	Key string
+	Value interface{}
+}
+
+type queryParams []queryParam
+
+func (r *request) setQueryParams(params queryParams) *request {
+	for _, param := range params {
+		r.setQueryParam(param.Key, param.Value)
 	}
 
 	return r
@@ -897,7 +904,7 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 	httpResp := &{{$MethodInfo.ReturnTypeName}}{}	
 	ret, err := s.client.r().
 		setContext(context).
-		setQueryParams(map[string]interface{}{
+		setQueryParams(queryParams{
 			{{$MethodInfo.QueryParamsCode}}
 		}).
 		setPathParams(map[string]string{
