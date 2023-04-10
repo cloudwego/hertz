@@ -46,22 +46,25 @@ type Service struct {
 	BaseDomain    string         // base domain for client code
 }
 
+// HttpPackageGenerator is used to record the configuration related to generating hertz http code.
 type HttpPackageGenerator struct {
-	ConfigPath      string
-	Backend         meta.Backend
-	Options         []Option
-	CmdType         string
-	ProjPackage     string
-	HandlerDir      string
-	RouterDir       string
-	ModelDir        string
-	UseDir          string
-	ClientDir       string
-	IdlClientDir    string
-	ForceClientDir  string
-	NeedModel       bool
-	HandlerByMethod bool
-	BaseDomain      string
+	ConfigPath     string       // package template path
+	Backend        meta.Backend // model template
+	Options        []Option
+	CmdType        string
+	ProjPackage    string // go module for project
+	HandlerDir     string
+	RouterDir      string
+	ModelDir       string
+	UseDir         string // model dir for third repo
+	ClientDir      string // client dir for "new"/"update" command
+	IdlClientDir   string // client dir for "client" command
+	ForceClientDir string // client dir without namespace for "client" command
+	BaseDomain     string // request domain for "client" command
+
+	NeedModel            bool
+	HandlerByMethod      bool // generate handler files with method dimension
+	SnakeStyleMiddleware bool // use snake name style for middleware
 
 	loadedBackend   Backend
 	curModel        *model.Model
