@@ -756,13 +756,13 @@ func TestHostClientPendingRequests(t *testing.T) {
 		select {
 		case <-readyCh:
 		case <-time.After(time.Second):
-			t.Fatalf("timeout")
+			t.Errorf("timeout")
 		}
 	}
 
 	pendingRequests = c.PendingRequests()
 	if pendingRequests != concurrency {
-		t.Fatalf("unexpected pendingRequests: %d. Expecting %d", pendingRequests, concurrency)
+		t.Errorf("unexpected pendingRequests: %d. Expecting %d", pendingRequests, concurrency)
 	}
 
 	// unblock request handlers on the server and wait until all the requests are finished.
@@ -771,16 +771,16 @@ func TestHostClientPendingRequests(t *testing.T) {
 		select {
 		case err := <-resultCh:
 			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %s", err)
 			}
 		case <-time.After(time.Second):
-			t.Fatalf("timeout")
+			t.Errorf("timeout")
 		}
 	}
 
 	pendingRequests = c.PendingRequests()
 	if pendingRequests != 0 {
-		t.Fatalf("non-zero pendingRequests: %d", pendingRequests)
+		t.Errorf("non-zero pendingRequests: %d", pendingRequests)
 	}
 }
 
