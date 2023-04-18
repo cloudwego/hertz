@@ -80,6 +80,8 @@ func TestContext(t *testing.T) {
 	if ctx.Value("testContextKey") != "testValue" {
 		t.Fatalf("unexpected value: %#v, expected: %#v", ctx.Value("testContextKey"), "testValue")
 	}
+
+	ctx = NewContext(0)
 	assert.DeepEqual(t, ctx.Value("none"), nil)
 }
 
