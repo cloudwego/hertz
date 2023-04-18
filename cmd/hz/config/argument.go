@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
+	
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
@@ -40,14 +40,14 @@ type Argument struct {
 	ClientDir      string // client path
 	BaseDomain     string // request domain
 	ForceClientDir string // client dir (not use namespace as a subpath)
-
+	
 	IdlType   string   // idl type
 	IdlPaths  []string // master idl path
 	RawOptPkg []string // user-specified package import path
 	OptPkgMap map[string]string
 	Includes  []string
 	PkgPrefix string
-
+	
 	Gopath      string // $GOPATH
 	Gosrc       string // $GOPATH/src
 	Gomod       string
@@ -55,7 +55,7 @@ type Argument struct {
 	ServiceName string // service name
 	Use         string
 	NeedGoMod   bool
-
+	
 	JSONEnumStr          bool
 	UnsetOmitempty       bool
 	ProtobufCamelJSONTag bool
@@ -69,11 +69,12 @@ type Argument struct {
 	HandlerByMethod      bool
 	ForceNew             bool
 	SnakeStyleMiddleware bool
-
+	
 	CustomizeLayout     string
 	CustomizeLayoutData string
 	CustomizePackage    string
 	ModelBackend        string
+	GenerateDocs        bool
 }
 
 func NewArgument() *Argument {
@@ -92,22 +93,22 @@ func (arg *Argument) Parse(c *cli.Context, cmd string) (*Argument, error) {
 	arg.parseStringSlice(c)
 	args := arg.Fork()
 	args.CmdType = cmd
-
+	
 	err := args.checkPath()
 	if err != nil {
 		return nil, err
 	}
-
+	
 	err = args.checkIDL()
 	if err != nil {
 		return nil, err
 	}
-
+	
 	err = args.checkPackage()
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return args, nil
 }
 
@@ -195,10 +196,6 @@ func (arg *Argument) IsUpdate() bool {
 	return arg.CmdType == meta.CmdUpdate
 }
 
-func (arg *Argument) IsNew() bool {
-	return arg.CmdType == meta.CmdNew
-}
-
 // checkPackage check and set the gopath、 module and package name
 func (arg *Argument) checkPackage() error {
 	gopath, err := util.GetGOPATH()
@@ -208,10 +205,10 @@ func (arg *Argument) checkPackage() error {
 	if gopath == "" {
 		return fmt.Errorf("GOPATH is not set")
 	}
-
+	
 	arg.Gopath = gopath
 	arg.Gosrc = filepath.Join(gopath, "src")
-
+	
 	// Generate the project under gopath, use the relative path as the package name
 	if strings.HasPrefix(arg.Cwd, arg.Gosrc) {
 		if gopkg, err := filepath.Rel(arg.Gosrc, arg.Cwd); err != nil {
@@ -219,39 +216,23 @@ func (arg *Argument) checkPackage() error {
 		} else {
 			arg.Gopkg = gopkg
 		}
-	}
-	if len(arg.Gomod) == 0 { // not specified "go module"
-		// search go.mod recursively
-		module, path, ok := util.SearchGoMod(arg.Cwd, true)
-		if ok {
-			logs.Debugf("find module '%s' form '%s/go.mod'", module, path)
-			rel, err := filepath.Rel(path, arg.Cwd)
-			if err != nil {
-				return fmt.Errorf("can not get relative path, err :%v", err)
-			}
-			arg.Gomod = filepath.Join(module, rel)
-		}
-		if len(arg.Gomod) == 0 {
+		if arg.Gomod == "" {
 			arg.Gomod = arg.Gopkg
 		}
-		arg.Gomod = util.PathToImport(arg.Gomod, "")
-	} else { // specified "go module"
-		// search go.mod in current path
-		module, path, ok := util.SearchGoMod(arg.Cwd, false)
-		if ok {
-			// go.mod exists in current path
-			if module != arg.Gomod {
-				return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
-			}
-		} else {
-			arg.NeedGoMod = true
+	}
+	if !arg.IsUpdate() && arg.Gomod == "" {
+		return fmt.Errorf("output directory %s is not under GOPATH/src. Please specify a module name with the '-module' flag", arg.Cwd)
+	}
+	
+	module, path, ok := util.SearchGoMod(".", false)
+	if ok {
+		// go.mod exists
+		if module != arg.Gomod && !arg.IsUpdate() {
+			return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
 		}
+		arg.Gomod = module
 	}
-
-	if len(arg.Gomod) == 0 {
-		return fmt.Errorf("can not get go module, please specify a module name with the '-module' flag")
-	}
-
+	
 	if len(arg.RawOptPkg) > 0 {
 		arg.OptPkgMap = make(map[string]string, len(arg.RawOptPkg))
 		for _, op := range arg.RawOptPkg {

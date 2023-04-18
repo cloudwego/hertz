@@ -17,6 +17,7 @@
 package util
 
 import (
+	_ "embed"
 	"os"
 	"path/filepath"
 )

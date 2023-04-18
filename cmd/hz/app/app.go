@@ -22,8 +22,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
+	
 	"github.com/cloudwego/hertz/cmd/hz/config"
+	"github.com/cloudwego/hertz/cmd/hz/docs"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/protobuf"
@@ -44,15 +45,6 @@ func New(c *cli.Context) error {
 	setLogVerbose(args.Verbose)
 	logs.Debugf("args: %#v\n", args)
 
-	exist, err := util.PathExist(filepath.Join(args.OutDir, meta.ManifestFile))
-	if err != nil {
-		return cli.Exit(err, meta.LoadError)
-	}
-
-	if exist && !args.ForceNew {
-		return cli.Exit(fmt.Errorf("the current is already a hertz project, if you want to regenerate it you can specify \"-force\""), meta.LoadError)
-	}
-
 	err = GenerateLayout(args)
 	if err != nil {
 		return cli.Exit(err, meta.GenerateLayoutError)
@@ -62,6 +54,12 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
 	}
+
+	err = GenerateGuides(args)
+	if err != nil {
+		return cli.Exit(err, meta.GenerateGuidesError)
+	}
+
 	// ".hz" file converges to the hz tool
 	manifest := new(meta.Manifest)
 	args.InitManifest(manifest)
@@ -69,10 +67,6 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
-	if !args.NeedGoMod && args.IsNew() {
-		fmt.Println(meta.AddThriftReplace)
-	}
-
 	return nil
 }
 
@@ -123,22 +117,6 @@ func Model(c *cli.Context) error {
 	return nil
 }
 
-func Client(c *cli.Context) error {
-	args, err := globalArgs.Parse(c, meta.CmdClient)
-	if err != nil {
-		return cli.Exit(err, meta.LoadError)
-	}
-	setLogVerbose(args.Verbose)
-	logs.Debugf("Args: %#v\n", args)
-
-	err = TriggerPlugin(args)
-	if err != nil {
-		return cli.Exit(err, meta.PluginError)
-	}
-
-	return nil
-}
-
 func PluginMode() {
 	pluginName := filepath.Base(os.Args[0])
 	if util.IsWindows() {
@@ -159,16 +137,12 @@ func Init() *cli.App {
 	verboseFlag := cli.BoolFlag{Name: "verbose,vv", Usage: "turn on verbose mode", Destination: &globalArgs.Verbose}
 
 	idlFlag := cli.StringSliceFlag{Name: "idl", Usage: "Specify the IDL file path. (.thrift or .proto)"}
-	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name.", Destination: &globalArgs.Gomod}
+	moduleFlag := cli.StringFlag{Name: "module", Aliases: []string{"mod"}, Usage: "Specify the Go module name to generate go.mod.", Destination: &globalArgs.Gomod}
 	serviceNameFlag := cli.StringFlag{Name: "service", Usage: "Specify the service name.", Destination: &globalArgs.ServiceName}
 	outDirFlag := cli.StringFlag{Name: "out_dir", Usage: "Specify the project path.", Destination: &globalArgs.OutDir}
-	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler relative path (based on \"out_dir\").", Destination: &globalArgs.HandlerDir}
-	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model relative path (based on \"out_dir\").", Destination: &globalArgs.ModelDir}
-	routerDirFlag := cli.StringFlag{Name: "router_dir", Usage: "Specify the router relative path (based on \"out_dir\").", Destination: &globalArgs.RouterDir}
-	useFlag := cli.StringFlag{Name: "use", Usage: "Specify the model package to import for handler.", Destination: &globalArgs.Use}
-	baseDomainFlag := cli.StringFlag{Name: "base_domain", Usage: "Specify the request domain.", Destination: &globalArgs.BaseDomain}
-	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, IDL generated path is used for 'client' command; no client code is generated for 'new' command", Destination: &globalArgs.ClientDir}
-	forceClientDirFlag := cli.StringFlag{Name: "force_client_dir", Usage: "Specify the client path, and won't use namespaces as subpaths", Destination: &globalArgs.ForceClientDir}
+	handlerDirFlag := cli.StringFlag{Name: "handler_dir", Usage: "Specify the handler path.", Destination: &globalArgs.HandlerDir}
+	modelDirFlag := cli.StringFlag{Name: "model_dir", Usage: "Specify the model path.", Destination: &globalArgs.ModelDir}
+	clientDirFlag := cli.StringFlag{Name: "client_dir", Usage: "Specify the client path. If not specified, no client code is generated.", Destination: &globalArgs.ClientDir}
 
 	optPkgFlag := cli.StringSliceFlag{Name: "option_package", Aliases: []string{"P"}, Usage: "Specify the package path. ({include_path}={import_path})"}
 	includesFlag := cli.StringSliceFlag{Name: "proto_path", Aliases: []string{"I"}, Usage: "Add an IDL search path for includes. (Valid only if idl is protobuf)"}
@@ -178,17 +152,15 @@ func Init() *cli.App {
 	thriftPluginsFlag := cli.StringSliceFlag{Name: "thrift-plugins", Usage: "Specify plugins for the thriftgo. ({plugin_name}:{options})"}
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
-	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
 	protoCamelJSONTag := cli.BoolFlag{Name: "pb_camel_json_tag", Usage: "Convert Name style for json tag to camel(Only works protobuf).", Destination: &globalArgs.ProtobufCamelJSONTag}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
-	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the path for layout template.", Destination: &globalArgs.CustomizeLayout}
-	customLayoutData := cli.StringFlag{Name: "customize_layout_data_path", Usage: "Specify the path for layout template render data.", Destination: &globalArgs.CustomizeLayoutData}
-	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
+	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the layout template. ({{Template Profile}}:{{Rendering Data}})", Destination: &globalArgs.CustomizeLayout}
+	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the package template. ({{Template Profile}}:)", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
-
+	generateDocsFlag := cli.BoolFlag{Name: "docs", Usage: "Generate docs for helping user", Aliases: []string{"d"}, Value: true, Destination: &globalArgs.GenerateDocs}
 	// app
 	app := cli.NewApp()
 	app.Name = "hz"
@@ -214,16 +186,13 @@ func Init() *cli.App {
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
-				&routerDirFlag,
 				&clientDirFlag,
-				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
 				&noRecurseFlag,
-				&forceNewFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -231,11 +200,12 @@ func Init() *cli.App {
 				&snakeNameFlag,
 				&excludeFilesFlag,
 				&customLayout,
-				&customLayoutData,
 				&customPackage,
 				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
+
+				&generateDocsFlag,
 			},
 			Action: New,
 		},
@@ -244,12 +214,10 @@ func Init() *cli.App {
 			Usage: "Update an existing Hertz project",
 			Flags: []cli.Flag{
 				&idlFlag,
-				&moduleFlag,
 				&outDirFlag,
 				&handlerDirFlag,
 				&modelDirFlag,
 				&clientDirFlag,
-				&useFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
@@ -266,6 +234,8 @@ func Init() *cli.App {
 				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
+
+				&generateDocsFlag,
 			},
 			Action: Update,
 		},
@@ -290,33 +260,6 @@ func Init() *cli.App {
 				&excludeFilesFlag,
 			},
 			Action: Model,
-		},
-		{
-			Name:  meta.CmdClient,
-			Usage: "Generate hertz client based on IDL",
-			Flags: []cli.Flag{
-				&idlFlag,
-				&moduleFlag,
-				&baseDomainFlag,
-				&modelDirFlag,
-				&clientDirFlag,
-				&useFlag,
-				&forceClientDirFlag,
-
-				&includesFlag,
-				&thriftOptionsFlag,
-				&protoOptionsFlag,
-				&noRecurseFlag,
-
-				&jsonEnumStrFlag,
-				&unsetOmitemptyFlag,
-				&protoCamelJSONTag,
-				&snakeNameFlag,
-				&excludeFilesFlag,
-				&protoPluginsFlag,
-				&thriftPluginsFlag,
-			},
-			Action: Client,
 		},
 	}
 	return app
@@ -343,10 +286,6 @@ func GenerateLayout(args *config.Argument) error {
 		ServiceName:     args.ServiceName,
 		UseApacheThrift: args.IdlType == meta.IdlThrift,
 		HasIdl:          0 != len(args.IdlPaths),
-		ModelDir:        args.ModelDir,
-		HandlerDir:      args.HandlerDir,
-		RouterDir:       args.RouterDir,
-		NeedGoMod:       args.NeedGoMod,
 	}
 
 	if args.CustomizeLayout == "" {
@@ -357,7 +296,11 @@ func GenerateLayout(args *config.Argument) error {
 		}
 	} else {
 		// generate by customized layout
-		configPath, dataPath := args.CustomizeLayout, args.CustomizeLayoutData
+		sp := strings.Split(args.CustomizeLayout, ":")
+		if len(sp) != 2 || sp[0] == "" {
+			return errors.New("custom_layout must be like: {{layout_config_path}}:{{template_data_config_path}}")
+		}
+		configPath, dataPath := sp[0], sp[1]
 		logs.Infof("get customized layout info, layout_config_path: %s, template_data_path: %s", configPath, dataPath)
 		exist, err := util.PathExist(configPath)
 		if err != nil {
@@ -406,10 +349,7 @@ func TriggerPlugin(args *config.Argument) error {
 	logs.Debugf("begin to trigger plugin, compiler: %s, idl_paths: %v", compiler, args.IdlPaths)
 	buf, err := cmd.CombinedOutput()
 	if err != nil {
-		out := strings.TrimSpace(string(buf))
-		if !strings.HasSuffix(out, meta.TheUseOptionMessage) {
-			return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause:\n%v", compiler, err, string(buf))
-		}
+		return fmt.Errorf("plugin %s_gen_hertz returns error: %v, cause:\n%v", compiler, err, string(buf))
 	}
 
 	// If len(buf) != 0, the plugin returned the log.
@@ -417,5 +357,34 @@ func TriggerPlugin(args *config.Argument) error {
 		fmt.Println(string(buf))
 	}
 	logs.Debugf("end run plugin %s_gen_hertz", compiler)
+	return nil
+}
+
+func GenerateGuides(args *config.Argument) error {
+	if !args.GenerateDocs {
+		return nil
+	}
+
+	docsDir := filepath.Join(".", "docs")
+	err := os.MkdirAll(docsDir, os.FileMode(0o744))
+	if err != nil {
+		return fmt.Errorf("failed to create directory '%s': %v", docsDir, err)
+	}
+
+	for fileName, content := range docs.GuideFiles {
+		filePath := filepath.Join(docsDir, fileName)
+		fd, err := os.OpenFile(filePath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(0o644))
+		if err != nil {
+			return fmt.Errorf("failed to create file '%s': %v", filePath, err)
+		}
+
+		if _, err := fd.WriteString(content); err != nil {
+			fd.Close()
+			return fmt.Errorf("failed to write content to file '%s': %v", filePath, err)
+		}
+
+		fd.Close()
+	}
+
 	return nil
 }

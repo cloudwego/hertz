@@ -61,6 +61,7 @@ const (
 	GenerateLayoutError = 2
 	PersistError        = 3
 	PluginError         = 4
+	GenerateGuidesError = 5
 )
 
 // Package Dir
