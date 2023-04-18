@@ -80,6 +80,7 @@ func TestContext(t *testing.T) {
 	if ctx.Value("testContextKey") != "testValue" {
 		t.Fatalf("unexpected value: %#v, expected: %#v", ctx.Value("testContextKey"), "testValue")
 	}
+	assert.DeepEqual(t, ctx.Value("none"), nil)
 }
 
 func TestContextNotModified(t *testing.T) {
@@ -873,6 +874,25 @@ func TestContextSetGet(t *testing.T) {
 
 	assert.DeepEqual(t, "bar", c.MustGet("foo"))
 	assert.Panic(t, func() { c.MustGet("no_exist") })
+}
+
+func TestContextSetGetDataRace(t *testing.T) {
+	c := &RequestContext{}
+	go func() {
+		c.Set("foo", "bar")
+	}()
+
+	go func() {
+		c.Get("foo")
+	}()
+
+	go func() {
+		c.GetString("foo")
+	}()
+
+	go func() {
+		c.Value("foo")
+	}()
 }
 
 func TestContextSetGetValues(t *testing.T) {

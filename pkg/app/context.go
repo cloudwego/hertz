@@ -393,10 +393,6 @@ func (ctx *RequestContext) GetResponse() (dst *protocol.Response) {
 //
 // In case the Key is reset after response, Value() return nil if ctx.Key is nil.
 func (ctx *RequestContext) Value(key interface{}) interface{} {
-	// this ctx has been reset, return nil.
-	if ctx.Keys == nil {
-		return nil
-	}
 	if keyString, ok := key.(string); ok {
 		val, _ := ctx.Get(keyString)
 		return val
