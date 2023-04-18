@@ -574,7 +574,6 @@ func (ctx *RequestContext) FormFile(name string) (*multipart.FileHeader, error) 
 //   - QueryArgs for obtaining values from query string.
 //   - PostArgs for obtaining values from POST or PUT body.
 //   - MultipartForm for obtaining values from multipart form.
-//   - FormFile for obtaining uploaded files.
 //
 // The returned value is valid until returning from RequestHandler.
 // Use engine.SetCustomFormValueFunc to change action of FormValue.
