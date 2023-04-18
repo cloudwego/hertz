@@ -37,6 +37,9 @@ type HttpMethod struct {
 	Path            string
 	Serializer      string
 	OutputDir       string
+	RefPackage      string
+	RefPackageAlias string
+	ModelPackage    map[string]string
 	// Annotations     map[string]string
 	Models map[string]*model.Model
 }
@@ -81,6 +84,11 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 				PackageName: util.SplitPackage(handlerPackage, ""),
 				Methods:     s.Methods,
 				ProjPackage: pkgGen.ProjPackage,
+			}
+
+			for _, m := range s.Methods {
+				m.RefPackage = handlerPackage
+				m.RefPackageAlias = util.BaseName(handlerPackage, "")
 			}
 
 			if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
@@ -145,6 +153,9 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 }
 
 func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTpl, filePath string, noRepeat bool) error {
+	if pkgGen.tplsInfo[handlerTpl].Disable {
+		return nil
+	}
 	isExist, err := util.PathExist(filePath)
 	if err != nil {
 		return err

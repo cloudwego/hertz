@@ -61,7 +61,8 @@ const (
 )
 
 const (
-	ApiBaseDomain = "api.base_domain"
+	ApiBaseDomain   = "api.base_domain"
+	ApiServiceGroup = "api.service_group"
 )
 
 var (

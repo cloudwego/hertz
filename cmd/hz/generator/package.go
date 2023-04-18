@@ -44,6 +44,7 @@ type Service struct {
 	ClientMethods []*ClientMethod
 	Models        []*model.Model // all dependency models
 	BaseDomain    string         // base domain for client code
+	ServiceGroup  string         // service level router group
 }
 
 // HttpPackageGenerator is used to record the configuration related to generating hertz http code.
