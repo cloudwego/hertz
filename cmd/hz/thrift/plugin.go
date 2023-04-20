@@ -86,7 +86,6 @@ func (plugin *Plugin) Run() int {
 		}
 		return 0
 	}
-
 	err = plugin.initNameStyle()
 	if err != nil {
 		logs.Errorf("init naming style failed: %s", err.Error())
@@ -376,15 +375,26 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 				if err != nil {
 					return nil, err
 				}
+				disableTag := false
+				if v := getAnnotation(f.Annotations, AnnotationNone); len(v) > 0 {
+					if strings.EqualFold(v[0], "true") {
+						disableTag = true
+					}
+				}
+
 				tags := field.Tags
 				var tagString string
 				for idx, tag := range tags {
+					value := tag.Value
+					if disableTag {
+						value = "-"
+					}
 					if idx == 0 {
-						tagString += " " + tag.Key + ":\"" + tag.Value + "\"" + " "
+						tagString += " " + tag.Key + ":\"" + value + "\"" + " "
 					} else if idx == len(tags)-1 {
-						tagString += tag.Key + ":\"" + tag.Value + "\""
+						tagString += tag.Key + ":\"" + value + "\""
 					} else {
-						tagString += tag.Key + ":\"" + tag.Value + "\"" + " "
+						tagString += tag.Key + ":\"" + value + "\"" + " "
 					}
 				}
 				insertPointer := "struct." + stName + "." + fieldName + "." + "tag"

@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/runtime/protoimpl"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -117,7 +118,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		}
 
 		service.BaseDomain = ""
-		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
+		domainAnno := getCompatibleAnnotation(s.GetOptions(), api.E_BaseDomain, api.E_BaseDomainCompatible)
 		if cmdType == meta.CmdClient {
 			val, ok := domainAnno.(string)
 			if ok && len(val) != 0 {
@@ -136,7 +137,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			path := vpath.(string)
 
 			var handlerOutDir string
-			genPath := checkFirstOption(api.E_HandlerPath, m.GetOptions())
+			genPath := getCompatibleAnnotation(m.GetOptions(), api.E_HandlerPath, api.E_HandlerPathCompatible)
 			handlerOutDir, ok := genPath.(string)
 			if !ok || len(handlerOutDir) == 0 {
 				handlerOutDir = ""
@@ -234,6 +235,16 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 	return out, nil
 }
 
+func getCompatibleAnnotation(options proto.Message, anno *protoimpl.ExtensionInfo, compatibleAnno *protoimpl.ExtensionInfo) interface{} {
+	if proto.HasExtension(options, anno) {
+		return checkFirstOption(anno, options)
+	} else if proto.HasExtension(options, compatibleAnno) {
+		return checkFirstOption(compatibleAnno, options)
+	}
+
+	return nil
+}
+
 func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
 	file, exist := gen.FilesByPath[ast.GetName()]
 	if !exist {
@@ -284,9 +295,9 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			}
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+		if proto.HasExtension(f.Desc.Options(), api.E_Form) || proto.HasExtension(f.Desc.Options(), api.E_FormCompatible) {
+			formAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_Form, api.E_FormCompatible)
 			hasAnnotation = true
-			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
 			val := formAnnos.(string)
 			if isStringFieldType {
@@ -301,9 +312,9 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			hasBodyAnnotation = true
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+		if proto.HasExtension(f.Desc.Options(), api.E_FileName) || proto.HasExtension(f.Desc.Options(), api.E_FileNameCompatible) {
+			fileAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_FileName, api.E_FileNameCompatible)
 			hasAnnotation = true
-			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
 			val := fileAnnos.(string)
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)

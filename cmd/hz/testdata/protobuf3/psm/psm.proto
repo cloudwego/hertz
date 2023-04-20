@@ -92,6 +92,13 @@ message MultiTagReq {
   }
 }
 
+message CompatibleAnnoReq {
+  optional string FormCompatibleTag = 1 [(api.form_compatible) = "form"];
+  optional string FilenameCompatibleTag = 2 [(api.file_name_compatible) = "file_name"];
+  optional string NoneCompatibleTag = 3 [(api.none_compatible) = "true"];
+  optional string JsConvCompatibleTag = 4 [(api.js_conv_compatible) = "true"];
+}
+
 message Resp {
   optional string Resp = 1;
 }
