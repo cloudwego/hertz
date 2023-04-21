@@ -382,11 +382,24 @@ func injectTagsToStructTags(f protoreflect.FieldDescriptor, out *structTags, nee
 			})
 		}
 	}
-
+	disableTag := false
+	if vv := checkFirstOption(api.E_None, as); vv != nil {
+		if strings.EqualFold(vv.(string), "true") {
+			disableTag = true
+		}
+	} else if vv := checkFirstOption(api.E_NoneCompatible, as); vv != nil {
+		if strings.EqualFold(vv.(string), "true") {
+			disableTag = true
+		}
+	}
 	// protobuf tag as first
 	sort.Sort(tags[1:])
 	for _, t := range tags {
-		*out = append(*out, m2s(t))
+		if disableTag {
+			*out = append(*out, [2]string{t.Key, "-"})
+		} else {
+			*out = append(*out, m2s(t))
+		}
 	}
 	return nil
 }
