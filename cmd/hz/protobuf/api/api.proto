@@ -15,9 +15,15 @@ extend google.protobuf.FieldOptions {
   optional string path = 50106;
   optional string vd = 50107;
   optional string form = 50108;
-  optional string go_tag = 51001;
   optional string js_conv = 50109;
   optional string file_name = 50110;
+
+  // 50131~50160 used to extend field option by hz
+  optional string form_compatible = 50131;
+  optional string js_conv_compatible = 50132;
+  optional string file_name_compatible = 50133;
+
+  optional string go_tag = 51001;
 }
 
 extend google.protobuf.MethodOptions {
@@ -38,12 +44,20 @@ extend google.protobuf.MethodOptions {
   optional string param = 50307; // Whether client requests take public parameters
   optional string baseurl = 50308; // Baseurl used in ttnet routing
   optional string handler_path = 50309; // handler_path specifies the path to generate the method
+
+  // 50331~50360 used to extend method option by hz
+  optional string handler_path_compatible = 50331; // handler_path specifies the path to generate the method
 }
 
 extend google.protobuf.EnumValueOptions {
   optional int32 http_code = 50401;
+
+  // 50431~50460 used to extend enum option by hz
 }
 
 extend google.protobuf.ServiceOptions {
   optional string base_domain = 50402;
+
+  // 50731~50760 used to extend service option by hz
+  optional string base_domain_compatible = 50731;
 }
