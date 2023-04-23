@@ -17,12 +17,15 @@ extend google.protobuf.FieldOptions {
   optional string form = 50108;
   optional string js_conv = 50109;
   optional string file_name = 50110;
+  optional string none = 50111;
 
   // 50131~50160 used to extend field option by hz
-  optional string go_tag = 51001;
   optional string form_compatible = 50131;
   optional string js_conv_compatible = 50132;
   optional string file_name_compatible = 50133;
+  optional string none_compatible = 50134;
+
+  optional string go_tag = 51001;
 }
 
 extend google.protobuf.MethodOptions {
