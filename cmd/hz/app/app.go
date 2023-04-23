@@ -140,17 +140,16 @@ func Client(c *cli.Context) error {
 }
 
 func PluginMode() {
-	pluginName := filepath.Base(os.Args[0])
-	if util.IsWindows() {
-		pluginName = strings.TrimSuffix(pluginName, ".exe")
-	}
-	switch pluginName {
-	case meta.ThriftPluginName:
-		plugin := new(thrift.Plugin)
-		os.Exit(plugin.Run())
-	case meta.ProtocPluginName:
-		plugin := new(protobuf.Plugin)
-		os.Exit(plugin.Run())
+	mode := os.Getenv(meta.EnvPluginMode)
+	if len(os.Args) <= 1 && mode != "" {
+		switch mode {
+		case meta.ThriftPluginName:
+			plugin := new(thrift.Plugin)
+			os.Exit(plugin.Run())
+		case meta.ProtocPluginName:
+			plugin := new(protobuf.Plugin)
+			os.Exit(plugin.Run())
+		}
 	}
 }
 

@@ -71,54 +71,6 @@ func lookupTool(idlType string) (string, error) {
 		}
 	}
 
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("failed to get executable path: %s", err)
-	}
-	gopath, err := util.GetGOPATH()
-	if err != nil {
-		return "", err
-	}
-	// softlink the plugin to "$GOPATH/bin"
-	dir := gopath + string(os.PathSeparator) + "bin"
-	if tool == meta.TpCompilerProto {
-		pgh, err := exec.LookPath(meta.ProtocPluginName)
-		linkName := filepath.Join(dir, meta.ProtocPluginName)
-		if util.IsWindows() {
-			linkName = linkName + ".exe"
-		}
-		if err != nil {
-			err = link(exe, linkName)
-			if err != nil {
-				return "", err
-			}
-		} else {
-			err = link(exe, pgh)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
-
-	if tool == meta.TpCompilerThrift {
-		tgh, err := exec.LookPath(meta.ThriftPluginName)
-		linkName := filepath.Join(dir, meta.ThriftPluginName)
-		if util.IsWindows() {
-			linkName = linkName + ".exe"
-		}
-		if err != nil {
-			err = link(exe, linkName)
-			if err != nil {
-				return "", err
-			}
-		} else {
-			err = link(exe, tgh)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
-
 	return path, nil
 }
 
@@ -136,6 +88,12 @@ func link(src, dst string) error {
 }
 
 func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect current executable, err: %v", err)
+	}
+	fmt.Fprintf(os.Stderr, "exe name: %s\n", exe)
+
 	argPacks, err := args.Pack()
 	if err != nil {
 		return nil, err
@@ -152,6 +110,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 
 	if args.IdlType == meta.IdlThrift {
 		// thriftgo
+		os.Setenv(meta.EnvPluginMode, meta.ThriftPluginName)
 		cmd.Args = append(cmd.Args, meta.TpCompilerThrift)
 		for _, inc := range args.Includes {
 			cmd.Args = append(cmd.Args, "-i", inc)
@@ -167,7 +126,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 		cmd.Args = append(cmd.Args,
 			"-o", args.ModelOutDir(),
 			"-g", thriftOpt,
-			"-p", "hertz:"+kas,
+			"-p", "hertz="+exe+":"+kas,
 		)
 		for _, p := range args.ThriftPlugins {
 			cmd.Args = append(cmd.Args, "-p", p)
@@ -177,6 +136,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 		}
 	} else {
 		// protoc
+		os.Setenv(meta.EnvPluginMode, meta.ProtocPluginName)
 		cmd.Args = append(cmd.Args, meta.TpCompilerProto)
 		for _, inc := range args.Includes {
 			cmd.Args = append(cmd.Args, "-I", inc)
@@ -185,6 +145,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 			cmd.Args = append(cmd.Args, "-I", filepath.Dir(inc))
 		}
 		cmd.Args = append(cmd.Args,
+			"--plugin=protoc-gen-hertz="+exe,
 			"--hertz_out="+args.OutDir,
 			"--hertz_opt="+kas,
 		)

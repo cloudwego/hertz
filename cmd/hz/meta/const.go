@@ -29,6 +29,8 @@ const SysType = runtime.GOOS
 
 const WindowsOS = "windows"
 
+const EnvPluginMode = "HERTZ_PLUGIN_MODE"
+
 // hz Commands
 const (
 	CmdUpdate = "update"
