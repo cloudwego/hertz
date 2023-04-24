@@ -92,7 +92,6 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect current executable, err: %v", err)
 	}
-	fmt.Fprintf(os.Stderr, "exe name: %s\n", exe)
 
 	argPacks, err := args.Pack()
 	if err != nil {
