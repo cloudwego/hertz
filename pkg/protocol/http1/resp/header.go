@@ -239,7 +239,15 @@ func parseFirstLine(h *protocol.ResponseHeader, buf []byte) (int, error) {
 	if n < 0 {
 		return 0, fmt.Errorf("cannot find whitespace in the first line of response %q", buf)
 	}
-	h.SetNoHTTP11(!bytes.Equal(b[:n], bytestr.StrHTTP11))
+
+	isHTTP11 := bytes.Equal(b[:n], bytestr.StrHTTP11)
+	h.SetNoHTTP11(!isHTTP11)
+	if !isHTTP11 {
+		h.SetProtocol(consts.HTTP10)
+	} else {
+		h.SetProtocol(consts.HTTP11)
+	}
+
 	b = b[n+1:]
 
 	// parse status code

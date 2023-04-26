@@ -112,6 +112,7 @@ type ResponseHeader struct {
 
 	disableNormalizing   bool
 	noHTTP11             bool
+	protocol             string
 	connectionClose      bool
 	noDefaultContentType bool
 	noDefaultDate        bool
@@ -487,6 +488,7 @@ func checkWriteHeaderCode(code int) {
 
 func (h *ResponseHeader) ResetSkipNormalize() {
 	h.noHTTP11 = false
+	h.protocol = ""
 	h.connectionClose = false
 
 	h.statusCode = 0
@@ -1802,4 +1804,12 @@ func (h *RequestHeader) Trailer() *Trailer {
 		h.trailer = new(Trailer)
 	}
 	return h.trailer
+}
+
+func (h *ResponseHeader) SetProtocol(p string) {
+	h.protocol = p
+}
+
+func (h *ResponseHeader) GetProtocol() string {
+	return h.protocol
 }
