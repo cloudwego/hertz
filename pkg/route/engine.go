@@ -663,6 +663,31 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 	}
 }
 
+// HandleContext Re-enter a context that has been rewritten.
+// This can be done by setting ctx.Request.SetRequestURI() to new target and response will be reset.
+// Disclaimer: Maybe loop self to death with this, use wisely.
+// Example Code:
+//
+//	   h := New()
+//	   h.POST("/test", func(c context.Context, ctx *app.RequestContext) {
+//		        ctx.Request.Header.SetRequestURI("/test1")
+//		        h.HandleContext(c, ctx)
+//	   })
+//	   h.POST("/test1", func(ctx context.Context, c *app.RequestContext) {
+//	       c.String(200, "HandleContext")
+//	   })
+//	   h.Spin()
+func (engine *Engine) HandleContext(c context.Context, ctx *app.RequestContext) {
+	old := ctx.GetIndex()
+	ctx.Response.Reset()
+	ctx.Request.ResetURI()
+	ctx.Params = ctx.Params[:0]
+	ctx.Errors = ctx.Errors[0:0]
+	ctx.SetIndex(-1)
+	engine.ServeHTTP(c, ctx)
+	ctx.SetIndex(old)
+}
+
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	if engine.PanicHandler != nil {
