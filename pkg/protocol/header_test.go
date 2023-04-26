@@ -70,18 +70,18 @@ func TestResponseHeaderSetHeaderLength(t *testing.T) {
 func TestSetNoHTTP11(t *testing.T) {
 	rh := ResponseHeader{}
 	rh.SetNoHTTP11(true)
-	assert.True(t, rh.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP10, rh.protocol)
 
 	rh.SetNoHTTP11(false)
-	assert.False(t, rh.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP11, rh.protocol)
 	assert.True(t, rh.IsHTTP11())
 
 	h := RequestHeader{}
 	h.SetNoHTTP11(true)
-	assert.True(t, h.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP10, h.protocol)
 
 	h.SetNoHTTP11(false)
-	assert.False(t, h.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP11, h.protocol)
 	assert.True(t, h.IsHTTP11())
 }
 
