@@ -241,7 +241,6 @@ func parseFirstLine(h *protocol.ResponseHeader, buf []byte) (int, error) {
 	}
 
 	isHTTP11 := bytes.Equal(b[:n], bytestr.StrHTTP11)
-	h.SetNoHTTP11(!isHTTP11)
 	if !isHTTP11 {
 		h.SetProtocol(consts.HTTP10)
 	} else {

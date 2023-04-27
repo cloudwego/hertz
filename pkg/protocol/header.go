@@ -180,9 +180,10 @@ func (h *ResponseHeader) PeekArgBytes(key []byte) []byte {
 func (h *ResponseHeader) SetNoHTTP11(b bool) {
 	if b {
 		h.protocol = consts.HTTP10
-	} else {
-		h.protocol = consts.HTTP11
+		return
 	}
+
+	h.protocol = consts.HTTP11
 }
 
 // Cookie fills cookie for the given cookie.Key.
@@ -314,9 +315,10 @@ func (h *RequestHeader) GetProtocol() string {
 func (h *RequestHeader) SetNoHTTP11(b bool) {
 	if b {
 		h.protocol = consts.HTTP10
-	} else {
-		h.protocol = consts.HTTP11
+		return
 	}
+
+	h.protocol = consts.HTTP11
 }
 
 func (h *RequestHeader) InitBufValue(size int) {
