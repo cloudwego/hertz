@@ -208,6 +208,9 @@ func TestWriteMultipartFormFile(t *testing.T) {
 		t.Fatalf("write multipart error: %s", err)
 	}
 	assert.False(t, strings.Contains(bodyBuffer.String(), f3.Name()))
+
+	// test empty file
+	assert.Nil(t, WriteMultipartFormFile(w, "empty_test", "test.data", bytes.NewBuffer(nil)))
 }
 
 func TestMarshalMultipartForm(t *testing.T) {
