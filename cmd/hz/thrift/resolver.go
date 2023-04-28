@@ -285,6 +285,14 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret ResolvedSymbol, err 
 func (resolver *Resolver) ResolveTypeName(typ *parser.Type) (string, error) {
 	switch typ.GetCategory() {
 	case parser.Category_Map:
+		if typ.GetIsTypedef() {
+			rt, err := resolver.ResolveIdentifier(typ.GetName())
+			if err != nil {
+				return "", err
+			}
+
+			return rt.Expression(), nil
+		}
 		keyType, err := resolver.ResolveTypeName(typ.GetKeyType())
 		if err != nil {
 			return "", err
@@ -301,6 +309,14 @@ func (resolver *Resolver) ResolveTypeName(typ *parser.Type) (string, error) {
 		}
 		return fmt.Sprintf("map[%s]%s", keyType, valueType), nil
 	case parser.Category_List, parser.Category_Set:
+		if typ.GetIsTypedef() {
+			rt, err := resolver.ResolveIdentifier(typ.GetName())
+			if err != nil {
+				return "", err
+			}
+
+			return rt.Expression(), nil
+		}
 		// list/set -> []element for thriftgo
 		// valueType refers the element type for list/set
 		elemType, err := resolver.ResolveTypeName(typ.GetValueType())
