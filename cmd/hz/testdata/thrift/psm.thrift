@@ -104,6 +104,8 @@ struct MultiDefaultReq {
   24: required common.CommonType IsDepCommonTypeReq = {"IsCommonString":"fffffff", "TTT":"ttt", "HHH":true, "GGG": {"AAA":"test","BBB":32}};
 }
 
+typedef map<string, string> IsTypedefContainer
+
 service Hertz {
     Resp Method1(1: MultiTypeReq request) (api.get="/company/department/group/user:id/name", api.handler_path="v1");
     Resp Method2(1: MultiTagReq request) (api.post="/company/department/group/user:id/sex", api.handler_path="v1");
@@ -114,4 +116,7 @@ service Hertz {
     Resp Method6(1: MultiTagReq request) (api.head="/school/class/student/number", api.handler_path="v2");
     Resp Method7(1: MultiTagReq request) (api.patch="/school/class/student/sex", api.handler_path="v2");
     Resp Method8(1: BaseType request) (api.any="/school/class/student/grade/*subjects", api.handler_path="v2");
+
+    Resp Method9(1: IsTypedefContainer request) (api.get="/typedef/container", api.handler_path="v2");
+    Resp Method10(1:  map<string, string> request) (api.get="/container", api.handler_path="v2");
 }
