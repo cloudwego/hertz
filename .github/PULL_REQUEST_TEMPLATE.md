@@ -21,9 +21,9 @@ The description of the title will be attached in Release Notes,
 so please describe it from user-oriented, what this PR does / why we need it.
 Please check your PR title with the below requirements:
 -->
-- [ ] This PR title match the format: \<type\>(optional scope): \<description\>
+- [ ] This PR title match the format: `<type>(optional scope): <description>`.
 - [ ] The description of this PR title is user-oriented and clear enough for others to understand.
-
+- [ ] Attach the PR updating the user documentation if the current PR requires user awareness at the usage level. [User docs repo](https://github.com/cloudwego/cloudwego.github.io).
 
 #### (Optional) Translate the PR title into Chinese.
 
@@ -35,8 +35,13 @@ Provide more detailed info for review. If it is a perf type PR, perf data is sug
 en:
 zh(optional):
 
-#### Which issue(s) this PR fixes:
+#### (Optional) Which issue(s) this PR fixes:
 <!--
 Automatically closes linked issue when PR is merged.
 Eg: `Fixes #<issue number>`, or `Fixes (paste link of issue)`.
+-->
+
+#### (Optional) The PR that updates user documentation:
+<!--
+If the current PR requires user awareness at the usage level, please submit a PR to update user docs. [User docs repo](https://github.com/cloudwego/cloudwego.github.io)
 -->

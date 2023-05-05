@@ -18,7 +18,7 @@ judge_exit() {
 }
 
 compile_hz() {
-  go build -o hz
+  go install .
   judge_exit "$?"
 }
 
@@ -31,15 +31,15 @@ test_thrift() {
   # test thrift
   mkdir -p test
   cd test
-  ../hz new --idl=$thriftIDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
+  hz new --idl=$thriftIDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
   judge_exit "$?"
   go mod tidy && go build .
   judge_exit "$?"
-  ../hz update --idl=$thriftIDL
+  hz update --idl=$thriftIDL
   judge_exit "$?"
-  ../hz model --idl=$thriftIDL --model_dir=hertz_model
+  hz model --idl=$thriftIDL --model_dir=hertz_model
   judge_exit "$?"
-  ../hz client --idl=$thriftIDL --client_dir=hertz_client
+  hz client --idl=$thriftIDL --client_dir=hertz_client
   judge_exit "$?"
   cd ..
   rm -rf test
@@ -49,15 +49,15 @@ test_protobuf2() {
   # test protobuf2
   mkdir -p test
   cd test
-  ../hz new -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
+  hz new -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
   judge_exit "$?"
   go mod tidy && go build .
   judge_exit "$?"
-  ../hz update -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL
+  hz update -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL
   judge_exit "$?"
-  ../hz model -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --model_dir=hertz_model
+  hz model -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --model_dir=hertz_model
   judge_exit "$?"
-  ../hz client -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --client_dir=hertz_client
+  hz client -I=$protoSearch -I=$proto2Search --idl=$protobuf2IDL --client_dir=hertz_client
   judge_exit "$?"
   cd ..
   rm -rf test
@@ -67,15 +67,15 @@ test_protobuf3() {
   # test protobuf2
   mkdir -p test
   cd test
-  ../hz new -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
+  hz new -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --mod=$moduleName -f --model_dir=hertz_model --handler_dir=hertz_handler --router_dir=hertz_router
   judge_exit "$?"
   go mod tidy && go build .
   judge_exit "$?"
-  ../hz update -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL
+  hz update -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL
   judge_exit "$?"
-  ../hz model -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --model_dir=hertz_model
+  hz model -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --model_dir=hertz_model
   judge_exit "$?"
-  ../hz client -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --client_dir=hertz_client
+  hz client -I=$protoSearch -I=$proto3Search --idl=$protobuf3IDL --client_dir=hertz_client
   judge_exit "$?"
   cd ..
   rm -rf test

@@ -23,6 +23,15 @@ import (
 	"sync"
 )
 
+var silentMode = false
+
+// SetSilentMode is used to mute engine error log,
+// for example: error when reading request headers.
+// If true, hertz engine will mute it.
+func SetSilentMode(s bool) {
+	silentMode = s
+}
+
 var builderPool = sync.Pool{New: func() interface{} {
 	return &strings.Builder{} // nolint:SA6002
 }}
@@ -80,6 +89,9 @@ func (ll *systemLogger) Fatalf(format string, v ...interface{}) {
 }
 
 func (ll *systemLogger) Errorf(format string, v ...interface{}) {
+	if silentMode && format == EngineErrorFormat {
+		return
+	}
 	ll.logger.Errorf(ll.addPrefix(format), v...)
 }
 

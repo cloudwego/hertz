@@ -152,6 +152,9 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 	if !isExist {
 		return pkgGen.TemplateGenerator.Generate(handler, handlerTpl, filePath, noRepeat)
 	}
+	if pkgGen.HandlerByMethod { // method by handler, do not need to insert new content
+		return nil
+	}
 
 	file, err := ioutil.ReadFile(filePath)
 	if err != nil {

@@ -75,20 +75,25 @@ func TestDialTLS(t *testing.T) {
 		t.Fatalf("timeout")
 	}
 
+	buf := make([]byte, len(data))
+
 	dial := NewDialer()
-	_, err := dial.DialConnection(nw, addr, time.Second, &tls.Config{
+	conn, err := dial.DialConnection(nw, addr, time.Second, &tls.Config{
 		InsecureSkipVerify: true,
 	})
 	assert.Nil(t, err)
 
-	conn, err := dial.DialConnection(nw, addr, time.Second, nil)
+	_, err = conn.Read(buf)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(data), string(buf))
+
+	conn, err = dial.DialConnection(nw, addr, time.Second, nil)
 	assert.Nil(t, err)
 	nConn, err := dial.AddTLS(conn, &tls.Config{
 		InsecureSkipVerify: true,
 	})
 	assert.Nil(t, err)
 
-	buf := make([]byte, len(data))
 	_, err = nConn.Read(buf)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, string(data), string(buf))

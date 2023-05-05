@@ -283,6 +283,14 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret ResolvedSymbol, err 
 }
 
 func (resolver *Resolver) ResolveTypeName(typ *parser.Type) (string, error) {
+	if typ.GetIsTypedef() {
+		rt, err := resolver.ResolveIdentifier(typ.GetName())
+		if err != nil {
+			return "", err
+		}
+
+		return rt.Expression(), nil
+	}
 	switch typ.GetCategory() {
 	case parser.Category_Map:
 		keyType, err := resolver.ResolveTypeName(typ.GetKeyType())

@@ -20,6 +20,7 @@ package netpoll
 
 import (
 	"context"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -29,6 +30,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/netpoll"
 )
+
+func init() {
+	// disable netpoll's log
+	netpoll.SetLoggerOutput(io.Discard)
+}
 
 type transporter struct {
 	sync.RWMutex

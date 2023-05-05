@@ -9,8 +9,8 @@ import "base.proto";
 import "other/other.proto";
 
 enum EnumType {
-    TWEET = 0;
-    RETWEET = 1;
+  TWEET = 0;
+  RETWEET = 1;
 }
 message UnusedMessageType {
   optional string IsUnusedMessageType = 1;
@@ -74,7 +74,7 @@ message MultiTypeReq {
     // nested oneof
     oneof NestedMsgOneof {
       string IsNestedMsgOneofString = 4;
-      EnumType IsNestedMsgOneofEnumType =5;
+      EnumType IsNestedMsgOneofEnumType = 5;
     }
   }
   // nested message
@@ -92,14 +92,21 @@ message MultiTypeReq {
 }
 
 message MultiTagReq {
-  optional string QueryTag = 1 [(api.query)="query"];
-  optional string RawBodyTag = 2 [(api.raw_body)="raw_body"];
-  optional string CookieTag = 3 [(api.cookie)="cookie"];
-  optional string BodyTag = 4 [(api.body)="body"];
-  optional string PathTag = 5 [(api.path)="path"];
-  optional string VdTag = 6 [(api.vd)="$!='?'"];
-  optional string FormTag = 7 [(api.form)="form"];
-  optional string DefaultTag = 8 [(api.go_tag)="FFF:\"fff\" json:\"json\""];
+  optional string QueryTag = 1 [(api.query) = "query", (api.none) = "true"];
+  optional string RawBodyTag = 2 [(api.raw_body) = "raw_body"];
+  optional string CookieTag = 3 [(api.cookie) = "cookie"];
+  optional string BodyTag = 4 [(api.body) = "body"];
+  optional string PathTag = 5 [(api.path) = "path"];
+  optional string VdTag = 6 [(api.vd) = "$!='?'"];
+  optional string FormTag = 7 [(api.form) = "form"];
+  optional string DefaultTag = 8 [(api.go_tag) = "FFF:\"fff\" json:\"json\""];
+}
+
+message CompatibleAnnoReq {
+  optional string FormCompatibleTag = 1 [(api.form_compatible) = "form"];
+  optional string FilenameCompatibleTag = 2 [(api.file_name_compatible) = "file_name"];
+  optional string NoneCompatibleTag = 3 [(api.none_compatible) = "true"];
+  optional string JsConvCompatibleTag = 4 [(api.js_conv_compatible) = "true"];
 }
 
 message Resp {
@@ -120,29 +127,29 @@ message MultiNameStyleMessage {
 
 service Hertz {
   rpc Method1(MultiTypeReq) returns(Resp) {
-    option (api.get)="/company/department/group/user:id/name";
+    option (api.get) = "/company/department/group/user:id/name";
   }
   rpc Method2(MultiTypeReq) returns(Resp) {
-    option (api.post)="/company/department/group/user:id/sex";
+    option (api.post) = "/company/department/group/user:id/sex";
   }
   rpc Method3(MultiTypeReq) returns(Resp) {
-    option (api.put)="/company/department/group/user:id/number";
+    option (api.put) = "/company/department/group/user:id/number";
   }
   rpc Method4(MultiTypeReq) returns(Resp) {
-    option (api.delete)="/company/department/group/user:id/age";
+    option (api.delete) = "/company/department/group/user:id/age";
   }
 
 
   rpc Method5(MultiTagReq) returns(Resp) {
-    option (api.options)="/school/class/student/name";
+    option (api.options) = "/school/class/student/name";
   }
   rpc Method6(MultiTagReq) returns(Resp) {
-    option (api.head)="/school/class/student/number";
+    option (api.head) = "/school/class/student/number";
   }
   rpc Method7(MultiTagReq) returns(Resp) {
-    option (api.patch)="/school/class/student/sex";
+    option (api.patch) = "/school/class/student/sex";
   }
   rpc Method8(MultiTagReq) returns(Resp) {
-    option (api.any)="/school/class/student/grade/*subjects";
+    option (api.any) = "/school/class/student/grade/*subjects";
   }
 }

@@ -153,13 +153,11 @@ func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	// parse requestURI
 	n = bytes.LastIndexByte(b, ' ')
 	if n < 0 {
-		h.SetNoHTTP11(true)
 		h.SetProtocol(consts.HTTP10)
 		n = len(b)
 	} else if n == 0 {
 		return 0, fmt.Errorf("requestURI cannot be empty in %q", buf)
 	} else if !bytes.Equal(b[n+1:], bytestr.StrHTTP11) {
-		h.SetNoHTTP11(true)
 		h.SetProtocol(consts.HTTP10)
 	}
 	h.SetRequestURIBytes(b[:n])

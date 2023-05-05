@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 CloudWeGo Authors
+ * Copyright 2023 CloudWeGo Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package hertz
+package hlog
 
-// Name and Version info of this framework, used for statistics and debug
 const (
-	Name    = "Hertz"
-	Version = "v0.6.3"
+	systemLogPrefix = "HERTZ: "
+
+	EngineErrorFormat = "Error=%s, remoteAddr=%s"
 )
