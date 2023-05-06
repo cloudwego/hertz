@@ -56,6 +56,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 	var models model.Models
 	extendServices := getExtendServices(ast)
 	for _, s := range ss {
+		// if the service is extended, it is not processed
 		if extendServices.exist(s.Name) && args.EnableExtends {
 			logs.Debugf("%s is extended, so skip it\n", s.Name)
 			continue
@@ -76,7 +77,10 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		ms := s.GetFunctions()
 		if len(s.Extends) != 0 && args.EnableExtends {
 			// all the services that are extended to the current service
-			extendsFuncs := getAllExtendFunction(s, ast, resolver, args)
+			extendsFuncs, err := getAllExtendFunction(s, ast, resolver, args)
+			if err != nil {
+				return nil, fmt.Errorf("parser extend function failed, err=%v", err)
+			}
 			ms = append(ms, extendsFuncs...)
 		}
 		methods := make([]*generator.HttpMethod, 0, len(ms))
@@ -284,7 +288,7 @@ func getExtendServices(ast *parser.Thrift) (res extendServiceList) {
 	return
 }
 
-func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Resolver, args *config.Argument) (res []*parser.Function) {
+func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Resolver, args *config.Argument) (res []*parser.Function, err error) {
 	if len(svc.Extends) == 0 {
 		return
 	}
@@ -295,58 +299,86 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 			extendSvc, found := ast.GetService(parts[0])
 			if found {
 				funcs := extendSvc.GetFunctions()
-				extendFuncs := getAllExtendFunction(extendSvc, ast, resolver, args)
+				// determine if it still has extends
+				extendFuncs, err := getAllExtendFunction(extendSvc, ast, resolver, args)
+				if err != nil {
+					return nil, err
+				}
 				res = append(res, append(funcs, extendFuncs...)...)
 			}
-			return res
+			return res, nil
 		} else { // extended current service for other IDL
 			extendSvc, found := ast.GetService(parts[0])
 			if found {
-				base := addResolverDependency(resolver, ast, args)
+				base, err := addResolverDependency(resolver, ast, args)
+				if err != nil {
+					return nil, err
+				}
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
+					// the method of other file is extended, and the package of req/resp needs to be changed
+					// ex. base.thrift -> Resp Method(Req){}
+					//					  base.Resp Method(base.Req){}
+					// todo: support container for Struct
 					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && !f.Arguments[0].Type.Category.IsBaseType() {
+						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
 							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
 						}
 					}
-					if !strings.Contains(f.FunctionType.Name, ".") && !f.FunctionType.Category.IsBaseType() {
+					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
 						f.FunctionType.Name = base + "." + f.FunctionType.Name
 					}
 				}
-				extendFuncs := getAllExtendFunction(extendSvc, ast, resolver, args)
+				extendFuncs, err := getAllExtendFunction(extendSvc, ast, resolver, args)
+				if err != nil {
+					return nil, err
+				}
 				res = append(res, append(funcs, extendFuncs...)...)
 			}
-			return res
+			return res, nil
 		}
 	case 2:
 		refAst, found := ast.GetReference(parts[0])
-		base := addResolverDependency(resolver, refAst, args)
+		base, err := addResolverDependency(resolver, refAst, args)
+		if err != nil {
+			return nil, err
+		}
+		// ff the service extends from other files, it has to resolve the dependencies of other files as well
 		for _, dep := range refAst.Includes {
-			addResolverDependency(resolver, dep.Reference, args)
+			_, err := addResolverDependency(resolver, dep.Reference, args)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if found {
 			extendSvc, found := refAst.GetService(parts[1])
 			if found {
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
+					// the method of other file is extended, and the package of req/resp needs to be changed
+					// ex. base.thrift -> Resp Method(Req){}
+					//					  base.Resp Method(base.Req){}
+					// todo: support container for Struct
 					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && !f.Arguments[0].Type.Category.IsBaseType() {
+						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
 							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
 						}
 					}
-					if !strings.Contains(f.FunctionType.Name, ".") && !f.FunctionType.Category.IsBaseType() {
+					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
 						f.FunctionType.Name = base + "." + f.FunctionType.Name
 					}
 				}
-				extendFuncs := getAllExtendFunction(extendSvc, refAst, resolver, args)
+				extendFuncs, err := getAllExtendFunction(extendSvc, refAst, resolver, args)
+				if err != nil {
+					return nil, err
+				}
 				res = append(res, append(funcs, extendFuncs...)...)
 			}
 		}
-		return res
+		return res, nil
 	}
 
-	return res
+	return res, nil
 }
 
 func getUniqueResolveDependentName(name string, resolver *Resolver) string {
@@ -361,8 +393,11 @@ func getUniqueResolveDependentName(name string, resolver *Resolver) string {
 	return name
 }
 
-func addResolverDependency(resolver *Resolver, ast *parser.Thrift, args *config.Argument) string {
-	namespace, _ := resolver.LoadOne(ast)
+func addResolverDependency(resolver *Resolver, ast *parser.Thrift, args *config.Argument) (string, error) {
+	namespace, err := resolver.LoadOne(ast)
+	if err != nil {
+		return "", err
+	}
 	baseName := util.BaseName(ast.Filename, ".thrift")
 	if refPkg, exist := resolver.refPkgs[baseName]; !exist {
 		resolver.deps[baseName] = namespace
@@ -375,7 +410,10 @@ func addResolverDependency(resolver *Resolver, ast *parser.Thrift, args *config.
 	pkg := getGoPackage(ast, args.OptPkgMap)
 	impt := ast.Filename
 	pkgName := util.SplitPackageName(pkg, "")
-	pkgName, _ = util.GetPackageUniqueName(pkgName)
+	pkgName, err = util.GetPackageUniqueName(pkgName)
+	if err != nil {
+		return "", err
+	}
 	ref := &PackageReference{baseName, impt, &model.Model{
 		FilePath:    ast.Filename,
 		Package:     pkg,
@@ -385,7 +423,7 @@ func addResolverDependency(resolver *Resolver, ast *parser.Thrift, args *config.
 		resolver.refPkgs[baseName] = ref
 	}
 
-	return baseName
+	return baseName, nil
 }
 
 /*---------------------------Model-----------------------------*/
