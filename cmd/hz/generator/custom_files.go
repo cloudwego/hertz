@@ -216,7 +216,14 @@ func appendUpdateFile(tplInfo *Template, renderInfo interface{}, fileContent []b
 	if err != nil {
 		return []byte(""), fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 	}
-	_, err = buf.WriteString("\n" + appendContent + "\n")
+	// "\r\n" && "\n" has the same suffix
+	if !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+		_, err = buf.WriteString("\n")
+		if err != nil {
+			return []byte(""), fmt.Errorf("write file(%s) line break failed, err: %v", tplInfo.Path, err)
+		}
+	}
+	_, err = buf.WriteString(appendContent)
 	if err != nil {
 		return []byte(""), fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
 	}
@@ -348,7 +355,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 						return err
 					}
 				}
-				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end if file
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
 					buf := bytes.NewBuffer(nil)
 					_, err = buf.Write(fileContent)
 					if err != nil {
@@ -360,7 +367,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else {
+				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
@@ -522,7 +529,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						}
 					}
 				}
-				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end if file
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
 					buf := bytes.NewBuffer(nil)
 					_, err = buf.Write(fileContent)
 					if err != nil {
@@ -534,7 +541,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else {
+				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
@@ -584,7 +591,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return err
 					}
 				}
-				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end if file
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
 					buf := bytes.NewBuffer(nil)
 					_, err = buf.Write(fileContent)
 					if err != nil {
@@ -596,7 +603,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else {
+				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)

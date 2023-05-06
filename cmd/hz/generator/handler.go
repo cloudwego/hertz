@@ -79,6 +79,10 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 				}
 			}
 		} else { // generate handler service
+			if len(s.ServiceGenDir) != 0 {
+				handlerDir = s.ServiceGenDir
+				handlerPackage = util.SubPackage(pkgGen.ProjPackage, handlerDir)
+			}
 			handler = Handler{
 				FilePath:    filepath.Join(handlerDir, util.ToSnakeCase(s.Name)+".go"),
 				PackageName: util.SplitPackage(handlerPackage, ""),

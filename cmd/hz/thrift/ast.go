@@ -18,7 +18,6 @@ package thrift
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/config"
@@ -60,7 +59,6 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		// if the service is extended, it is not processed
 		if extendServices.exist(s.Name) && args.EnableExtends {
 			logs.Debugf("%s is extended, so skip it\n", s.Name)
-			fmt.Fprintf(os.Stderr, "%s is extended, so skip it\n", s.Name)
 			continue
 		}
 
@@ -82,7 +80,13 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				service.ServiceGroup = groupAnno[0]
 			}
 		}
-
+		service.ServiceGenDir = ""
+		serviceGenDirAnno := getAnnotation(s.Annotations, ApiServiceGenDir)
+		if len(serviceGenDirAnno) == 1 {
+			if args.CmdType != meta.CmdClient {
+				service.ServiceGenDir = serviceGenDirAnno[0]
+			}
+		}
 		ms := s.GetFunctions()
 		if len(s.Extends) != 0 && args.EnableExtends {
 			// all the services that are extended to the current service
