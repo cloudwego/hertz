@@ -370,10 +370,10 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
-						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					if len(part) != 2 {
-						return fmt.Errorf("do not support multiple append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
 					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
@@ -544,10 +544,10 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
-						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					if len(part) != 2 {
-						return fmt.Errorf("do not support multiple append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
 					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
@@ -606,10 +606,10 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 				} else { // 'append location', append new content after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
-						return fmt.Errorf("can not find append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					if len(part) != 2 {
-						return fmt.Errorf("do not support multiple append loacation '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
 					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
