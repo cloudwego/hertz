@@ -79,20 +79,22 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 				}
 			}
 		} else { // generate handler service
+			tmpHandlerDir := handlerDir
+			tmpHandlerPackage := handlerPackage
 			if len(s.ServiceGenDir) != 0 {
-				handlerDir = s.ServiceGenDir
-				handlerPackage = util.SubPackage(pkgGen.ProjPackage, handlerDir)
+				tmpHandlerDir = s.ServiceGenDir
+				tmpHandlerPackage = util.SubPackage(pkgGen.ProjPackage, handlerDir)
 			}
 			handler = Handler{
-				FilePath:    filepath.Join(handlerDir, util.ToSnakeCase(s.Name)+".go"),
-				PackageName: util.SplitPackage(handlerPackage, ""),
+				FilePath:    filepath.Join(tmpHandlerDir, util.ToSnakeCase(s.Name)+".go"),
+				PackageName: util.SplitPackage(tmpHandlerPackage, ""),
 				Methods:     s.Methods,
 				ProjPackage: pkgGen.ProjPackage,
 			}
 
 			for _, m := range s.Methods {
-				m.RefPackage = handlerPackage
-				m.RefPackageAlias = util.BaseName(handlerPackage, "")
+				m.RefPackage = tmpHandlerPackage
+				m.RefPackageAlias = util.BaseName(tmpHandlerPackage, "")
 			}
 
 			if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
