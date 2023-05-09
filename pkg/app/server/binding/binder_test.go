@@ -492,7 +492,7 @@ type CustomizedDecode struct {
 	A string
 }
 
-func (c *CustomizedDecode) CustomizedFieldDecode(req *protocol.Request, params PathParams) error {
+func (c *CustomizedDecode) CustomizedFieldDecode(req *protocol.Request, params PathParam) error {
 	q1 := req.URI().QueryArgs().Peek("a")
 	if len(q1) == 0 {
 		return fmt.Errorf("can be nil")

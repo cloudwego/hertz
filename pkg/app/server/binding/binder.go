@@ -44,14 +44,14 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-// PathParams parameter acquisition interface on the URL path
-type PathParams interface {
+// PathParam parameter acquisition interface on the URL path
+type PathParam interface {
 	Get(name string) (string, bool)
 }
 
 type Binder interface {
 	Name() string
-	Bind(*protocol.Request, PathParams, interface{}) error
+	Bind(*protocol.Request, PathParam, interface{}) error
 }
 
-var DefaultBinder Binder = &Bind{}
+var DefaultBinder Binder = &defaultBinder{}

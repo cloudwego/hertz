@@ -46,14 +46,13 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type mapTypeFieldTextDecoder struct {
 	fieldInfo
 }
 
-func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
@@ -61,7 +60,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParam
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
 		}
 		ret := tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
@@ -107,19 +106,19 @@ func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagI
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
-			tagInfos[idx].Getter = PathParam
+			tagInfos[idx].Getter = path
 		case formTag:
-			tagInfos[idx].Getter = Form
+			tagInfos[idx].Getter = form
 		case queryTag:
-			tagInfos[idx].Getter = Query
+			tagInfos[idx].Getter = query
 		case cookieTag:
-			tagInfos[idx].Getter = Cookie
+			tagInfos[idx].Getter = cookie
 		case headerTag:
-			tagInfos[idx].Getter = Header
+			tagInfos[idx].Getter = header
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = RawBody
+			tagInfo.Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:

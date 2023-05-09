@@ -43,22 +43,33 @@ package binding
 import (
 	"fmt"
 	"mime/multipart"
+	"net/http"
+	"net/url"
 	"reflect"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
+type bindRequest struct {
+	Req           *protocol.Request
+	Query         url.Values
+	Form          url.Values
+	MultipartForm url.Values
+	Header        http.Header
+	Cookie        []*http.Cookie
+}
+
 type decoder interface {
-	Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error
+	Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error
 }
 
 type CustomizedFieldDecoder interface {
-	CustomizedFieldDecode(req *protocol.Request, params PathParams) error
+	CustomizedFieldDecode(req *protocol.Request, params PathParam) error
 }
 
-type Decoder func(req *protocol.Request, params PathParams, rv reflect.Value) error
+type Decoder func(req *protocol.Request, params PathParam, rv reflect.Value) error
 
-var fieldDecoderType = reflect.TypeOf((*CustomizedFieldDecoder)(nil)).Elem()
+var customizedFieldDecoderType = reflect.TypeOf((*CustomizedFieldDecoder)(nil)).Elem()
 
 func getReqDecoder(rt reflect.Type) (Decoder, error) {
 	var decoders []decoder
@@ -84,9 +95,12 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 		}
 	}
 
-	return func(req *protocol.Request, params PathParams, rv reflect.Value) error {
+	return func(req *protocol.Request, params PathParam, rv reflect.Value) error {
+		bindReq := &bindRequest{
+			Req: req,
+		}
 		for _, decoder := range decoders {
-			err := decoder.Decode(req, params, rv)
+			err := decoder.Decode(bindReq, params, rv)
 			if err != nil {
 				return err
 			}
@@ -100,7 +114,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
-	if reflect.PtrTo(field.Type).Implements(fieldDecoderType) {
+	if reflect.PtrTo(field.Type).Implements(customizedFieldDecoderType) {
 		return []decoder{&customizedFieldTextDecoder{
 			fieldInfo: fieldInfo{
 				index:       index,

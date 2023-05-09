@@ -46,15 +46,14 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/server/binding/text_decoder"
 	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type fieldInfo struct {
 	index       int
 	parentIndex []int
 	fieldName   string
-	tagInfos    []TagInfo // query,param,header,respHeader ...
-	fieldType   reflect.Type
+	tagInfos    []TagInfo    // query,param,header,respHeader ...
+	fieldType   reflect.Type // can not be pointer type
 }
 
 type baseTypeFieldTextDecoder struct {
@@ -62,7 +61,7 @@ type baseTypeFieldTextDecoder struct {
 	decoder text_decoder.TextDecoder
 }
 
-func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
 	var err error
 	var text string
 	var defaultValue string
@@ -71,7 +70,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
 		}
 		ret := tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
@@ -90,6 +89,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPara
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
+	//todo: check a=?b=?c= 这种情况 loosemode
 	if text == "" {
 		return nil
 	}
@@ -126,19 +126,19 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
-			tagInfos[idx].Getter = PathParam
+			tagInfos[idx].Getter = path
 		case formTag:
-			tagInfos[idx].Getter = Form
+			tagInfos[idx].Getter = form
 		case queryTag:
-			tagInfos[idx].Getter = Query
+			tagInfos[idx].Getter = query
 		case cookieTag:
-			tagInfos[idx].Getter = Cookie
+			tagInfos[idx].Getter = cookie
 		case headerTag:
-			tagInfos[idx].Getter = Header
+			tagInfos[idx].Getter = header
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = RawBody
+			tagInfo.Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:

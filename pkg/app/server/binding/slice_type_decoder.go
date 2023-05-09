@@ -48,7 +48,6 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/text_decoder"
 	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type sliceTypeFieldTextDecoder struct {
@@ -56,7 +55,7 @@ type sliceTypeFieldTextDecoder struct {
 	isArray bool
 }
 
-func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
 	var texts []string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
@@ -64,10 +63,10 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
-		// todo: array/slice default value
+		//todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
 			break
@@ -82,6 +81,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
+	// **[]**int
 	if field.Kind() == reflect.Ptr {
 		if field.IsNil() {
 			nonNilVal, ptrDepth := GetNonNilReferenceValue(field)
@@ -103,7 +103,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params PathPar
 		field = reflect.MakeSlice(field.Type(), len(texts), len(texts))
 	}
 
-	// handle multiple pointer
+	// handle internal multiple pointer, []**int
 	var ptrDepth int
 	t := d.fieldType.Elem()
 	elemKind := t.Kind()
@@ -137,19 +137,19 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
-			tagInfos[idx].Getter = PathParam
+			tagInfos[idx].Getter = path
 		case formTag:
-			tagInfos[idx].Getter = Form
+			tagInfos[idx].Getter = form
 		case queryTag:
-			tagInfos[idx].Getter = Query
+			tagInfos[idx].Getter = query
 		case cookieTag:
-			tagInfos[idx].Getter = Cookie
+			tagInfos[idx].Getter = cookie
 		case headerTag:
-			tagInfos[idx].Getter = Header
+			tagInfos[idx].Getter = header
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = RawBody
+			tagInfo.Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:

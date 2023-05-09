@@ -42,20 +42,18 @@ package binding
 
 import (
 	"reflect"
-
-	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 type customizedFieldTextDecoder struct {
 	fieldInfo
 }
 
-func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params PathParams, reqValue reflect.Value) error {
+func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
 	var err error
 	v := reflect.New(d.fieldType)
 	decoder := v.Interface().(CustomizedFieldDecoder)
 
-	if err = decoder.CustomizedFieldDecode(req, params); err != nil {
+	if err = decoder.CustomizedFieldDecode(req.Req, params); err != nil {
 		return err
 	}
 

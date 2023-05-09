@@ -41,13 +41,13 @@
 package binding
 
 import (
-	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/protocol"
+	"net/http"
+	"net/url"
 )
 
-type getter func(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string)
+type getter func(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string)
 
-func PathParam(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
+func path(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
 	var value string
 	if params != nil {
 		value, _ = params.Get(key)
@@ -64,33 +64,47 @@ func PathParam(req *protocol.Request, params PathParams, key string, defaultValu
 }
 
 // todo: Optimize 'postform' and 'multipart-form'
-func Form(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
-		if bytesconv.B2s(queryKey) == key {
-			ret = append(ret, string(value))
-		}
-	})
+func form(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+	if req.Query == nil {
+		req.Query = make(url.Values)
+		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+			keyStr := string(queryKey)
+			values, _ := req.Query[keyStr]
+			values = append(values, string(value))
+			req.Query[keyStr] = values
+		})
+	}
+	ret = req.Query[key]
 	if len(ret) > 0 {
 		return
 	}
 
-	req.PostArgs().VisitAll(func(formKey, value []byte) {
-		if bytesconv.B2s(formKey) == key {
-			ret = append(ret, string(value))
-		}
-	})
+	if req.Form == nil {
+		req.Form = make(url.Values)
+		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
+			keyStr := string(formKey)
+			values, _ := req.Form[keyStr]
+			values = append(values, string(value))
+			req.Form[keyStr] = values
+		})
+	}
+	ret = req.Form[key]
 	if len(ret) > 0 {
 		return
 	}
 
-	mf, err := req.MultipartForm()
-	if err == nil && mf.Value != nil {
-		for k, v := range mf.Value {
-			if k == key {
-				ret = append(ret, v[0])
+	if req.MultipartForm == nil {
+		req.MultipartForm = make(url.Values)
+		mf, err := req.Req.MultipartForm()
+		if err == nil && mf.Value != nil {
+			for k, v := range mf.Value {
+				if len(v) > 0 {
+					req.MultipartForm[k] = v
+				}
 			}
 		}
 	}
+	ret = req.MultipartForm[key]
 	if len(ret) > 0 {
 		return
 	}
@@ -102,12 +116,18 @@ func Form(req *protocol.Request, params PathParams, key string, defaultValue ...
 	return
 }
 
-func Query(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
-		if bytesconv.B2s(queryKey) == key {
-			ret = append(ret, string(value))
-		}
-	})
+func query(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+	if req.Query == nil {
+		req.Query = make(url.Values)
+		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+			keyStr := string(queryKey)
+			values, _ := req.Query[keyStr]
+			values = append(values, string(value))
+			req.Query[keyStr] = values
+		})
+	}
+
+	ret = req.Query[key]
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = append(ret, defaultValue...)
 	}
@@ -115,14 +135,20 @@ func Query(req *protocol.Request, params PathParams, key string, defaultValue ..
 	return
 }
 
-// todo: cookie
-func Cookie(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	req.Header.VisitAllCookie(func(cookieKey, value []byte) {
-		if bytesconv.B2s(cookieKey) == key {
-			ret = append(ret, string(value))
+func cookie(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+	if len(req.Cookie) == 0 {
+		req.Req.Header.VisitAllCookie(func(cookieKey, value []byte) {
+			req.Cookie = append(req.Cookie, &http.Cookie{
+				Name:  string(cookieKey),
+				Value: string(value),
+			})
+		})
+	}
+	for _, c := range req.Cookie {
+		if c.Name == key {
+			ret = append(ret, c.Value)
 		}
-	})
-
+	}
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = append(ret, defaultValue...)
 	}
@@ -130,13 +156,18 @@ func Cookie(req *protocol.Request, params PathParams, key string, defaultValue .
 	return
 }
 
-func Header(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	req.Header.VisitAll(func(headerKey, value []byte) {
-		if bytesconv.B2s(headerKey) == key {
-			ret = append(ret, string(value))
-		}
-	})
+func header(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+	if req.Header == nil {
+		req.Header = make(http.Header)
+		req.Req.Header.VisitAll(func(headerKey, value []byte) {
+			keyStr := string(headerKey)
+			values, _ := req.Header[keyStr]
+			values = append(values, string(value))
+			req.Header[keyStr] = values
+		})
+	}
 
+	ret = req.Header[key]
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = append(ret, defaultValue...)
 	}
@@ -144,19 +175,19 @@ func Header(req *protocol.Request, params PathParams, key string, defaultValue .
 	return
 }
 
-func Json(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
+func json(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
 	// do nothing
 	return
 }
 
-func RawBody(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
-	if req.Header.ContentLength() > 0 {
-		ret = append(ret, string(req.Body()))
+func rawBody(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+	if req.Req.Header.ContentLength() > 0 {
+		ret = append(ret, string(req.Req.Body()))
 	}
 	return
 }
 
-func FileName(req *protocol.Request, params PathParams, key string, defaultValue ...string) (ret []string) {
+func FileName(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
 	// do nothing
 	return
 }
