@@ -67,7 +67,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
-		//todo: array/slice default value
+		// todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
 			break

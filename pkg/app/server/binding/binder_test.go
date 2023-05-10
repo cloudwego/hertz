@@ -42,10 +42,10 @@ package binding
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"mime/multipart"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	req2 "github.com/cloudwego/hertz/pkg/protocol/http1/req"

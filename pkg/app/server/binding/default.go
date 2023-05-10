@@ -62,13 +62,13 @@ package binding
 
 import (
 	"fmt"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"reflect"
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/protobuf/proto"
@@ -122,7 +122,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	}
 	switch bytesconv.B2s(req.Header.ContentType()) {
 	case jsonContentTypeBytes:
-		//todo: aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
+		// todo: aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
 		return hjson.Unmarshal(req.Body(), v)
 	case protobufContentType:
 		msg, ok := v.(proto.Message)

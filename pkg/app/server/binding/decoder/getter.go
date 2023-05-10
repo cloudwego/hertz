@@ -70,7 +70,7 @@ func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 			keyStr := string(queryKey)
-			var values, _ = req.Query[keyStr]
+			values := req.Query[keyStr]
 			values = append(values, string(value))
 			req.Query[keyStr] = values
 		})
@@ -84,7 +84,7 @@ func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 		req.Form = make(url.Values)
 		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
 			keyStr := string(formKey)
-			var values, _ = req.Form[keyStr]
+			values := req.Form[keyStr]
 			values = append(values, string(value))
 			req.Form[keyStr] = values
 		})
@@ -122,7 +122,7 @@ func query(req *bindRequest, params path1.PathParam, key string, defaultValue ..
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 			keyStr := string(queryKey)
-			var values, _ = req.Query[keyStr]
+			values := req.Query[keyStr]
 			values = append(values, string(value))
 			req.Query[keyStr] = values
 		})
@@ -162,7 +162,7 @@ func header(req *bindRequest, params path1.PathParam, key string, defaultValue .
 		req.Header = make(http.Header)
 		req.Req.Header.VisitAll(func(headerKey, value []byte) {
 			keyStr := string(headerKey)
-			var values, _ = req.Header[keyStr]
+			values := req.Header[keyStr]
 			values = append(values, string(value))
 			req.Header[keyStr] = values
 		})

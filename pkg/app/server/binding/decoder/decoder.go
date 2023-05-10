@@ -145,7 +145,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []fieldDecoder
 		el := field.Type
-		//todo: more built-int common struct binding, ex. time...
+		// todo: more built-int common struct binding, ex. time...
 		switch el {
 		case reflect.TypeOf(multipart.FileHeader{}):
 			return getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
