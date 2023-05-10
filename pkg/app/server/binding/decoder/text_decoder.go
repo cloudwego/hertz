@@ -50,14 +50,7 @@ type TextDecoder interface {
 	UnmarshalString(s string, fieldValue reflect.Value) error
 }
 
-// var textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
-
 func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
-	// todo: encoding.TextUnmarshaler
-	//if reflect.PtrTo(rt).Implements(textUnmarshalerType) {
-	//	return &textUnmarshalEncoder{fieldType: rt}, nil
-	//}
-
 	switch rt.Kind() {
 	case reflect.Bool:
 		return &boolDecoder{}, nil

@@ -89,7 +89,6 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPar
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	//todo: check a=?b=?c= 这种情况 loosemode
 	if text == "" {
 		return nil
 	}

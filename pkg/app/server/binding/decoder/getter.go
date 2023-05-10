@@ -65,7 +65,6 @@ func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 	return
 }
 
-// todo: Optimize 'postform' and 'multipart-form'
 func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Query == nil {
 		req.Query = make(url.Values)

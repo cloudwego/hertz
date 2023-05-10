@@ -122,7 +122,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	}
 	switch bytesconv.B2s(req.Header.ContentType()) {
 	case jsonContentTypeBytes:
-		// todo: Aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
+		//todo: aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
 		return hjson.Unmarshal(req.Body(), v)
 	case protobufContentType:
 		msg, ok := v.(proto.Message)

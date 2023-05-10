@@ -180,8 +180,6 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 
 func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
-	// todo: customized type binding
-
 	switch elemType.Kind() {
 	case reflect.Struct:
 		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
