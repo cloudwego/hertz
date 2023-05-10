@@ -70,7 +70,7 @@ func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 			keyStr := string(queryKey)
-			values, _ := req.Query[keyStr]
+			var values, _ = req.Query[keyStr]
 			values = append(values, string(value))
 			req.Query[keyStr] = values
 		})
@@ -84,7 +84,7 @@ func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 		req.Form = make(url.Values)
 		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
 			keyStr := string(formKey)
-			values, _ := req.Form[keyStr]
+			var values, _ = req.Form[keyStr]
 			values = append(values, string(value))
 			req.Form[keyStr] = values
 		})
@@ -122,7 +122,7 @@ func query(req *bindRequest, params path1.PathParam, key string, defaultValue ..
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 			keyStr := string(queryKey)
-			values, _ := req.Query[keyStr]
+			var values, _ = req.Query[keyStr]
 			values = append(values, string(value))
 			req.Query[keyStr] = values
 		})
@@ -162,7 +162,7 @@ func header(req *bindRequest, params path1.PathParam, key string, defaultValue .
 		req.Header = make(http.Header)
 		req.Req.Header.VisitAll(func(headerKey, value []byte) {
 			keyStr := string(headerKey)
-			values, _ := req.Header[keyStr]
+			var values, _ = req.Header[keyStr]
 			values = append(values, string(value))
 			req.Header[keyStr] = values
 		})
@@ -176,19 +176,9 @@ func header(req *bindRequest, params path1.PathParam, key string, defaultValue .
 	return
 }
 
-func json(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	// do nothing
-	return
-}
-
 func rawBody(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Req.Header.ContentLength() > 0 {
 		ret = append(ret, string(req.Req.Body()))
 	}
-	return
-}
-
-func fileName(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	// do nothing
 	return
 }
