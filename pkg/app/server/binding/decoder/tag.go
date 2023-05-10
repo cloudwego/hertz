@@ -44,6 +44,7 @@ type TagInfo struct {
 	Key      string
 	Value    string
 	Required bool
+	Skip     bool
 	Default  string
 	Options  []string
 	Getter   getter
@@ -75,6 +76,10 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 	for _, tag := range ret {
 		tagContent := field.Tag.Get(tag)
 		tagValue, opts := head(tagContent, ",")
+		skip := false
+		if tagValue == "-" {
+			skip = true
+		}
 		var options []string
 		var opt string
 		var required bool
@@ -85,7 +90,7 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 				required = true
 			}
 		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Default: defaultVal})
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Default: defaultVal, Skip: skip})
 	}
 
 	return tagInfos

@@ -58,7 +58,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPara
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
-		if tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
+		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			continue
 		}
 		if tagInfo.Key == headerTag {

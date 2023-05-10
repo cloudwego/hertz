@@ -686,6 +686,37 @@ func TestBind_AnonymousField(t *testing.T) {
 	assert.DeepEqual(t, "", s.nest.string)
 }
 
+func TestBind_IgnoreField(t *testing.T) {
+	type Req struct {
+		Version int    `path:"-"`
+		ID      int    `query:"-"`
+		Header  string `header:"-"`
+		Form    string `form:"-"`
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=12").
+		SetHeaders("H", "header").
+		SetPostArg("f", "form").
+		SetUrlEncodeContentType()
+	var params param.Params
+	params = append(params, param.Param{
+		Key:   "v",
+		Value: "1",
+	})
+
+	var result Req
+
+	err := DefaultBinder.Bind(req.Req, params, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 0, result.Version)
+	assert.DeepEqual(t, 0, result.ID)
+	assert.DeepEqual(t, "", result.Header)
+	assert.DeepEqual(t, "", result.Form)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
