@@ -38,22 +38,40 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package text_decoder
+package decoder
 
 import (
 	"reflect"
-	"strconv"
+
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 )
 
-type intDecoder struct {
-	bitSize int
+type customizedFieldTextDecoder struct {
+	fieldInfo
 }
 
-func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
-	v, err := strconv.ParseInt(s, 10, d.bitSize)
-	if err != nil {
+func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+	var err error
+	v := reflect.New(d.fieldType)
+	decoder := v.Interface().(CustomizedFieldDecoder)
+
+	if err = decoder.CustomizedFieldDecode(req.Req, params); err != nil {
 		return err
 	}
-	fieldValue.SetInt(v)
+
+	reqValue = GetFieldValue(reqValue, d.parentIndex)
+	field := reqValue.Field(d.index)
+	if field.Kind() == reflect.Ptr {
+		t := field.Type()
+		var ptrDepth int
+		for t.Kind() == reflect.Ptr {
+			t = t.Elem()
+			ptrDepth++
+		}
+		field.Set(ReferenceValue(v.Elem(), ptrDepth))
+		return nil
+	}
+
+	field.Set(v)
 	return nil
 }

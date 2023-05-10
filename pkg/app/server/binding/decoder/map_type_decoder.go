@@ -38,31 +38,23 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package binding
+package decoder
 
 import (
 	"fmt"
 	"reflect"
 
-	"github.com/cloudwego/hertz/pkg/app/server/binding/text_decoder"
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
-type fieldInfo struct {
-	index       int
-	parentIndex []int
-	fieldName   string
-	tagInfos    []TagInfo    // query,param,header,respHeader ...
-	fieldType   reflect.Type // can not be pointer type
-}
-
-type baseTypeFieldTextDecoder struct {
+type mapTypeFieldTextDecoder struct {
 	fieldInfo
-	decoder text_decoder.TextDecoder
 }
 
-func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
-	var err error
+func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
@@ -76,25 +68,16 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, re
 		defaultValue = tagInfo.Default
 		if len(ret) != 0 {
 			text = ret[0]
-			err = nil
 			break
 		}
-		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
-		}
-	}
-	if err != nil {
-		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	//todo: check a=?b=?c= 这种情况 loosemode
 	if text == "" {
 		return nil
 	}
 
-	// get the non-nil value for the field
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
 	if field.Kind() == reflect.Ptr {
@@ -107,14 +90,13 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, re
 		var vv reflect.Value
 		vv, err := stringToValue(t, text)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 		}
 		field.Set(ReferenceValue(vv, ptrDepth))
 		return nil
 	}
 
-	// Non-pointer elems
-	err = d.decoder.UnmarshalString(text, field)
+	err := hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 	}
@@ -122,7 +104,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, re
 	return nil
 }
 
-func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
+func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
@@ -150,12 +132,7 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 		fieldType = field.Type.Elem()
 	}
 
-	textDecoder, err := text_decoder.SelectTextDecoder(fieldType)
-	if err != nil {
-		return nil, err
-	}
-
-	fieldDecoder := &baseTypeFieldTextDecoder{
+	return []fieldDecoder{&mapTypeFieldTextDecoder{
 		fieldInfo: fieldInfo{
 			index:       index,
 			parentIndex: parentIdx,
@@ -163,8 +140,5 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
 		},
-		decoder: textDecoder,
-	}
-
-	return []decoder{fieldDecoder}, nil
+	}}, nil
 }

@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-package binding
+package decoder
 
 import (
 	"fmt"
 	"reflect"
+
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 )
 
 type fileTypeDecoder struct {
@@ -26,7 +28,7 @@ type fileTypeDecoder struct {
 	isRepeated bool
 }
 
-func (d *fileTypeDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
+func (d *fileTypeDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
 	fieldValue := GetFieldValue(reqValue, d.parentIndex)
 	field := fieldValue.Field(d.index)
 
@@ -70,7 +72,7 @@ func (d *fileTypeDecoder) Decode(req *bindRequest, params PathParam, reqValue re
 	return nil
 }
 
-func (d *fileTypeDecoder) fileSliceDecode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
+func (d *fileTypeDecoder) fileSliceDecode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
 	fieldValue := GetFieldValue(reqValue, d.parentIndex)
 	field := fieldValue.Field(d.index)
 	// 如果没值，需要为其建一个值
@@ -138,7 +140,7 @@ func (d *fileTypeDecoder) fileSliceDecode(req *bindRequest, params PathParam, re
 	return nil
 }
 
-func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
+func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
 	fieldType := field.Type
 	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
@@ -148,7 +150,7 @@ func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []Ta
 		isRepeated = true
 	}
 
-	fieldDecoder := &fileTypeDecoder{
+	return []fieldDecoder{&fileTypeDecoder{
 		fieldInfo: fieldInfo{
 			index:       index,
 			parentIndex: parentIdx,
@@ -157,7 +159,5 @@ func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []Ta
 			fieldType:   fieldType,
 		},
 		isRepeated: isRepeated,
-	}
-
-	return []decoder{fieldDecoder}, nil
+	}}, nil
 }

@@ -38,7 +38,7 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package binding
+package decoder
 
 import (
 	"fmt"
@@ -47,6 +47,7 @@ import (
 	"net/url"
 	"reflect"
 
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
@@ -59,20 +60,20 @@ type bindRequest struct {
 	Cookie        []*http.Cookie
 }
 
-type decoder interface {
-	Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error
+type fieldDecoder interface {
+	Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error
 }
 
 type CustomizedFieldDecoder interface {
-	CustomizedFieldDecode(req *protocol.Request, params PathParam) error
+	CustomizedFieldDecode(req *protocol.Request, params path1.PathParam) error
 }
 
-type Decoder func(req *protocol.Request, params PathParam, rv reflect.Value) error
+type Decoder func(req *protocol.Request, params path1.PathParam, rv reflect.Value) error
 
 var customizedFieldDecoderType = reflect.TypeOf((*CustomizedFieldDecoder)(nil)).Elem()
 
-func getReqDecoder(rt reflect.Type) (Decoder, error) {
-	var decoders []decoder
+func GetReqDecoder(rt reflect.Type) (Decoder, error) {
+	var decoders []fieldDecoder
 
 	el := rt.Elem()
 	if el.Kind() != reflect.Struct {
@@ -95,7 +96,7 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 		}
 	}
 
-	return func(req *protocol.Request, params PathParam, rv reflect.Value) error {
+	return func(req *protocol.Request, params path1.PathParam, rv reflect.Value) error {
 		bindReq := &bindRequest{
 			Req: req,
 		}
@@ -110,12 +111,12 @@ func getReqDecoder(rt reflect.Type) (Decoder, error) {
 	}, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]decoder, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]fieldDecoder, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
 	if reflect.PtrTo(field.Type).Implements(customizedFieldDecoderType) {
-		return []decoder{&customizedFieldTextDecoder{
+		return []fieldDecoder{&customizedFieldTextDecoder{
 			fieldInfo: fieldInfo{
 				index:       index,
 				parentIndex: parentIdx,
@@ -139,7 +140,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]d
 	}
 
 	if field.Type.Kind() == reflect.Struct {
-		var decoders []decoder
+		var decoders []fieldDecoder
 		el := field.Type
 		// todo: built-in bindings for some common structs, code need to be optimized
 		switch el {

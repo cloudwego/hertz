@@ -38,16 +38,18 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package binding
+package decoder
 
 import (
 	"net/http"
 	"net/url"
+
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 )
 
-type getter func(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string)
+type getter func(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string)
 
-func path(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	var value string
 	if params != nil {
 		value, _ = params.Get(key)
@@ -64,7 +66,7 @@ func path(req *bindRequest, params PathParam, key string, defaultValue ...string
 }
 
 // todo: Optimize 'postform' and 'multipart-form'
-func form(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Query == nil {
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
@@ -116,7 +118,7 @@ func form(req *bindRequest, params PathParam, key string, defaultValue ...string
 	return
 }
 
-func query(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func query(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Query == nil {
 		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
@@ -135,7 +137,7 @@ func query(req *bindRequest, params PathParam, key string, defaultValue ...strin
 	return
 }
 
-func cookie(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func cookie(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if len(req.Cookie) == 0 {
 		req.Req.Header.VisitAllCookie(func(cookieKey, value []byte) {
 			req.Cookie = append(req.Cookie, &http.Cookie{
@@ -156,7 +158,7 @@ func cookie(req *bindRequest, params PathParam, key string, defaultValue ...stri
 	return
 }
 
-func header(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func header(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Header == nil {
 		req.Header = make(http.Header)
 		req.Req.Header.VisitAll(func(headerKey, value []byte) {
@@ -175,19 +177,19 @@ func header(req *bindRequest, params PathParam, key string, defaultValue ...stri
 	return
 }
 
-func json(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func json(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	// do nothing
 	return
 }
 
-func rawBody(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func rawBody(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Req.Header.ContentLength() > 0 {
 		ret = append(ret, string(req.Req.Body()))
 	}
 	return
 }
 
-func FileName(req *bindRequest, params PathParam, key string, defaultValue ...string) (ret []string) {
+func fileName(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	// do nothing
 	return
 }

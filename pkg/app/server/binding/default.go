@@ -62,10 +62,13 @@ package binding
 
 import (
 	"fmt"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"reflect"
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/protobuf/proto"
@@ -79,7 +82,7 @@ func (b *defaultBinder) Name() string {
 	return "hertz"
 }
 
-func (b *defaultBinder) Bind(req *protocol.Request, params PathParam, v interface{}) error {
+func (b *defaultBinder) Bind(req *protocol.Request, params path.PathParam, v interface{}) error {
 	err := b.preBindBody(req, v)
 	if err != nil {
 		return err
@@ -93,12 +96,12 @@ func (b *defaultBinder) Bind(req *protocol.Request, params PathParam, v interfac
 	}
 	cached, ok := b.decoderCache.Load(typeID)
 	if ok {
-		// cached decoder, fast path
-		decoder := cached.(Decoder)
+		// cached fieldDecoder, fast path
+		decoder := cached.(decoder.Decoder)
 		return decoder(req, params, rv.Elem())
 	}
 
-	decoder, err := getReqDecoder(rv.Type())
+	decoder, err := decoder.GetReqDecoder(rv.Type())
 	if err != nil {
 		return err
 	}
@@ -120,7 +123,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	switch bytesconv.B2s(req.Header.ContentType()) {
 	case jsonContentTypeBytes:
 		// todo: Aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
-		return jsonUnmarshalFunc(req.Body(), v)
+		return hjson.Unmarshal(req.Body(), v)
 	case protobufContentType:
 		msg, ok := v.(proto.Message)
 		if !ok {

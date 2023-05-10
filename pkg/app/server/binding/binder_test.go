@@ -42,6 +42,7 @@ package binding
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"mime/multipart"
 	"testing"
 
@@ -492,7 +493,7 @@ type CustomizedDecode struct {
 	A string
 }
 
-func (c *CustomizedDecode) CustomizedFieldDecode(req *protocol.Request, params PathParam) error {
+func (c *CustomizedDecode) CustomizedFieldDecode(req *protocol.Request, params path.PathParam) error {
 	q1 := req.URI().QueryArgs().Peek("a")
 	if len(q1) == 0 {
 		return fmt.Errorf("can be nil")

@@ -38,11 +38,12 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package text_decoder
+package decoder
 
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 type TextDecoder interface {
@@ -89,4 +90,61 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 	}
 
 	return nil, fmt.Errorf("unsupported type " + rt.String())
+}
+
+type boolDecoder struct{}
+
+func (d *boolDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	fieldValue.SetBool(v)
+	return nil
+}
+
+type floatDecoder struct {
+	bitSize int
+}
+
+func (d *floatDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	v, err := strconv.ParseFloat(s, d.bitSize)
+	if err != nil {
+		return err
+	}
+	fieldValue.SetFloat(v)
+	return nil
+}
+
+type intDecoder struct {
+	bitSize int
+}
+
+func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	v, err := strconv.ParseInt(s, 10, d.bitSize)
+	if err != nil {
+		return err
+	}
+	fieldValue.SetInt(v)
+	return nil
+}
+
+type stringDecoder struct{}
+
+func (d *stringDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	fieldValue.SetString(s)
+	return nil
+}
+
+type uintDecoder struct {
+	bitSize int
+}
+
+func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	v, err := strconv.ParseUint(s, 10, d.bitSize)
+	if err != nil {
+		return err
+	}
+	fieldValue.SetUint(v)
+	return nil
 }

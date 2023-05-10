@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package binding
+package decoder
 
 import (
 	"reflect"

@@ -38,7 +38,7 @@
  * Modifications are Copyright 2022 CloudWeGo Authors
  */
 
-package binding
+package decoder
 
 import (
 	"fmt"
@@ -46,7 +46,8 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/text_decoder"
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
@@ -55,7 +56,7 @@ type sliceTypeFieldTextDecoder struct {
 	isArray bool
 }
 
-func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, reqValue reflect.Value) error {
+func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
 	var texts []string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
@@ -126,7 +127,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params PathParam, r
 	return nil
 }
 
-func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]decoder, error) {
+func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
 	if !(field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array) {
 		return nil, fmt.Errorf("unexpected type %s, expected slice or array", field.Type.String())
 	}
@@ -165,7 +166,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 		return getMultipartFileDecoder(field, index, tagInfos, parentIdx)
 	}
 
-	fieldDecoder := &sliceTypeFieldTextDecoder{
+	return []fieldDecoder{&sliceTypeFieldTextDecoder{
 		fieldInfo: fieldInfo{
 			index:       index,
 			parentIndex: parentIdx,
@@ -174,9 +175,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 			fieldType:   fieldType,
 		},
 		isArray: isArray,
-	}
-
-	return []decoder{fieldDecoder}, nil
+	}}, nil
 }
 
 func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err error) {
@@ -185,13 +184,13 @@ func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err err
 
 	switch elemType.Kind() {
 	case reflect.Struct:
-		err = jsonUnmarshalFunc(bytesconv.S2b(text), v.Addr().Interface())
+		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Map:
-		err = jsonUnmarshalFunc(bytesconv.S2b(text), v.Addr().Interface())
+		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Array, reflect.Slice:
 		// do nothing
 	default:
-		decoder, err := text_decoder.SelectTextDecoder(elemType)
+		decoder, err := SelectTextDecoder(elemType)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
 		}
