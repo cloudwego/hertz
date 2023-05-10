@@ -679,8 +679,11 @@ func TestBind_AnonymousField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	//assert.DeepEqual(t, 1, s.A)
-	//assert.DeepEqual(t, 0, s.b)
+	assert.DeepEqual(t, 0, s.s1)
+	assert.DeepEqual(t, 0, s.int)
+	assert.DeepEqual(t, "", s.nest.n1)
+	assert.DeepEqual(t, "2", ***s.nest.N2)
+	assert.DeepEqual(t, "", s.nest.string)
 }
 
 func Benchmark_Binding(b *testing.B) {
