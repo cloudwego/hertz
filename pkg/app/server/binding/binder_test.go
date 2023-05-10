@@ -661,6 +661,28 @@ func TestBind_FileSliceBind(t *testing.T) {
 	}
 }
 
+func TestBind_AnonymousField(t *testing.T) {
+	type nest struct {
+		n1     string       `query:"n1"` // bind default value
+		N2     ***string    `query:"n2"` // bind n2 value
+		string `query:"n3"` // bind default value
+	}
+
+	var s struct {
+		s1  int          `query:"s1"` // bind default value
+		int `query:"s2"` // bind default value
+		nest
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?s1=1&s2=2&n1=1&n2=2&n3=3")
+	err := DefaultBinder.Bind(req.Req, nil, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//assert.DeepEqual(t, 1, s.A)
+	//assert.DeepEqual(t, 0, s.b)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`

@@ -88,7 +88,7 @@ func (b *defaultBinder) Bind(req *protocol.Request, params path.PathParam, v int
 		return err
 	}
 	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
 	if rv.Elem().Kind() == reflect.Map {

@@ -81,7 +81,7 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 	}
 
 	for i := 0; i < el.NumField(); i++ {
-		if !el.Field(i).IsExported() {
+		if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
 			// ignore unexported field
 			continue
 		}
@@ -114,6 +114,9 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]fieldDecoder, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
+	}
+	if field.Type.Kind() != reflect.Struct && field.Anonymous {
+		return nil, nil
 	}
 	if reflect.PtrTo(field.Type).Implements(customizedFieldDecoderType) {
 		return []fieldDecoder{&customizedFieldTextDecoder{
@@ -149,7 +152,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 		}
 
 		for i := 0; i < el.NumField(); i++ {
-			if !el.Field(i).IsExported() {
+			if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
 				// ignore unexported field
 				continue
 			}
