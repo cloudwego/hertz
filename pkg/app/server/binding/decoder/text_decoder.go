@@ -88,6 +88,9 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 type boolDecoder struct{}
 
 func (d *boolDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	if s == "" {
+		s = "false"
+	}
 	v, err := strconv.ParseBool(s)
 	if err != nil {
 		return err
@@ -101,6 +104,9 @@ type floatDecoder struct {
 }
 
 func (d *floatDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	if s == "" {
+		s = "0.0"
+	}
 	v, err := strconv.ParseFloat(s, d.bitSize)
 	if err != nil {
 		return err
@@ -114,6 +120,9 @@ type intDecoder struct {
 }
 
 func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	if s == "" {
+		s = "0"
+	}
 	v, err := strconv.ParseInt(s, 10, d.bitSize)
 	if err != nil {
 		return err
@@ -134,6 +143,9 @@ type uintDecoder struct {
 }
 
 func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	if s == "" {
+		s = "0"
+	}
 	v, err := strconv.ParseUint(s, 10, d.bitSize)
 	if err != nil {
 		return err

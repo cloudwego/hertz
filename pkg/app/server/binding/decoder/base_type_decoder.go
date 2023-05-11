@@ -137,7 +137,7 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = rawBody
+			tagInfos[idx].Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:

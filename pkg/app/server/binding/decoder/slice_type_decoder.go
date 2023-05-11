@@ -100,6 +100,11 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 			return fmt.Errorf("%q is not valid value for %s", texts, field.Type().String())
 		}
 	} else {
+		if field.Type().Elem().Kind() == reflect.Uint8 {
+			reqValue.Field(d.index).Set(reflect.ValueOf([]byte(texts[0])))
+			return nil
+		}
+
 		// slice need creating enough capacity
 		field = reflect.MakeSlice(field.Type(), len(texts), len(texts))
 	}
@@ -150,7 +155,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = rawBody
+			tagInfos[idx].Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:

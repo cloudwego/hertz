@@ -120,7 +120,7 @@ func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagI
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
-			tagInfo.Getter = rawBody
+			tagInfos[idx].Getter = rawBody
 		case fileNameTag:
 			// do nothing
 		default:
