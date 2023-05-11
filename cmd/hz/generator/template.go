@@ -43,22 +43,24 @@ const (
 )
 
 type Template struct {
-	Default        bool           // Update command behavior; skip/cover/append
+	Default        bool           // Is it the default template
 	Path           string         `yaml:"path"`            // The generated path and its filename, such as biz/handler/ping.go
 	Delims         [2]string      `yaml:"delims"`          // Template Action Instruction Identifier, default: "{{}}"
 	Body           string         `yaml:"body"`            // Render template, currently only supports go template syntax
+	Disable        bool           `yaml:"disable"`         // Disable generating file, used to disable default package template
 	LoopMethod     bool           `yaml:"loop_method"`     // Loop generate files based on "method"
 	LoopService    bool           `yaml:"loop_service"`    // Loop generate files based on "service"
 	UpdateBehavior UpdateBehavior `yaml:"update_behavior"` // Update command behavior; 0:unchanged, 1:regenerate, 2:append
 }
 
 type UpdateBehavior struct {
-	Type string `yaml:"type"` // Update behavior type; skip/cover/append
+	Type string `yaml:"type"` // Update behavior type: skip/cover/append
 	// the following variables are used for append update
-	AppendKey string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
-	InsertKey string   `yaml:"insert_key"`         // Insert content by "insert_key"
-	AppendTpl string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
-	ImportTpl []string `yaml:"import_tpl"`         // Import insert template
+	AppendKey      string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
+	InsertKey      string   `yaml:"insert_key"`         // Insert content by "insert_key"
+	AppendTpl      string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
+	ImportTpl      []string `yaml:"import_tpl"`         // Import insert template
+	AppendLocation string   `yaml:"append_location"`    // AppendLocation specifies the location of append,  the default is the end of the file
 }
 
 // TemplateGenerator contains information about the output template

@@ -218,6 +218,8 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 				c.HandlerPackageAlias = pkgAlias
 				c.Handler = pkgAlias + "." + method.Name
 				c.HandlerPackage = handlerPkg
+				method.RefPackage = c.HandlerPackage
+				method.RefPackageAlias = c.HandlerPackageAlias
 			} else { // generate handler by service
 				c.Handler = handlerType + "." + method.Name
 			}
@@ -290,6 +292,9 @@ var (
 )
 
 func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) error {
+	if pkgGen.tplsInfo[registerTplName].Disable {
+		return nil
+	}
 	register := RegisterInfo{
 		PackageName: filepath.Base(rDir),
 		DepPkgAlias: strings.ReplaceAll(pkgName, "/", "_"),
@@ -365,8 +370,10 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 	// store router info
 	pkg.RouterInfo = &router
 
-	if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
-		return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
+	if !pkgGen.tplsInfo[routerTplName].Disable {
+		if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
+			return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
+		}
 	}
 	if err := pkgGen.updateMiddlewareReg(router, middlewareTplName, filepath.Join(routerDir, "middleware.go")); err != nil {
 		return fmt.Errorf("generate middleware %s failed, err: %v", filepath.Join(routerDir, "middleware.go"), err.Error())
@@ -379,6 +386,9 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 }
 
 func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, middlewareTpl, filePath string) error {
+	if pkgGen.tplsInfo[middlewareTpl].Disable {
+		return nil
+	}
 	isExist, err := util.PathExist(filePath)
 	if err != nil {
 		return err

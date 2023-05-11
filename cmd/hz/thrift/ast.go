@@ -73,7 +73,20 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				service.BaseDomain = domainAnno[0]
 			}
 		}
-
+		service.ServiceGroup = ""
+		groupAnno := getAnnotation(s.Annotations, ApiServiceGroup)
+		if len(groupAnno) == 1 {
+			if args.CmdType != meta.CmdClient {
+				service.ServiceGroup = groupAnno[0]
+			}
+		}
+		service.ServiceGenDir = ""
+		serviceGenDirAnno := getAnnotation(s.Annotations, ApiServiceGenDir)
+		if len(serviceGenDirAnno) == 1 {
+			if args.CmdType != meta.CmdClient {
+				service.ServiceGenDir = serviceGenDirAnno[0]
+			}
+		}
 		ms := s.GetFunctions()
 		if len(s.Extends) != 0 && args.EnableExtends {
 			// all the services that are extended to the current service
