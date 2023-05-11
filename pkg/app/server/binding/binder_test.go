@@ -134,6 +134,7 @@ func TestBind_BaseType(t *testing.T) {
 	assert.DeepEqual(t, "form", result.Form)
 }
 
+// fixme: []byte 绑定
 func TestBind_SliceType(t *testing.T) {
 	type Req struct {
 		ID   *[]int    `query:"id"`

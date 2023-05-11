@@ -104,7 +104,6 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 			reqValue.Field(d.index).Set(reflect.ValueOf([]byte(texts[0])))
 			return nil
 		}
-
 		// slice need creating enough capacity
 		field = reflect.MakeSlice(field.Type(), len(texts), len(texts))
 	}
@@ -145,7 +144,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 		case pathTag:
 			tagInfos[idx].Getter = path
 		case formTag:
-			tagInfos[idx].Getter = form
+			tagInfos[idx].Getter = postForm
 		case queryTag:
 			tagInfos[idx].Getter = query
 		case cookieTag:

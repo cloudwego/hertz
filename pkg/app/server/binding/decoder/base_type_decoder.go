@@ -128,7 +128,7 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 		case pathTag:
 			tagInfos[idx].Getter = path
 		case formTag:
-			tagInfos[idx].Getter = form
+			tagInfos[idx].Getter = postForm
 		case queryTag:
 			tagInfos[idx].Getter = query
 		case cookieTag:

@@ -65,21 +65,7 @@ func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 	return
 }
 
-func form(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	if req.Query == nil {
-		req.Query = make(url.Values)
-		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
-			keyStr := string(queryKey)
-			values := req.Query[keyStr]
-			values = append(values, string(value))
-			req.Query[keyStr] = values
-		})
-	}
-	ret = req.Query[key]
-	if len(ret) > 0 {
-		return
-	}
-
+func postForm(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
 	if req.Form == nil {
 		req.Form = make(url.Values)
 		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {

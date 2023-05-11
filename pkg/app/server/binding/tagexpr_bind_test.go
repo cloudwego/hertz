@@ -583,7 +583,6 @@ func TestDefault(t *testing.T) {
 	//assert.DeepEqual(t, map[string][]map[string][]int64{"a": {{"aa": {1, 2, 3}, "bb": []int64{4, 5}}}, "b": {map[string][]int64{}}}, recv.Complex)
 }
 
-// FIXME: query 和 form getter 的优先级
 func TestAuto(t *testing.T) {
 	type Recv struct {
 		A string
