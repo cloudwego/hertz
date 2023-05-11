@@ -69,6 +69,7 @@ type Argument struct {
 	HandlerByMethod      bool
 	ForceNew             bool
 	SnakeStyleMiddleware bool
+	EnableExtends        bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string

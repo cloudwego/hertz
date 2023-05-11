@@ -178,6 +178,7 @@ func Init() *cli.App {
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
+	enableExtendsFlag := cli.BoolFlag{Name: "enable_extends", Usage: "Parse 'extends' for thrift IDL", Destination: &globalArgs.EnableExtends}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
@@ -223,6 +224,7 @@ func Init() *cli.App {
 				&optPkgFlag,
 				&noRecurseFlag,
 				&forceNewFlag,
+				&enableExtendsFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -255,6 +257,7 @@ func Init() *cli.App {
 				&protoOptionsFlag,
 				&optPkgFlag,
 				&noRecurseFlag,
+				&enableExtendsFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -306,6 +309,7 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
+				&enableExtendsFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
