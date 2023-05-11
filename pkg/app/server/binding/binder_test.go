@@ -93,7 +93,7 @@ func (m *mockRequest) SetUrlEncodeContentType() *mockRequest {
 }
 
 func (m *mockRequest) SetJSONContentType() *mockRequest {
-	m.Req.Header.SetContentTypeBytes([]byte(jsonContentTypeBytes))
+	m.Req.Header.SetContentTypeBytes([]byte(jsonContentType))
 	return m
 }
 

@@ -123,3 +123,12 @@ func NextLine(b []byte) ([]byte, []byte, error) {
 	}
 	return b[:n], b[nNext+1:], nil
 }
+
+func FilterContentType(content string) string {
+	for i, char := range content {
+		if char == ' ' || char == ';' {
+			return content[:i]
+		}
+	}
+	return content
+}

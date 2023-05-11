@@ -69,6 +69,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/protobuf/proto"
@@ -111,8 +112,8 @@ func (b *defaultBinder) Bind(req *protocol.Request, params path.PathParam, v int
 }
 
 var (
-	jsonContentTypeBytes = "application/json; charset=utf-8"
-	protobufContentType  = "application/x-protobuf"
+	jsonContentType     = "application/json"
+	protobufContentType = "application/x-protobuf"
 )
 
 // best effort binding
@@ -120,8 +121,9 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	if req.Header.ContentLength() <= 0 {
 		return nil
 	}
-	switch bytesconv.B2s(req.Header.ContentType()) {
-	case jsonContentTypeBytes:
+	ct := bytesconv.B2s(req.Header.ContentType())
+	switch utils.FilterContentType(ct) {
+	case jsonContentType:
 		// todo: aligning the gin, add "EnableDecoderUseNumber"/"EnableDecoderDisallowUnknownFields" interface
 		return hjson.Unmarshal(req.Body(), v)
 	case protobufContentType:

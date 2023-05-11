@@ -67,6 +67,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPar
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
+			defaultValue = tagInfo.Default
 			continue
 		}
 		if tagInfo.Key == headerTag {
