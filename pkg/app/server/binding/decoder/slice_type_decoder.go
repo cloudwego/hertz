@@ -107,7 +107,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 		// slice need creating enough capacity
 		field = reflect.MakeSlice(field.Type(), len(texts), len(texts))
 	}
-	// raw_body && []byte 绑定
+	// raw_body && []byte binding
 	if bindRawBody && field.Type().Elem().Kind() == reflect.Uint8 {
 		reqValue.Field(d.index).Set(reflect.ValueOf(req.Req.Body()))
 		return nil

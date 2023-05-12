@@ -18,6 +18,7 @@ package binding
 
 import (
 	standardJson "encoding/json"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 )
@@ -28,4 +29,8 @@ func ResetJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 
 func ResetStdJSONUnmarshaler() {
 	ResetJSONUnmarshaler(standardJson.Unmarshal)
+}
+
+func EnableDefaultTag(b bool) {
+	decoder.EnableDefaultTag = b
 }

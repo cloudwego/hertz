@@ -134,7 +134,6 @@ func TestBind_BaseType(t *testing.T) {
 	assert.DeepEqual(t, "form", result.Form)
 }
 
-// fixme: []byte 绑定
 func TestBind_SliceType(t *testing.T) {
 	type Req struct {
 		ID   *[]int    `query:"id"`
@@ -696,13 +695,13 @@ func TestBind_IgnoreField(t *testing.T) {
 	}
 
 	req := newMockRequest().
-		SetRequestURI("http://foobar.com?id=12").
-		SetHeaders("H", "header").
-		SetPostArg("f", "form").
+		SetRequestURI("http://foobar.com?ID=12").
+		SetHeaders("Header", "header").
+		SetPostArg("Form", "form").
 		SetUrlEncodeContentType()
 	var params param.Params
 	params = append(params, param.Param{
-		Key:   "v",
+		Key:   "Version",
 		Value: "1",
 	})
 
@@ -716,6 +715,54 @@ func TestBind_IgnoreField(t *testing.T) {
 	assert.DeepEqual(t, 0, result.ID)
 	assert.DeepEqual(t, "", result.Header)
 	assert.DeepEqual(t, "", result.Form)
+}
+
+func TestBind_DefaultTag(t *testing.T) {
+	type Req struct {
+		Version int
+		ID      int
+		Header  string
+		Form    string
+	}
+	type Req2 struct {
+		Version int
+		ID      int
+		Header  string
+		Form    string
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?ID=12").
+		SetHeaders("Header", "header").
+		SetPostArg("Form", "form").
+		SetUrlEncodeContentType()
+	var params param.Params
+	params = append(params, param.Param{
+		Key:   "Version",
+		Value: "1",
+	})
+	var result Req
+	err := DefaultBinder.Bind(req.Req, params, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 1, result.Version)
+	assert.DeepEqual(t, 12, result.ID)
+	assert.DeepEqual(t, "header", result.Header)
+	assert.DeepEqual(t, "form", result.Form)
+
+	EnableDefaultTag(false)
+	defer func() {
+		EnableDefaultTag(false)
+	}()
+	result2 := Req2{}
+	err = DefaultBinder.Bind(req.Req, params, &result2)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 0, result2.Version)
+	assert.DeepEqual(t, 0, result2.ID)
+	assert.DeepEqual(t, "", result2.Header)
+	assert.DeepEqual(t, "", result2.Form)
 }
 
 func Benchmark_Binding(b *testing.B) {

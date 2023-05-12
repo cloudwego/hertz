@@ -51,6 +51,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
+var EnableDefaultTag = true
+
 type bindRequest struct {
 	Req           *protocol.Request
 	Query         url.Values
@@ -130,7 +132,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 	}
 
 	fieldTagInfos := lookupFieldTags(field)
-	if len(fieldTagInfos) == 0 {
+	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
 
