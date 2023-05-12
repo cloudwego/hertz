@@ -436,7 +436,7 @@ func TestJSON(t *testing.T) {
 	assert.DeepEqual(t, (int64)(6), *recv.Z)
 }
 
-// unsupport non-struct
+// unsupported non-struct
 func TestNonstruct(t *testing.T) {
 }
 
