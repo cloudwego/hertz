@@ -59,12 +59,16 @@ type sliceTypeFieldTextDecoder struct {
 func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
 	var texts []string
 	var defaultValue string
+	var bindRawBody bool
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			continue
 		}
 		if tagInfo.Key == headerTag {
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
+		}
+		if tagInfo.Key == rawBodyTag {
+			bindRawBody = true
 		}
 		texts = tagInfo.Getter(req, params, tagInfo.Value)
 		// todo: array/slice default value
@@ -100,12 +104,13 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 			return fmt.Errorf("%q is not valid value for %s", texts, field.Type().String())
 		}
 	} else {
-		if field.Type().Elem().Kind() == reflect.Uint8 {
-			reqValue.Field(d.index).Set(reflect.ValueOf([]byte(texts[0])))
-			return nil
-		}
 		// slice need creating enough capacity
 		field = reflect.MakeSlice(field.Type(), len(texts), len(texts))
+	}
+	// raw_body && []byte 绑定
+	if bindRawBody && field.Type().Elem().Kind() == reflect.Uint8 {
+		reqValue.Field(d.index).Set(reflect.ValueOf(req.Req.Body()))
+		return nil
 	}
 
 	// handle internal multiple pointer, []**int
