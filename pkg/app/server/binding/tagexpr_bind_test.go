@@ -1,3 +1,37 @@
+/*
+ * Copyright 2022 CloudWeGo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * MIT License
+ *
+ * Copyright 2019 Bytedance Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * This file may have been modified by CloudWeGo authors. All CloudWeGo
+ * Modifications are Copyright 2022 CloudWeGo Authors
+ */
+
 package binding
 
 import (
@@ -348,7 +382,6 @@ func TestFormNum(t *testing.T) {
 	}
 }
 
-// FIXME: content-type 裁剪
 func TestJSON(t *testing.T) {
 	type metric string
 	type count int32
@@ -403,48 +436,8 @@ func TestJSON(t *testing.T) {
 	assert.DeepEqual(t, (int64)(6), *recv.Z)
 }
 
-// FIXME: 非 stuct 绑定，直接走 unmarshal
+// unsupport non-struct
 func TestNonstruct(t *testing.T) {
-	bodyReader := strings.NewReader(`{
-		"X": {
-			"a": ["a1","a2"],
-			"B": 21,
-			"C": [31,32],
-			"d": 41,
-			"e": "qps",
-			"f": 100
-		},
-		"Z": 6
-	}`)
-
-	header := make(http.Header)
-	header.Set("Content-Type", "application/json")
-	req := newRequest("", header, nil, bodyReader)
-	var recv interface{}
-
-	err := DefaultBinder.Bind(req.Req, nil, &recv)
-	if err != nil {
-		t.Error(err)
-	}
-	b, err := json.Marshal(recv)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Logf("%s", b)
-
-	bodyReader = strings.NewReader("b=334ddddd&token=yoMba34uspjVQEbhflgTRe2ceeDFUK32&type=url_verification")
-	header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
-	req = newRequest("", header, nil, bodyReader)
-	recv = nil
-	err = DefaultBinder.Bind(req.Req, nil, recv)
-	if err != nil {
-		t.Error(err)
-	}
-	b, err = json.Marshal(recv)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Logf("%s", b)
 }
 
 type testPathParams struct{}
@@ -507,6 +500,7 @@ func (testPathParams2) Get(name string) (string, bool) {
 }
 
 // FIXME: 复杂类型的默认值
+// 负责类型的默认值用 json unmarshal 做
 func TestDefault(t *testing.T) {
 	type S struct {
 		SS string `json:"ss"`
@@ -639,6 +633,7 @@ func TestAuto(t *testing.T) {
 }
 
 // FIXME: 自定义验证函数 & TIME 类型内置
+// 修改自定义绑定函数的实现
 func TestTypeUnmarshal(t *testing.T) {
 	type Recv struct {
 		A time.Time   `form:"t1"`
@@ -716,7 +711,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
 	err = DefaultBinder.Bind(req.Req, nil, recv)
-	//assert.DeepEqual(t, err.Error(), "binding: expr_path=X.c, cause=missing required parameter")
+	assert.DeepEqual(t, err.Error(), "binding: expr_path=X.c, cause=missing required parameter")
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
 	assert.DeepEqual(t, "y1", recv.Y)
@@ -746,7 +741,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv2 := new(Recv2)
 	err = DefaultBinder.Bind(req.Req, nil, recv2)
-	//assert.DeepEqual(t, err.Error(), "binding: expr_path=X, cause=missing required parameter")
+	assert.DeepEqual(t, err.Error(), "binding: expr_path=X, cause=missing required parameter")
 	assert.True(t, recv2.X == nil)
 	assert.DeepEqual(t, "y1", recv2.Y)
 }
