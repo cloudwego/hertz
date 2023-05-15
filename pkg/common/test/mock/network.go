@@ -142,7 +142,6 @@ func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err != nil || len(b) != i {
-		time.Sleep(m.readTimeout)
 		return nil, errs.ErrReadTimeout
 	}
 	return b, err
