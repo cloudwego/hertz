@@ -829,7 +829,7 @@ func parseResponseBody(c *cli, res *response) (err error) {
 			}
 		} else {
 			jsonByte, jsonErr := json.Marshal(map[string]interface{}{
-				"status_code": res.rawResponse.StatusCode,
+				"status_code": res.rawResponse.StatusCode(),
 				"body":        string(res.bodyByte),
 			})
 			if jsonErr != nil {
