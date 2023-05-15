@@ -21,11 +21,13 @@ import (
 	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
@@ -173,9 +175,6 @@ func (c *Conn) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Close closes the connection
 func (c *Conn) Close() error {
-	c.inputBuffer.release()
-	c.outputBuffer.release()
-	c.inputBuffer, c.outputBuffer = nil, nil
 	return c.c.Close()
 }
 
@@ -526,6 +525,14 @@ func (c *Conn) Flush() (err error) {
 	return nil
 }
 
+func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		hlog.SystemLogger().Debugf("Go net library error=%s, remoteAddr=%s", err.Error(), rip)
+		return true
+	}
+	return false
+}
+
 func (c *TLSConn) Handshake() error {
 	return c.c.(network.ConnTLSer).Handshake()
 }
@@ -539,20 +546,27 @@ func newConn(c net.Conn, size int) network.Conn {
 	if size > maxSize {
 		maxSize = size
 	}
-	inputNode := newBufferNode(maxSize)
+
+	node := newBufferNode(maxSize)
+	inputBuffer := &linkBuffer{
+		head:  node,
+		read:  node,
+		write: node,
+	}
+	runtime.SetFinalizer(inputBuffer, (*linkBuffer).release)
+
 	outputNode := newBufferNode(0)
+	outputBuffer := &linkBuffer{
+		head:  outputNode,
+		write: outputNode,
+	}
+	runtime.SetFinalizer(outputBuffer, (*linkBuffer).release)
+
 	return &Conn{
-		c: c,
-		inputBuffer: &linkBuffer{
-			head:  inputNode,
-			read:  inputNode,
-			write: inputNode,
-		},
-		outputBuffer: &linkBuffer{
-			head:  outputNode,
-			write: outputNode,
-		},
-		maxSize: maxSize,
+		c:            c,
+		inputBuffer:  inputBuffer,
+		outputBuffer: outputBuffer,
+		maxSize:      maxSize,
 	}
 }
 
@@ -561,21 +575,28 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 	if size > maxSize {
 		maxSize = size
 	}
+
 	node := newBufferNode(maxSize)
+	inputBuffer := &linkBuffer{
+		head:  node,
+		read:  node,
+		write: node,
+	}
+	runtime.SetFinalizer(inputBuffer, (*linkBuffer).release)
+
 	outputNode := newBufferNode(0)
+	outputBuffer := &linkBuffer{
+		head:  outputNode,
+		write: outputNode,
+	}
+	runtime.SetFinalizer(outputBuffer, (*linkBuffer).release)
+
 	return &TLSConn{
 		Conn{
-			c: c,
-			inputBuffer: &linkBuffer{
-				head:  node,
-				read:  node,
-				write: node,
-			},
-			outputBuffer: &linkBuffer{
-				head:  outputNode,
-				write: outputNode,
-			},
-			maxSize: maxSize,
+			c:            c,
+			inputBuffer:  inputBuffer,
+			outputBuffer: outputBuffer,
+			maxSize:      maxSize,
 		},
 	}
 }

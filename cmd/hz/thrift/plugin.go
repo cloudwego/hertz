@@ -33,6 +33,7 @@ import (
 	"github.com/cloudwego/thriftgo/generator/backend"
 	"github.com/cloudwego/thriftgo/generator/golang"
 	"github.com/cloudwego/thriftgo/generator/golang/styles"
+	"github.com/cloudwego/thriftgo/parser"
 	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
 
@@ -138,13 +139,14 @@ func (plugin *Plugin) Run() int {
 			OutputDir: args.OutDir,
 			Excludes:  args.Excludes,
 		},
-		ProjPackage:     pkg,
-		Options:         options,
-		HandlerByMethod: args.HandlerByMethod,
-		CmdType:         args.CmdType,
-		IdlClientDir:    util.SubDir(modelDir, pkgInfo.Package),
-		ForceClientDir:  args.ForceClientDir,
-		BaseDomain:      args.BaseDomain,
+		ProjPackage:          pkg,
+		Options:              options,
+		HandlerByMethod:      args.HandlerByMethod,
+		CmdType:              args.CmdType,
+		IdlClientDir:         util.SubDir(modelDir, pkgInfo.Package),
+		ForceClientDir:       args.ForceClientDir,
+		BaseDomain:           args.BaseDomain,
+		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)
@@ -291,7 +293,7 @@ func (plugin *Plugin) getPackageInfo() (*generator.HttpPackage, error) {
 		return nil, fmt.Errorf("go package for '%s' is not defined", ast.GetFilename())
 	}
 
-	services, err := astToService(ast, rs, args.CmdType)
+	services, err := astToService(ast, rs, args)
 	if err != nil {
 		return nil, err
 	}
@@ -332,21 +334,9 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				field := model.Field{}
-				err := injectTags(f, &field, true, false)
+				tagString, err := getTagString(f)
 				if err != nil {
 					return nil, err
-				}
-				tags := field.Tags
-				var tagString string
-				for idx, tag := range tags {
-					if idx == 0 {
-						tagString += " " + tag.Key + ":\"" + tag.Value + ":\"" + " "
-					} else if idx == len(tags)-1 {
-						tagString += tag.Key + ":\"" + tag.Value + ":\""
-					} else {
-						tagString += tag.Key + ":\"" + tag.Value + ":\"" + " "
-					}
 				}
 				insertPointer := "struct." + stName + "." + fieldName + "." + "tag"
 				gen := &thriftgo_plugin.Generated{
@@ -370,21 +360,9 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				field := model.Field{}
-				err := injectTags(f, &field, true, false)
+				tagString, err := getTagString(f)
 				if err != nil {
 					return nil, err
-				}
-				tags := field.Tags
-				var tagString string
-				for idx, tag := range tags {
-					if idx == 0 {
-						tagString += " " + tag.Key + ":\"" + tag.Value + "\"" + " "
-					} else if idx == len(tags)-1 {
-						tagString += tag.Key + ":\"" + tag.Value + "\""
-					} else {
-						tagString += tag.Key + ":\"" + tag.Value + "\"" + " "
-					}
 				}
 				insertPointer := "struct." + stName + "." + fieldName + "." + "tag"
 				gen := &thriftgo_plugin.Generated{
@@ -420,4 +398,35 @@ func (plugin *Plugin) GetResponse(files []generator.File, outputDir string) (*th
 	return &thriftgo_plugin.Response{
 		Contents: contents,
 	}, nil
+}
+
+func getTagString(f *parser.Field) (string, error) {
+	field := model.Field{}
+	err := injectTags(f, &field, true, false)
+	if err != nil {
+		return "", err
+	}
+	disableTag := false
+	if v := getAnnotation(f.Annotations, AnnotationNone); len(v) > 0 {
+		if strings.EqualFold(v[0], "true") {
+			disableTag = true
+		}
+	}
+	var tagString string
+	tags := field.Tags
+	for idx, tag := range tags {
+		value := tag.Value
+		if disableTag {
+			value = "-"
+		}
+		if idx == 0 {
+			tagString += " " + tag.Key + ":\"" + value + "\"" + " "
+		} else if idx == len(tags)-1 {
+			tagString += tag.Key + ":\"" + value + "\""
+		} else {
+			tagString += tag.Key + ":\"" + value + "\"" + " "
+		}
+	}
+
+	return tagString, nil
 }

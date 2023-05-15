@@ -55,6 +55,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -1803,11 +1804,80 @@ func TestClientMiddleware(t *testing.T) {
 	client.Use(mw1)
 	client.Use(mw2)
 
-	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-	err := client.Do(context.Background(), req, resp)
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err := client.Do(context.Background(), request, response)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err.Error())
 	}
+}
+
+func TestClientLastMiddleware(t *testing.T) {
+	client, _ := NewClient()
+	mw0 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			finalValue0 := ctx.Value("final0")
+			assert.DeepEqual(t, "final3", finalValue0)
+			finalValue1 := ctx.Value("final1")
+			assert.DeepEqual(t, "final1", finalValue1)
+			finalValue2 := ctx.Value("final2")
+			assert.DeepEqual(t, "final2", finalValue2)
+			return nil
+		}
+	}
+	mw1 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final0")
+			return next(ctx, req, resp)
+		}
+	}
+	mw2 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final1", "final1")
+			return next(ctx, req, resp)
+		}
+	}
+	mw3 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final2", "final2")
+			return next(ctx, req, resp)
+		}
+	}
+	mw4 := func(next Endpoint) Endpoint {
+		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			ctx = context.WithValue(ctx, "final0", "final3")
+			return next(ctx, req, resp)
+		}
+	}
+	err := client.UseAsLast(mw0)
+	assert.Nil(t, err)
+	err = client.UseAsLast(func(endpoint Endpoint) Endpoint {
+		return nil
+	})
+	assert.DeepEqual(t, errorLastMiddlewareExist, err)
+	client.Use(mw1)
+	client.Use(mw2)
+	client.Use(mw3)
+	client.Use(mw4)
+
+	request, response := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(request)
+		protocol.ReleaseResponse(response)
+	}()
+	err = client.Do(context.Background(), request, response)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+
+	last := client.TakeOutLastMiddleware()
+
+	assert.DeepEqual(t, reflect.ValueOf(last).Pointer(), reflect.ValueOf(mw0).Pointer())
+	last = client.TakeOutLastMiddleware()
+	assert.Nil(t, last)
 }
 
 func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
@@ -1879,6 +1949,58 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	if string(left) != part2 {
 		t.Errorf("left len=%v, left content=%v; want len=%v, want content=%v", len(left), string(left), len(part2), part2)
 	}
+}
+
+func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
+	part1 := ""
+	for i := 0; i < 8192; i++ {
+		part1 += "a"
+	}
+
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "127.0.0.1:10036"
+	engine := route.NewEngine(opt)
+	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
+		c.String(consts.StatusOK, part1)
+	})
+	go engine.Run()
+	time.Sleep(100 * time.Millisecond)
+
+	client, _ := NewClient(WithResponseBodyStream(true))
+
+	// first req
+	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(resp)
+	}()
+	req.SetConnectionClose()
+	req.SetMethod(consts.MethodPost)
+	req.SetRequestURI("http://127.0.0.1:10036")
+
+	err := client.Do(context.Background(), req, resp)
+	if err != nil {
+		t.Fatalf("client Do error=%v", err.Error())
+	}
+
+	assert.DeepEqual(t, part1, string(resp.Body()))
+
+	// second req
+	req1, resp1 := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req1)
+		protocol.ReleaseResponse(resp1)
+	}()
+	req1.SetConnectionClose()
+	req1.SetMethod(consts.MethodPost)
+	req1.SetRequestURI("http://127.0.0.1:10036")
+
+	err = client.Do(context.Background(), req1, resp1)
+	if err != nil {
+		t.Fatalf("client Do error=%v", err.Error())
+	}
+
+	assert.DeepEqual(t, part1, string(resp1.Body()))
 }
 
 type mockDialer struct {

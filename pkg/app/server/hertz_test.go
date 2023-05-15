@@ -37,6 +37,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -739,4 +740,44 @@ func TestOnprepare(t *testing.T) {
 	go h.Spin()
 	time.Sleep(time.Second)
 	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
+}
+
+type lockBuffer struct {
+	sync.Mutex
+	b bytes.Buffer
+}
+
+func (l *lockBuffer) Write(p []byte) (int, error) {
+	l.Lock()
+	defer l.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockBuffer) String() string {
+	l.Lock()
+	defer l.Unlock()
+	return l.b.String()
+}
+
+func TestSilentMode(t *testing.T) {
+	hlog.SetSilentMode(true)
+	b := &lockBuffer{b: bytes.Buffer{}}
+
+	hlog.SetOutput(b)
+
+	h := New(WithHostPorts("localhost:9232"), WithTransport(standard.NewTransporter))
+	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		ctx.Write([]byte("hello, world"))
+	})
+	go h.Spin()
+	time.Sleep(time.Second)
+
+	d := standard.NewDialer()
+	conn, _ := d.DialConnection("tcp", "127.0.0.1:9232", 0, nil)
+	conn.Write([]byte("aaa"))
+	conn.Close()
+
+	if strings.Contains(b.String(), "Error") {
+		t.Fatalf("unexpected error in log: %s", b.String())
+	}
 }
