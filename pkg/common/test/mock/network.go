@@ -18,7 +18,6 @@ package mock
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"strings"
 	"time"
@@ -90,7 +89,7 @@ func (m *Conn) Peek(i int) ([]byte, error) {
 			select {}
 		}
 		time.Sleep(m.readTimeout)
-		return nil, errors.ErrTimeout
+		return nil, errs.ErrTimeout
 	}
 	return b, err
 }
@@ -182,7 +181,7 @@ func (m *SlowWriteConn) Flush() error {
 	time.Sleep(100 * time.Millisecond)
 	if err == nil {
 		time.Sleep(m.writeTimeout)
-		return errors.ErrWriteTimeout
+		return errs.ErrWriteTimeout
 	}
 	return err
 }
@@ -259,7 +258,7 @@ func (m *StreamConn) Peek(n int) ([]byte, error) {
 		m.Data = m.Data[:cap(m.Data)]
 		return m.Data[:1], nil
 	}
-	return nil, errors.NewPublic("not enough data")
+	return nil, errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Skip(n int) error {
@@ -267,7 +266,7 @@ func (m *StreamConn) Skip(n int) error {
 		m.Data = m.Data[n:]
 		return nil
 	}
-	return errors.NewPublic("not enough data")
+	return errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Release() error {
