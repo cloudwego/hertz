@@ -56,7 +56,6 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
-	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
@@ -68,8 +67,15 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-var zeroTCPAddr = &net.TCPAddr{
-	IP: net.IPv4zero,
+// tinygo not implement net.TCPAddr, so define a struct
+type zeroTCPAddr struct{}
+
+func (a *zeroTCPAddr) String() string {
+	return "0.0.0.0:0"
+}
+
+func (a *zeroTCPAddr) Network() string {
+	return "0.0.0.0:0"
 }
 
 type Handler interface {
@@ -436,11 +442,11 @@ func (ctx *RequestContext) Host() []byte {
 // If address is nil, it will return zeroTCPAddr.
 func (ctx *RequestContext) RemoteAddr() net.Addr {
 	if ctx.conn == nil {
-		return zeroTCPAddr
+		return &zeroTCPAddr{}
 	}
 	addr := ctx.conn.RemoteAddr()
 	if addr == nil {
-		return zeroTCPAddr
+		return &zeroTCPAddr{}
 	}
 	return addr
 }
@@ -1275,22 +1281,4 @@ func bodyAllowedForStatus(status int) bool {
 		return false
 	}
 	return true
-}
-
-// BindAndValidate binds data from *RequestContext to obj and validates them if needed.
-// NOTE: obj should be a pointer.
-func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
-}
-
-// Bind binds data from *RequestContext to obj.
-// NOTE: obj should be a pointer.
-func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.Bind(&ctx.Request, obj, ctx.Params)
-}
-
-// Validate validates obj with "vd" tag
-// NOTE: obj should be a pointer.
-func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.Validate(obj)
 }

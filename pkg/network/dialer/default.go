@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !tinygo && !windows
+// +build !tinygo,!windows
 
 /*
  * Copyright 2022 CloudWeGo Authors
