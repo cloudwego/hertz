@@ -52,6 +52,7 @@ import (
 )
 
 var EnableDefaultTag = true
+var EnableStructFieldResolve = false
 
 type bindRequest struct {
 	Req           *protocol.Request
@@ -152,6 +153,15 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 		case reflect.TypeOf(multipart.FileHeader{}):
 			return getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
 		}
+		if EnableStructFieldResolve {
+			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx)
+			if err != nil {
+				return nil, err
+			}
+			if structFieldDecoder != nil {
+				decoders = append(decoders, structFieldDecoder...)
+			}
+		}
 
 		for i := 0; i < el.NumField(); i++ {
 			if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
@@ -167,7 +177,6 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 			if err != nil {
 				return nil, err
 			}
-
 			if dec != nil {
 				decoders = append(decoders, dec...)
 			}

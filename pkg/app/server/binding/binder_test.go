@@ -752,7 +752,7 @@ func TestBind_DefaultTag(t *testing.T) {
 
 	EnableDefaultTag(false)
 	defer func() {
-		EnableDefaultTag(false)
+		EnableDefaultTag(true)
 	}()
 	result2 := Req2{}
 	err = DefaultBinder.Bind(req.Req, params, &result2)
@@ -763,6 +763,45 @@ func TestBind_DefaultTag(t *testing.T) {
 	assert.DeepEqual(t, 0, result2.ID)
 	assert.DeepEqual(t, "", result2.Header)
 	assert.DeepEqual(t, "", result2.Form)
+}
+
+func TestBind_StructFieldResolve(t *testing.T) {
+	type Nested struct {
+		A int `query:"a" json:"a"`
+		B int `query:"b" json:"b"`
+	}
+	type Req struct {
+		N Nested `query:"n"`
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?n={\"a\":1,\"b\":2}").
+		SetHeaders("Header", "header").
+		SetPostArg("Form", "form").
+		SetUrlEncodeContentType()
+	var result Req
+	EnableStructFieldResolve(true)
+	defer func() {
+		EnableDefaultTag(false)
+	}()
+	err := DefaultBinder.Bind(req.Req, nil, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 1, result.N.A)
+	assert.DeepEqual(t, 2, result.N.B)
+
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com?n={\"a\":1,\"b\":2}&a=11&b=22").
+		SetHeaders("Header", "header").
+		SetPostArg("Form", "form").
+		SetUrlEncodeContentType()
+	err = DefaultBinder.Bind(req.Req, nil, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 11, result.N.A)
+	assert.DeepEqual(t, 22, result.N.B)
 }
 
 func Benchmark_Binding(b *testing.B) {

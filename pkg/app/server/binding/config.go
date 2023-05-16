@@ -34,3 +34,7 @@ func ResetStdJSONUnmarshaler() {
 func EnableDefaultTag(b bool) {
 	decoder.EnableDefaultTag = b
 }
+
+func EnableStructFieldResolve(b bool) {
+	decoder.EnableStructFieldResolve = b
+}
