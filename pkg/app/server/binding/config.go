@@ -23,18 +23,24 @@ import (
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 )
 
+// ResetJSONUnmarshaler reset the JSON Unmarshal function.
 func ResetJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 	hjson.Unmarshal = fn
 }
 
+// ResetStdJSONUnmarshaler uses "encoding/json" as the JSON Unmarshal function.
 func ResetStdJSONUnmarshaler() {
 	ResetJSONUnmarshaler(standardJson.Unmarshal)
 }
 
+// EnableDefaultTag is used to enable or disable adding default tags to a field when it has no tag, it is true by default.
+// If is true, the field with no tag will be added default tags, for more automated parameter binding. But there may be additional overhead
 func EnableDefaultTag(b bool) {
 	decoder.EnableDefaultTag = b
 }
 
+// EnableStructFieldResolve to enable or disable the generation of a separate decoder for a struct, it is false by default.
+// If is true, the 'struct' field will get a single decoder.structTypeFieldTextDecoder, and use json.Unmarshal for decode it.
 func EnableStructFieldResolve(b bool) {
 	decoder.EnableStructFieldResolve = b
 }

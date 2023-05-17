@@ -498,8 +498,7 @@ func (testPathParams2) Get(name string) (string, bool) {
 	}
 }
 
-// FIXME: 复杂类型的默认值
-// 负责类型的默认值用 json unmarshal 做
+// FIXME: 复杂类型的默认值，暂时先不做，低优
 func TestDefault(t *testing.T) {
 	type S struct {
 		SS string `json:"ss"`
@@ -631,8 +630,7 @@ func TestAuto(t *testing.T) {
 	assert.DeepEqual(t, "d-from-form", recv.D)
 }
 
-// FIXME: 自定义验证函数 & TIME 类型内置
-// 修改自定义绑定函数的实现
+// FIXME: 自定义验证函数 & TIME 类型内置, 暂时先不做，低优
 func TestTypeUnmarshal(t *testing.T) {
 	type Recv struct {
 		A time.Time   `form:"t1"`
