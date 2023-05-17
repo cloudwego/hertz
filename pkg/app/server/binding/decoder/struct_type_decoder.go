@@ -37,6 +37,14 @@ func (d *structTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathP
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			defaultValue = tagInfo.Default
+			if tagInfo.Key == jsonTag {
+				found := checkRequireJSON(req, tagInfo)
+				if found {
+					err = nil
+				} else {
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+				}
+			}
 			continue
 		}
 		if tagInfo.Key == headerTag {

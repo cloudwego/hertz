@@ -43,6 +43,7 @@ const (
 type TagInfo struct {
 	Key      string
 	Value    string
+	JSONName string
 	Required bool
 	Skip     bool
 	Default  string
@@ -58,7 +59,7 @@ func head(str, sep string) (head, tail string) {
 	return str[:idx], str[idx+len(sep):]
 }
 
-func lookupFieldTags(field reflect.StructField) []TagInfo {
+func lookupFieldTags(field reflect.StructField, parentJSONName string) ([]TagInfo, string) {
 	var ret []string
 	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag}
 	for _, tag := range tags {
@@ -73,12 +74,27 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 	}
 
 	var tagInfos []TagInfo
+	var newParentJSONName string
 	for _, tag := range ret {
 		tagContent := field.Tag.Get(tag)
 		tagValue, opts := head(tagContent, ",")
+		if len(tagValue) == 0 {
+			tagValue = field.Name
+		}
 		skip := false
+		jsonName := ""
+		if tag == jsonTag {
+			jsonName = parentJSONName + "." + tagValue
+		}
 		if tagValue == "-" {
 			skip = true
+			if tag == jsonTag {
+				jsonName = parentJSONName + "." + field.Name
+			}
+		}
+		if jsonName != "" {
+			jsonName = strings.TrimPrefix(jsonName, ".")
+			newParentJSONName = jsonName
 		}
 		var options []string
 		var opt string
@@ -90,10 +106,13 @@ func lookupFieldTags(field reflect.StructField) []TagInfo {
 				required = true
 			}
 		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Default: defaultVal, Skip: skip})
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, JSONName: jsonName, Options: options, Required: required, Default: defaultVal, Skip: skip})
+	}
+	if len(newParentJSONName) == 0 {
+		newParentJSONName = strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
 	}
 
-	return tagInfos
+	return tagInfos, newParentJSONName
 }
 
 func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {

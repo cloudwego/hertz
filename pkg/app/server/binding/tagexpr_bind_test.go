@@ -112,6 +112,9 @@ func TestGetBody(t *testing.T) {
 	req := newRequest("http://localhost:8080/", nil, nil, nil)
 	recv := new(Recv)
 	err := DefaultBinder.Bind(req.Req, nil, recv)
+	if err == nil {
+		t.Fatalf("expected an error, but get nil")
+	}
 	assert.DeepEqual(t, err.Error(), "'E' field is a 'required' parameter, but the request does not have this parameter")
 }
 
@@ -420,10 +423,10 @@ func TestJSON(t *testing.T) {
 	recv := new(Recv)
 
 	err := DefaultBinder.Bind(req.Req, nil, recv)
-	if err != nil {
-		t.Error(err)
+	if err == nil {
+		t.Error("expected an error, but get nil")
 	}
-	//assert.DeepEqual(t, &binding.Error{ErrType: "binding", FailField: "y", Msg: "missing required parameter"}, err)
+	assert.DeepEqual(t, err.Error(), "'Y' field is a 'required' parameter, but the request does not have this parameter")
 	assert.DeepEqual(t, []string{"a1", "a2"}, (**recv.X).A)
 	assert.DeepEqual(t, int32(21), (**recv.X).B)
 	assert.DeepEqual(t, &[]uint16{31, 32}, (**recv.X).C)
@@ -708,7 +711,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
 	err = DefaultBinder.Bind(req.Req, nil, recv)
-	//assert.DeepEqual(t, err.Error(), "binding: expr_path=X.c, cause=missing required parameter")
+	assert.DeepEqual(t, err.Error(), "'C' field is a 'required' parameter, but the request does not have this parameter")
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
 	assert.DeepEqual(t, "y1", recv.Y)
@@ -737,8 +740,12 @@ func TestOption(t *testing.T) {
 		}`)
 	req = newRequest("", header, nil, bodyReader)
 	recv2 := new(Recv2)
+	EnableStructFieldResolve(true)
+	defer func() {
+		EnableStructFieldResolve(false)
+	}()
 	err = DefaultBinder.Bind(req.Req, nil, recv2)
-	//assert.DeepEqual(t, err.Error(), "binding: expr_path=X, cause=missing required parameter")
+	assert.DeepEqual(t, err.Error(), "'X' field is a 'required' parameter, but the request does not have this parameter")
 	assert.True(t, recv2.X == nil)
 	assert.DeepEqual(t, "y1", recv2.Y)
 }
@@ -1019,7 +1026,6 @@ func TestRequiredBUG(t *testing.T) {
 	}
 
 	z := &ExchangeCurrencyRequest{}
-	// v := ameda.InitSampleValue(reflect.TypeOf(z), 10).Interface().(*ExchangeCurrencyRequest)
 	b := []byte(`{
           "promotion_region": "?",
           "currency": {
@@ -1043,7 +1049,10 @@ func TestRequiredBUG(t *testing.T) {
 	recv := new(ExchangeCurrencyRequest)
 
 	err := DefaultBinder.Bind(req.Req, nil, recv)
-	assert.DeepEqual(t, err.Error(), "validating: expr_path=Currency.Slice[0].currencyName, cause=invalid")
+	// no need for validate
+	if err != nil {
+		t.Error(err)
+	}
 	assert.DeepEqual(t, z, recv)
 }
 

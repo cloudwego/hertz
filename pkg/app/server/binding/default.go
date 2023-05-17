@@ -86,7 +86,7 @@ func (b *defaultBinder) Name() string {
 func (b *defaultBinder) Bind(req *protocol.Request, params path.PathParam, v interface{}) error {
 	err := b.preBindBody(req, v)
 	if err != nil {
-		return err
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	rv, typeID := valueAndTypeID(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {

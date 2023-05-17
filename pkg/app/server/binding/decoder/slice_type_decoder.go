@@ -57,11 +57,21 @@ type sliceTypeFieldTextDecoder struct {
 }
 
 func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+	var err error
 	var texts []string
 	var defaultValue string
 	var bindRawBody bool
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
+			defaultValue = tagInfo.Default
+			if tagInfo.Key == jsonTag {
+				found := checkRequireJSON(req, tagInfo)
+				if found {
+					err = nil
+				} else {
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+				}
+			}
 			continue
 		}
 		if tagInfo.Key == headerTag {
@@ -74,8 +84,15 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 		// todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
+			err = nil
 			break
 		}
+		if tagInfo.Required {
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+		}
+	}
+	if err != nil {
+		return err
 	}
 	if len(texts) == 0 && len(defaultValue) != 0 {
 		texts = append(texts, defaultValue)

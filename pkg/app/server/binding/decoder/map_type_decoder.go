@@ -55,10 +55,20 @@ type mapTypeFieldTextDecoder struct {
 }
 
 func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+	var err error
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
+			defaultValue = tagInfo.Default
+			if tagInfo.Key == jsonTag {
+				found := checkRequireJSON(req, tagInfo)
+				if found {
+					err = nil
+				} else {
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+				}
+			}
 			continue
 		}
 		if tagInfo.Key == headerTag {
@@ -68,8 +78,15 @@ func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPara
 		defaultValue = tagInfo.Default
 		if len(ret) != 0 {
 			text = ret[0]
+			err = nil
 			break
 		}
+		if tagInfo.Required {
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+		}
+	}
+	if err != nil {
+		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
@@ -96,7 +113,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPara
 		return nil
 	}
 
-	err := hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
+	err = hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 	}

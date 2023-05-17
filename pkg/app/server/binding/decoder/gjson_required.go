@@ -1,0 +1,46 @@
+//go:build stdjson || !(amd64 && (linux || windows || darwin))
+// +build stdjson !amd64 !linux,!windows,!darwin
+
+/*
+ * Copyright 2022 CloudWeGo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package decoder
+
+import (
+	"strings"
+
+	"github.com/tidwall/gjson"
+)
+
+func checkRequireJSON2(req *bindRequest, tagInfo TagInfo) bool {
+	if !tagInfo.Required {
+		return true
+	}
+	ct := bytesconv.B2s(req.Req.Header.ContentType())
+	if utils.FilterContentType(ct) != "application/json" {
+		return false
+	}
+	result := gjson.GetBytes(req.Req.Body(), tagInfo.JSONName)
+	if !result.Exists() {
+		idx := strings.LastIndex(tagInfo.JSONName, ".")
+		// There should be a superior if it is empty, it will report 'true' for required
+		if idx > 0 && !gjson.GetBytes(req.Req.Body(), tagInfo.JSONName[:idx]).Exists() {
+			return true
+		}
+		return false
+	}
+	return true
+}

@@ -89,7 +89,7 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 			continue
 		}
 
-		dec, err := getFieldDecoder(el.Field(i), i, []int{})
+		dec, err := getFieldDecoder(el.Field(i), i, []int{}, "")
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 	}, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]fieldDecoder, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string) ([]fieldDecoder, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -132,7 +132,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 		}}, nil
 	}
 
-	fieldTagInfos := lookupFieldTags(field)
+	fieldTagInfos, newParentJSONName := lookupFieldTags(field, parentJSONName)
 	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
@@ -148,7 +148,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []fieldDecoder
 		el := field.Type
-		// todo: more built-int common struct binding, ex. time...
+		// todo: more built-in common struct binding, ex. time...
 		switch el {
 		case reflect.TypeOf(multipart.FileHeader{}):
 			return getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
@@ -173,7 +173,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int) ([]f
 				idxes = append(idxes, parentIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, err := getFieldDecoder(el.Field(i), i, idxes)
+			dec, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName)
 			if err != nil {
 				return nil, err
 			}

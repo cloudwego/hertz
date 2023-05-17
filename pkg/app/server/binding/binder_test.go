@@ -804,6 +804,63 @@ func TestBind_StructFieldResolve(t *testing.T) {
 	assert.DeepEqual(t, 22, result.N.B)
 }
 
+func TestBind_JSONRequiredField(t *testing.T) {
+	type Nested2 struct {
+		C int `json:"c,required"`
+		D int `json:"dd,required"`
+	}
+	type Nested struct {
+		A  int     `json:"a,required"`
+		B  int     `json:"b,required"`
+		N2 Nested2 `json:"n2"`
+	}
+	type Req struct {
+		N Nested `json:"n,required"`
+	}
+	bodyBytes := []byte(`{
+    "n": {
+        "a": 1,
+        "b": 2,
+        "n2": {
+             "dd": 4
+        }
+    }
+}`)
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?j2=13").
+		SetJSONContentType().
+		SetBody(bodyBytes)
+	var result Req
+	err := DefaultBinder.Bind(req.Req, nil, &result)
+	if err == nil {
+		t.Errorf("expected an error, but get nil")
+	}
+	assert.DeepEqual(t, 1, result.N.A)
+	assert.DeepEqual(t, 2, result.N.B)
+	assert.DeepEqual(t, 0, result.N.N2.C)
+	assert.DeepEqual(t, 4, result.N.N2.D)
+
+	bodyBytes = []byte(`{
+    "n": {
+        "a": 1,
+        "b": 2
+    }
+}`)
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com?j2=13").
+		SetJSONContentType().
+		SetBody(bodyBytes)
+	var result2 Req
+	err = DefaultBinder.Bind(req.Req, nil, &result2)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 1, result2.N.A)
+	assert.DeepEqual(t, 2, result2.N.B)
+	assert.DeepEqual(t, 0, result2.N.N2.C)
+	assert.DeepEqual(t, 0, result2.N.N2.D)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
