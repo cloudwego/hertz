@@ -18,8 +18,8 @@ package binding
 
 import (
 	standardJson "encoding/json"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 )
 

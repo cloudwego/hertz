@@ -503,9 +503,9 @@ func (testPathParams2) Get(name string) (string, bool) {
 
 // FIXME: 复杂类型的默认值，暂时先不做，低优
 func TestDefault(t *testing.T) {
-	type S struct {
-		SS string `json:"ss"`
-	}
+	//type S struct {
+	//	SS string `json:"ss"`
+	//}
 
 	type Recv struct {
 		X **struct {
@@ -513,11 +513,11 @@ func TestDefault(t *testing.T) {
 			B int32    `path:"b" default:"32"`
 			C bool     `json:"c" default:"true"`
 			D *float32 `default:"123.4"`
-			//E          *[]string          `default:"['a','b','c','d,e,f']"`
-			//F          map[string]string  `default:"{'a':'\"\\'1','\"b':'c','c':'2'}"`
-			//G          map[string]int64   `default:"{'a':1,'b':2,'c':3}"`
-			//H          map[string]float64 `default:"{'a':0.1,'b':1.2,'c':2.3}"`
-			//I          map[string]float64 `default:"{'\"a\"':0.1,'b':1.2,'c':2.3}"`
+			// E          *[]string          `default:"['a','b','c','d,e,f']"`
+			// F          map[string]string  `default:"{'a':'\"\\'1','\"b':'c','c':'2'}"`
+			// G          map[string]int64   `default:"{'a':1,'b':2,'c':3}"`
+			// H          map[string]float64 `default:"{'a':0.1,'b':1.2,'c':2.3}"`
+			// I          map[string]float64 `default:"{'\"a\"':0.1,'b':1.2,'c':2.3}"`
 			Empty      string `default:""`
 			Null       string `default:""`
 			CommaSpace string `default:",a:c "`
@@ -528,12 +528,12 @@ func TestDefault(t *testing.T) {
 		Y string `json:"y" default:"y1"`
 		Z int64
 		W string `json:"w"`
-		//V []int64   `json:"u" default:"[1,2,3]"`
-		//U []float32 `json:"u" default:"[1.1,2,3]"`
+		// V []int64   `json:"u" default:"[1,2,3]"`
+		// U []float32 `json:"u" default:"[1.1,2,3]"`
 		T *string `json:"t" default:"t1"`
-		//S S         `default:"{'ss':'test'}"`
-		//O *S        `default:"{'ss':'test2'}"`
-		//Complex map[string][]map[string][]int64 `default:"{'a':[{'aa':[1,2,3], 'bb':[4,5]}],'b':[{}]}"`
+		// S S         `default:"{'ss':'test'}"`
+		// O *S        `default:"{'ss':'test2'}"`
+		// Complex map[string][]map[string][]int64 `default:"{'a':[{'aa':[1,2,3], 'bb':[4,5]}],'b':[{}]}"`
 	}
 
 	bodyReader := strings.NewReader(`{
@@ -557,11 +557,11 @@ func TestDefault(t *testing.T) {
 	assert.DeepEqual(t, int32(32), (**recv.X).B)
 	assert.DeepEqual(t, true, (**recv.X).C)
 	assert.DeepEqual(t, float32(123.4), *(**recv.X).D)
-	//assert.DeepEqual(t, []string{"a", "b", "c", "d,e,f"}, *(**recv.X).E)
-	//assert.DeepEqual(t, map[string]string{"a": "\"'1", "\"b": "c", "c": "2"}, (**recv.X).F)
-	//assert.DeepEqual(t, map[string]int64{"a": 1, "b": 2, "c": 3}, (**recv.X).G)
-	//assert.DeepEqual(t, map[string]float64{"a": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).H)
-	//assert.DeepEqual(t, map[string]float64{"\"a\"": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).I)
+	// assert.DeepEqual(t, []string{"a", "b", "c", "d,e,f"}, *(**recv.X).E)
+	// assert.DeepEqual(t, map[string]string{"a": "\"'1", "\"b": "c", "c": "2"}, (**recv.X).F)
+	// assert.DeepEqual(t, map[string]int64{"a": 1, "b": 2, "c": 3}, (**recv.X).G)
+	// assert.DeepEqual(t, map[string]float64{"a": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).H)
+	// assert.DeepEqual(t, map[string]float64{"\"a\"": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).I)
 	assert.DeepEqual(t, "", (**recv.X).Empty)
 	assert.DeepEqual(t, "", (**recv.X).Null)
 	assert.DeepEqual(t, ",a:c ", (**recv.X).CommaSpace)
@@ -571,11 +571,11 @@ func TestDefault(t *testing.T) {
 	assert.DeepEqual(t, "y1", recv.Y)
 	assert.DeepEqual(t, "t1", *recv.T)
 	assert.DeepEqual(t, int64(6), recv.Z)
-	//assert.DeepEqual(t, []int64{1, 2, 3}, recv.V)
-	//assert.DeepEqual(t, []float32{1.1, 2, 3}, recv.U)
-	//assert.DeepEqual(t, S{SS: "test"}, recv.S)
-	//assert.DeepEqual(t, &S{SS: "test2"}, recv.O)
-	//assert.DeepEqual(t, map[string][]map[string][]int64{"a": {{"aa": {1, 2, 3}, "bb": []int64{4, 5}}}, "b": {map[string][]int64{}}}, recv.Complex)
+	// assert.DeepEqual(t, []int64{1, 2, 3}, recv.V)
+	// assert.DeepEqual(t, []float32{1.1, 2, 3}, recv.U)
+	// assert.DeepEqual(t, S{SS: "test"}, recv.S)
+	// assert.DeepEqual(t, &S{SS: "test2"}, recv.O)
+	// assert.DeepEqual(t, map[string][]map[string][]int64{"a": {{"aa": {1, 2, 3}, "bb": []int64{4, 5}}}, "b": {map[string][]int64{}}}, recv.Complex)
 }
 
 func TestAuto(t *testing.T) {
@@ -754,7 +754,7 @@ func newRequest(u string, header http.Header, cookies []*http.Cookie, bodyReader
 	if header == nil {
 		header = make(http.Header)
 	}
-	var method = "GET"
+	method := "GET"
 	var body []byte
 	if bodyReader != nil {
 		body, _ = ioutil.ReadAll(bodyReader)
@@ -777,7 +777,6 @@ func newRequest(u string, header http.Header, cookies []*http.Cookie, bodyReader
 	req.Req.SetMethod(method)
 	for _, c := range cookies {
 		req.Req.Header.SetCookie(c.Name, c.Value)
-
 	}
 	return req
 }
@@ -882,13 +881,13 @@ func TestRegTypeUnmarshal(t *testing.T) {
 		Q  Q    `query:"q"`
 		Qs []*Q `query:"qs"`
 	}
-	var values = url.Values{}
+	values := url.Values{}
 	b, err := json.Marshal(Q{A: 2, B: "y"})
 	if err != nil {
 		t.Error(err)
 	}
 	values.Add("q", string(b))
-	bs, err := json.Marshal([]Q{{A: 1, B: "x"}, {A: 2, B: "y"}})
+	bs, _ := json.Marshal([]Q{{A: 1, B: "x"}, {A: 2, B: "y"}})
 	values.Add("qs", string(bs))
 	req := newRequest("http://localhost:8080/?"+values.Encode(), nil, nil, nil)
 	recv := new(T)
@@ -948,18 +947,15 @@ func TestRegTypeUnmarshal(t *testing.T) {
 // FIXME: json unmarshal 后其他 required 没必要 校验 required
 func TestPathnameBUG2(t *testing.T) {
 	type CurrencyData struct {
-		z      int
 		Amount *string `form:"amount,required" json:"amount,required" protobuf:"bytes,1,req,name=amount" query:"amount,required"`
 		Name   *string `form:"name,required" json:"name,required" protobuf:"bytes,2,req,name=name" query:"name,required"`
 		Symbol *string `form:"symbol" json:"symbol,omitempty" protobuf:"bytes,3,opt,name=symbol" query:"symbol"`
 	}
 	type TimeRange struct {
-		z         int
 		StartTime *int64 `form:"start_time,required" json:"start_time,required" protobuf:"varint,1,req,name=start_time,json=startTime" query:"start_time,required"`
 		EndTime   *int64 `form:"end_time,required" json:"end_time,required" protobuf:"varint,2,req,name=end_time,json=endTime" query:"end_time,required"`
 	}
 	type CreateFreeShippingRequest struct {
-		z                int
 		PromotionName    *string       `form:"promotion_name,required" json:"promotion_name,required" protobuf:"bytes,1,req,name=promotion_name,json=promotionName" query:"promotion_name,required"`
 		PromotionRegion  *string       `form:"promotion_region,required" json:"promotion_region,required" protobuf:"bytes,2,req,name=promotion_region,json=promotionRegion" query:"promotion_region,required"`
 		TimeRange        *TimeRange    `form:"time_range,required" json:"time_range,required" protobuf:"bytes,3,req,name=time_range,json=timeRange" query:"time_range,required"`
@@ -988,7 +984,7 @@ func TestPathnameBUG2(t *testing.T) {
         "7493989780026655762","11111","111212121"
     ]
 }`)
-	var v = new(CreateFreeShippingRequest)
+	v := new(CreateFreeShippingRequest)
 	err := json.Unmarshal(b, v)
 	if err != nil {
 		t.Error(err)
@@ -1010,7 +1006,7 @@ func TestPathnameBUG2(t *testing.T) {
 // FIXME: json unmarshal 后的其他 tag 的 required 的校验
 func TestRequiredBUG(t *testing.T) {
 	type Currency struct {
-		currencyName   *string `form:"currency_name,required" json:"currency_name,required" protobuf:"bytes,1,req,name=currency_name,json=currencyName" query:"currency_name,required"`
+		// currencyName   *string `form:"currency_name,required" json:"currency_name,required" protobuf:"bytes,1,req,name=currency_name,json=currencyName" query:"currency_name,required"`
 		CurrencySymbol *string `form:"currency_symbol,required" json:"currency_symbol,required" protobuf:"bytes,2,req,name=currency_symbol,json=currencySymbol" query:"currency_symbol,required"`
 	}
 
@@ -1072,7 +1068,7 @@ func TestIssue25(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	//assert.DeepEqual(t, "from cookie", recv.A)
+	// assert.DeepEqual(t, "from cookie", recv.A)
 
 	header2 := make(http.Header)
 	header2.Set("A", "from header")
@@ -1171,10 +1167,10 @@ func newFormBody2(values url.Values, files files) (contentType string, bodyReade
 	if len(files) == 0 {
 		return "application/x-www-form-urlencoded", strings.NewReader(values.Encode())
 	}
-	var pr, pw = io.Pipe()
-	var bodyWriter = multipart.NewWriter(pw)
+	pr, pw := io.Pipe()
+	bodyWriter := multipart.NewWriter(pw)
 	var fileWriter io.Writer
-	var buf = make([]byte, 32*1024)
+	buf := make([]byte, 32*1024)
 	go func() {
 		for fieldName, postfiles := range files {
 			for _, file := range postfiles {

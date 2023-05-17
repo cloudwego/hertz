@@ -22,11 +22,11 @@
 package decoder
 
 import (
-	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"strings"
 
 	"github.com/bytedance/sonic"
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
 func checkRequireJSON(req *bindRequest, tagInfo TagInfo) bool {

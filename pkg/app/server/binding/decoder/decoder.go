@@ -51,8 +51,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-var EnableDefaultTag = true
-var EnableStructFieldResolve = false
+var (
+	EnableDefaultTag         = true
+	EnableStructFieldResolve = false
+)
 
 type bindRequest struct {
 	Req           *protocol.Request
