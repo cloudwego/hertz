@@ -782,7 +782,7 @@ func TestBind_StructFieldResolve(t *testing.T) {
 	var result Req
 	EnableStructFieldResolve(true)
 	defer func() {
-		EnableDefaultTag(false)
+		EnableStructFieldResolve(false)
 	}()
 	err := DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
