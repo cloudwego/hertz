@@ -52,22 +52,20 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cloudwego/hertz/pkg/common/errors"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 var (
-	errMissingFile     = errors.NewPublic("http: no such file")
-	errNoMultipartForm = errors.NewPublic("request has no multipart/form-data Content-Type")
-
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
 
@@ -217,7 +215,7 @@ func (req *Request) PostArgString() []byte {
 
 // MultipartForm returns request's multipart form.
 //
-// Returns errNoMultipartForm if request's Content-Type
+// Returns errors.ErrNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
 //
 // RemoveMultipartFormFiles must be called after returned multipart form
@@ -228,7 +226,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 	}
 	req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
 	if len(req.multipartFormBoundary) == 0 {
-		return nil, errNoMultipartForm
+		return nil, errors.ErrNoMultipartForm
 	}
 
 	ce := req.Header.peek(bytestr.StrContentEncoding)
@@ -306,7 +304,7 @@ func (req *Request) FormFile(name string) (*multipart.FileHeader, error) {
 	}
 	fhh := mf.File[name]
 	if fhh == nil {
-		return nil, errMissingFile
+		return nil, errors.ErrMissingFile
 	}
 	return fhh[0], nil
 }
