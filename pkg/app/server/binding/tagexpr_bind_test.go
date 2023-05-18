@@ -216,7 +216,6 @@ func TestHeaderNum(t *testing.T) {
 	assert.DeepEqual(t, (*int64)(nil), recv.Z)
 }
 
-// todo: cookie slice
 func TestCookieString(t *testing.T) {
 	type Recv struct {
 		X **struct {
@@ -673,7 +672,7 @@ func TestTypeUnmarshal(t *testing.T) {
 	t.Logf("%v", recv)
 }
 
-// FIXME: JSON required 校验
+// test: required
 func TestOption(t *testing.T) {
 	type Recv struct {
 		X *struct {
@@ -944,7 +943,7 @@ func TestRegTypeUnmarshal(t *testing.T) {
 //	assert.DeepEqual(t, v, recv)
 //}
 
-// FIXME: json unmarshal 后其他 required 没必要 校验 required
+// test: required
 func TestPathnameBUG2(t *testing.T) {
 	type CurrencyData struct {
 		Amount *string `form:"amount,required" json:"amount,required" protobuf:"bytes,1,req,name=amount" query:"amount,required"`
@@ -1003,7 +1002,6 @@ func TestPathnameBUG2(t *testing.T) {
 	assert.DeepEqual(t, v, recv)
 }
 
-// FIXME: json unmarshal 后的其他 tag 的 required 的校验
 func TestRequiredBUG(t *testing.T) {
 	type Currency struct {
 		// currencyName   *string `form:"currency_name,required" json:"currency_name,required" protobuf:"bytes,1,req,name=currency_name,json=currencyName" query:"currency_name,required"`
