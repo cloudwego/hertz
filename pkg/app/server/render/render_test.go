@@ -43,6 +43,7 @@ package render
 
 import (
 	"encoding/xml"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"testing"
 
 	"github.com/bytedance/sonic"
@@ -82,13 +83,13 @@ func TestRenderJSON(t *testing.T) {
 	}
 
 	(JSONRender{data}).WriteContentType(resp)
-	assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 
 	err := (JSONRender{data}).Render(resp)
 
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("{\"foo\":\"bar\",\"html\":\"\\u003cb\\u003e\"}"), resp.Body())
-	assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 }
 
 func TestRenderJSONError(t *testing.T) {
@@ -106,7 +107,7 @@ func TestRenderString(t *testing.T) {
 		Format: "hello %s %d",
 		Data:   []interface{}{},
 	}).WriteContentType(resp)
-	assert.DeepEqual(t, []byte("text/plain; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMETextPlainUTF8), resp.Header.Peek("Content-Type"))
 
 	err := (String{
 		Format: "hola %s %d",
@@ -115,7 +116,7 @@ func TestRenderString(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("hola manu 2"), resp.Body())
-	assert.DeepEqual(t, []byte("text/plain; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMETextPlainUTF8), resp.Header.Peek("Content-Type"))
 }
 
 func TestRenderStringLenZero(t *testing.T) {
@@ -128,7 +129,7 @@ func TestRenderStringLenZero(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("hola %s %d"), resp.Body())
-	assert.DeepEqual(t, []byte("text/plain; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMETextPlainUTF8), resp.Header.Peek("Content-Type"))
 }
 
 func TestRenderData(t *testing.T) {
@@ -142,7 +143,7 @@ func TestRenderData(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("#!PNG some raw data"), resp.Body())
-	assert.DeepEqual(t, []byte("image/png"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMEImagePNG), resp.Header.Peek("Content-Type"))
 }
 
 func TestRenderXML(t *testing.T) {
@@ -152,13 +153,13 @@ func TestRenderXML(t *testing.T) {
 	}
 
 	(XML{data}).WriteContentType(resp)
-	assert.DeepEqual(t, []byte("application/xml; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationXMLUTF8), resp.Header.Peek("Content-Type"))
 
 	err := (XML{data}).Render(resp)
 
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("<map><foo>bar</foo></map>"), resp.Body())
-	assert.DeepEqual(t, []byte("application/xml; charset=utf-8"), resp.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationXMLUTF8), resp.Header.Peek("Content-Type"))
 }
 
 func TestRenderIndentedJSON(t *testing.T) {
@@ -169,7 +170,7 @@ func TestRenderIndentedJSON(t *testing.T) {
 	t.Run("TestHeader", func(t *testing.T) {
 		resp := &protocol.Response{}
 		(IndentedJSON{data}).WriteContentType(resp)
-		assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+		assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 	})
 	t.Run("TestBody", func(t *testing.T) {
 		ResetStdJSONMarshal()
@@ -177,7 +178,7 @@ func TestRenderIndentedJSON(t *testing.T) {
 		err := (IndentedJSON{data}).Render(resp)
 		assert.Nil(t, err)
 		assert.DeepEqual(t, []byte("{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}"), resp.Body())
-		assert.DeepEqual(t, []byte("application/json; charset=utf-8"), resp.Header.Peek("Content-Type"))
+		assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 		ResetJSONMarshal(sonic.Marshal)
 	})
 	t.Run("TestError", func(t *testing.T) {

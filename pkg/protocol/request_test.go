@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"io"
 	"io/ioutil"
 	"math"
@@ -369,7 +370,7 @@ func TestRequestSetFormData(t *testing.T) {
 	assert.DeepEqual(t, "username", string(r.postArgs.args[0].key))
 	assert.DeepEqual(t, "admin", string(r.postArgs.args[0].value))
 	assert.DeepEqual(t, true, r.parsedPostArgs)
-	assert.DeepEqual(t, "application/x-www-form-urlencoded", string(r.Header.contentType))
+	assert.DeepEqual(t, consts.MIMEApplicationHTMLForm, string(r.Header.contentType))
 
 	r = &Request{}
 	value := map[string][]string{"item": {"apple", "peach"}}
@@ -573,7 +574,7 @@ func TestRequestPostArgs(t *testing.T) {
 	mr := strings.NewReader(s)
 	r := &Request{}
 	r.SetBodyStream(mr, len(s))
-	r.Header.contentType = []byte("application/x-www-form-urlencoded")
+	r.Header.contentType = []byte(consts.MIMEApplicationHTMLForm)
 	arg := r.PostArgs()
 	assert.DeepEqual(t, "username", string(arg.args[0].key))
 	assert.DeepEqual(t, "admin", string(arg.args[0].value))

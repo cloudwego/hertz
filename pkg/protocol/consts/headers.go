@@ -101,6 +101,7 @@ const (
 	MIMEApplicationOctetStream  = "application/octet-stream"
 	MIMEApplicationFlash        = "application/x-shockwave-flash"
 	MIMEApplicationHTMLForm     = "application/x-www-form-urlencoded"
+	MIMEApplicationHTMLFormUTF8 = "application/x-www-form-urlencoded; charset=UTF-8"
 	MIMEApplicationTar          = "application/x-tar"
 	MIMEApplicationGZip         = "application/gzip"
 	MIMEApplicationXGZip        = "application/x-gzip"
@@ -109,7 +110,9 @@ const (
 	MIMEApplicationShell        = "application/x-sh"
 	MIMEApplicationDownload     = "application/x-msdownload"
 	MIMEApplicationJSON         = "application/json"
+	MIMEApplicationJSONUTF8     = "application/json; charset=utf-8"
 	MIMEApplicationXML          = "application/xml"
+	MIMEApplicationXMLUTF8      = "application/xml; charset=utf-8"
 	MIMEApplicationZip          = "application/zip"
 	MIMEApplicationPdf          = "application/pdf"
 	MIMEApplicationWord         = "application/msword"
@@ -121,7 +124,7 @@ const (
 
 	// MIME image
 	MIMEImageJPEG         = "image/jpeg"
-	MIMAImagePNG          = "image/png"
+	MIMEImagePNG          = "image/png"
 	MIMEImageGIF          = "image/gif"
 	MIMEImageBitmap       = "image/bmp"
 	MIMEImageWebP         = "image/webp"
