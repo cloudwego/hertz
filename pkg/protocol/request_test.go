@@ -45,7 +45,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"io"
 	"io/ioutil"
 	"math"
@@ -57,6 +56,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 type errorReader struct{}
