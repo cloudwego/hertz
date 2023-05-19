@@ -52,20 +52,21 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cloudwego/hertz/pkg/common/errors"
-
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 var (
+	errMissingFile = errors.NewPublic("http: no such file")
+
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
 
@@ -304,7 +305,7 @@ func (req *Request) FormFile(name string) (*multipart.FileHeader, error) {
 	}
 	fhh := mf.File[name]
 	if fhh == nil {
-		return nil, errors.ErrMissingFile
+		return nil, errMissingFile
 	}
 	return fhh[0], nil
 }

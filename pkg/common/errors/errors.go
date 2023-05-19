@@ -63,7 +63,6 @@ var (
 	ErrNoFreeConns        = errors.New("no free connections available to host")
 	ErrConnectionClosed   = errors.New("connection closed")
 	ErrNotSupportProtocol = errors.New("not support protocol")
-	ErrMissingFile        = errors.New("http: no such file")
 	ErrNoMultipartForm    = errors.New("request has no multipart/form-data Content-Type")
 )
 
