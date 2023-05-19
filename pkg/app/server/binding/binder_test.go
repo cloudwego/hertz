@@ -43,6 +43,7 @@ package binding
 import (
 	"fmt"
 	"mime/multipart"
+	"reflect"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
@@ -493,24 +494,30 @@ type CustomizedDecode struct {
 	A string
 }
 
-func (c *CustomizedDecode) CustomizedFieldDecode(req *protocol.Request, params path.PathParam) error {
-	q1 := req.URI().QueryArgs().Peek("a")
-	if len(q1) == 0 {
-		return fmt.Errorf("can be nil")
-	}
-
-	c.A = string(q1)
-	return nil
-}
-
 func TestBind_CustomizedTypeDecode(t *testing.T) {
 	type Foo struct {
 		F ***CustomizedDecode
 	}
+
+	err := RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params path.PathParam, text string) (reflect.Value, error) {
+		q1 := req.URI().QueryArgs().Peek("a")
+		if len(q1) == 0 {
+			return reflect.Value{}, fmt.Errorf("can be nil")
+		}
+		val := CustomizedDecode{
+			A: string(q1),
+		}
+		return reflect.ValueOf(val), nil
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
 	result := Foo{}
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err = DefaultBinder.Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}

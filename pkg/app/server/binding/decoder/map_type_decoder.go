@@ -105,7 +105,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPara
 			ptrDepth++
 		}
 		var vv reflect.Value
-		vv, err := stringToValue(t, text)
+		vv, err := stringToValue(t, text, req, params)
 		if err != nil {
 			return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 		}

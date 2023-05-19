@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestRawBody(t *testing.T) {
@@ -631,45 +632,44 @@ func TestAuto(t *testing.T) {
 	assert.DeepEqual(t, "d-from-form", recv.D)
 }
 
-// FIXME: 自定义验证函数 & TIME 类型内置, 暂时先不做，低优
-//func TestTypeUnmarshal(t *testing.T) {
-//	type Recv struct {
-//		A time.Time   `form:"t1"`
-//		B *time.Time  `query:"t2"`
-//		C []time.Time `query:"t2"`
-//	}
-//	query := make(url.Values)
-//	query.Add("t2", "2019-09-04T14:05:24+08:00")
-//	query.Add("t2", "2019-09-04T18:05:24+08:00")
-//	form := make(url.Values)
-//	form.Add("t1", "2019-09-03T18:05:24+08:00")
-//	contentType, bodyReader := newFormBody2(form, nil)
-//	header := make(http.Header)
-//	header.Set("Content-Type", contentType)
-//	req := newRequest("http://localhost/?"+query.Encode(), header, nil, bodyReader)
-//	recv := new(Recv)
-//
-//	err := DefaultBinder.Bind(req.Req, nil, recv)
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	t1, err := time.Parse(time.RFC3339, "2019-09-03T18:05:24+08:00")
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	assert.DeepEqual(t, t1, recv.A)
-//	t21, err := time.Parse(time.RFC3339, "2019-09-04T14:05:24+08:00")
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	assert.DeepEqual(t, t21, *recv.B)
-//	t22, err := time.Parse(time.RFC3339, "2019-09-04T18:05:24+08:00")
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	assert.DeepEqual(t, []time.Time{t21, t22}, recv.C)
-//	t.Logf("%v", recv)
-//}
+func TestTypeUnmarshal(t *testing.T) {
+	type Recv struct {
+		A time.Time   `form:"t1"`
+		B *time.Time  `query:"t2"`
+		C []time.Time `query:"t2"`
+	}
+	query := make(url.Values)
+	query.Add("t2", "2019-09-04T14:05:24+08:00")
+	query.Add("t2", "2019-09-04T18:05:24+08:00")
+	form := make(url.Values)
+	form.Add("t1", "2019-09-03T18:05:24+08:00")
+	contentType, bodyReader := newFormBody2(form, nil)
+	header := make(http.Header)
+	header.Set("Content-Type", contentType)
+	req := newRequest("http://localhost/?"+query.Encode(), header, nil, bodyReader)
+	recv := new(Recv)
+
+	err := DefaultBinder.Bind(req.Req, nil, recv)
+	if err != nil {
+		t.Error(err)
+	}
+	t1, err := time.Parse(time.RFC3339, "2019-09-03T18:05:24+08:00")
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, t1, recv.A)
+	t21, err := time.Parse(time.RFC3339, "2019-09-04T14:05:24+08:00")
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, t21, *recv.B)
+	t22, err := time.Parse(time.RFC3339, "2019-09-04T18:05:24+08:00")
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, []time.Time{t21, t22}, recv.C)
+	t.Logf("%v", recv)
+}
 
 // test: required
 func TestOption(t *testing.T) {
@@ -795,7 +795,8 @@ func TestQueryStringIssue(t *testing.T) {
 		t.Error(err)
 	}
 	assert.DeepEqual(t, "test", *recv.Name)
-	assert.DeepEqual(t, (*Timestamp)(nil), recv.T)
+	// DIFF: the type with customized decoder must be a non-nil value
+	//assert.DeepEqual(t, (*Timestamp)(nil), recv.T)
 }
 
 func TestQueryTypes(t *testing.T) {
@@ -869,78 +870,99 @@ func TestNoTagIssue(t *testing.T) {
 	assert.DeepEqual(t, 2, recv.B)
 }
 
-// DIFF: go-tagexpr 会对保留 t.Q的结构体信息，而目前的实现不会 t.Q 做特殊处理，会直接拆开。有需求也可以加上
-//func TestRegTypeUnmarshal(t *testing.T) {
-//	type Q struct {
-//		A int
-//		B string
-//	}
-//	type T struct {
-//		Q  Q    `query:"q"`
-//		Qs []*Q `query:"qs"`
-//	}
-//	values := url.Values{}
-//	b, err := json.Marshal(Q{A: 2, B: "y"})
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	values.Add("q", string(b))
-//	bs, _ := json.Marshal([]Q{{A: 1, B: "x"}, {A: 2, B: "y"}})
-//	values.Add("qs", string(bs))
-//	req := newRequest("http://localhost:8080/?"+values.Encode(), nil, nil, nil)
-//	recv := new(T)
-//
-//	err = DefaultBinder.Bind(req.Req, nil, recv)
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	assert.DeepEqual(t, 2, recv.Q.A)
-//	assert.DeepEqual(t, "y", recv.Q.B)
-//	assert.DeepEqual(t, 1, recv.Qs[0].A)
-//	assert.DeepEqual(t, "x", recv.Qs[0].B)
-//	assert.DeepEqual(t, 2, recv.Qs[1].A)
-//	assert.DeepEqual(t, "y", recv.Qs[1].B)
-//}
+func TestRegTypeUnmarshal(t *testing.T) {
+	type Q struct {
+		A int
+		B string
+	}
+	type T struct {
+		Q   Q       `query:"q"`
+		Qs  []*Q    `query:"qs"`
+		Qs2 ***[]*Q `query:"qs"`
+	}
+	values := url.Values{}
+	b, err := json.Marshal(Q{A: 2, B: "y"})
+	if err != nil {
+		t.Error(err)
+	}
+	values.Add("q", string(b))
+	bs, _ := json.Marshal([]Q{{A: 1, B: "x"}, {A: 2, B: "y"}})
+	values.Add("qs", string(bs))
+	req := newRequest("http://localhost:8080/?"+values.Encode(), nil, nil, nil)
+	recv := new(T)
 
-//func TestPathnameBUG(t *testing.T) {
-//	type Currency struct {
-//		CurrencyName   *string `form:"currency_name,required" json:"currency_name,required" protobuf:"bytes,1,req,name=currency_name,json=currencyName" query:"currency_name,required"`
-//		CurrencySymbol *string `form:"currency_symbol,required" json:"currency_symbol,required" protobuf:"bytes,2,req,name=currency_symbol,json=currencySymbol" query:"currency_symbol,required"`
-//		SymbolPosition *int32  `form:"symbol_position,required" json:"symbol_position,required" protobuf:"varint,3,req,name=symbol_position,json=symbolPosition" query:"symbol_position,required"`
-//		DecimalPlaces  *int32  `form:"decimal_places,required" json:"decimal_places,required" protobuf:"varint,4,req,name=decimal_places,json=decimalPlaces" query:"decimal_places,required"` // 56x56
-//		DecimalSymbol  *string `form:"decimal_symbol,required" json:"decimal_symbol,required" protobuf:"bytes,5,req,name=decimal_symbol,json=decimalSymbol" query:"decimal_symbol,required"`
-//		Separator      *string `form:"separator,required" json:"separator,required" protobuf:"bytes,6,req,name=separator" query:"separator,required"`
-//		SeparatorIndex *string `form:"separator_index,required" json:"separator_index,required" protobuf:"bytes,7,req,name=separator_index,json=separatorIndex" query:"separator_index,required"`
-//		Between        *string `form:"between,required" json:"between,required" protobuf:"bytes,8,req,name=between" query:"between,required"`
-//		MinPrice       *string `form:"min_price" json:"min_price,omitempty" protobuf:"bytes,9,opt,name=min_price,json=minPrice" query:"min_price"`
-//		MaxPrice       *string `form:"max_price" json:"max_price,omitempty" protobuf:"bytes,10,opt,name=max_price,json=maxPrice" query:"max_price"`
-//	}
-//
-//	type CurrencyData struct {
-//		Amount   *string   `form:"amount,required" json:"amount,required" protobuf:"bytes,1,req,name=amount" query:"amount,required"`
-//		Currency *Currency `form:"currency,required" json:"currency,required" protobuf:"bytes,2,req,name=currency" query:"currency,required"`
-//	}
-//
-//	type ExchangeCurrencyRequest struct {
-//		PromotionRegion *string       `form:"promotion_region,required" json:"promotion_region,required" protobuf:"bytes,1,req,name=promotion_region,json=promotionRegion" query:"promotion_region,required"`
-//		Currency        *CurrencyData `form:"currency,required" json:"currency,required" protobuf:"bytes,2,req,name=currency" query:"currency,required"`
-//		Version         *int32        `json:"version,omitempty" path:"version" protobuf:"varint,100,opt,name=version"`
-//	}
-//
-//	z := &ExchangeCurrencyRequest{}
-//	v := ameda.InitSampleValue(reflect.TypeOf(z), 10).Interface().(*ExchangeCurrencyRequest)
-//	b, err := json.MarshalIndent(v, "", "  ")
-//	t.Log(string(b))
-//	header := make(http.Header)
-//	header.Set("Content-Type", "application/json;charset=utf-8")
-//	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
-//	recv := new(ExchangeCurrencyRequest)
-//
-//	err = DefaultBinder.Bind(req.Req, nil, recv)
-//		if err != nil {
-//
-//	assert.DeepEqual(t, v, recv)
-//}
+	EnableStructFieldResolve(true)
+	defer func() {
+		EnableStructFieldResolve(false)
+	}()
+	err = DefaultBinder.Bind(req.Req, nil, recv)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 2, recv.Q.A)
+	assert.DeepEqual(t, "y", recv.Q.B)
+	assert.DeepEqual(t, 1, recv.Qs[0].A)
+	assert.DeepEqual(t, "x", recv.Qs[0].B)
+	assert.DeepEqual(t, 2, recv.Qs[1].A)
+	assert.DeepEqual(t, "y", recv.Qs[1].B)
+	assert.DeepEqual(t, 1, (***recv.Qs2)[0].A)
+	assert.DeepEqual(t, "x", (***recv.Qs2)[0].B)
+	assert.DeepEqual(t, 2, (***recv.Qs2)[1].A)
+	assert.DeepEqual(t, "y", (***recv.Qs2)[1].B)
+}
+
+func TestPathnameBUG(t *testing.T) {
+	type Currency struct {
+		CurrencyName   *string `form:"currency_name,required" json:"currency_name,required" protobuf:"bytes,1,req,name=currency_name,json=currencyName" query:"currency_name,required"`
+		CurrencySymbol *string `form:"currency_symbol,required" json:"currency_symbol,required" protobuf:"bytes,2,req,name=currency_symbol,json=currencySymbol" query:"currency_symbol,required"`
+		SymbolPosition *int32  `form:"symbol_position,required" json:"symbol_position,required" protobuf:"varint,3,req,name=symbol_position,json=symbolPosition" query:"symbol_position,required"`
+		DecimalPlaces  *int32  `form:"decimal_places,required" json:"decimal_places,required" protobuf:"varint,4,req,name=decimal_places,json=decimalPlaces" query:"decimal_places,required"` // 56x56
+		DecimalSymbol  *string `form:"decimal_symbol,required" json:"decimal_symbol,required" protobuf:"bytes,5,req,name=decimal_symbol,json=decimalSymbol" query:"decimal_symbol,required"`
+		Separator      *string `form:"separator,required" json:"separator,required" protobuf:"bytes,6,req,name=separator" query:"separator,required"`
+		SeparatorIndex *string `form:"separator_index,required" json:"separator_index,required" protobuf:"bytes,7,req,name=separator_index,json=separatorIndex" query:"separator_index,required"`
+		Between        *string `form:"between,required" json:"between,required" protobuf:"bytes,8,req,name=between" query:"between,required"`
+		MinPrice       *string `form:"min_price" json:"min_price,omitempty" protobuf:"bytes,9,opt,name=min_price,json=minPrice" query:"min_price"`
+		MaxPrice       *string `form:"max_price" json:"max_price,omitempty" protobuf:"bytes,10,opt,name=max_price,json=maxPrice" query:"max_price"`
+	}
+
+	type CurrencyData struct {
+		Amount   *string   `form:"amount,required" json:"amount,required" protobuf:"bytes,1,req,name=amount" query:"amount,required"`
+		Currency *Currency `form:"currency,required" json:"currency,required" protobuf:"bytes,2,req,name=currency" query:"currency,required"`
+	}
+
+	type ExchangeCurrencyRequest struct {
+		PromotionRegion *string       `form:"promotion_region,required" json:"promotion_region,required" protobuf:"bytes,1,req,name=promotion_region,json=promotionRegion" query:"promotion_region,required"`
+		Currency        *CurrencyData `form:"currency,required" json:"currency,required" protobuf:"bytes,2,req,name=currency" query:"currency,required"`
+		Version         *int32        `json:"version,omitempty" path:"version" protobuf:"varint,100,opt,name=version"`
+	}
+
+	z := new(ExchangeCurrencyRequest)
+	z.Currency = new(CurrencyData)
+	z.Currency.Currency = new(Currency)
+	z.PromotionRegion = proto.String("?")
+	z.Version = proto.Int32(-32)
+	z.Currency.Amount = proto.String("?")
+	z.Currency.Currency.CurrencyName = proto.String("?")
+	z.Currency.Currency.CurrencySymbol = proto.String("?")
+	z.Currency.Currency.SymbolPosition = proto.Int32(-32)
+	z.Currency.Currency.DecimalPlaces = proto.Int32(-32)
+	z.Currency.Currency.DecimalSymbol = proto.String("?")
+	z.Currency.Currency.Separator = proto.String("?")
+	z.Currency.Currency.Between = proto.String("?")
+	z.Currency.Currency.MinPrice = proto.String("?")
+	z.Currency.Currency.MaxPrice = proto.String("?")
+
+	b, err := json.MarshalIndent(z, "", "  ")
+	header := make(http.Header)
+	header.Set("Content-Type", "application/json;charset=utf-8")
+	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
+	recv := new(ExchangeCurrencyRequest)
+
+	err = DefaultBinder.Bind(req.Req, nil, recv)
+	if err != nil {
+		t.Error(err)
+	}
+}
 
 // test: required
 func TestPathnameBUG2(t *testing.T) {
@@ -1128,7 +1150,7 @@ func TestIssue26(t *testing.T) {
 	assert.DeepEqual(t, recv, recv2)
 }
 
-// FIXME: json unmarshal 后，默认值的问题
+// FIXME: after 'json unmarshal', the default value will change it
 //func TestDefault2(t *testing.T) {
 //	type Recv struct {
 //		X **struct {

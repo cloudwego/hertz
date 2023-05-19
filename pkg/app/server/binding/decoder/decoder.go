@@ -69,13 +69,7 @@ type fieldDecoder interface {
 	Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error
 }
 
-type CustomizedFieldDecoder interface {
-	CustomizedFieldDecode(req *protocol.Request, params path1.PathParam) error
-}
-
 type Decoder func(req *protocol.Request, params path1.PathParam, rv reflect.Value) error
-
-var customizedFieldDecoderType = reflect.TypeOf((*CustomizedFieldDecoder)(nil)).Elem()
 
 func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 	var decoders []fieldDecoder
@@ -123,20 +117,15 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	if field.Type.Kind() != reflect.Struct && field.Anonymous {
 		return nil, nil
 	}
-	if reflect.PtrTo(field.Type).Implements(customizedFieldDecoderType) {
-		return []fieldDecoder{&customizedFieldTextDecoder{
-			fieldInfo: fieldInfo{
-				index:       index,
-				parentIndex: parentIdx,
-				fieldName:   field.Name,
-				fieldType:   field.Type,
-			},
-		}}, nil
-	}
 
 	fieldTagInfos, newParentJSONName := lookupFieldTags(field, parentJSONName)
 	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
+	}
+
+	// customized type decoder has the highest priority
+	if customizedFunc, exist := typeUnmarshalFuncs[field.Type]; exist {
+		return getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc)
 	}
 
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {

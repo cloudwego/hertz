@@ -113,7 +113,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPar
 			ptrDepth++
 		}
 		var vv reflect.Value
-		vv, err := stringToValue(t, text)
+		vv, err := stringToValue(t, text, req, params)
 		if err != nil {
 			return err
 		}

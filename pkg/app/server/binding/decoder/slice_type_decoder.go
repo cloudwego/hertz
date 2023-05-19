@@ -142,13 +142,24 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 
 	for idx, text := range texts {
 		var vv reflect.Value
-		vv, err := stringToValue(t, text)
+		vv, err = stringToValue(t, text, req, params)
 		if err != nil {
-			return err
+			break
 		}
 		field.Index(idx).Set(ReferenceValue(vv, ptrDepth))
 	}
-	reqValue.Field(d.index).Set(ReferenceValue(field, parentPtrDepth))
+	if err != nil {
+		if !reqValue.Field(d.index).CanAddr() {
+			return err
+		}
+		// text[0] can be a complete json content for []Type.
+		err = hjson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
+		if err != nil {
+			return err
+		}
+	} else {
+		reqValue.Field(d.index).Set(ReferenceValue(field, parentPtrDepth))
+	}
 
 	return nil
 }
@@ -204,8 +215,15 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	}}, nil
 }
 
-func stringToValue(elemType reflect.Type, text string) (v reflect.Value, err error) {
+func stringToValue(elemType reflect.Type, text string, req *bindRequest, params path1.PathParam) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
+	if customizedFunc, exist := typeUnmarshalFuncs[elemType]; exist {
+		val, err := customizedFunc(req.Req, params, text)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		return val, nil
+	}
 	switch elemType.Kind() {
 	case reflect.Struct:
 		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
