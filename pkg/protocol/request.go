@@ -65,8 +65,7 @@ import (
 )
 
 var (
-	errMissingFile     = errors.NewPublic("http: no such file")
-	errNoMultipartForm = errors.NewPublic("request has no multipart/form-data Content-Type")
+	errMissingFile = errors.NewPublic("http: no such file")
 
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
@@ -217,7 +216,7 @@ func (req *Request) PostArgString() []byte {
 
 // MultipartForm returns request's multipart form.
 //
-// Returns errNoMultipartForm if request's Content-Type
+// Returns errors.ErrNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
 //
 // RemoveMultipartFormFiles must be called after returned multipart form
@@ -228,7 +227,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 	}
 	req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
 	if len(req.multipartFormBoundary) == 0 {
-		return nil, errNoMultipartForm
+		return nil, errors.ErrNoMultipartForm
 	}
 
 	ce := req.Header.peek(bytestr.StrContentEncoding)
