@@ -975,7 +975,7 @@ func TestClientFollowRedirects(t *testing.T) {
 			u.Update("/bar")
 			ctx.Redirect(consts.StatusFound, u.FullURI())
 		default:
-			ctx.SetContentType("text/plain")
+			ctx.SetContentType(consts.MIMETextPlain)
 			ctx.Response.SetBody(ctx.Path())
 		}
 	}
@@ -1440,13 +1440,13 @@ func TestSetMultipartFields(t *testing.T) {
 		{
 			Param:       "file_1",
 			FileName:    files[0],
-			ContentType: "application/json",
+			ContentType: consts.MIMEApplicationJSON,
 			Reader:      strings.NewReader(jsonStr1),
 		},
 		{
 			Param:       "file_2",
 			FileName:    files[1],
-			ContentType: "application/json",
+			ContentType: consts.MIMEApplicationJSON,
 			Reader:      strings.NewReader(jsonStr2),
 		},
 	}
