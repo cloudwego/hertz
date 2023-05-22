@@ -63,6 +63,7 @@ var (
 	ErrNoFreeConns        = errors.New("no free connections available to host")
 	ErrConnectionClosed   = errors.New("connection closed")
 	ErrNotSupportProtocol = errors.New("not support protocol")
+	ErrNoMultipartForm    = errors.New("request has no multipart/form-data Content-Type")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.
