@@ -80,7 +80,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPa
 		if tagInfo.Key == rawBodyTag {
 			bindRawBody = true
 		}
-		texts = tagInfo.Getter(req, params, tagInfo.Value)
+		texts = tagInfo.SliceGetter(req, params, tagInfo.Value)
 		// todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
@@ -175,18 +175,24 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
+			tagInfos[idx].SliceGetter = pathSlice
 			tagInfos[idx].Getter = path
 		case formTag:
+			tagInfos[idx].SliceGetter = postFormSlice
 			tagInfos[idx].Getter = postForm
 		case queryTag:
+			tagInfos[idx].SliceGetter = querySlice
 			tagInfos[idx].Getter = query
 		case cookieTag:
+			tagInfos[idx].SliceGetter = cookieSlice
 			tagInfos[idx].Getter = cookie
 		case headerTag:
+			tagInfos[idx].SliceGetter = headerSlice
 			tagInfos[idx].Getter = header
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
+			tagInfos[idx].SliceGetter = rawBodySlice
 			tagInfos[idx].Getter = rawBody
 		case fileNameTag:
 			// do nothing

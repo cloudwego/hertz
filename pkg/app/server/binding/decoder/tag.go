@@ -41,14 +41,15 @@ const (
 )
 
 type TagInfo struct {
-	Key      string
-	Value    string
-	JSONName string
-	Required bool
-	Skip     bool
-	Default  string
-	Options  []string
-	Getter   getter
+	Key         string
+	Value       string
+	JSONName    string
+	Required    bool
+	Skip        bool
+	Default     string
+	Options     []string
+	Getter      getter
+	SliceGetter sliceGetter
 }
 
 func head(str, sep string) (head, tail string) {

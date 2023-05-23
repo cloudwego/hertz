@@ -42,13 +42,12 @@ package decoder
 
 import (
 	"fmt"
+	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"reflect"
-
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
-	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 var (

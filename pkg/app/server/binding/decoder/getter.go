@@ -41,130 +41,118 @@
 package decoder
 
 import (
-	"net/http"
-	"net/url"
-
 	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 )
 
-type getter func(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string)
+type getter func(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string)
 
-func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	var value string
+func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
 	if params != nil {
-		value, _ = params.Get(key)
+		ret, _ = params.Get(key)
 	}
 
-	if len(value) == 0 && len(defaultValue) != 0 {
-		value = defaultValue[0]
+	if len(ret) == 0 && len(defaultValue) != 0 {
+		ret = defaultValue[0]
 	}
-	if len(value) != 0 {
-		ret = append(ret, value)
-	}
-
-	return
+	return ret
 }
 
-func postForm(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	if req.Form == nil {
-		req.Form = make(url.Values)
-		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
-			keyStr := string(formKey)
-			values := req.Form[keyStr]
-			values = append(values, string(value))
-			req.Form[keyStr] = values
-		})
+func postForm(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+	if req.Form != nil {
+		if val, exist := req.Form[key]; exist {
+			ret = val[0]
+		}
+	} else {
+		if val := req.Req.PostArgs().Peek(key); val != nil {
+			ret = string(val)
+		}
 	}
-	ret = req.Form[key]
 	if len(ret) > 0 {
 		return
 	}
 
-	if req.MultipartForm == nil {
-		req.MultipartForm = make(url.Values)
+	if req.MultipartForm != nil {
+		if val, exist := req.MultipartForm[key]; exist {
+			ret = val[0]
+		}
+	} else {
 		mf, err := req.Req.MultipartForm()
 		if err == nil && mf.Value != nil {
 			for k, v := range mf.Value {
-				if len(v) > 0 {
-					req.MultipartForm[k] = v
+				if k == key && len(v) > 0 {
+					ret = v[0]
 				}
 			}
 		}
 	}
-	ret = req.MultipartForm[key]
-	if len(ret) > 0 {
-		return
-	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
+		ret = defaultValue[0]
 	}
 
 	return
 }
 
-func query(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	if req.Query == nil {
-		req.Query = make(url.Values)
-		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
-			keyStr := string(queryKey)
-			values := req.Query[keyStr]
-			values = append(values, string(value))
-			req.Query[keyStr] = values
-		})
-	}
-
-	ret = req.Query[key]
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
-	return
-}
-
-func cookie(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	if len(req.Cookie) == 0 {
-		req.Req.Header.VisitAllCookie(func(cookieKey, value []byte) {
-			req.Cookie = append(req.Cookie, &http.Cookie{
-				Name:  string(cookieKey),
-				Value: string(value),
-			})
-		})
-	}
-	for _, c := range req.Cookie {
-		if c.Name == key {
-			ret = append(ret, c.Value)
+func query(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+	if req.Query != nil {
+		if val, exist := req.Query[key]; exist {
+			ret = val[0]
+		}
+	} else {
+		if val := req.Req.URI().QueryArgs().Peek(key); val != nil {
+			ret = string(val)
 		}
 	}
+
 	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
+		ret = defaultValue[0]
 	}
 
 	return
 }
 
-func header(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
-	if req.Header == nil {
-		req.Header = make(http.Header)
-		req.Req.Header.VisitAll(func(headerKey, value []byte) {
-			keyStr := string(headerKey)
-			values := req.Header[keyStr]
-			values = append(values, string(value))
-			req.Header[keyStr] = values
-		})
+func cookie(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+	if len(req.Cookie) != 0 {
+		for _, c := range req.Cookie {
+			if c.Name == key {
+				ret = c.Value
+				break
+			}
+		}
+	} else {
+		if val := req.Req.Header.Cookie(key); val != nil {
+			ret = string(val)
+		}
 	}
 
-	ret = req.Header[key]
 	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
+		ret = defaultValue[0]
 	}
 
 	return
 }
 
-func rawBody(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func header(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+	if req.Header != nil {
+		if val, exist := req.Header[key]; exist {
+			ret = val[0]
+		}
+	} else {
+		if val := req.Req.Header.Peek(key); val != nil {
+			ret = string(val)
+		}
+	}
+
+	if len(ret) == 0 && len(defaultValue) != 0 {
+		ret = defaultValue[0]
+	}
+
+	return
+}
+
+func rawBody(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
 	if req.Req.Header.ContentLength() > 0 {
-		ret = append(ret, string(req.Req.Body()))
+		ret = string(req.Req.Body())
 	}
 	return
 }

@@ -52,7 +52,7 @@ type fieldInfo struct {
 	index       int
 	parentIndex []int
 	fieldName   string
-	tagInfos    []TagInfo    // query,param,header,respHeader ...
+	tagInfos    []TagInfo    // querySlice,param,headerSlice,respHeader ...
 	fieldType   reflect.Type // can not be pointer type
 }
 
@@ -81,10 +81,9 @@ func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathPar
 		if tagInfo.Key == headerTag {
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
 		}
-		ret := tagInfo.Getter(req, params, tagInfo.Value)
+		text = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
-		if len(ret) != 0 {
-			text = ret[0]
+		if len(text) != 0 {
 			err = nil
 			break
 		}
@@ -134,18 +133,24 @@ func getBaseTypeTextDecoder(field reflect.StructField, index int, tagInfos []Tag
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
+			tagInfos[idx].SliceGetter = pathSlice
 			tagInfos[idx].Getter = path
 		case formTag:
+			tagInfos[idx].SliceGetter = postFormSlice
 			tagInfos[idx].Getter = postForm
 		case queryTag:
+			tagInfos[idx].SliceGetter = querySlice
 			tagInfos[idx].Getter = query
 		case cookieTag:
+			tagInfos[idx].SliceGetter = cookieSlice
 			tagInfos[idx].Getter = cookie
 		case headerTag:
+			tagInfos[idx].SliceGetter = headerSlice
 			tagInfos[idx].Getter = header
 		case jsonTag:
 			// do nothing
 		case rawBodyTag:
+			tagInfos[idx].SliceGetter = rawBodySlice
 			tagInfos[idx].Getter = rawBody
 		case fileNameTag:
 			// do nothing
