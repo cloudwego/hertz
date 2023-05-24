@@ -105,7 +105,7 @@ func postFormSlice(req *bindRequest, params param.Params, key string, defaultVal
 
 func querySlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if req.Query == nil {
-		req.Query = make(url.Values, 100)
+		req.Query = make(url.Values)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 			keyStr := string(queryKey)
 			values := req.Query[keyStr]
