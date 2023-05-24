@@ -43,10 +43,7 @@ package decoder
 import (
 	"fmt"
 	"mime/multipart"
-	"net/http"
-	"net/url"
 	"reflect"
-	"sync"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
@@ -57,32 +54,8 @@ var (
 	EnableStructFieldResolve = false
 )
 
-var bindRequestPool = sync.Pool{New: func() interface{} {
-	return &bindRequest{}
-}}
-
-type bindRequest struct {
-	Req           *protocol.Request
-	Query         url.Values
-	Form          url.Values
-	MultipartForm url.Values
-	Header        http.Header
-	Cookie        []*http.Cookie
-}
-
-func (b *bindRequest) reset() {
-	b.Req = nil
-	b.Query = nil
-	b.Form = nil
-	b.MultipartForm = nil
-	b.Header = nil
-	if b.Cookie != nil {
-		b.Cookie = b.Cookie[:0]
-	}
-}
-
 type fieldDecoder interface {
-	Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error
+	Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error
 }
 
 type Decoder func(req *protocol.Request, params param.Params, rv reflect.Value) error
@@ -112,16 +85,12 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 	}
 
 	return func(req *protocol.Request, params param.Params, rv reflect.Value) error {
-		bindReq := bindRequestPool.Get().(*bindRequest)
-		bindReq.Req = req
 		for _, decoder := range decoders {
-			err := decoder.Decode(bindReq, params, rv)
+			err := decoder.Decode(req, params, rv)
 			if err != nil {
 				return err
 			}
 		}
-		bindReq.reset()
-		bindRequestPool.Put(bindReq)
 
 		return nil
 	}, nil

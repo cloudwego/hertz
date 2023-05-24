@@ -41,12 +41,13 @@
 package decoder
 
 import (
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type getter func(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string)
+type getter func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string)
 
-func path(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
+func path(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
 	if params != nil {
 		ret, _ = params.Get(key)
 	}
@@ -57,31 +58,19 @@ func path(req *bindRequest, params param.Params, key string, defaultValue ...str
 	return ret
 }
 
-func postForm(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
-	if req.Form != nil {
-		if val, exist := req.Form[key]; exist {
-			ret = val[0]
-		}
-	} else {
-		if val := req.Req.PostArgs().Peek(key); val != nil {
-			ret = string(val)
-		}
+func postForm(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if val := req.PostArgs().Peek(key); val != nil {
+		ret = string(val)
 	}
 	if len(ret) > 0 {
 		return
 	}
 
-	if req.MultipartForm != nil {
-		if val, exist := req.MultipartForm[key]; exist {
-			ret = val[0]
-		}
-	} else {
-		mf, err := req.Req.MultipartForm()
-		if err == nil && mf.Value != nil {
-			for k, v := range mf.Value {
-				if k == key && len(v) > 0 {
-					ret = v[0]
-				}
+	mf, err := req.MultipartForm()
+	if err == nil && mf.Value != nil {
+		for k, v := range mf.Value {
+			if k == key && len(v) > 0 {
+				ret = v[0]
 			}
 		}
 	}
@@ -93,15 +82,9 @@ func postForm(req *bindRequest, params param.Params, key string, defaultValue ..
 	return
 }
 
-func query(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
-	if req.Query != nil {
-		if val, exist := req.Query[key]; exist {
-			ret = val[0]
-		}
-	} else {
-		if val := req.Req.URI().QueryArgs().Peek(key); val != nil {
-			ret = string(val)
-		}
+func query(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if val := req.URI().QueryArgs().Peek(key); val != nil {
+		ret = string(val)
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
@@ -111,18 +94,9 @@ func query(req *bindRequest, params param.Params, key string, defaultValue ...st
 	return
 }
 
-func cookie(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
-	if len(req.Cookie) != 0 {
-		for _, c := range req.Cookie {
-			if c.Name == key {
-				ret = c.Value
-				break
-			}
-		}
-	} else {
-		if val := req.Req.Header.Cookie(key); val != nil {
-			ret = string(val)
-		}
+func cookie(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if val := req.Header.Cookie(key); val != nil {
+		ret = string(val)
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
@@ -132,15 +106,9 @@ func cookie(req *bindRequest, params param.Params, key string, defaultValue ...s
 	return
 }
 
-func header(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
-	if req.Header != nil {
-		if val, exist := req.Header[key]; exist {
-			ret = val[0]
-		}
-	} else {
-		if val := req.Req.Header.Peek(key); val != nil {
-			ret = string(val)
-		}
+func header(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if val := req.Header.Peek(key); val != nil {
+		ret = string(val)
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
@@ -150,9 +118,9 @@ func header(req *bindRequest, params param.Params, key string, defaultValue ...s
 	return
 }
 
-func rawBody(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
-	if req.Req.Header.ContentLength() > 0 {
-		ret = string(req.Req.Body())
+func rawBody(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if req.Header.ContentLength() > 0 {
+		ret = string(req.Body())
 	}
 	return
 }

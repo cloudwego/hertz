@@ -26,7 +26,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func checkRequireJSON2(req *bindRequest, tagInfo TagInfo) bool {
+func checkRequireJSON2(req *protocol.Request, tagInfo TagInfo) bool {
 	if !tagInfo.Required {
 		return true
 	}

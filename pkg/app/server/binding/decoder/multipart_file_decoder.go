@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -28,7 +29,7 @@ type fileTypeDecoder struct {
 	isRepeated bool
 }
 
-func (d *fileTypeDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
+func (d *fileTypeDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	fieldValue := GetFieldValue(reqValue, d.parentIndex)
 	field := fieldValue.Field(d.index)
 
@@ -49,7 +50,7 @@ func (d *fileTypeDecoder) Decode(req *bindRequest, params param.Params, reqValue
 	if len(fileName) == 0 {
 		fileName = d.fieldName
 	}
-	file, err := req.Req.FormFile(fileName)
+	file, err := req.FormFile(fileName)
 	if err != nil {
 		return fmt.Errorf("can not get file '%s', err: %v", fileName, err)
 	}
@@ -72,7 +73,7 @@ func (d *fileTypeDecoder) Decode(req *bindRequest, params param.Params, reqValue
 	return nil
 }
 
-func (d *fileTypeDecoder) fileSliceDecode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
+func (d *fileTypeDecoder) fileSliceDecode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	fieldValue := GetFieldValue(reqValue, d.parentIndex)
 	field := fieldValue.Field(d.index)
 	// 如果没值，需要为其建一个值
@@ -102,7 +103,7 @@ func (d *fileTypeDecoder) fileSliceDecode(req *bindRequest, params param.Params,
 	if len(fileName) == 0 {
 		fileName = d.fieldName
 	}
-	multipartForm, err := req.Req.MultipartForm()
+	multipartForm, err := req.MultipartForm()
 	if err != nil {
 		return fmt.Errorf("can not get multipartForm info, err: %v", err)
 	}

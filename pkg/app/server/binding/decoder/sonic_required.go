@@ -26,22 +26,23 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
-func checkRequireJSON(req *bindRequest, tagInfo TagInfo) bool {
+func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 	if !tagInfo.Required {
 		return true
 	}
-	ct := bytesconv.B2s(req.Req.Header.ContentType())
+	ct := bytesconv.B2s(req.Header.ContentType())
 	if utils.FilterContentType(ct) != "application/json" {
 		return false
 	}
-	node, _ := sonic.Get(req.Req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
+	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
 	if !node.Exists() {
 		idx := strings.LastIndex(tagInfo.JSONName, ".")
 		if idx > 0 {
 			// There should be a superior if it is empty, it will report 'true' for required
-			node, _ := sonic.Get(req.Req.Body(), stringSliceForInterface(tagInfo.JSONName[:idx])...)
+			node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName[:idx])...)
 			if !node.Exists() {
 				return true
 			}

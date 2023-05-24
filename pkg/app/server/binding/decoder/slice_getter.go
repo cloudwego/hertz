@@ -41,15 +41,14 @@
 package decoder
 
 import (
-	"net/http"
-	"net/url"
-
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type sliceGetter func(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string)
+type sliceGetter func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string)
 
-func pathSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
+func pathSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
 	var value string
 	if params != nil {
 		value, _ = params.Get(key)
@@ -65,33 +64,24 @@ func pathSlice(req *bindRequest, params param.Params, key string, defaultValue .
 	return
 }
 
-func postFormSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if req.Form == nil {
-		req.Form = make(url.Values)
-		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
-			keyStr := string(formKey)
-			values := req.Form[keyStr]
-			values = append(values, string(value))
-			req.Form[keyStr] = values
-		})
-	}
-	ret = req.Form[key]
+func postFormSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	req.PostArgs().VisitAll(func(formKey, value []byte) {
+		if bytesconv.B2s(formKey) == key {
+			ret = append(ret, string(value))
+		}
+	})
 	if len(ret) > 0 {
 		return
 	}
 
-	if req.MultipartForm == nil {
-		req.MultipartForm = make(url.Values)
-		mf, err := req.Req.MultipartForm()
-		if err == nil && mf.Value != nil {
-			for k, v := range mf.Value {
-				if len(v) > 0 {
-					req.MultipartForm[k] = v
-				}
+	mf, err := req.MultipartForm()
+	if err == nil && mf.Value != nil {
+		for k, v := range mf.Value {
+			if k == key && len(v) > 0 {
+				ret = append(ret, v...)
 			}
 		}
 	}
-	ret = req.MultipartForm[key]
 	if len(ret) > 0 {
 		return
 	}
@@ -103,39 +93,13 @@ func postFormSlice(req *bindRequest, params param.Params, key string, defaultVal
 	return
 }
 
-func querySlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if req.Query == nil {
-		req.Query = make(url.Values)
-		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
-			keyStr := string(queryKey)
-			values := req.Query[keyStr]
-			values = append(values, string(value))
-			req.Query[keyStr] = values
-		})
-	}
-
-	ret = req.Query[key]
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
-	return
-}
-
-func cookieSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if len(req.Cookie) == 0 {
-		req.Req.Header.VisitAllCookie(func(cookieKey, value []byte) {
-			req.Cookie = append(req.Cookie, &http.Cookie{
-				Name:  string(cookieKey),
-				Value: string(value),
-			})
-		})
-	}
-	for _, c := range req.Cookie {
-		if c.Name == key {
-			ret = append(ret, c.Value)
+func querySlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+		if key == bytesconv.B2s(queryKey) {
+			ret = append(ret, string(value))
 		}
-	}
+	})
+
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = append(ret, defaultValue...)
 	}
@@ -143,18 +107,13 @@ func cookieSlice(req *bindRequest, params param.Params, key string, defaultValue
 	return
 }
 
-func headerSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if req.Header == nil {
-		req.Header = make(http.Header)
-		req.Req.Header.VisitAll(func(headerKey, value []byte) {
-			keyStr := string(headerKey)
-			values := req.Header[keyStr]
-			values = append(values, string(value))
-			req.Header[keyStr] = values
-		})
-	}
+func cookieSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	req.Header.VisitAllCookie(func(cookieKey, value []byte) {
+		if bytesconv.B2s(cookieKey) == key {
+			ret = append(ret, string(value))
+		}
+	})
 
-	ret = req.Header[key]
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = append(ret, defaultValue...)
 	}
@@ -162,9 +121,23 @@ func headerSlice(req *bindRequest, params param.Params, key string, defaultValue
 	return
 }
 
-func rawBodySlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if req.Req.Header.ContentLength() > 0 {
-		ret = append(ret, string(req.Req.Body()))
+func headerSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	req.Header.VisitAll(func(headerKey, value []byte) {
+		if bytesconv.B2s(headerKey) == key {
+			ret = append(ret, string(value))
+		}
+	})
+
+	if len(ret) == 0 && len(defaultValue) != 0 {
+		ret = append(ret, defaultValue...)
+	}
+
+	return
+}
+
+func rawBodySlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	if req.Header.ContentLength() > 0 {
+		ret = append(ret, string(req.Body()))
 	}
 	return
 }

@@ -105,7 +105,7 @@ type customizedFieldTextDecoder struct {
 	decodeFunc customizeDecodeFunc
 }
 
-func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
+func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
@@ -114,7 +114,7 @@ func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params param.Param
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
@@ -126,7 +126,7 @@ func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params param.Param
 		text = defaultValue
 	}
 
-	v, err := d.decodeFunc(req.Req, params, text)
+	v, err := d.decodeFunc(req, params, text)
 	if err != nil {
 		return err
 	}

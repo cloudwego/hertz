@@ -48,6 +48,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -56,7 +57,7 @@ type sliceTypeFieldTextDecoder struct {
 	isArray bool
 }
 
-func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
+func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var texts []string
 	var defaultValue string
@@ -75,7 +76,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		if tagInfo.Key == rawBodyTag {
 			bindRawBody = true
@@ -126,7 +127,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params
 	}
 	// raw_body && []byte binding
 	if bindRawBody && field.Type().Elem().Kind() == reflect.Uint8 {
-		reqValue.Field(d.index).Set(reflect.ValueOf(req.Req.Body()))
+		reqValue.Field(d.index).Set(reflect.ValueOf(req.Body()))
 		return nil
 	}
 
@@ -221,10 +222,10 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	}}, nil
 }
 
-func stringToValue(elemType reflect.Type, text string, req *bindRequest, params param.Params) (v reflect.Value, err error) {
+func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
 	if customizedFunc, exist := typeUnmarshalFuncs[elemType]; exist {
-		val, err := customizedFunc(req.Req, params, text)
+		val, err := customizedFunc(req, params, text)
 		if err != nil {
 			return reflect.Value{}, err
 		}

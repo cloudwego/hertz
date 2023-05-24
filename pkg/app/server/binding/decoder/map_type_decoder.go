@@ -47,6 +47,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -54,7 +55,7 @@ type mapTypeFieldTextDecoder struct {
 	fieldInfo
 }
 
-func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
+func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var text string
 	var defaultValue string
@@ -72,7 +73,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, 
 			continue
 		}
 		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Req.Header.IsDisableNormalizing())
+			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
