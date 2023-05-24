@@ -124,7 +124,7 @@ func TestBind_BaseType(t *testing.T) {
 
 	var result Req
 
-	err := DefaultBinder.Bind(req.Req, params, &result)
+	err := DefaultBinder().Bind(req.Req, params, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -149,7 +149,7 @@ func TestBind_SliceType(t *testing.T) {
 
 	var result Req
 
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,7 +192,7 @@ func TestBind_StructType(t *testing.T) {
 
 	req := newMockRequest().SetRequestURI("http://foobar.com?F1=f1&B1=b1").SetHeader("f2", "f2")
 
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -232,7 +232,7 @@ func TestBind_PointerType(t *testing.T) {
 	req := newMockRequest().SetRequestURI(fmt.Sprintf("http://foobar.com?F1=%s&B1=%s&B2=%s&B3=%s&B3=%s&B4=%d&B4=%d", F1, B1, B2, B3s[0], B3s[1], B4s[0], B4s[1])).
 		SetHeader("f2", "f2")
 
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -264,7 +264,7 @@ func TestBind_NestedStruct(t *testing.T) {
 	result := Bar{}
 
 	req := newMockRequest().SetRequestURI("http://foobar.com?F1=qwe")
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -285,7 +285,7 @@ func TestBind_SliceStruct(t *testing.T) {
 	B1s := []string{"1", "2", "3"}
 
 	req := newMockRequest().SetRequestURI(fmt.Sprintf("http://foobar.com?F1={\"f1\":\"%s\"}&F1={\"f1\":\"%s\"}&F1={\"f1\":\"%s\"}", B1s[0], B1s[1], B1s[2]))
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -300,7 +300,7 @@ func TestBind_MapType(t *testing.T) {
 	req := newMockRequest().
 		SetJSONContentType().
 		SetBody([]byte(`{"j1":"j1", "j2":"j2"}`))
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestBind_MapFieldType(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(`{"j1":"j1", "j2":"j2"}`))
 	result := Foo{}
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestBind_UnexportedField(t *testing.T) {
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestBind_NoTagField(t *testing.T) {
 		Value: "b2",
 	})
 
-	err := DefaultBinder.Bind(req.Req, params, &s)
+	err := DefaultBinder().Bind(req.Req, params, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +375,7 @@ func TestBind_ZeroValueBind(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=&b")
 
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestBind_DefaultValueBind(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
 
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestBind_DefaultValueBind(t *testing.T) {
 		D [2]string `default:"qwe"`
 	}
 
-	err = DefaultBinder.Bind(req.Req, nil, &d)
+	err = DefaultBinder().Bind(req.Req, nil, &d)
 	if err == nil {
 		t.Fatal("expected err")
 	}
@@ -420,7 +420,7 @@ func TestBind_RequiredBind(t *testing.T) {
 		SetRequestURI("http://foobar.com").
 		SetHeader("A", "1")
 
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -428,7 +428,7 @@ func TestBind_RequiredBind(t *testing.T) {
 	var d struct {
 		A int `query:"a,required" header:"A"`
 	}
-	err = DefaultBinder.Bind(req.Req, nil, &d)
+	err = DefaultBinder().Bind(req.Req, nil, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +450,7 @@ func TestBind_TypedefType(t *testing.T) {
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +483,7 @@ func TestBind_EnumBind(t *testing.T) {
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=0&b=2")
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,6 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 		}
 		return reflect.ValueOf(val), nil
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,7 +515,7 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
 	result := Foo{}
-	err = DefaultBinder.Bind(req.Req, nil, &result)
+	err = DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -527,7 +526,7 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	}
 
 	result2 := Bar{}
-	err = DefaultBinder.Bind(req.Req, nil, &result2)
+	err = DefaultBinder().Bind(req.Req, nil, &result2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -549,7 +548,7 @@ func TestBind_JSON(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -578,7 +577,7 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -613,7 +612,7 @@ func TestBind_FileBind(t *testing.T) {
 	// to parse multipart files
 	req2 := req2.GetHTTP1Request(req.Req)
 	_ = req2.String()
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +644,7 @@ func TestBind_FileSliceBind(t *testing.T) {
 	// to parse multipart files
 	req2 := req2.GetHTTP1Request(req.Req)
 	_ = req2.String()
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -669,19 +668,19 @@ func TestBind_FileSliceBind(t *testing.T) {
 
 func TestBind_AnonymousField(t *testing.T) {
 	type nest struct {
-		n1     string    `query:"n1"` // bind default value
-		N2     ***string `query:"n2"` // bind n2 value
-		string `query:"n3"`           // bind default value
+		n1     string       `query:"n1"` // bind default value
+		N2     ***string    `query:"n2"` // bind n2 value
+		string `query:"n3"` // bind default value
 	}
 
 	var s struct {
-		s1  int `query:"s1"` // bind default value
-		int `query:"s2"`     // bind default value
+		s1  int          `query:"s1"` // bind default value
+		int `query:"s2"` // bind default value
 		nest
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?s1=1&s2=2&n1=1&n2=2&n3=3")
-	err := DefaultBinder.Bind(req.Req, nil, &s)
+	err := DefaultBinder().Bind(req.Req, nil, &s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -713,7 +712,7 @@ func TestBind_IgnoreField(t *testing.T) {
 
 	var result Req
 
-	err := DefaultBinder.Bind(req.Req, params, &result)
+	err := DefaultBinder().Bind(req.Req, params, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -747,7 +746,7 @@ func TestBind_DefaultTag(t *testing.T) {
 		Value: "1",
 	})
 	var result Req
-	err := DefaultBinder.Bind(req.Req, params, &result)
+	err := DefaultBinder().Bind(req.Req, params, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -761,7 +760,7 @@ func TestBind_DefaultTag(t *testing.T) {
 		EnableDefaultTag(true)
 	}()
 	result2 := Req2{}
-	err = DefaultBinder.Bind(req.Req, params, &result2)
+	err = DefaultBinder().Bind(req.Req, params, &result2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -790,7 +789,7 @@ func TestBind_StructFieldResolve(t *testing.T) {
 	defer func() {
 		EnableStructFieldResolve(false)
 	}()
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -802,7 +801,7 @@ func TestBind_StructFieldResolve(t *testing.T) {
 		SetHeaders("Header", "header").
 		SetPostArg("Form", "form").
 		SetUrlEncodeContentType()
-	err = DefaultBinder.Bind(req.Req, nil, &result)
+	err = DefaultBinder().Bind(req.Req, nil, &result)
 	if err != nil {
 		t.Error(err)
 	}
@@ -837,7 +836,7 @@ func TestBind_JSONRequiredField(t *testing.T) {
 		SetJSONContentType().
 		SetBody(bodyBytes)
 	var result Req
-	err := DefaultBinder.Bind(req.Req, nil, &result)
+	err := DefaultBinder().Bind(req.Req, nil, &result)
 	if err == nil {
 		t.Errorf("expected an error, but get nil")
 	}
@@ -857,7 +856,7 @@ func TestBind_JSONRequiredField(t *testing.T) {
 		SetJSONContentType().
 		SetBody(bodyBytes)
 	var result2 Req
-	err = DefaultBinder.Bind(req.Req, nil, &result2)
+	err = DefaultBinder().Bind(req.Req, nil, &result2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -890,7 +889,7 @@ func Benchmark_Binding(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var result Req
-		err := DefaultBinder.Bind(req.Req, params, &result)
+		err := DefaultBinder().Bind(req.Req, params, &result)
 		if err != nil {
 			b.Error(err)
 		}

@@ -50,4 +50,8 @@ type Binder interface {
 	Bind(*protocol.Request, param.Params, interface{}) error
 }
 
-var DefaultBinder Binder = &defaultBinder{}
+var defaultBind Binder = &defaultBinder{}
+
+func DefaultBinder() Binder {
+	return defaultBind
+}

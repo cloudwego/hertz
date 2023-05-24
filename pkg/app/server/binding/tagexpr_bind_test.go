@@ -59,7 +59,7 @@ func TestRawBody(t *testing.T) {
 	bodyBytes := []byte("raw_body.............")
 	req := newRequest("", nil, nil, bytes.NewReader(bodyBytes))
 	recv := new(Recv)
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		if err != nil {
 			t.Error(err)
@@ -89,7 +89,7 @@ func TestQueryString(t *testing.T) {
 	}
 	req := newRequest("http://localhost:8080/?a=a1&a=a2&b=b1&c=c1&c=c2&d=d1&d=d&f=qps&g=1002&g=1003&e=&e=2&y=y1", nil, nil, nil)
 	recv := new(Recv)
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -113,7 +113,7 @@ func TestGetBody(t *testing.T) {
 	}
 	req := newRequest("http://localhost:8080/", nil, nil, nil)
 	recv := new(Recv)
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err == nil {
 		t.Fatalf("expected an error, but get nil")
 	}
@@ -133,7 +133,7 @@ func TestQueryNum(t *testing.T) {
 	}
 	req := newRequest("http://localhost:8080/?a=11&a=12&b=21&c=31&c=32&d=41&d=42&y=true", nil, nil, nil)
 	recv := new(Recv)
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		if err != nil {
 			t.Error(err)
@@ -169,7 +169,7 @@ func TestHeaderString(t *testing.T) {
 	header.Add("X-Y", "y1")
 	req := newRequest("", header, nil, nil)
 	recv := new(Recv)
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		if err != nil {
 			t.Error(err)
@@ -206,7 +206,7 @@ func TestHeaderNum(t *testing.T) {
 	req := newRequest("", header, nil, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -242,7 +242,7 @@ func TestCookieString(t *testing.T) {
 	req := newRequest("", nil, cookies, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,7 +275,7 @@ func TestCookieNum(t *testing.T) {
 	req := newRequest("", nil, cookies, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -321,7 +321,7 @@ func TestFormString(t *testing.T) {
 		header.Set("Content-Type", contentType)
 		req := newRequest("", header, nil, bodyReader)
 		recv := new(Recv)
-		err := DefaultBinder.Bind(req.Req, nil, recv)
+		err := DefaultBinder().Bind(req.Req, nil, recv)
 		if err != nil {
 			t.Error(err)
 		}
@@ -372,7 +372,7 @@ func TestFormNum(t *testing.T) {
 		req := newRequest("", header, nil, bodyReader)
 		recv := new(Recv)
 
-		err := DefaultBinder.Bind(req.Req, nil, recv)
+		err := DefaultBinder().Bind(req.Req, nil, recv)
 		if err != nil {
 			t.Error(err)
 		}
@@ -423,7 +423,7 @@ func TestJSON(t *testing.T) {
 	req := newRequest("", header, nil, bodyReader)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err == nil {
 		t.Error("expected an error, but get nil")
 	}
@@ -460,32 +460,32 @@ func TestPath(t *testing.T) {
 
 	params := param.Params{
 		{
-			"a",
-			"a1",
+			Key:   "a",
+			Value: "a1",
 		},
 		{
-			"b",
-			"-21",
+			Key:   "b",
+			Value: "-21",
 		},
 		{
-			"c",
-			"31",
+			Key:   "c",
+			Value: "31",
 		},
 		{
-			"d",
-			"41",
+			Key:   "d",
+			Value: "41",
 		},
 		{
-			"y",
-			"y1",
+			Key:   "y",
+			Value: "y1",
 		},
 		{
-			"name",
-			"henrylee2cn",
+			Key:   "name",
+			Value: "henrylee2cn",
 		},
 	}
 
-	err := DefaultBinder.Bind(req.Req, params, recv)
+	err := DefaultBinder().Bind(req.Req, params, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -546,12 +546,12 @@ func TestDefault(t *testing.T) {
 
 	param2 := param.Params{
 		{
-			"e",
-			"123",
+			Key:   "e",
+			Value: "123",
 		},
 	}
 
-	err := DefaultBinder.Bind(req.Req, param2, recv)
+	err := DefaultBinder().Bind(req.Req, param2, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -604,7 +604,7 @@ func TestAuto(t *testing.T) {
 	}, bodyReader)
 	recv := new(Recv)
 
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -625,7 +625,7 @@ func TestAuto(t *testing.T) {
 	header.Set("Content-Type", contentType)
 	req = newRequest("http://localhost/?"+query.Encode(), header, nil, bodyReader)
 	recv = new(Recv)
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -652,7 +652,7 @@ func TestTypeUnmarshal(t *testing.T) {
 	req := newRequest("http://localhost/?"+query.Encode(), header, nil, bodyReader)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -696,7 +696,7 @@ func TestOption(t *testing.T) {
 	req := newRequest("", header, nil, bodyReader)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -711,7 +711,7 @@ func TestOption(t *testing.T) {
 		}`)
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	assert.DeepEqual(t, err.Error(), "'C' field is a 'required' parameter, but the request does not have this parameter")
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
@@ -722,7 +722,7 @@ func TestOption(t *testing.T) {
 		}`)
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -745,7 +745,7 @@ func TestOption(t *testing.T) {
 	defer func() {
 		EnableStructFieldResolve(false)
 	}()
-	err = DefaultBinder.Bind(req.Req, nil, recv2)
+	err = DefaultBinder().Bind(req.Req, nil, recv2)
 	assert.DeepEqual(t, err.Error(), "'X' field is a 'required' parameter, but the request does not have this parameter")
 	assert.True(t, recv2.X == nil)
 	assert.DeepEqual(t, "y1", recv2.Y)
@@ -793,13 +793,13 @@ func TestQueryStringIssue(t *testing.T) {
 	req := newRequest("http://localhost:8080/?name=test", nil, nil, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
 	assert.DeepEqual(t, "test", *recv.Name)
 	// DIFF: the type with customized decoder must be a non-nil value
-	//assert.DeepEqual(t, (*Timestamp)(nil), recv.T)
+	// assert.DeepEqual(t, (*Timestamp)(nil), recv.T)
 }
 
 func TestQueryTypes(t *testing.T) {
@@ -840,7 +840,7 @@ func TestQueryTypes(t *testing.T) {
 	}, bodyReader)
 	recv := new(Recv)
 
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -863,7 +863,7 @@ func TestNoTagIssue(t *testing.T) {
 	req := newRequest("http://localhost:8080/?x=11&x2=12&a=1&B=2", nil, nil, nil)
 	recv := new(T)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -898,7 +898,7 @@ func TestRegTypeUnmarshal(t *testing.T) {
 	defer func() {
 		EnableStructFieldResolve(false)
 	}()
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -964,7 +964,7 @@ func TestPathnameBUG(t *testing.T) {
 	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
 	recv := new(ExchangeCurrencyRequest)
 
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1021,7 +1021,7 @@ func TestPathnameBUG2(t *testing.T) {
 	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
 	recv := new(CreateFreeShippingRequest)
 
-	err = DefaultBinder.Bind(req.Req, nil, recv)
+	err = DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1069,7 +1069,7 @@ func TestRequiredBUG(t *testing.T) {
 	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
 	recv := new(ExchangeCurrencyRequest)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	// no need for validate
 	if err != nil {
 		t.Error(err)
@@ -1089,7 +1089,7 @@ func TestIssue25(t *testing.T) {
 	req := newRequest("/1", header, cookies, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, nil, recv)
+	err := DefaultBinder().Bind(req.Req, nil, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1100,7 +1100,7 @@ func TestIssue25(t *testing.T) {
 	cookies2 := []*http.Cookie{}
 	req2 := newRequest("/2", header2, cookies2, nil)
 	recv2 := new(Recv)
-	err2 := DefaultBinder.Bind(req2.Req, nil, recv2)
+	err2 := DefaultBinder().Bind(req2.Req, nil, recv2)
 	if err2 != nil {
 		t.Error(err2)
 	}
@@ -1149,7 +1149,7 @@ func TestIssue26(t *testing.T) {
 	req := newRequest("/1", header, cookies, bytes.NewReader(b))
 
 	recv2 := new(Recv)
-	err = DefaultBinder.Bind(req.Req, nil, recv2)
+	err = DefaultBinder().Bind(req.Req, nil, recv2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1173,7 +1173,7 @@ func TestIssue26(t *testing.T) {
 //	req := newRequest("", header, nil, bodyReader)
 //	recv := new(Recv)
 //
-//	err := DefaultBinder.Bind(req.Req, nil, recv)
+//	err := DefaultBinder().Bind(req.Req, nil, recv)
 //	if err != nil {
 //		t.Error(err)
 //	}

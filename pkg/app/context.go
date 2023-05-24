@@ -1130,24 +1130,24 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 	return ctx.Request.Header.Cookie(key)
 }
 
-// SetCookie adds a Set-cookie header to the Response's headers.
+// SetCookie adds a Set-Cookie header to the Response's headers.
 //
 //	Parameter introduce:
-//	name and value is used to set cookie's name and value, eg. Set-cookie: name=value
-//	maxAge is use to set cookie's expiry date, eg. Set-cookie: name=value; max-age=1
-//	path and domain is used to set the scope of a cookie, eg. Set-cookie: name=value;domain=localhost; path=/;
-//	secure and httpOnly is used to sent cookies securely; eg. Set-cookie: name=value;HttpOnly; secure;
-//	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-cookie: name=value;HttpOnly; secure; SameSite=Lax;
+//	name and value is used to set cookie's name and value, eg. Set-Cookie: name=value
+//	maxAge is use to set cookie's expiry date, eg. Set-Cookie: name=value; max-age=1
+//	path and domain is used to set the scope of a cookie, eg. Set-Cookie: name=value;domain=localhost; path=/;
+//	secure and httpOnly is used to sent cookies securely; eg. Set-Cookie: name=value;HttpOnly; secure;
+//	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
 //
 //	For example:
 //	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
-//	add response header --->  Set-cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
+//	add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
 //	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//	add response header --->  Set-cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
 //	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//	add response header --->  Set-cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
 //	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
-//	add response header --->  Set-cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
 func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
 	if path == "" {
 		path = "/"
@@ -1223,10 +1223,10 @@ func (ctx *RequestContext) PostArgs() *protocol.Args {
 // For example:
 //
 //	    GET /path?id=1234&name=Manu&value=
-//		   c.query("id") == "1234"
-//		   c.query("name") == "Manu"
-//		   c.query("value") == ""
-//		   c.query("wtf") == ""
+//		   c.Query("id") == "1234"
+//		   c.Query("name") == "Manu"
+//		   c.Query("value") == ""
+//		   c.Query("wtf") == ""
 func (ctx *RequestContext) Query(key string) string {
 	value, _ := ctx.GetQuery(key)
 	return value
@@ -1305,7 +1305,7 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	err := binding.DefaultBinder.Bind(&ctx.Request, ctx.Params, obj)
+	err := binding.DefaultBinder().Bind(&ctx.Request, ctx.Params, obj)
 	if err != nil {
 		return err
 	}
@@ -1316,7 +1316,7 @@ func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.DefaultBinder.Bind(&ctx.Request, ctx.Params, obj)
+	return binding.DefaultBinder().Bind(&ctx.Request, ctx.Params, obj)
 }
 
 // Validate validates obj with "vd" tag
