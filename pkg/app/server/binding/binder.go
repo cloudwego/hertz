@@ -41,13 +41,13 @@
 package binding
 
 import (
-	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type Binder interface {
 	Name() string
-	Bind(*protocol.Request, path.PathParam, interface{}) error
+	Bind(*protocol.Request, param.Params, interface{}) error
 }
 
 var DefaultBinder Binder = &defaultBinder{}

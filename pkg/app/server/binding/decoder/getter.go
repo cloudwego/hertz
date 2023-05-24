@@ -41,12 +41,12 @@
 package decoder
 
 import (
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type getter func(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string)
+type getter func(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string)
 
-func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func path(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if params != nil {
 		ret, _ = params.Get(key)
 	}
@@ -57,7 +57,7 @@ func path(req *bindRequest, params path1.PathParam, key string, defaultValue ...
 	return ret
 }
 
-func postForm(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func postForm(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if req.Form != nil {
 		if val, exist := req.Form[key]; exist {
 			ret = val[0]
@@ -93,7 +93,7 @@ func postForm(req *bindRequest, params path1.PathParam, key string, defaultValue
 	return
 }
 
-func query(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func query(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if req.Query != nil {
 		if val, exist := req.Query[key]; exist {
 			ret = val[0]
@@ -111,7 +111,7 @@ func query(req *bindRequest, params path1.PathParam, key string, defaultValue ..
 	return
 }
 
-func cookie(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func cookie(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if len(req.Cookie) != 0 {
 		for _, c := range req.Cookie {
 			if c.Name == key {
@@ -132,7 +132,7 @@ func cookie(req *bindRequest, params path1.PathParam, key string, defaultValue .
 	return
 }
 
-func header(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func header(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if req.Header != nil {
 		if val, exist := req.Header[key]; exist {
 			ret = val[0]
@@ -150,7 +150,7 @@ func header(req *bindRequest, params path1.PathParam, key string, defaultValue .
 	return
 }
 
-func rawBody(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret string) {
+func rawBody(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret string) {
 	if req.Req.Header.ContentLength() > 0 {
 		ret = string(req.Req.Body())
 	}

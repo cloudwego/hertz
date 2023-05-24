@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/route/param"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -478,7 +479,34 @@ func TestPath(t *testing.T) {
 	req := newRequest("", nil, nil, nil)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, new(testPathParams), recv)
+	params := param.Params{
+		{
+			"a",
+			"a1",
+		},
+		{
+			"b",
+			"-21",
+		},
+		{
+			"c",
+			"31",
+		},
+		{
+			"d",
+			"41",
+		},
+		{
+			"y",
+			"y1",
+		},
+		{
+			"name",
+			"henrylee2cn",
+		},
+	}
+
+	err := DefaultBinder.Bind(req.Req, params, recv)
 	if err != nil {
 		t.Error(err)
 	}
@@ -548,7 +576,14 @@ func TestDefault(t *testing.T) {
 	req := newRequest("", header, nil, bodyReader)
 	recv := new(Recv)
 
-	err := DefaultBinder.Bind(req.Req, new(testPathParams2), recv)
+	param2 := param.Params{
+		{
+			"e",
+			"123",
+		},
+	}
+
+	err := DefaultBinder.Bind(req.Req, param2, recv)
 	if err != nil {
 		t.Error(err)
 	}

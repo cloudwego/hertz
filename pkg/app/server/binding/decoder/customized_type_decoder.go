@@ -45,13 +45,13 @@ import (
 	"reflect"
 	"time"
 
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 func init() {
-	MustRegTypeUnmarshal(reflect.TypeOf(time.Time{}), func(req *protocol.Request, params path1.PathParam, text string) (reflect.Value, error) {
+	MustRegTypeUnmarshal(reflect.TypeOf(time.Time{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
 		if text == "" {
 			return reflect.ValueOf(time.Time{}), nil
 		}
@@ -63,7 +63,7 @@ func init() {
 	})
 }
 
-type customizeDecodeFunc func(req *protocol.Request, params path1.PathParam, text string) (reflect.Value, error)
+type customizeDecodeFunc func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)
 
 var typeUnmarshalFuncs = make(map[reflect.Type]customizeDecodeFunc)
 
@@ -105,7 +105,7 @@ type customizedFieldTextDecoder struct {
 	decodeFunc customizeDecodeFunc
 }
 
-func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+func (d *customizedFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
 	var text string
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {

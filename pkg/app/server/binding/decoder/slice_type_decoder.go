@@ -46,9 +46,9 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type sliceTypeFieldTextDecoder struct {
@@ -56,7 +56,7 @@ type sliceTypeFieldTextDecoder struct {
 	isArray bool
 }
 
-func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+func (d *sliceTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var texts []string
 	var defaultValue string
@@ -221,7 +221,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	}}, nil
 }
 
-func stringToValue(elemType reflect.Type, text string, req *bindRequest, params path1.PathParam) (v reflect.Value, err error) {
+func stringToValue(elemType reflect.Type, text string, req *bindRequest, params param.Params) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
 	if customizedFunc, exist := typeUnmarshalFuncs[elemType]; exist {
 		val, err := customizedFunc(req.Req, params, text)

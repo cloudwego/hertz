@@ -45,16 +45,16 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type mapTypeFieldTextDecoder struct {
 	fieldInfo
 }
 
-func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+func (d *mapTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var text string
 	var defaultValue string

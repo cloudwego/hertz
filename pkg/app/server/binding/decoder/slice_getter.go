@@ -44,12 +44,12 @@ import (
 	"net/http"
 	"net/url"
 
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type sliceGetter func(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string)
+type sliceGetter func(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string)
 
-func pathSlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func pathSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	var value string
 	if params != nil {
 		value, _ = params.Get(key)
@@ -65,7 +65,7 @@ func pathSlice(req *bindRequest, params path1.PathParam, key string, defaultValu
 	return
 }
 
-func postFormSlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func postFormSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if req.Form == nil {
 		req.Form = make(url.Values)
 		req.Req.PostArgs().VisitAll(func(formKey, value []byte) {
@@ -103,7 +103,7 @@ func postFormSlice(req *bindRequest, params path1.PathParam, key string, default
 	return
 }
 
-func querySlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func querySlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if req.Query == nil {
 		req.Query = make(url.Values, 100)
 		req.Req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
@@ -122,7 +122,7 @@ func querySlice(req *bindRequest, params path1.PathParam, key string, defaultVal
 	return
 }
 
-func cookieSlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func cookieSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if len(req.Cookie) == 0 {
 		req.Req.Header.VisitAllCookie(func(cookieKey, value []byte) {
 			req.Cookie = append(req.Cookie, &http.Cookie{
@@ -143,7 +143,7 @@ func cookieSlice(req *bindRequest, params path1.PathParam, key string, defaultVa
 	return
 }
 
-func headerSlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func headerSlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if req.Header == nil {
 		req.Header = make(http.Header)
 		req.Req.Header.VisitAll(func(headerKey, value []byte) {
@@ -162,7 +162,7 @@ func headerSlice(req *bindRequest, params path1.PathParam, key string, defaultVa
 	return
 }
 
-func rawBodySlice(req *bindRequest, params path1.PathParam, key string, defaultValue ...string) (ret []string) {
+func rawBodySlice(req *bindRequest, params param.Params, key string, defaultValue ...string) (ret []string) {
 	if req.Req.Header.ContentLength() > 0 {
 		ret = append(ret, string(req.Req.Body()))
 	}

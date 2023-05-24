@@ -21,9 +21,9 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 // ResetJSONUnmarshaler reset the JSON Unmarshal function.
@@ -49,11 +49,11 @@ func EnableStructFieldResolve(b bool) {
 }
 
 // RegTypeUnmarshal registers customized type unmarshaler.
-func RegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params path1.PathParam, text string) (reflect.Value, error)) error {
+func RegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) error {
 	return decoder.RegTypeUnmarshal(t, fn)
 }
 
 // MustRegTypeUnmarshal registers customized type unmarshaler. It will panic if exist error.
-func MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params path1.PathParam, text string) (reflect.Value, error)) {
+func MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) {
 	decoder.MustRegTypeUnmarshal(t, fn)
 }

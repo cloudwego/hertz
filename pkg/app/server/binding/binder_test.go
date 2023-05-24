@@ -46,7 +46,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	req2 "github.com/cloudwego/hertz/pkg/protocol/http1/req"
@@ -499,7 +498,7 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 		F ***CustomizedDecode
 	}
 
-	err := RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params path.PathParam, text string) (reflect.Value, error) {
+	err := RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
 		q1 := req.URI().QueryArgs().Peek("a")
 		if len(q1) == 0 {
 			return reflect.Value{}, fmt.Errorf("can be nil")
@@ -670,14 +669,14 @@ func TestBind_FileSliceBind(t *testing.T) {
 
 func TestBind_AnonymousField(t *testing.T) {
 	type nest struct {
-		n1     string       `query:"n1"` // bind default value
-		N2     ***string    `query:"n2"` // bind n2 value
-		string `query:"n3"` // bind default value
+		n1     string    `query:"n1"` // bind default value
+		N2     ***string `query:"n2"` // bind n2 value
+		string `query:"n3"`           // bind default value
 	}
 
 	var s struct {
-		s1  int          `query:"s1"` // bind default value
-		int `query:"s2"` // bind default value
+		s1  int `query:"s1"` // bind default value
+		int `query:"s2"`     // bind default value
 		nest
 	}
 	req := newMockRequest().

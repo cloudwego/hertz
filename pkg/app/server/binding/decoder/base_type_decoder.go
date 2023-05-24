@@ -44,8 +44,8 @@ import (
 	"fmt"
 	"reflect"
 
-	path1 "github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type fieldInfo struct {
@@ -61,7 +61,7 @@ type baseTypeFieldTextDecoder struct {
 	decoder TextDecoder
 }
 
-func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params path1.PathParam, reqValue reflect.Value) error {
+func (d *baseTypeFieldTextDecoder) Decode(req *bindRequest, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var text string
 	var defaultValue string

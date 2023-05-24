@@ -67,10 +67,10 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/path"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/route/param"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/protobuf/proto"
 )
@@ -83,7 +83,7 @@ func (b *defaultBinder) Name() string {
 	return "hertz"
 }
 
-func (b *defaultBinder) Bind(req *protocol.Request, params path.PathParam, v interface{}) error {
+func (b *defaultBinder) Bind(req *protocol.Request, params param.Params, v interface{}) error {
 	err := b.preBindBody(req, v)
 	if err != nil {
 		return fmt.Errorf("bind body failed, err=%v", err)
