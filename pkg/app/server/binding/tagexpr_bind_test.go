@@ -443,27 +443,6 @@ func TestJSON(t *testing.T) {
 func TestNonstruct(t *testing.T) {
 }
 
-type testPathParams struct{}
-
-func (testPathParams) Get(name string) (string, bool) {
-	switch name {
-	case "a":
-		return "a1", true
-	case "b":
-		return "-21", true
-	case "c":
-		return "31", true
-	case "d":
-		return "41", true
-	case "y":
-		return "y1", true
-	case "name":
-		return "henrylee2cn", true
-	default:
-		return "", false
-	}
-}
-
 func TestPath(t *testing.T) {
 	type Recv struct {
 		X **struct {
@@ -516,17 +495,6 @@ func TestPath(t *testing.T) {
 	assert.DeepEqual(t, float32(41), *(**recv.X).D)
 	assert.DeepEqual(t, "y1", recv.Y)
 	assert.DeepEqual(t, (*int64)(nil), recv.Z)
-}
-
-type testPathParams2 struct{}
-
-func (testPathParams2) Get(name string) (string, bool) {
-	switch name {
-	case "e":
-		return "123", true
-	default:
-		return "", false
-	}
 }
 
 // FIXME: 复杂类型的默认值，暂时先不做，低优
@@ -988,6 +956,9 @@ func TestPathnameBUG(t *testing.T) {
 	z.Currency.Currency.MaxPrice = proto.String("?")
 
 	b, err := json.MarshalIndent(z, "", "  ")
+	if err != nil {
+		t.Error(err)
+	}
 	header := make(http.Header)
 	header.Set("Content-Type", "application/json;charset=utf-8")
 	req := newRequest("http://localhost", header, nil, bytes.NewReader(b))
