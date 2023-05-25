@@ -235,7 +235,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 	return out, nil
 }
 
-func getCompatibleAnnotation(options proto.Message, anno *protoimpl.ExtensionInfo, compatibleAnno *protoimpl.ExtensionInfo) interface{} {
+func getCompatibleAnnotation(options proto.Message, anno, compatibleAnno *protoimpl.ExtensionInfo) interface{} {
 	if proto.HasExtension(options, anno) {
 		return checkFirstOption(anno, options)
 	} else if proto.HasExtension(options, compatibleAnno) {

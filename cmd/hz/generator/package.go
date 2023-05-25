@@ -44,6 +44,8 @@ type Service struct {
 	ClientMethods []*ClientMethod
 	Models        []*model.Model // all dependency models
 	BaseDomain    string         // base domain for client code
+	ServiceGroup  string         // service level router group
+	ServiceGenDir string         // handler_dir for handler_by_service
 }
 
 // HttpPackageGenerator is used to record the configuration related to generating hertz http code.
@@ -61,6 +63,7 @@ type HttpPackageGenerator struct {
 	IdlClientDir   string // client dir for "client" command
 	ForceClientDir string // client dir without namespace for "client" command
 	BaseDomain     string // request domain for "client" command
+	ServiceGenDir  string
 
 	NeedModel            bool
 	HandlerByMethod      bool // generate handler files with method dimension

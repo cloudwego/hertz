@@ -532,7 +532,7 @@ func TestRequestHostFromHeader(t *testing.T) {
 func TestRequestContentTypeWithCharset(t *testing.T) {
 	t.Parallel()
 
-	expectedContentType := "application/x-www-form-urlencoded; charset=UTF-8"
+	expectedContentType := consts.MIMEApplicationHTMLFormUTF8
 	expectedBody := "0123=56789"
 	s := fmt.Sprintf("POST / HTTP/1.1\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s",
 		expectedContentType, len(expectedBody), expectedBody)
