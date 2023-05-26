@@ -60,12 +60,13 @@ type fieldDecoder interface {
 
 type Decoder func(req *protocol.Request, params param.Params, rv reflect.Value) error
 
-func GetReqDecoder(rt reflect.Type) (Decoder, error) {
+func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
 	var decoders []fieldDecoder
+	var needValidate bool
 
 	el := rt.Elem()
 	if el.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("unsupported \"%s\" type binding", el.String())
+		return nil, false, fmt.Errorf("unsupported \"%s\" type binding", el.String())
 	}
 
 	for i := 0; i < el.NumField(); i++ {
@@ -74,10 +75,11 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 			continue
 		}
 
-		dec, err := getFieldDecoder(el.Field(i), i, []int{}, "")
+		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", "")
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		needValidate = needValidate || needValidate2
 
 		if dec != nil {
 			decoders = append(decoders, dec...)
@@ -93,33 +95,39 @@ func GetReqDecoder(rt reflect.Type) (Decoder, error) {
 		}
 
 		return nil
-	}, nil
+	}, needValidate, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string) ([]fieldDecoder, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string) ([]fieldDecoder, bool, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
 	if field.Type.Kind() != reflect.Struct && field.Anonymous {
-		return nil, nil
+		return nil, false, nil
 	}
 
-	fieldTagInfos, newParentJSONName := lookupFieldTags(field, parentJSONName)
+	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName)
 	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
+	}
+	if len(byTag) != 0 {
+		fieldTagInfos = getFieldTagInfoByTag(field, byTag)
 	}
 
 	// customized type decoder has the highest priority
 	if customizedFunc, exist := typeUnmarshalFuncs[field.Type]; exist {
-		return getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc)
+		dec, err := getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc)
+		return dec, needValidate, err
 	}
 
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
-		return getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
+		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
+		return dec, needValidate, err
 	}
 
 	if field.Type.Kind() == reflect.Map {
-		return getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+		return dec, needValidate, err
 	}
 
 	if field.Type.Kind() == reflect.Struct {
@@ -128,12 +136,13 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 		// todo: more built-in common struct binding, ex. time...
 		switch el {
 		case reflect.TypeOf(multipart.FileHeader{}):
-			return getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
+			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
+			return dec, needValidate, err
 		}
 		if EnableStructFieldResolve {
 			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx)
 			if err != nil {
-				return nil, err
+				return nil, needValidate, err
 			}
 			if structFieldDecoder != nil {
 				decoders = append(decoders, structFieldDecoder...)
@@ -150,17 +159,19 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 				idxes = append(idxes, parentIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName)
+			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag)
+			needValidate = needValidate || needValidate2
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			if dec != nil {
 				decoders = append(decoders, dec...)
 			}
 		}
 
-		return decoders, nil
+		return decoders, needValidate, nil
 	}
 
-	return getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+	return dec, needValidate, err
 }

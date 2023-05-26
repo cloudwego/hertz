@@ -48,6 +48,13 @@ import (
 type Binder interface {
 	Name() string
 	Bind(*protocol.Request, param.Params, interface{}) error
+	BindAndValidate(*protocol.Request, param.Params, interface{}) error
+	BindQuery(*protocol.Request, interface{}) error
+	BindHeader(*protocol.Request, interface{}) error
+	BindPath(*protocol.Request, param.Params, interface{}) error
+	BindForm(*protocol.Request, interface{}) error
+	BindJSON(*protocol.Request, interface{}) error
+	BindProtobuf(*protocol.Request, interface{}) error
 }
 
 var defaultBind Binder = &defaultBinder{}

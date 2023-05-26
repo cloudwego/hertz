@@ -563,7 +563,7 @@ func TestBind_JSON(t *testing.T) {
 }
 
 func TestBind_ResetJSONUnmarshal(t *testing.T) {
-	ResetStdJSONUnmarshaler()
+	UseStdJSONUnmarshaler()
 	type Req struct {
 		J1 string    `json:"j1"`
 		J2 int       `json:"j2"`
@@ -864,6 +864,45 @@ func TestBind_JSONRequiredField(t *testing.T) {
 	assert.DeepEqual(t, 2, result2.N.B)
 	assert.DeepEqual(t, 0, result2.N.N2.C)
 	assert.DeepEqual(t, 0, result2.N.N2.D)
+}
+
+func TestValidate_MultipleValidate(t *testing.T) {
+	type Test1 struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?a=9")
+	var result Test1
+	err := DefaultBinder().BindAndValidate(req.Req, nil, &result)
+	if err == nil {
+		t.Fatalf("expected an error, but get nil")
+	}
+}
+
+func TestBind_BindQuery(t *testing.T) {
+	type Req struct {
+		Q1 int `query:"q1"`
+		Q2 int
+		Q3 string
+		Q4 string
+		Q5 []int
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?q1=1&Q2=2&Q3=3&Q4=4&Q5=51&Q5=52")
+
+	var result Req
+
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 1, result.Q1)
+	assert.DeepEqual(t, 2, result.Q2)
+	assert.DeepEqual(t, "3", result.Q3)
+	assert.DeepEqual(t, "4", result.Q4)
+	assert.DeepEqual(t, 51, result.Q5[0])
+	assert.DeepEqual(t, 52, result.Q5[1])
 }
 
 func Benchmark_Binding(b *testing.B) {

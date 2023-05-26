@@ -1305,12 +1305,7 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	err := binding.DefaultBinder().Bind(&ctx.Request, ctx.Params, obj)
-	if err != nil {
-		return err
-	}
-	err = binding.DefaultValidator.ValidateStruct(obj)
-	return err
+	return binding.DefaultBinder().BindAndValidate(&ctx.Request, ctx.Params, obj)
 }
 
 // Bind binds data from *RequestContext to obj.
@@ -1322,7 +1317,54 @@ func (ctx *RequestContext) Bind(obj interface{}) error {
 // Validate validates obj with "vd" tag
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.DefaultValidator.ValidateStruct(obj)
+	return binding.DefaultValidator().ValidateStruct(obj)
+}
+
+func (ctx *RequestContext) BindQuery(obj interface{}) error {
+	return binding.DefaultBinder().BindQuery(&ctx.Request, obj)
+}
+
+func (ctx *RequestContext) BindHeader(obj interface{}) error {
+	return binding.DefaultBinder().BindHeader(&ctx.Request, obj)
+}
+
+func (ctx *RequestContext) BindPath(obj interface{}) error {
+	return binding.DefaultBinder().BindPath(&ctx.Request, ctx.Params, obj)
+}
+
+func (ctx *RequestContext) BindForm(obj interface{}) error {
+	return binding.DefaultBinder().BindForm(&ctx.Request, obj)
+}
+
+func (ctx *RequestContext) BindJSON(obj interface{}) error {
+	return binding.DefaultBinder().BindJSON(&ctx.Request, obj)
+}
+
+func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
+	return binding.DefaultBinder().BindProtobuf(&ctx.Request, obj)
+}
+
+func (ctx *RequestContext) BindByContentType(obj interface{}) error {
+	if bytesconv.B2s(ctx.Request.Method()) == consts.MethodGet {
+		return ctx.BindQuery(obj)
+	}
+	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
+	switch ct {
+	case "application/json":
+		return ctx.BindJSON(obj)
+	case "application/x-protobuf":
+		return ctx.BindProtobuf(obj)
+	case "application/xml", "text/xml":
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	case "application/x-msgpack", "application/msgpack":
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	case "application/x-yaml":
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	case "application/toml":
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	default: // case MIMEPOSTForm/MIMEMultipartPOSTForm
+		return ctx.BindForm(obj)
+	}
 }
 
 // VisitAllQueryArgs calls f for each existing query arg.

@@ -32,6 +32,8 @@ const (
 	fileNameTag = "file_name"
 )
 
+var DefaultValidatorTag = "vd"
+
 const (
 	defaultTag = "default"
 )
@@ -60,8 +62,12 @@ func head(str, sep string) (head, tail string) {
 	return str[:idx], str[idx+len(sep):]
 }
 
-func lookupFieldTags(field reflect.StructField, parentJSONName string) ([]TagInfo, string) {
+func lookupFieldTags(field reflect.StructField, parentJSONName string) ([]TagInfo, string, bool) {
 	var ret []string
+	var needValidate bool
+	if _, ok := field.Tag.Lookup(DefaultValidatorTag); ok {
+		needValidate = true
+	}
 	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag}
 	for _, tag := range tags {
 		if _, ok := field.Tag.Lookup(tag); ok {
@@ -113,7 +119,7 @@ func lookupFieldTags(field reflect.StructField, parentJSONName string) ([]TagInf
 		newParentJSONName = strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
 	}
 
-	return tagInfos, newParentJSONName
+	return tagInfos, newParentJSONName, needValidate
 }
 
 func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
@@ -128,4 +134,33 @@ func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
 	}
 
 	return
+}
+
+func getFieldTagInfoByTag(field reflect.StructField, tag string) []TagInfo {
+	var tagInfos []TagInfo
+	if content, ok := field.Tag.Lookup(tag); ok {
+		tagValue, opts := head(content, ",")
+		if len(tagValue) == 0 {
+			tagValue = field.Name
+		}
+		skip := false
+		if tagValue == "-" {
+			skip = true
+		}
+		var options []string
+		var opt string
+		var required bool
+		for len(opts) > 0 {
+			opt, opts = head(opts, ",")
+			options = append(options, opt)
+			if opt == requiredTagOpt {
+				required = true
+			}
+		}
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Skip: skip})
+	} else {
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name})
+	}
+
+	return tagInfos
 }

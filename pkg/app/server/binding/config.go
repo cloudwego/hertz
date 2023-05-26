@@ -20,20 +20,28 @@ import (
 	standardJson "encoding/json"
 	"reflect"
 
+	"github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-// ResetJSONUnmarshaler reset the JSON Unmarshal function.
-func ResetJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
+// UseThirdPartyJSONUnmarshaler uses third-party json library for binding
+// NOTE:
+//
+//	UseThirdPartyJSONUnmarshaler will remain in effect once it has been called.
+func UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 	hjson.Unmarshal = fn
 }
 
-// ResetStdJSONUnmarshaler uses "encoding/json" as the JSON Unmarshal function.
-func ResetStdJSONUnmarshaler() {
-	ResetJSONUnmarshaler(standardJson.Unmarshal)
+// UseStdJSONUnmarshaler uses encoding/json as json library
+// NOTE:
+//
+//	The current version uses encoding/json by default.
+//	UseStdJSONUnmarshaler will remain in effect once it has been called.
+func UseStdJSONUnmarshaler() {
+	UseThirdPartyJSONUnmarshaler(standardJson.Unmarshal)
 }
 
 // EnableDefaultTag is used to enable or disable adding default tags to a field when it has no tag, it is true by default.
@@ -56,4 +64,49 @@ func RegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params para
 // MustRegTypeUnmarshal registers customized type unmarshaler. It will panic if exist error.
 func MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) {
 	decoder.MustRegTypeUnmarshal(t, fn)
+}
+
+// ResetValidator reset a customized
+func ResetValidator(v StructValidator, validatorTag string) {
+	defaultValidate = v
+	decoder.DefaultValidatorTag = validatorTag
+}
+
+// MustRegValidateFunc registers validator function expression.
+// NOTE:
+//
+//	If force=true, allow to cover the existed same funcName.
+//	MustRegValidateFunc will remain in effect once it has been called.
+func MustRegValidateFunc(funcName string, fn func(args ...interface{}) error, force ...bool) {
+	validator.MustRegFunc(funcName, fn, force...)
+}
+
+// SetValidatorErrorFactory customizes the factory of validation error.
+func SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) error) {
+	if val, ok := DefaultValidator().(*defaultValidator); ok {
+		val.validate.SetErrorFactory(validatingErrFactory)
+	} else {
+		panic("customized validator can not use 'SetValidatorErrorFactory'")
+	}
+}
+
+var enableDecoderUseNumber = false
+
+var enableDecoderDisallowUnknownFields = false
+
+// EnableDecoderUseNumber is used to call the UseNumber method on the JSON
+// Decoder instance. UseNumber causes the Decoder to unmarshal a number into an
+// interface{} as a Number instead of as a float64.
+// NOTE: it is used for BindJSON().
+func EnableDecoderUseNumber(b bool) {
+	enableDecoderUseNumber = b
+}
+
+// EnableDecoderDisallowUnknownFields is used to call the DisallowUnknownFields method
+// on the JSON Decoder instance. DisallowUnknownFields causes the Decoder to
+// return an error when the destination is a struct and the input contains object
+// keys which do not match any non-ignored, exported fields in the destination.
+// NOTE: it is used for BindJSON().
+func EnableDecoderDisallowUnknownFields(b bool) {
+	enableDecoderDisallowUnknownFields = b
 }
