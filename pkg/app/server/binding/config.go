@@ -21,7 +21,7 @@ import (
 	"reflect"
 
 	"github.com/bytedance/go-tagexpr/v2/validator"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/decoder"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
