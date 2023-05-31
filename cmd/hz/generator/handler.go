@@ -50,6 +50,7 @@ type Handler struct {
 	ProjPackage string
 	Imports     map[string]*model.Model
 	Methods     []*HttpMethod
+	ServiceName string
 }
 
 type Client struct {
@@ -68,6 +69,7 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 					PackageName: util.SplitPackage(filepath.Dir(filePath), ""),
 					Methods:     []*HttpMethod{m},
 					ProjPackage: pkgGen.ProjPackage,
+					ServiceName: s.Name,
 				}
 
 				if err := pkgGen.processHandler(&handler, root, handlerDir, m.OutputDir, true); err != nil {
@@ -90,6 +92,7 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 				PackageName: util.SplitPackage(tmpHandlerPackage, ""),
 				Methods:     s.Methods,
 				ProjPackage: pkgGen.ProjPackage,
+				ServiceName: s.Name,
 			}
 
 			for _, m := range s.Methods {
