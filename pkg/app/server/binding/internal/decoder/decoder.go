@@ -75,7 +75,7 @@ func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
 			continue
 		}
 
-		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", "")
+		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag)
 		if err != nil {
 			return nil, false, err
 		}

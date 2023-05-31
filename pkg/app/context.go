@@ -1333,6 +1333,9 @@ func (ctx *RequestContext) BindPath(obj interface{}) error {
 }
 
 func (ctx *RequestContext) BindForm(obj interface{}) error {
+	if len(ctx.Request.Body()) == 0 {
+		return fmt.Errorf("missing form body")
+	}
 	return binding.DefaultBinder().BindForm(&ctx.Request, obj)
 }
 

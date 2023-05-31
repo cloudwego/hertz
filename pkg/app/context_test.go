@@ -1457,6 +1457,32 @@ func TestBindAndValidate(t *testing.T) {
 	}
 }
 
+func TestBindForm(t *testing.T) {
+	type Test struct {
+		A string
+		B int
+	}
+
+	c := &RequestContext{}
+	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
+	c.Request.SetBody([]byte("A=123&B=11"))
+	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+
+	var req Test
+	err := c.BindForm(&req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.DeepEqual(t, "123", req.A)
+	assert.DeepEqual(t, 11, req.B)
+
+	c.Request.SetBody([]byte(""))
+	err = c.BindForm(&req)
+	if err == nil {
+		t.Fatalf("expected error, but get nil")
+	}
+}
+
 func TestRequestContext_SetCookie(t *testing.T) {
 	c := NewContext(0)
 	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteLaxMode, true, true)
