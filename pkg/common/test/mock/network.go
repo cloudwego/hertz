@@ -18,7 +18,6 @@ package mock
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"strings"
 	"time"
@@ -262,7 +261,7 @@ func (m *StreamConn) Peek(n int) ([]byte, error) {
 		m.Data = m.Data[:cap(m.Data)]
 		return m.Data[:1], nil
 	}
-	return nil, errors.New("not enough data")
+	return nil, errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Skip(n int) error {
@@ -270,7 +269,7 @@ func (m *StreamConn) Skip(n int) error {
 		m.Data = m.Data[n:]
 		return nil
 	}
-	return errors.New("not enough data")
+	return errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Release() error {

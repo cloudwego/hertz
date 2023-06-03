@@ -42,11 +42,11 @@
 package stackless
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/cloudwego/hertz/pkg/common/errors"
 )
 
 // Writer is an interface stackless writer must conform to.
@@ -137,7 +137,7 @@ func (w *writer) do(op op) error {
 	return err
 }
 
-var errHighLoad = errors.New("cannot compress data due to high load")
+var errHighLoad = errors.NewPublic("cannot compress data due to high load")
 
 var stacklessWriterFunc = NewFunc(writerFunc)
 
