@@ -367,14 +367,19 @@ func TestDialTimeoutPriority(t *testing.T) {
 }
 
 func TestStateObserve(t *testing.T) {
-	var dynamicAddr string
+	syncState := struct {
+		mu    sync.Mutex
+		state config.ConnPoolState
+	}{}
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			StateObserve: func(hcs config.HostClientState) {
-				dynamicAddr = hcs.ConnPoolState().Addr
+				syncState.mu.Lock()
+				defer syncState.mu.Unlock()
+				syncState.state = hcs.ConnPoolState()
 			},
 			ObservationInterval: 50 * time.Millisecond,
 		},
@@ -388,7 +393,9 @@ func TestStateObserve(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond)
 	assert.Nil(t, c.Close())
-	assert.DeepEqual(t, "foobar:443", dynamicAddr)
+	syncState.mu.Lock()
+	assert.DeepEqual(t, "foobar:443", syncState.state.Addr)
+	syncState.mu.Unlock()
 }
 
 func TestCachedTLSConfig(t *testing.T) {

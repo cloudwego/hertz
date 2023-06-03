@@ -108,7 +108,6 @@ func testTestHeaderScannerError(t *testing.T, rawHeaders string, expectError err
 	hs.B = []byte(rawHeaders)
 	hs.DisableNormalizing = false
 	for hs.Next() {
-
 	}
 	assert.NotNil(t, hs.Err)
 	assert.True(t, errors.Is(hs.Err, expectError))
