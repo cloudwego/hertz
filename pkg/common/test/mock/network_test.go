@@ -34,6 +34,7 @@ func TestConn(t *testing.T) {
 		assert.DeepEqual(t, nil, err)
 		err = conn1.SetReadTimeout(time.Millisecond * 100)
 		assert.DeepEqual(t, nil, err)
+		assert.DeepEqual(t, time.Millisecond*100, conn1.GetReadTimeout())
 
 		// Peek Skip Read
 		b, _ := conn1.Peek(1)

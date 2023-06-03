@@ -55,12 +55,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/cloudwego/netpoll"
@@ -363,6 +366,96 @@ func TestDialTimeoutPriority(t *testing.T) {
 	}
 }
 
+func TestStateObserve(t *testing.T) {
+	var dynamicAddr string
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.SlowReadDialer(addr)
+			}),
+			StateObserve: func(hcs config.HostClientState) {
+				dynamicAddr = hcs.ConnPoolState().Addr
+			},
+			ObservationInterval: 50 * time.Millisecond,
+		},
+		Addr:   "foobar",
+		closed: make(chan struct{}),
+	}
+
+	c.SetDynamicConfig(&client.DynamicConfig{
+		Addr: utils.AddMissingPort(c.Addr, true),
+	})
+
+	time.Sleep(500 * time.Millisecond)
+	assert.Nil(t, c.Close())
+	assert.DeepEqual(t, "foobar:443", dynamicAddr)
+}
+
+func TestCachedTLSConfig(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.SlowReadDialer(addr)
+			}),
+			TLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		Addr:  "foobar",
+		IsTLS: true,
+	}
+
+	cfg1 := c.cachedTLSConfig("foobar")
+	cfg2 := c.cachedTLSConfig("baz")
+	assert.NotEqual(t, cfg1, cfg2)
+	cfg3 := c.cachedTLSConfig("foobar")
+	assert.DeepEqual(t, cfg1, cfg3)
+}
+
+func TestRetry(t *testing.T) {
+	var times int32
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				times++
+				if times < 3 {
+					return &retryConn{
+						Conn: mock.NewConn(""),
+					}, nil
+				}
+				return mock.NewConn("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789"), nil
+			}),
+			RetryConfig: &retry.Config{
+				MaxAttemptTimes: 5,
+				Delay:           time.Millisecond * 10,
+			},
+			RetryIfFunc: func(req *protocol.Request, resp *protocol.Response, err error) bool {
+				return true
+			},
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithWriteTimeout(time.Millisecond * 100))
+	resp := protocol.AcquireResponse()
+
+	ch := make(chan error, 1)
+	go func() {
+		ch <- c.Do(context.Background(), req, resp)
+	}()
+	select {
+	case <-time.After(time.Second * 2):
+		t.Fatalf("should use writeTimeout in request options")
+	case err := <-ch:
+		assert.Nil(t, err)
+		assert.True(t, times == 3)
+		assert.DeepEqual(t, resp.StatusCode(), 200)
+		assert.DeepEqual(t, resp.Body(), []byte("0123456789"))
+	}
+}
+
 // mockConn for getting error when write binary data.
 type writeErrConn struct {
 	network.Conn
@@ -370,4 +463,12 @@ type writeErrConn struct {
 
 func (w writeErrConn) WriteBinary(b []byte) (n int, err error) {
 	return 0, errs.ErrConnectionClosed
+}
+
+type retryConn struct {
+	network.Conn
+}
+
+func (w retryConn) SetWriteTimeout(t time.Duration) error {
+	return errors.New("should retry")
 }
