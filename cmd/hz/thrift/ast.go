@@ -353,18 +353,7 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 				}
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
-					// the method of other file is extended, and the package of req/resp needs to be changed
-					// ex. base.thrift -> Resp Method(Req){}
-					//					  base.Resp Method(base.Req){}
-					// todo: support container for Struct
-					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
-							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
-						}
-					}
-					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
-						f.FunctionType.Name = base + "." + f.FunctionType.Name
-					}
+					processExtendsType(f, base)
 				}
 				extendFuncs, err := getAllExtendFunction(extendSvc, ast, resolver, args)
 				if err != nil {
@@ -392,18 +381,7 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 			if found {
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
-					// the method of other file is extended, and the package of req/resp needs to be changed
-					// ex. base.thrift -> Resp Method(Req){}
-					//					  base.Resp Method(base.Req){}
-					// todo: support container for Struct
-					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
-							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
-						}
-					}
-					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
-						f.FunctionType.Name = base + "." + f.FunctionType.Name
-					}
+					processExtendsType(f, base)
 				}
 				extendFuncs, err := getAllExtendFunction(extendSvc, refAst, resolver, args)
 				if err != nil {
@@ -416,6 +394,53 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 	}
 
 	return res, nil
+}
+
+func processExtendsType(f *parser.Function, base string) {
+	// the method of other file is extended, and the package of req/resp needs to be changed
+	// ex. base.thrift -> Resp Method(Req){}
+	//					  base.Resp Method(base.Req){}
+	if len(f.Arguments) > 0 {
+		if f.Arguments[0].Type.Category.IsContainerType() {
+			switch f.Arguments[0].Type.Category {
+			case parser.Category_Set, parser.Category_List:
+				if !strings.Contains(f.Arguments[0].Type.ValueType.Name, ".") && f.Arguments[0].Type.ValueType.Category.IsStruct() {
+					f.Arguments[0].Type.ValueType.Name = base + "." + f.Arguments[0].Type.ValueType.Name
+				}
+			case parser.Category_Map:
+				if !strings.Contains(f.Arguments[0].Type.ValueType.Name, ".") && f.Arguments[0].Type.ValueType.Category.IsStruct() {
+					f.Arguments[0].Type.ValueType.Name = base + "." + f.Arguments[0].Type.ValueType.Name
+				}
+				if !strings.Contains(f.Arguments[0].Type.KeyType.Name, ".") && f.Arguments[0].Type.KeyType.Category.IsStruct() {
+					f.Arguments[0].Type.KeyType.Name = base + "." + f.Arguments[0].Type.KeyType.Name
+				}
+			}
+		} else {
+			if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
+				f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
+			}
+		}
+	}
+
+	if f.FunctionType.Category.IsContainerType() {
+		switch f.FunctionType.Category {
+		case parser.Category_Set, parser.Category_List:
+			if !strings.Contains(f.FunctionType.ValueType.Name, ".") && f.FunctionType.ValueType.Category.IsStruct() {
+				f.FunctionType.ValueType.Name = base + "." + f.FunctionType.ValueType.Name
+			}
+		case parser.Category_Map:
+			if !strings.Contains(f.FunctionType.ValueType.Name, ".") && f.FunctionType.ValueType.Category.IsStruct() {
+				f.FunctionType.ValueType.Name = base + "." + f.FunctionType.ValueType.Name
+			}
+			if !strings.Contains(f.FunctionType.KeyType.Name, ".") && f.FunctionType.KeyType.Category.IsStruct() {
+				f.FunctionType.KeyType.Name = base + "." + f.FunctionType.KeyType.Name
+			}
+		}
+	} else {
+		if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
+			f.FunctionType.Name = base + "." + f.FunctionType.Name
+		}
+	}
 }
 
 func getUniqueResolveDependentName(name string, resolver *Resolver) string {
