@@ -1294,3 +1294,16 @@ func (ctx *RequestContext) Bind(obj interface{}) error {
 func (ctx *RequestContext) Validate(obj interface{}) error {
 	return binding.Validate(obj)
 }
+
+func (ctx *RequestContext) VisitAllQueryArgs(f func(key, value []byte)) {
+	ctx.QueryArgs().VisitAll(f)
+}
+
+func (ctx *RequestContext) VisitAllPostArgs(f func(key, value []byte)) {
+	ctx.Request.PostArgs().VisitAll(f)
+}
+
+func (ctx *RequestContext) VisitAllHeaders(f func(key, value []byte)) {
+	ctx.Request.Header.VisitAll(f)
+}
+
