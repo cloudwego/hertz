@@ -44,7 +44,9 @@ package render
 import (
 	"bytes"
 	"encoding/json"
+	"html/template"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
@@ -71,7 +73,10 @@ type JSONRender struct {
 	Data interface{}
 }
 
-var jsonContentType = "application/json; charset=utf-8"
+var (
+	jsonContentType  = "application/json; charset=utf-8"
+	jsonpContentType = "application/javascript; charset=utf-8"
+)
 
 // Render (JSON) writes data with custom ContentType.
 func (r JSONRender) Render(resp *protocol.Response) error {
@@ -138,4 +143,34 @@ func (r IndentedJSON) Render(resp *protocol.Response) (err error) {
 // WriteContentType (JSON) writes JSON ContentType.
 func (r IndentedJSON) WriteContentType(resp *protocol.Response) {
 	writeContentType(resp, jsonContentType)
+}
+
+// JsonpJSON contains the given interface object its callback.
+type JsonpJSON struct {
+	Callback string
+	Data     interface{}
+}
+
+// WriteContentType (JsonpJSON) writes Javascript ContentType.
+func (r JsonpJSON) WriteContentType(resp *protocol.Response) {
+	writeContentType(resp, jsonpContentType)
+}
+
+// Render (JsonpJSON) marshals the given interface object and writes it and its callback with custom ContentType.
+func (r JsonpJSON) Render(resp *protocol.Response) (err error) {
+	r.WriteContentType(resp)
+	ret, err := json.Marshal(r.Data)
+	if err != nil {
+		return err
+	}
+	if r.Callback == "" {
+		resp.AppendBody(ret)
+		return
+	}
+	callback := template.JSEscapeString(r.Callback)
+	resp.AppendBody(bytesconv.S2b(callback))
+	resp.AppendBody(bytesconv.S2b("("))
+	resp.AppendBody(ret)
+	resp.AppendBody(bytesconv.S2b(");"))
+	return nil
 }

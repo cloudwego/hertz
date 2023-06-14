@@ -1294,3 +1294,15 @@ func (ctx *RequestContext) Bind(obj interface{}) error {
 func (ctx *RequestContext) Validate(obj interface{}) error {
 	return binding.Validate(obj)
 }
+
+// JSONP serializes the given struct as JSON into the response body.
+// It adds padding to response body to request data from a server residing in a different domain than the client.
+// It also sets the Content-Type as "application/javascript".
+func (c *RequestContext) JSONP(code int, obj any) {
+	callback := c.DefaultQuery("callback", "")
+	if callback == "" {
+		c.Render(code, render.JSONRender{Data: obj})
+		return
+	}
+	c.Render(code, render.JsonpJSON{Callback: callback, Data: obj})
+}
