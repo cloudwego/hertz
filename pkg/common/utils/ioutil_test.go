@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"io"
 	"testing"
 
@@ -88,13 +89,6 @@ func newTestWriter(w io.Writer) writeReadTest {
 func newTestReaderForm(r io.ReaderFrom) readerTest {
 	return &testReader{
 		r: r,
-	}
-}
-
-func newLimitReader(r *bytes.Buffer) io.LimitedReader {
-	return io.LimitedReader{
-		R: r,
-		N: int64(r.Len()),
 	}
 }
 
@@ -178,7 +172,7 @@ func TestIoutilCopyBufferWithNilBufferAndIoLimitedReader(t *testing.T) {
 	var writeBuffer bytes.Buffer
 	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
-	reader := newLimitReader(src)
+	reader := mock.NewLimitReader(src)
 	dst := network.NewWriter(&writeBuffer)
 	srcLen := int64(src.Len())
 	written, err := CopyBuffer(dst, &reader, nil)
@@ -191,7 +185,7 @@ func TestIoutilCopyBufferWithNilBufferAndIoLimitedReader(t *testing.T) {
 	writeBuffer.Reset()
 	str = ""
 	src = bytes.NewBufferString(str)
-	reader = newLimitReader(src)
+	reader = mock.NewLimitReader(src)
 	dst = network.NewWriter(&writeBuffer)
 	srcLen = int64(src.Len())
 	written, err = CopyBuffer(dst, &reader, nil)
