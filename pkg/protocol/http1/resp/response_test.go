@@ -57,6 +57,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 	"github.com/cloudwego/netpoll"
 )
 
@@ -612,6 +613,27 @@ func testResponseBodyStreamWithTrailer(t *testing.T, body []byte, disableNormali
 			t.Fatalf("unexpected trailer header %q: %q. Expecting %s", kBytes, r, v)
 		}
 	}
+}
+
+func TestResponseReadBodyStreamBadReader(t *testing.T) {
+	t.Parallel()
+
+	resp := protocol.AcquireResponse()
+
+	errReader := mock.NewErrorReadConn(errors.New("test error"))
+
+	bodyBuf := resp.BodyBuffer()
+	bodyBuf.Reset()
+
+	bodyStream := ext.AcquireBodyStream(bodyBuf, errReader, resp.Header.Trailer(), 100)
+	resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, func(shouldClose bool) error {
+		assert.True(t, shouldClose)
+		return nil
+	}))
+
+	stBody := resp.BodyStream()
+	closer, _ := stBody.(io.Closer)
+	closer.Close()
 }
 
 func TestSetResponseBodyStreamFixedSize(t *testing.T) {
