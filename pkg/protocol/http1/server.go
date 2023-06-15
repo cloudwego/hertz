@@ -133,6 +133,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			zr.Release() //nolint:errcheck
 			zr = nil
 		}
+
+		if ctx.IsExiled() {
+			return
+		}
+
 		ctx.Reset()
 		s.Core.GetCtxPool().Put(ctx)
 	}()

@@ -236,6 +236,15 @@ type RequestContext struct {
 
 	binder    binding.Binder
 	validator binding.StructValidator
+	exiled bool
+}
+
+func (ctx *RequestContext) Exile() {
+	ctx.exiled = true
+}
+
+func (ctx *RequestContext) IsExiled() bool {
+	return ctx.exiled
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
