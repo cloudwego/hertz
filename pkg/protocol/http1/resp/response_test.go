@@ -411,7 +411,6 @@ func TestResponseReadLimitBody(t *testing.T) {
 }
 
 func TestResponseReadWithoutBody(t *testing.T) {
-
 	var resp protocol.Response
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\n", false,
