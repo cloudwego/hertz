@@ -527,11 +527,7 @@ func verifyResponseTrailer(t *testing.T, h *protocol.ResponseHeader, expectedTra
 	}
 
 	h.Trailer().VisitAll(func(key, value []byte) {
-		if v, ok := expectedTrailers[string(key)]; ok {
-			if string(value) != v {
-				t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", string(key), v, string(value))
-			}
-		} else {
+		if v := expectedTrailers[string(key)]; string(value) != v {
 			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", string(key), v, string(value))
 		}
 	})
