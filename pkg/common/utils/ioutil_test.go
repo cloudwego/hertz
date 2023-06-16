@@ -18,9 +18,10 @@ package utils
 
 import (
 	"bytes"
-	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"io"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/mock"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
