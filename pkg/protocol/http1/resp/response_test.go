@@ -411,15 +411,16 @@ func TestResponseReadLimitBody(t *testing.T) {
 }
 
 func TestResponseReadWithoutBody(t *testing.T) {
-	t.Parallel()
-
 	var resp protocol.Response
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 304 Not Modified\r\nContent-Type: aa\r\nContent-Encoding: gzip\r\nContent-Length: 1235\r\n\r\n", false,
 		consts.StatusNotModified, 1235, "aa", nil, "gzip", consts.HTTP11)
 
-	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\n", false,
-		consts.StatusNoContent, -1, "aab", map[string]string{"Foo": "bar"}, "deflate", consts.HTTP11)
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 200 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\nHTTP/1.2", false,
+		consts.StatusOK, 0, "aab", map[string]string{"Foo": "bar"}, "deflate", consts.HTTP11)
+
+	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\nHTTP/1.2", true,
+		consts.StatusNoContent, -1, "aab", nil, "deflate", consts.HTTP11)
 
 	testResponseReadWithoutBody(t, &resp, "HTTP/1.1 123 AAA\r\nContent-Type: xxx\r\nContent-Encoding: gzip\r\nContent-Length: 3434\r\n\r\n", false,
 		123, 3434, "xxx", nil, "gzip", consts.HTTP11)
@@ -524,6 +525,12 @@ func verifyResponseTrailer(t *testing.T, h *protocol.ResponseHeader, expectedTra
 			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", k, v, got)
 		}
 	}
+
+	h.Trailer().VisitAll(func(key, value []byte) {
+		if v := expectedTrailers[string(key)]; string(value) != v {
+			t.Fatalf("Unexpected trailer %q. Expected %q. Got %q", string(key), v, string(value))
+		}
+	})
 }
 
 func testResponseReadLimitBodyError(t *testing.T, s string, maxBodySize int) {
