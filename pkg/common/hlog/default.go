@@ -148,8 +148,10 @@ func (ll *defaultLogger) logf(lv Level, format *string, v ...interface{}) {
 		return
 	}
 	msg := lv.toString()
-	if format != nil {
+	if format != nil && len(v) > 0 {
 		msg += fmt.Sprintf(*format, v...)
+	} else if format != nil && len(v) == 0 {
+		msg += *format
 	} else {
 		msg += fmt.Sprint(v...)
 	}
