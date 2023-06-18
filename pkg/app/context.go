@@ -1303,14 +1303,13 @@ func (ctx *RequestContext) VisitAllQueryArgs(f func(key, value []byte)) {
 	ctx.QueryArgs().VisitAll(f)
 }
 
-//VisitAllPostArgs calls f for each existing post arg.
+// VisitAllPostArgs calls f for each existing post arg.
 //
 // f must not retain references to key and value after returning.
 // Make key and/or value copies if you need storing them after returning.
 func (ctx *RequestContext) VisitAllPostArgs(f func(key, value []byte)) {
 	ctx.Request.PostArgs().VisitAll(f)
 }
-
 
 // VisitAllHeaders calls f for each request header.
 //
