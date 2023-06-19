@@ -19,7 +19,7 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.6.4"
+const Version = "v0.6.5"
 
 // Mode hz run modes
 type Mode int
