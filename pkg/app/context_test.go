@@ -1248,3 +1248,57 @@ func TestRequestContext_SetCookiePathEmpty(t *testing.T) {
 	c.SetCookie("user", "hertz", 1, "", "localhost", protocol.CookieSameSiteDisabled, true, true)
 	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure", c.Response.Header.Get("Set-Cookie"))
 }
+
+func TestRequestContext_VisitAll(t *testing.T) {
+	t.Run("VisitAllQueryArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.QueryArgs().Add("cloudwego", "hertz")
+		c.QueryArgs().Add("hello", "world")
+		c.VisitAllQueryArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllPostArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.PostArgs().Add("cloudwego", "hertz")
+		c.PostArgs().Add("hello", "world")
+		c.VisitAllPostArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllCookie", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.Request.Header.Set("Cookie", "aaa=bbb;ccc=ddd")
+		c.VisitAllCookie(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"aaa", "bbb", "ccc", "ddd"}, s)
+	})
+
+	t.Run("VisitAllHeaders", func(t *testing.T) {
+		c := NewContext(0)
+		c.Request.Header.Set("xxx", "yyy")
+		c.Request.Header.Set("xxx2", "yyy2")
+		c.VisitAllHeaders(
+			func(k, v []byte) {
+				key := string(k)
+				value := string(v)
+				if key != "Xxx" && key != "Xxx2" {
+					t.Fatalf("Unexpected %v. Expected %v", key, "xxx or yyy")
+				}
+				if key == "Xxx" && value != "yyy" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy")
+				}
+				if key == "Xxx2" && value != "yyy2" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
+				}
+			})
+	})
+}
