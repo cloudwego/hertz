@@ -309,6 +309,7 @@ func (rs *bodyStream) skipRest() error {
 }
 
 // ReleaseBodyStream releases the body stream.
+// Error of skipRest may be returned if there is one.
 //
 // NOTE: Be careful to use this method unless you know what it's for.
 func ReleaseBodyStream(requestReader io.Reader) (err error) {
