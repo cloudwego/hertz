@@ -377,12 +377,17 @@ func (c *Conn) fill(i int) (err error) {
 	// Circulate reading data so that the node holds enough data
 	for i > 0 {
 		n, err := c.c.Read(c.inputBuffer.write.buf[node.malloc:])
+		if n > 0 {
+			node.malloc += n
+			c.inputBuffer.len += n
+			i -= n
+			if err != nil {
+				return nil
+			}
+		}
 		if err != nil {
 			return err
 		}
-		node.malloc += n
-		c.inputBuffer.len += n
-		i -= n
 	}
 	return nil
 }
