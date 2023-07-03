@@ -990,20 +990,21 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 	opt := &http1.Option{
-		StreamRequestBody:            engine.options.StreamRequestBody,
-		GetOnly:                      engine.options.GetOnly,
-		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
-		DisableKeepalive:             engine.options.DisableKeepalive,
-		NoDefaultServerHeader:        engine.options.NoDefaultServerHeader,
-		MaxRequestBodySize:           engine.options.MaxRequestBodySize,
-		IdleTimeout:                  engine.options.IdleTimeout,
-		ReadTimeout:                  engine.options.ReadTimeout,
-		ServerName:                   engine.GetServerName(),
-		ContinueHandler:              engine.ContinueHandler,
-		TLS:                          engine.options.TLS,
-		HTMLRender:                   engine.htmlRender,
-		EnableTrace:                  engine.IsTraceEnable(),
-		HijackConnHandle:             engine.HijackConnHandle,
+		StreamRequestBody:             engine.options.StreamRequestBody,
+		GetOnly:                       engine.options.GetOnly,
+		DisablePreParseMultipartForm:  engine.options.DisablePreParseMultipartForm,
+		DisableKeepalive:              engine.options.DisableKeepalive,
+		NoDefaultServerHeader:         engine.options.NoDefaultServerHeader,
+		MaxRequestBodySize:            engine.options.MaxRequestBodySize,
+		IdleTimeout:                   engine.options.IdleTimeout,
+		ReadTimeout:                   engine.options.ReadTimeout,
+		ServerName:                    engine.GetServerName(),
+		ContinueHandler:               engine.ContinueHandler,
+		TLS:                           engine.options.TLS,
+		HTMLRender:                    engine.htmlRender,
+		EnableTrace:                   engine.IsTraceEnable(),
+		HijackConnHandle:              engine.HijackConnHandle,
+		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
 	}
 	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
 	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.

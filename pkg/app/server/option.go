@@ -346,3 +346,10 @@ func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Conte
 		o.OnConnect = fn
 	}}
 }
+
+// WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
+func WithDisableHeaderNamesNormalizing(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisableHeaderNamesNormalizing = disable
+	}}
+}
