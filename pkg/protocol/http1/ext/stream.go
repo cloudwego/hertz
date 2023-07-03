@@ -315,11 +315,18 @@ func (rs *bodyStream) skipRest() error {
 func ReleaseBodyStream(requestReader io.Reader) (err error) {
 	if rs, ok := requestReader.(*bodyStream); ok {
 		err = rs.skipRest()
-		rs.prefetchedBytes = nil
-		rs.offset = 0
-		rs.reader = nil
-		rs.trailer = nil
+		rs.reset()
 		bodyStreamPool.Put(rs)
 	}
 	return
+}
+
+func (rs *bodyStream) reset() {
+	rs.prefetchedBytes = nil
+	rs.offset = 0
+	rs.reader = nil
+	rs.trailer = nil
+	rs.chunkEOF = false
+	rs.chunkLeft = 0
+	rs.contentLength = 0
 }
