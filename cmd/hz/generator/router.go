@@ -415,11 +415,11 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	}
 
 	for _, mw := range middlewareList {
-		mwName := mw + "Mw"
+		mwNamePattern := fmt.Sprintf(" %sMw", mw)
 		if pkgGen.SnakeStyleMiddleware {
-			mwName = mw + "_mw"
+			mwNamePattern = fmt.Sprintf(" %s_mw", mw)
 		}
-		if bytes.Contains(file, []byte(mwName)) {
+		if bytes.Contains(file, []byte(mwNamePattern)) {
 			continue
 		}
 		middlewareSingleTpl := pkgGen.tpls[middlewareSingleTplName]
