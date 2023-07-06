@@ -21,6 +21,8 @@ import "runtime"
 // Version hz version
 const Version = "v0.6.5"
 
+const DefaultServiceName = "hertz_service"
+
 // Mode hz run modes
 type Mode int
 
