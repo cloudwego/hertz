@@ -158,16 +158,20 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
-			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
+			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
+			reqRawName := inputGoType.GoIdent.GoName
+			reqPackage := util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "")
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
-			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
+			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
+			respRawName := outputGoType.GoIdent.GoName
+			respPackage := util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "")
 
 			var serializer string
 			sl, sv := checkFirstOptions(SerializerOptions, m.GetOptions())
@@ -212,7 +216,11 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + outputGoType.GoIdent.GoName
 			}
 			method.RequestTypeName = reqName
+			method.RequestTypeRawName = reqRawName
+			method.RequestTypePackage = reqPackage
 			method.ReturnTypeName = respName
+			method.ReturnTypeRawName = respRawName
+			method.ReturnTypePackage = respPackage
 
 			methods = append(methods, method)
 
