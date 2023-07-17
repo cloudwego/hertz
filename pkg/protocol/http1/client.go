@@ -381,7 +381,8 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	req.Options().StartRequest()
 	for {
 		canIdempotentRetry, err = c.do(req, resp)
-		if err == nil {
+		// If there is no custom retry and err is equal to nil, the loop simply exits.
+		if err == nil && isDefaultRetryFunc {
 			break
 		}
 
