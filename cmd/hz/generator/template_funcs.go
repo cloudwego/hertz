@@ -17,6 +17,7 @@
 package generator
 
 import (
+	"strings"
 	"text/template"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -25,6 +26,8 @@ import (
 var funcMap = template.FuncMap{
 	"GetUniqueHandlerOutDir": getUniqueHandlerOutDir,
 	"ToSnakeCase":            util.ToSnakeCase,
+	"Split":                  strings.Split,
+	"Trim":                   strings.Trim,
 }
 
 // getUniqueHandlerOutDir uses to get unique "api.handler_path"

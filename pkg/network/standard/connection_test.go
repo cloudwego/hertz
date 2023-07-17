@@ -274,9 +274,10 @@ func TestHandleSpecificError(t *testing.T) {
 }
 
 type mockConn struct {
-	buffer     bytes.Buffer
-	localAddr  net.Addr
-	remoteAddr net.Addr
+	buffer        bytes.Buffer
+	localAddr     net.Addr
+	remoteAddr    net.Addr
+	readReturnErr bool
 }
 
 func (m *mockConn) Handshake() error {
@@ -292,17 +293,21 @@ func (m mockConn) Read(b []byte) (n int, err error) {
 	for i := 0; i < length; i++ {
 		b[i] = 0
 	}
+
+	if m.readReturnErr {
+		err = io.EOF
+	}
 	if length > 8192 {
-		return 8192, nil
+		return 8192, err
 	}
 	if len(b) < 1024 {
-		return 100, nil
+		return 100, err
 	}
 	if len(b) < 5000 {
-		return 4096, nil
+		return 4096, err
 	}
 
-	return 4099, nil
+	return 4099, err
 }
 
 func (m *mockConn) Write(b []byte) (n int, err error) {
@@ -377,4 +382,18 @@ func TestConnSetFinalizer(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
+}
+
+func TestFillReturnErrAndN(t *testing.T) {
+	c := &mockConn{
+		readReturnErr: true,
+	}
+	conn := newConn(c, 4099)
+	b, err := conn.Peek(4099)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, len(b), 4099)
+	conn.Skip(10)
+	b, err = conn.Peek(4099)
+	assert.DeepEqual(t, err, io.EOF)
+	assert.DeepEqual(t, len(b), 4089)
 }

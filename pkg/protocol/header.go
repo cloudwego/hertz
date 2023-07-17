@@ -243,6 +243,8 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.server = append(dst.server[:0], h.server...)
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
+	dst.protocol = h.protocol
+	dst.headerLength = h.headerLength
 	h.Trailer().CopyTo(dst.Trailer())
 }
 
@@ -1107,6 +1109,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
 	dst.cookiesCollected = h.cookiesCollected
 	dst.rawHeaders = append(dst.rawHeaders[:0], h.rawHeaders...)
+	dst.protocol = h.protocol
 }
 
 // Peek returns header value for the given key.
