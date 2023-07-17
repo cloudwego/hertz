@@ -350,11 +350,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		if hijackHandler != nil {
-			if zr != nil {
-				zr.Release() //nolint:errcheck
-				zr = nil
-			}
-
 			// Hijacked conn process the timeout by itself
 			err = ctx.GetConn().SetReadTimeout(0)
 			if err != nil {
