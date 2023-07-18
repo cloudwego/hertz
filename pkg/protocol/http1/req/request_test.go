@@ -44,6 +44,7 @@ package req
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +55,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -451,7 +453,7 @@ func TestRequestWriteRequestURINoHost(t *testing.T) {
 	t.Parallel()
 
 	var req protocol.Request
-	req.Header.SetRequestURI("http://google.com/foo/bar?baz=aaa")
+	req.Header.SetRequestURI("http://user:pass@google.com/foo/bar?baz=aaa")
 	var w bytes.Buffer
 	zw := netpoll.NewWriter(&w)
 	if err := Write(&req, zw); err != nil {
@@ -474,6 +476,16 @@ func TestRequestWriteRequestURINoHost(t *testing.T) {
 	if string(req.Header.RequestURI()) != "/foo/bar?baz=aaa" {
 		t.Fatalf("unexpected requestURI: %q. Expecting %q", req.Header.RequestURI(), "/foo/bar?baz=aaa")
 	}
+	// authorization
+	authorization := req.Header.Get(string(bytestr.StrAuthorization))
+	author, err := base64.StdEncoding.DecodeString(authorization[len(bytestr.StrBasicSpace):])
+	if err != nil {
+		t.Fatalf("expecting error")
+	}
+
+	if string(author) != "user:pass" {
+		t.Fatalf("unexpected Authorization: %q. Expecting %q", authorization, "user:pass")
+	}
 
 	// verify that Write returns error on non-absolute RequestURI
 	req.Reset()
@@ -482,6 +494,38 @@ func TestRequestWriteRequestURINoHost(t *testing.T) {
 	if err := Write(&req, zw); err == nil {
 		t.Fatalf("expecting error")
 	}
+}
+
+func TestRequestWriteMultipartFile(t *testing.T) {
+	t.Parallel()
+
+	var req protocol.Request
+	req.Header.SetHost("foobar.com")
+	req.Header.SetMethod(consts.MethodPost)
+	req.SetFileReader("filea", "filea.txt", bytes.NewReader([]byte("This is filea.")))
+	req.SetMultipartField("fileb", "fileb.txt", "text/plain", bytes.NewReader([]byte("This is fileb.")))
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&req, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var req1 protocol.Request
+	zr := mock.NewZeroCopyReader(w.String())
+	if err := Read(&req1, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	filea, err := req1.FormFile("filea")
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "filea.txt", filea.Filename)
+	fileb, err := req1.FormFile("fileb")
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "fileb.txt", fileb.Filename)
 }
 
 func TestSetRequestBodyStreamChunked(t *testing.T) {
@@ -1037,7 +1081,7 @@ func testRequestMultipartFormNotPreParse(t *testing.T, boundary string, formData
 func testReadBodyChunked(t *testing.T, bodySize int) {
 	body := mock.CreateFixedBody(bodySize)
 	expectedTrailer := map[string]string{"Foo": "chunked shit"}
-	chunkedBody := createChunkedBody(body, expectedTrailer, true)
+	chunkedBody := mock.CreateChunkedBody(body, expectedTrailer, true)
 
 	zr := mock.NewZeroCopyReader(string(chunkedBody))
 
@@ -1050,32 +1094,6 @@ func testReadBodyChunked(t *testing.T, bodySize int) {
 		t.Fatalf("Unexpected response read for bodySize=%d: %q. Expected %q. chunkedBody=%q", bodySize, b, body, chunkedBody)
 	}
 	verifyTrailer(t, zr, expectedTrailer)
-}
-
-func createChunkedBody(body []byte, trailer map[string]string, hasTrailer bool) []byte {
-	var b []byte
-	chunkSize := 1
-	for len(body) > 0 {
-		if chunkSize > len(body) {
-			chunkSize = len(body)
-		}
-		b = append(b, []byte(fmt.Sprintf("%x\r\n", chunkSize))...)
-		b = append(b, body[:chunkSize]...)
-		b = append(b, []byte("\r\n")...)
-		body = body[chunkSize:]
-		chunkSize++
-	}
-	if hasTrailer {
-		b = append(b, "0\r\n"...)
-		for k, v := range trailer {
-			b = append(b, k...)
-			b = append(b, ": "...)
-			b = append(b, v...)
-			b = append(b, "\r\n"...)
-		}
-		b = append(b, "\r\n"...)
-	}
-	return b
 }
 
 func testReadBodyFixedSize(t *testing.T, bodySize int) {

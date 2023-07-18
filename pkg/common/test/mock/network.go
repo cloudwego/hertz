@@ -125,6 +125,10 @@ func (m *Conn) WriterRecorder() Recorder {
 	return &recorder{c: m, Reader: m.zw}
 }
 
+func (m *Conn) GetReadTimeout() time.Duration {
+	return m.readTimeout
+}
+
 type recorder struct {
 	c *Conn
 	network.Reader
