@@ -269,14 +269,14 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
 			hasAnnotation = true
 			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
-			val := queryAnnos.(string)
+			val := checkSnakeName(queryAnnos.(string))
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
 			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
-			val := pathAnnos.(string)
+			val := checkSnakeName(pathAnnos.(string))
 			if isStringFieldType {
 				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -287,7 +287,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
 			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
-			val := headerAnnos.(string)
+			val := checkSnakeName(headerAnnos.(string))
 			if isStringFieldType {
 				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -298,7 +298,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if formAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_Form, api.E_FormCompatible); formAnnos != nil {
 			hasAnnotation = true
 			hasFormAnnotation = true
-			val := formAnnos.(string)
+			val := checkSnakeName(formAnnos.(string))
 			if isStringFieldType {
 				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -314,11 +314,11 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if fileAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_FileName, api.E_FileNameCompatible); fileAnnos != nil {
 			hasAnnotation = true
 			hasFormAnnotation = true
-			val := fileAnnos.(string)
+			val := checkSnakeName(fileAnnos.(string))
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(f.GoName), f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam
