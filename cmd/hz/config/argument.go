@@ -64,6 +64,7 @@ type Argument struct {
 	ProtobufPlugins      []string
 	ThriftPlugins        []string
 	SnakeName            bool
+	RmTags               []string
 	Excludes             []string
 	NoRecurse            bool
 	HandlerByMethod      bool
@@ -121,6 +122,7 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.ProtocOptions = c.StringSlice("protoc")
 	arg.ThriftPlugins = c.StringSlice("thrift-plugins")
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
+	arg.RmTags = c.StringSlice("rm_tag")
 }
 
 func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
