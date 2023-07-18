@@ -165,6 +165,22 @@ func NewSlowReadConn(source string) *SlowReadConn {
 	return &SlowReadConn{Conn: NewConn(source)}
 }
 
+type ErrorReadConn struct {
+	*Conn
+	errorToReturn error
+}
+
+func NewErrorReadConn(err error) *ErrorReadConn {
+	return &ErrorReadConn{
+		Conn:          NewConn(""),
+		errorToReturn: err,
+	}
+}
+
+func (er *ErrorReadConn) Peek(n int) ([]byte, error) {
+	return nil, er.errorToReturn
+}
+
 type SlowWriteConn struct {
 	*Conn
 	writeTimeout time.Duration

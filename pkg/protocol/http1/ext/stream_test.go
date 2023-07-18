@@ -16,6 +16,7 @@
 package ext
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -88,6 +89,29 @@ func TestChunkedSkipRest(t *testing.T) {
 
 	// big body
 	testChunkedSkipRestWithBodySize(t, 3*1024*1024)
+}
+
+func TestBodyStream_Reset(t *testing.T) {
+	t.Parallel()
+	bs := bodyStream{
+		prefetchedBytes: bytes.NewReader([]byte("aaa")),
+		reader:          mock.NewZeroCopyReader("bbb"),
+		trailer:         &protocol.Trailer{},
+		offset:          10,
+		contentLength:   20,
+		chunkLeft:       50,
+		chunkEOF:        true,
+	}
+
+	bs.reset()
+
+	assert.Nil(t, bs.prefetchedBytes)
+	assert.Nil(t, bs.reader)
+	assert.Nil(t, bs.trailer)
+	assert.DeepEqual(t, 0, bs.offset)
+	assert.DeepEqual(t, 0, bs.contentLength)
+	assert.DeepEqual(t, 0, bs.chunkLeft)
+	assert.False(t, bs.chunkEOF)
 }
 
 func TestReadBodyWithStreaming(t *testing.T) {
