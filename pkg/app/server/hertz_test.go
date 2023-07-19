@@ -50,7 +50,7 @@ import (
 )
 
 func TestHertz_Run(t *testing.T) {
-	hertz := New(WithHostPorts("127.0.0.1:6666"))
+	hertz := Default(WithHostPorts("127.0.0.1:6666"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(time.Second)
 		path := ctx.Request.URI().PathOriginal()
@@ -61,6 +61,8 @@ func TestHertz_Run(t *testing.T) {
 	hertz.Engine.OnShutdown = append(hertz.OnShutdown, func(ctx context.Context) {
 		atomic.StoreUint32(&testint, 1)
 	})
+
+	assert.Assert(t, len(hertz.Handlers) == 1)
 
 	go hertz.Spin()
 	time.Sleep(100 * time.Millisecond)

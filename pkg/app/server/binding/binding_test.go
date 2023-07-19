@@ -164,6 +164,19 @@ func TestJsonBind(t *testing.T) {
 	// NOTE: The default does not support string to go int conversion in json.
 	// You can add "string" tags or use other json unmarshal libraries that support this feature
 	assert.DeepEqual(t, 100, req.D)
+
+	req = Test{}
+	UseStdJSONUnmarshaler()
+	err = BindAndValidate(r, &req, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.DeepEqual(t, "aaa", req.A)
+	assert.DeepEqual(t, 2, len(req.B))
+	assert.DeepEqual(t, "ccc", req.C)
+	// NOTE: The default does not support string to go int conversion in json.
+	// You can add "string" tags or use other json unmarshal libraries that support this feature
+	assert.DeepEqual(t, 100, req.D)
 }
 
 // TestQueryParamInconsistency tests the Inconsistency for GetQuery(), the other unit test for GetFunc() in request.go  are similar to it
