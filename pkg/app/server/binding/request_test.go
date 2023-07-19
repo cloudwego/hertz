@@ -19,6 +19,7 @@ package binding
 import (
 	"bytes"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -45,7 +46,7 @@ func TestGetPostForm(t *testing.T) {
 	mr := bytes.NewBufferString(data)
 
 	r := protocol.NewRequest("POST", "/foo", mr)
-	r.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	r.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	r.Header.SetContentLength(len(data))
 
 	bindReq := bindRequest{
@@ -69,7 +70,7 @@ func TestGetForm(t *testing.T) {
 
 	r := protocol.NewRequest("POST", "/foo", mr)
 	r.SetRequestURI("/foo/bar?para1=hertz&para2=query1&para2=query2&para3=1&para3=2")
-	r.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	r.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	r.Header.SetContentLength(len(data))
 
 	bindReq := bindRequest{
@@ -143,7 +144,7 @@ func TestGetContentType(t *testing.T) {
 	mr := bytes.NewBufferString(data)
 
 	r := protocol.NewRequest("POST", "/foo", mr)
-	r.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	r.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	r.Header.SetContentLength(len(data))
 
 	bindReq := bindRequest{
@@ -152,7 +153,7 @@ func TestGetContentType(t *testing.T) {
 
 	values := bindReq.GetContentType()
 
-	assert.DeepEqual(t, "application/x-www-form-urlencoded", values)
+	assert.DeepEqual(t, consts.MIMEApplicationHTMLForm, values)
 }
 
 func TestGetBody(t *testing.T) {
@@ -160,7 +161,7 @@ func TestGetBody(t *testing.T) {
 	mr := bytes.NewBufferString(data)
 
 	r := protocol.NewRequest("POST", "/foo", mr)
-	r.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	r.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	r.Header.SetContentLength(len(data))
 
 	bindReq := bindRequest{
