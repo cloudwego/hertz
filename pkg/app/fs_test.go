@@ -45,7 +45,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -54,6 +53,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"

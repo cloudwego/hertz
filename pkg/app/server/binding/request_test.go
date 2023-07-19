@@ -19,11 +19,11 @@ package binding
 import (
 	"bytes"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestGetQuery(t *testing.T) {

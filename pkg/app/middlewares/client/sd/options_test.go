@@ -18,9 +18,9 @@ package sd
 
 import (
 	"context"
-	"github.com/cloudwego/hertz/pkg/app/client/loadbalance"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/app/client/loadbalance"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 

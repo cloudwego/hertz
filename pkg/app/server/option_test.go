@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"github.com/cloudwego/hertz/pkg/network"
 	"net"
 	"reflect"
 	"syscall"
@@ -30,6 +29,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 )
 
 func TestOptions(t *testing.T) {
