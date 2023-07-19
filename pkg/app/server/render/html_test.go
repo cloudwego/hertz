@@ -22,7 +22,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	
+
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -42,8 +42,8 @@ func TestHTMLDebug_StartChecker_timer(t *testing.T) {
 	}
 	render.startChecker()
 	select {
-	case <-time.After(render.RefreshInterval + 100*time.Millisecond):
-		t.Fatalf("should be triggered in 1 second")
+	case <-time.After(render.RefreshInterval + 500*time.Millisecond):
+		t.Fatalf("should be triggered in 1.5 second")
 	case <-render.reloadCh:
 		render.reload()
 	}

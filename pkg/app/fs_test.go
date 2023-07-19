@@ -682,7 +682,7 @@ func TestServeFileContentType(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	expected := []byte("image/png")
+	expected := []byte(consts.MIMEImagePNG)
 	if !bytes.Equal(r.Header.ContentType(), expected) {
 		t.Fatalf("Unexpected Content-Type, expected: %q got %q", expected, r.Header.ContentType())
 	}

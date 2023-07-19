@@ -450,7 +450,7 @@ tailfoobar`
 			t.Fatalf("unexpected filename %q. Expecting %q", v.Filename, "TODO")
 		}
 		ct := v.Header.Get("Content-Type")
-		if ct != "application/octet-stream" {
+		if ct != consts.MIMEApplicationOctetStream {
 			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
 		}
 	}
@@ -506,7 +506,7 @@ func TestContextRenderFileFromFS(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
+	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
 	assert.DeepEqual(t, "/some/path", string(ctx.Request.URI().Path()))
 }
 
@@ -523,7 +523,7 @@ func TestContextRenderFile(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
+	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
 }
 
 func TestContextRenderAttachment(t *testing.T) {
@@ -688,7 +688,7 @@ func TestRender(t *testing.T) {
 	c := NewContext(0)
 
 	c.Render(consts.StatusOK, &render.Data{
-		ContentType: "application/json; charset=utf-8",
+		ContentType: consts.MIMEApplicationJSONUTF8,
 		Data:        []byte("{\"test\":1}"),
 	})
 
@@ -789,7 +789,6 @@ func TestContextReset(t *testing.T) {
 	c.Error(errors.New("test")) // nolint: errcheck
 	c.Set("foo", "bar")
 	c.Finished()
-
 	c.ResetWithoutConn()
 
 	assert.False(t, c.IsAborted())
@@ -803,8 +802,8 @@ func TestContextReset(t *testing.T) {
 
 func TestContextContentType(t *testing.T) {
 	c := NewContext(0)
-	c.Request.Header.Set("Content-Type", "application/json; charset=utf-8")
-	assert.DeepEqual(t, "application/json; charset=utf-8", bytesconv.B2s(c.ContentType()))
+	c.Request.Header.Set("Content-Type", consts.MIMEApplicationJSONUTF8)
+	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
 func TestClientIp(t *testing.T) {
@@ -872,7 +871,7 @@ func TestGetQuery(t *testing.T) {
 
 func TestGetPostForm(t *testing.T) {
 	c := NewContext(0)
-	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	c.Request.SetBodyString("a=1&b=")
 	v, exists := c.GetPostForm("b")
 	assert.DeepEqual(t, "", v)
@@ -941,7 +940,7 @@ func TestContextAbortWithStatusJSON(t *testing.T) {
 	assert.True(t, c.IsAborted())
 
 	contentType := c.Response.Header.Peek("Content-Type")
-	assert.DeepEqual(t, "application/json; charset=utf-8", string(contentType))
+	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, string(contentType))
 
 	jsonStringBody := c.Response.Body()
 	assert.DeepEqual(t, "{\"foo\":\"fooValue\",\"bar\":\"barValue\"}", string(jsonStringBody))
@@ -950,9 +949,8 @@ func TestContextAbortWithStatusJSON(t *testing.T) {
 func TestRequestCtxFormValue(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.Request.SetRequestURI("/foo/bar?baz=123&aaa=bbb")
-	ctx.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	ctx.Request.SetBodyString("qqq=port&mmm=sddd")
-	ctx.Request.SetMethod(consts.MethodPost)
 
 	v := ctx.FormValue("baz")
 	if string(v) != "123" {
@@ -974,6 +972,7 @@ func TestRequestCtxFormValue(t *testing.T) {
 	if string(v) != "1" {
 		t.Fatalf("unexpected value %q. Expecting %q", v, "1")
 	}
+
 	ctx.Request.Reset()
 	s := `------WebKitFormBoundaryJwfATyF8tmxSJnLg
 Content-Disposition: form-data; name="f"
@@ -995,7 +994,7 @@ fff
 func TestSetCustomFormValueFunc(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.Request.SetRequestURI("/foo/bar?aaa=bbb")
-	ctx.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	ctx.Request.SetBodyString("aaa=port")
 
 	ctx.SetFormValueFunc(func(ctx *RequestContext, key string) []byte {
@@ -1363,9 +1362,9 @@ func TestReset(t *testing.T) {
 
 func TestGetHeader(t *testing.T) {
 	ctx := NewContext(0)
-	ctx.Request.Header.SetContentTypeBytes([]byte("text/plain; charset=utf-8"))
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMETextPlainUTF8))
 	val := ctx.GetHeader("Content-Type")
-	assert.DeepEqual(t, "text/plain; charset=utf-8", string(val))
+	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(val))
 }
 
 func TestGetRawData(t *testing.T) {
@@ -1456,4 +1455,58 @@ func TestRequestContext_SetCookiePathEmpty(t *testing.T) {
 	c := NewContext(0)
 	c.SetCookie("user", "hertz", 1, "", "localhost", protocol.CookieSameSiteDisabled, true, true)
 	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_VisitAll(t *testing.T) {
+	t.Run("VisitAllQueryArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.QueryArgs().Add("cloudwego", "hertz")
+		c.QueryArgs().Add("hello", "world")
+		c.VisitAllQueryArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllPostArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.PostArgs().Add("cloudwego", "hertz")
+		c.PostArgs().Add("hello", "world")
+		c.VisitAllPostArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllCookie", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.Request.Header.Set("Cookie", "aaa=bbb;ccc=ddd")
+		c.VisitAllCookie(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"aaa", "bbb", "ccc", "ddd"}, s)
+	})
+
+	t.Run("VisitAllHeaders", func(t *testing.T) {
+		c := NewContext(0)
+		c.Request.Header.Set("xxx", "yyy")
+		c.Request.Header.Set("xxx2", "yyy2")
+		c.VisitAllHeaders(
+			func(k, v []byte) {
+				key := string(k)
+				value := string(v)
+				if key != "Xxx" && key != "Xxx2" {
+					t.Fatalf("Unexpected %v. Expected %v", key, "xxx or yyy")
+				}
+				if key == "Xxx" && value != "yyy" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy")
+				}
+				if key == "Xxx2" && value != "yyy2" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
+				}
+			})
+	})
 }
