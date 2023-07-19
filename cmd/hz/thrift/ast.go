@@ -122,7 +122,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
 			}
 
-			var reqName string
+			var reqName, reqRawName, reqPackage string
 			if len(m.Arguments) >= 1 {
 				if len(m.Arguments) > 1 {
 					logs.Warnf("function '%s' has more than one argument, but only the first can be used in hertz now", m.GetName())
@@ -132,25 +132,49 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				if err != nil {
 					return nil, err
 				}
+				if strings.Contains(reqName, ".") && !m.Arguments[0].GetType().Category.IsContainerType() {
+					// If reqName contains "." , then it must be of the form "pkg.name".
+					// so reqRawName='name', reqPackage='pkg'
+					names := strings.Split(reqName, ".")
+					if len(names) != 2 {
+						return nil, fmt.Errorf("request name: %s is wrong", reqName)
+					}
+					reqRawName = names[1]
+					reqPackage = names[0]
+				}
 			}
-			var respName string
+			var respName, respRawName, respPackage string
 			if !m.Oneway {
 				var err error
 				respName, err = resolver.ResolveTypeName(m.GetFunctionType())
 				if err != nil {
 					return nil, err
 				}
+				if strings.Contains(respName, ".") && !m.GetFunctionType().Category.IsContainerType() {
+					names := strings.Split(respName, ".")
+					if len(names) != 2 {
+						return nil, fmt.Errorf("response name: %s is wrong", respName)
+					}
+					// If respName contains "." , then it must be of the form "pkg.name".
+					// so respRawName='name', respPackage='pkg'
+					respRawName = names[1]
+					respPackage = names[0]
+				}
 			}
 
 			sr, _ := util.GetFirstKV(getAnnotations(m.Annotations, SerializerTags))
 			method := &generator.HttpMethod{
-				Name:            util.CamelString(m.GetName()),
-				HTTPMethod:      hmethod,
-				RequestTypeName: reqName,
-				ReturnTypeName:  respName,
-				Path:            path[0],
-				Serializer:      sr,
-				OutputDir:       handlerOutDir,
+				Name:               util.CamelString(m.GetName()),
+				HTTPMethod:         hmethod,
+				RequestTypeName:    reqName,
+				RequestTypeRawName: reqRawName,
+				RequestTypePackage: reqPackage,
+				ReturnTypeName:     respName,
+				ReturnTypeRawName:  respRawName,
+				ReturnTypePackage:  respPackage,
+				Path:               path[0],
+				Serializer:         sr,
+				OutputDir:          handlerOutDir,
 				// Annotations:     m.Annotations,
 			}
 			refs := resolver.ExportReferred(false, true)
