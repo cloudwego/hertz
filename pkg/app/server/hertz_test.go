@@ -147,7 +147,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 }
 
 func TestLoadHTMLGlob(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8890"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:6668"))
 	engine.Delims("{[{", "}]}")
 	engine.LoadHTMLGlob("../../common/testdata/template/index.tmpl")
 	engine.GET("/index", func(c context.Context, ctx *app.RequestContext) {
@@ -157,7 +157,7 @@ func TestLoadHTMLGlob(t *testing.T) {
 	})
 	go engine.Run()
 	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:8890/index")
+	resp, _ := http.Get("http://127.0.0.1:6668/index")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
