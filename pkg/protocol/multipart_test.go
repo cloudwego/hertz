@@ -44,6 +44,7 @@ package protocol
 import (
 	"bytes"
 	"mime/multipart"
+	"net/textproto"
 	"os"
 	"strings"
 	"testing"
@@ -79,6 +80,10 @@ Content-Type: application/json
 	assert.Panic(t, func() {
 		err = WriteMultipartForm(&w, form, "")
 	})
+
+	// set value as nil
+	err = WriteMultipartForm(&w, nil, "foo")
+	assert.NotNil(t, err)
 
 	// normal test
 	err = WriteMultipartForm(&w, form, "foo")
@@ -237,4 +242,29 @@ Content-Type: application/json
 	// set boundary invalid
 	_, err = MarshalMultipartForm(form, " ")
 	assert.NotNil(t, err)
+}
+
+func TestAddFile(t *testing.T) {
+	t.Parallel()
+	bodyBuffer := &bytes.Buffer{}
+	w := multipart.NewWriter(bodyBuffer)
+	// add null file
+	err := AddFile(w, "test", "/test")
+	assert.NotNil(t, err)
+}
+
+func TestCreateMultipartHeader(t *testing.T) {
+	t.Parallel()
+
+	// filename == Null
+	hdr1 := make(textproto.MIMEHeader)
+	hdr1.Set("Content-Disposition", `form-data; name="test"`)
+	hdr1.Set("Content-Type", "application/json")
+	assert.DeepEqual(t, hdr1, CreateMultipartHeader("test", "", "application/json"))
+
+	// normal test
+	hdr2 := make(textproto.MIMEHeader)
+	hdr2.Set("Content-Disposition", `form-data; name="test"; filename="/test.go"`)
+	hdr2.Set("Content-Type", "application/json")
+	assert.DeepEqual(t, hdr2, CreateMultipartHeader("test", "/test.go", "application/json"))
 }
