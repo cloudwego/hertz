@@ -437,7 +437,7 @@ func TestRetry(t *testing.T) {
 				Delay:           time.Millisecond * 10,
 			},
 			RetryIfFunc: func(req *protocol.Request, resp *protocol.Response, err error) bool {
-				return true
+				return resp.Header.ContentLength() != 10
 			},
 		},
 		Addr: "foobar",
