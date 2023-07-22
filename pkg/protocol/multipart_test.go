@@ -80,11 +80,55 @@ Content-Type: application/json
 	assert.Panic(t, func() {
 		err = WriteMultipartForm(&w, form, "")
 	})
-
-	// set value as nil
-	err = WriteMultipartForm(&w, nil, "foo")
+	// call WriteField as twice
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err = mw.WriteField("field1", "value1"); err != nil {
+		t.Fatal(err)
+	}
+	err = WriteMultipartForm(&w, form, s)
 	assert.NotNil(t, err)
 
+	// 构造*multipart.Form对象和boundary字符串
+	//tempFile, err := os.Create("file1.txt")
+	//if err != nil {
+	//	t.Fatalf("error creating temp file: %v", err)
+	//}
+	//defer tempFile.Close()
+	f := &multipart.Form{
+		Value: map[string][]string{
+			"key1": {"value1"},
+			"key2": {"value2"},
+		},
+		File: map[string][]*multipart.FileHeader{
+			"file1": {
+				{
+					Filename: "file1.txt",
+					Header:   make(textproto.MIMEHeader),
+				},
+			},
+		},
+	}
+
+	// 调用WriteMultipartForm函数，并传递 ResponseRecorder
+	err = WriteMultipartForm(&w, f, "foo")
+	//if err != nil {
+	//	t.Fatalf("unexpected error: %v", err)
+	//}
+
+	// 检查输出是否符合预期
+	expectedOutput := strings.Replace(`--foo
+Content-Disposition: form-data; name="key1"
+        
+value1
+--foo
+Content-Disposition: form-data; name="key2"
+        
+value2
+--foo
+        
+`, "\n", "\r\n", -1)
+	assert.DeepEqual(t, expectedOutput, w.String())
 	// normal test
 	err = WriteMultipartForm(&w, form, "foo")
 	if err != nil {

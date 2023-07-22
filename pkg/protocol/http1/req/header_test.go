@@ -421,3 +421,25 @@ func TestRequestHeaderError(t *testing.T) {
 	err := ReadHeader(&rh, &er)
 	assert.True(t, errors.Is(err, errs.ErrNothingRead))
 }
+
+func TestReadHeader(t *testing.T) {
+	s := "P"
+	zr := mock.NewZeroCopyReader(s)
+	rh := protocol.RequestHeader{}
+	err := ReadHeader(&rh, zr)
+	assert.NotNil(t, err)
+}
+
+func TestParseHeaders(t *testing.T) {
+	rh := protocol.RequestHeader{}
+	_, err := parseHeaders(&rh, []byte{' '})
+	assert.NotNil(t, err)
+}
+
+func TestTryRead(t *testing.T) {
+	rh := protocol.RequestHeader{}
+	s := "P"
+	zr := mock.NewZeroCopyReader(s)
+	err := tryRead(&rh, zr, 0)
+	assert.NotNil(t, err)
+}
