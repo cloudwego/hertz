@@ -443,3 +443,95 @@ func TestTryRead(t *testing.T) {
 	err := tryRead(&rh, zr, 0)
 	assert.NotNil(t, err)
 }
+
+func TestParseFirstLine(t *testing.T) {
+	tests := []struct {
+		input    []byte
+		method   string
+		uri      string
+		protocol string
+		err      error
+	}{
+		// Test case 1: n < 0
+		{
+			input:    []byte("GET /path/to/resource HTTP/1.0\r\n"),
+			method:   "GET",
+			uri:      "/path/to/resource",
+			protocol: "HTTP/1.0",
+			err:      nil,
+		},
+		// Test case 2: n == 0
+		{
+			input:    []byte(" /path/to/resource HTTP/1.1\r\n"),
+			method:   "",
+			uri:      "",
+			protocol: "",
+			err:      fmt.Errorf("requestURI cannot be empty in"),
+		},
+		// Test case 3: !bytes.Equal(b[n+1:], bytestr.StrHTTP11)
+		{
+			input:    []byte("POST /path/to/resource HTTP/1.2\r\n"),
+			method:   "POST",
+			uri:      "/path/to/resource",
+			protocol: "HTTP/1.0",
+			err:      nil,
+		},
+	}
+
+	for _, tc := range tests {
+		header := &protocol.RequestHeader{}
+		_, err := parseFirstLine(header, tc.input)
+		assert.NotNil(t, err)
+	}
+}
+
+func TestParse(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected int
+		wantErr  bool
+	}{
+		// 正常情况测试
+		{
+			name:     "normal",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n"),
+			expected: len([]byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n")),
+			wantErr:  false,
+		},
+		// parseFirstLine 出错
+		{
+			name:     "parseFirstLine error",
+			input:    []byte("INVALID_LINE\r\nHost: example.com\r\n\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+		// ext.ReadRawHeaders 出错
+		{
+			name:     "ext.ReadRawHeaders error",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nINVALID_HEADER\r\n\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+		// parseHeaders 出错
+		{
+			name:     "parseHeaders error",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\nINVALID_HEADER\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			header := &protocol.RequestHeader{}
+			bytesRead, err := parse(header, tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Expected error: %v, but got: %v", tc.wantErr, err)
+			}
+			if bytesRead != tc.expected {
+				t.Errorf("Expected bytes read: %d, but got: %d", tc.expected, bytesRead)
+			}
+		})
+	}
+}
