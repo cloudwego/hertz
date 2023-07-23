@@ -147,7 +147,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 }
 
 func TestLoadHTMLGlob(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:6668"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8893"))
 	engine.Delims("{[{", "}]}")
 	engine.LoadHTMLGlob("../../common/testdata/template/index.tmpl")
 	engine.GET("/index", func(c context.Context, ctx *app.RequestContext) {
@@ -157,7 +157,7 @@ func TestLoadHTMLGlob(t *testing.T) {
 	})
 	go engine.Run()
 	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:6668/index")
+	resp, _ := http.Get("http://127.0.0.1:8893/index")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
@@ -691,7 +691,7 @@ type CloseWithoutResetBuffer interface {
 }
 
 func TestOnprepare(t *testing.T) {
-	h := New(
+	h1 := New(
 		WithHostPorts("localhost:9229"),
 		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
 			b, err := conn.Peek(3)
@@ -704,42 +704,42 @@ func TestOnprepare(t *testing.T) {
 			}
 			return ctx
 		}))
-	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+	h1.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 
-	go h.Spin()
+	go h1.Spin()
 	time.Sleep(time.Second)
 	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9229/ping")
 	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
 
-	h = New(
+	h2 := New(
 		WithOnAccept(func(conn net.Conn) context.Context {
 			conn.Close()
 			return context.Background()
 		}),
 		WithHostPorts("localhost:9230"))
-	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+	h2.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
-	go h.Spin()
+	go h2.Spin()
 	time.Sleep(time.Second)
 	_, _, err = c.Get(context.Background(), nil, "http://127.0.0.1:9230/ping")
 	if err == nil {
 		t.Fatalf("err should not be nil")
 	}
 
-	h = New(
+	h3 := New(
 		WithOnAccept(func(conn net.Conn) context.Context {
 			assert.DeepEqual(t, conn.LocalAddr().String(), "127.0.0.1:9231")
 			return context.Background()
 		}),
 		WithHostPorts("localhost:9231"),
 		WithTransport(standard.NewTransporter))
-	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
+	h3.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
-	go h.Spin()
+	go h3.Spin()
 	time.Sleep(time.Second)
 	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
 }
