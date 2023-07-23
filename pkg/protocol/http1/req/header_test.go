@@ -492,28 +492,28 @@ func TestParse(t *testing.T) {
 		expected int
 		wantErr  bool
 	}{
-		// 正常情况测试
+		// normal test
 		{
 			name:     "normal",
 			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n"),
 			expected: len([]byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n")),
 			wantErr:  false,
 		},
-		// parseFirstLine 出错
+		// parseFirstLine error
 		{
 			name:     "parseFirstLine error",
 			input:    []byte("INVALID_LINE\r\nHost: example.com\r\n\r\n"),
 			expected: 0,
 			wantErr:  true,
 		},
-		// ext.ReadRawHeaders 出错
+		// ext.ReadRawHeaders error
 		{
 			name:     "ext.ReadRawHeaders error",
 			input:    []byte("GET /path/to/resource HTTP/1.1\r\nINVALID_HEADER\r\n\r\n"),
 			expected: 0,
 			wantErr:  true,
 		},
-		// parseHeaders 出错
+		// parseHeaders error
 		{
 			name:     "parseHeaders error",
 			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\nINVALID_HEADER\r\n"),
