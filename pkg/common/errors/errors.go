@@ -64,6 +64,7 @@ var (
 	ErrConnectionClosed   = errors.New("connection closed")
 	ErrNotSupportProtocol = errors.New("not support protocol")
 	ErrNoMultipartForm    = errors.New("request has no multipart/form-data Content-Type")
+	ErrBadPoolConn        = errors.New("connection is closed by peer while being in the connection pool")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.
