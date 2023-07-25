@@ -18,6 +18,7 @@ package mock
 
 import (
 	"bytes"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -159,6 +160,38 @@ func NewConn(source string) *Conn {
 		zr: zr,
 		zw: zw,
 	}
+}
+
+type OneTimeConn struct {
+	isRead        bool
+	isFlushed     bool
+	contentLength int
+	*Conn
+}
+
+func (o *OneTimeConn) Skip(n int) error {
+	if o.isRead {
+		return io.EOF
+	}
+	o.contentLength -= n
+
+	if o.contentLength == 0 {
+		o.isRead = true
+	}
+
+	return o.Conn.Skip(n)
+}
+
+func (o *OneTimeConn) Flush() error {
+	if o.isFlushed {
+		return errs.ErrConnectionClosed
+	}
+	o.isFlushed = true
+	return o.Conn.Flush()
+}
+
+func NewOneTimeConn(source string) *OneTimeConn {
+	return &OneTimeConn{isRead: false, isFlushed: false, Conn: NewConn(source), contentLength: len(source)}
 }
 
 func NewSlowReadConn(source string) *SlowReadConn {
