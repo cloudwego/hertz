@@ -140,7 +140,7 @@ func TestSlowConn(t *testing.T) {
 		assert.DeepEqual(t, s1[:4], string(b))
 		conn.Skip(len(s1))
 		_, err = conn.Peek(1)
-		assert.DeepEqual(t, errs.ErrReadTimeout, err)
+		assert.DeepEqual(t, ErrReadTimeout, err)
 		_, err = SlowReadDialer("")
 		assert.DeepEqual(t, nil, err)
 	})
@@ -150,7 +150,7 @@ func TestSlowConn(t *testing.T) {
 		assert.DeepEqual(t, nil, err)
 		conn.SetWriteTimeout(time.Millisecond * 100)
 		err = conn.Flush()
-		assert.DeepEqual(t, errs.ErrWriteTimeout, err)
+		assert.DeepEqual(t, ErrWriteTimeout, err)
 	})
 }
 

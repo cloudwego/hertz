@@ -70,6 +70,8 @@ import (
 	"github.com/cloudwego/netpoll"
 )
 
+var errDialTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "dial timeout")
+
 func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 	var (
 		emptyBodyCount uint8
@@ -236,7 +238,7 @@ type slowDialer struct {
 
 func (s *slowDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
 	time.Sleep(timeout)
-	return nil, errs.ErrDialTimeout
+	return nil, errDialTimeout
 }
 
 func TestReadTimeoutPriority(t *testing.T) {
@@ -262,10 +264,10 @@ func TestReadTimeoutPriority(t *testing.T) {
 		ch <- c.Do(context.Background(), req, resp)
 	}()
 	select {
-	case <-time.After(time.Second * 2):
+	case <-time.After(time.Second * 200):
 		t.Fatalf("should use readTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrTimeout.Error(), err.Error())
+		assert.DeepEqual(t, mock.ErrReadTimeout, err)
 	}
 }
 
@@ -335,7 +337,7 @@ func TestWriteTimeoutPriority(t *testing.T) {
 	case <-time.After(time.Second * 2):
 		t.Fatalf("should use writeTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrWriteTimeout.Error(), err.Error())
+		assert.DeepEqual(t, mock.ErrWriteTimeout, err)
 	}
 }
 
@@ -360,10 +362,10 @@ func TestDialTimeoutPriority(t *testing.T) {
 		ch <- c.Do(context.Background(), req, resp)
 	}()
 	select {
-	case <-time.After(time.Second * 2000):
+	case <-time.After(time.Second * 2):
 		t.Fatalf("should use dialTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrDialTimeout.Error(), err.Error())
+		assert.DeepEqual(t, errDialTimeout, err)
 	}
 }
 

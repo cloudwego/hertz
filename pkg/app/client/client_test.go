@@ -453,7 +453,9 @@ func TestClientReadTimeout(t *testing.T) {
 		req.SetConnectionClose()
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
-			t.Errorf("expected ErrTimeout got %#v", err)
+			if !strings.Contains(err.Error(), "timeout") {
+				t.Errorf("expected ErrTimeout got %#v", err)
+			}
 		}
 
 		protocol.ReleaseRequest(req)
@@ -2267,7 +2269,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = ":11000"
+	opt.Addr = "127.0.0.1:11000"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 

@@ -51,6 +51,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -657,7 +658,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if err != nil {
 		zr.Release() //nolint:errcheck
 		c.closeConn(cc)
-		if inPool {
+		if inPool && (err == io.EOF || err == syscall.ECONNRESET) {
 			return true, errs.ErrBadPoolConn
 		}
 		// if this is not a pooled connection,

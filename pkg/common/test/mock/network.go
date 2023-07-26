@@ -28,6 +28,11 @@ import (
 	"github.com/cloudwego/netpoll"
 )
 
+var (
+	ErrReadTimeout  = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read timeout")
+	ErrWriteTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "write timeout")
+)
+
 type Conn struct {
 	readTimeout time.Duration
 	zr          network.Reader
@@ -147,7 +152,7 @@ func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err != nil || len(b) != i {
-		return nil, errs.ErrReadTimeout
+		return nil, ErrReadTimeout
 	}
 	return b, err
 }
@@ -233,7 +238,7 @@ func (m *SlowWriteConn) Flush() error {
 	time.Sleep(100 * time.Millisecond)
 	if err == nil {
 		time.Sleep(m.writeTimeout)
-		return errs.ErrWriteTimeout
+		return ErrWriteTimeout
 	}
 	return err
 }
