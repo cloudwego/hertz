@@ -264,7 +264,7 @@ func TestReadTimeoutPriority(t *testing.T) {
 		ch <- c.Do(context.Background(), req, resp)
 	}()
 	select {
-	case <-time.After(time.Second * 200):
+	case <-time.After(time.Second * 2):
 		t.Fatalf("should use readTimeout in request options")
 	case err := <-ch:
 		assert.DeepEqual(t, mock.ErrReadTimeout, err)
@@ -483,7 +483,7 @@ func (w retryConn) SetWriteTimeout(t time.Duration) error {
 	return errors.New("should retry")
 }
 
-func TestConnRetry(t *testing.T) {
+func TestConnInPoolRetry(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
@@ -513,4 +513,26 @@ func TestConnRetry(t *testing.T) {
 	assert.DeepEqual(t, resp.StatusCode(), 200)
 	assert.DeepEqual(t, string(resp.Body()), "0123456789")
 	assert.True(t, strings.Contains(logbuf.String(), "Client connection attempt times: 1"))
+}
+
+func TestConnNotRetry(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.NewBrokenConn(""), nil
+			}),
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithWriteTimeout(time.Millisecond * 100))
+	resp := protocol.AcquireResponse()
+	logbuf := &bytes.Buffer{}
+	hlog.SetOutput(logbuf)
+	err := c.Do(context.Background(), req, resp)
+	assert.DeepEqual(t, errs.ErrConnectionClosed, err)
+	assert.True(t, logbuf.String() == "")
+	protocol.ReleaseResponse(resp)
 }

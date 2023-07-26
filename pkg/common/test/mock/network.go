@@ -167,6 +167,22 @@ func NewConn(source string) *Conn {
 	}
 }
 
+type BrokenConn struct {
+	*Conn
+}
+
+func (o *BrokenConn) Peek(i int) ([]byte, error) {
+	return nil, io.EOF
+}
+
+func (o *BrokenConn) Flush() error {
+	return errs.ErrConnectionClosed
+}
+
+func NewBrokenConn(source string) *BrokenConn {
+	return &BrokenConn{Conn: NewConn(source)}
+}
+
 type OneTimeConn struct {
 	isRead        bool
 	isFlushed     bool
