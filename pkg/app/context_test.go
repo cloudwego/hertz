@@ -466,9 +466,7 @@ tailfoobar`
 	assert.DeepEqual(t, "TODO", fileInfo.Name())
 	assert.DeepEqual(t, f.File["fileaaa"][0].Size, fileInfo.Size())
 	err = os.Remove("TODO")
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	assert.Nil(t, err)
 
 	ff, err := ctx.FormFile("fileaaa")
 	if err != nil || ff == nil {
