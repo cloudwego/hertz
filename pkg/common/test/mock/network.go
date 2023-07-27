@@ -190,6 +190,13 @@ type OneTimeConn struct {
 	*Conn
 }
 
+func (o *OneTimeConn) Peek(n int) ([]byte, error) {
+	if o.isRead {
+		return nil, io.EOF
+	}
+	return o.Conn.Peek(n)
+}
+
 func (o *OneTimeConn) Skip(n int) error {
 	if o.isRead {
 		return io.EOF
