@@ -456,13 +456,9 @@ tailfoobar`
 	}
 
 	err = ctx.SaveUploadedFile(f.File["fileaaa"][0], "TODO")
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	assert.Nil(t, err)
 	fileInfo, err := os.Stat("TODO")
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "TODO", fileInfo.Name())
 	assert.DeepEqual(t, f.File["fileaaa"][0].Size, fileInfo.Size())
 	err = os.Remove("TODO")
