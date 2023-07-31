@@ -202,7 +202,7 @@ func TestBrokenConn_Peek(t *testing.T) {
 	conn := NewBrokenConn("Foo")
 	buf, err := conn.Peek(3)
 	assert.Nil(t, buf)
-	assert.DeepEqual(t, io.EOF, err)
+	assert.DeepEqual(t, io.ErrUnexpectedEOF, err)
 }
 
 func TestOneTimeConn_Flush(t *testing.T) {

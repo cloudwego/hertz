@@ -172,7 +172,11 @@ type BrokenConn struct {
 }
 
 func (o *BrokenConn) Peek(i int) ([]byte, error) {
-	return nil, io.EOF
+	return nil, io.ErrUnexpectedEOF
+}
+
+func (o *BrokenConn) Read(b []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
 }
 
 func (o *BrokenConn) Flush() error {

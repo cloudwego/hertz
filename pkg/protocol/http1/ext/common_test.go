@@ -155,6 +155,12 @@ func TestBodyFixedSize(t *testing.T) {
 	assert.DeepEqual(t, body, rb)
 }
 
+func TestBodyFixedSizeQuickPath(t *testing.T) {
+	conn := mock.NewBrokenConn("")
+	err := WriteBodyFixedSize(conn.Writer(), conn, 0)
+	assert.Nil(t, err)
+}
+
 func TestBodyIdentity(t *testing.T) {
 	body := mock.CreateFixedBody(1024)
 	zr := mock.NewZeroCopyReader(string(body))
