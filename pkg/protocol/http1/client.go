@@ -51,6 +51,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -362,6 +363,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		canIdempotentRetry bool
 		isDefaultRetryFunc                    = true
 		attempts           uint               = 0
+		connAttempts       uint               = 0
 		maxAttempts        uint               = 1
 		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
 	)
@@ -380,17 +382,38 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	atomic.AddInt32(&c.pendingRequests, 1)
 	req.Options().StartRequest()
 	for {
+		select {
+		case <-ctx.Done():
+			req.CloseBodyStream() //nolint:errcheck
+			return ctx.Err()
+		default:
+		}
+
 		canIdempotentRetry, err = c.do(req, resp)
 		// If there is no custom retry and err is equal to nil, the loop simply exits.
 		if err == nil && isDefaultRetryFunc {
+			if connAttempts != 0 {
+				hlog.SystemLogger().Warnf("Client connection attempt times: %d, url: %s. "+
+					"This is mainly because the connection in pool is closed by peer in advance. "+
+					"If this number is too high which indicates that long-connection are basically unavailable, "+
+					"try to change the request to short-connection.\n", connAttempts, req.URI().FullURI())
+			}
 			break
 		}
 
+		// This connection is closed by the peer when it is in the connection pool.
+		//
+		// This case is possible if the server closes the idle
+		// keep-alive connection on timeout.
+		//
+		// Apache and nginx usually do this.
+		if canIdempotentRetry && client.DefaultRetryIf(req, resp, err) && errors.Is(err, errs.ErrBadPoolConn) {
+			connAttempts++
+			continue
+		}
+
 		if isDefaultRetryFunc {
-			// canIdempotentRetry only makes sense if the user hasn't provided a custom retry function.
-			if !canIdempotentRetry {
-				break
-			}
+			break
 		}
 
 		attempts++
@@ -516,7 +539,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if reqTimeout < dialTimeout || dialTimeout == 0 {
 		dialTimeout = reqTimeout
 	}
-	cc, err := c.acquireConn(dialTimeout)
+	cc, inPool, err := c.acquireConn(dialTimeout)
 	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
@@ -588,11 +611,14 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		// Only if the connection is closed while writing the request. Try to parse the response and return.
 		// In this case, the request/response is considered as successful.
 		// Otherwise, return the former error.
-
 		zr := c.acquireReader(conn)
 		defer zr.Release()
 		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
 			return false, nil
+		}
+
+		if inPool {
+			err = errs.ErrBadPoolConn
 		}
 
 		return true, err
@@ -619,6 +645,24 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		resp.Header.DisableNormalizing()
 	}
 	zr := c.acquireReader(conn)
+
+	// errs.ErrBadPoolConn error are returned when the
+	// 1 byte peek read fails, and we're actually anticipating a response.
+	// Usually this is just due to the inherent keep-alive shut down race,
+	// where the server closed the connection at the same time the client
+	// wrote. The underlying err field is usually io.EOF or some
+	// ECONNRESET sort of thing which varies by platform.
+	_, err = zr.Peek(1)
+	if err != nil {
+		zr.Release() //nolint:errcheck
+		c.closeConn(cc)
+		if inPool && (err == io.EOF || err == syscall.ECONNRESET) {
+			return true, errs.ErrBadPoolConn
+		}
+		// if this is not a pooled connection,
+		// we should not retry to avoid getting stuck in an endless retry loop.
+		return false, err
+	}
 
 	// init here for passing in ReadBodyStream's closure
 	// and this value will be assigned after reading Response's Header
@@ -676,7 +720,7 @@ func (c *HostClient) SetMaxConns(newMaxConns int) {
 	c.connsLock.Unlock()
 }
 
-func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err error) {
+func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inPool bool, err error) {
 	createConn := false
 	startCleaner := false
 
@@ -705,11 +749,11 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	c.connsLock.Unlock()
 
 	if cc != nil {
-		return cc, nil
+		return cc, true, nil
 	}
 	if !createConn {
 		if c.MaxConnWaitTimeout <= 0 {
-			return nil, errs.ErrNoFreeConns
+			return nil, true, errs.ErrNoFreeConns
 		}
 
 		timeout := c.MaxConnWaitTimeout
@@ -736,9 +780,9 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 
 		select {
 		case <-w.ready:
-			return w.conn, w.err
+			return w.conn, true, w.err
 		case <-tc.C:
-			return nil, errs.ErrNoFreeConns
+			return nil, true, errs.ErrNoFreeConns
 		}
 	}
 
@@ -749,11 +793,11 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	conn, err := c.dialHostHard(dialTimeout)
 	if err != nil {
 		c.decConnsCount()
-		return nil, err
+		return nil, false, err
 	}
 	cc = acquireClientConn(conn)
 
-	return cc, nil
+	return cc, false, nil
 }
 
 func (c *HostClient) queueForIdle(w *wantConn) {

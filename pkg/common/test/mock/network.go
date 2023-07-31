@@ -18,6 +18,7 @@ package mock
 
 import (
 	"bytes"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -25,6 +26,11 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/netpoll"
+)
+
+var (
+	ErrReadTimeout  = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read timeout")
+	ErrWriteTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "write timeout")
 )
 
 type Conn struct {
@@ -146,7 +152,7 @@ func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err != nil || len(b) != i {
-		return nil, errs.ErrReadTimeout
+		return nil, ErrReadTimeout
 	}
 	return b, err
 }
@@ -159,6 +165,61 @@ func NewConn(source string) *Conn {
 		zr: zr,
 		zw: zw,
 	}
+}
+
+type BrokenConn struct {
+	*Conn
+}
+
+func (o *BrokenConn) Peek(i int) ([]byte, error) {
+	return nil, io.EOF
+}
+
+func (o *BrokenConn) Flush() error {
+	return errs.ErrConnectionClosed
+}
+
+func NewBrokenConn(source string) *BrokenConn {
+	return &BrokenConn{Conn: NewConn(source)}
+}
+
+type OneTimeConn struct {
+	isRead        bool
+	isFlushed     bool
+	contentLength int
+	*Conn
+}
+
+func (o *OneTimeConn) Peek(n int) ([]byte, error) {
+	if o.isRead {
+		return nil, io.EOF
+	}
+	return o.Conn.Peek(n)
+}
+
+func (o *OneTimeConn) Skip(n int) error {
+	if o.isRead {
+		return io.EOF
+	}
+	o.contentLength -= n
+
+	if o.contentLength == 0 {
+		o.isRead = true
+	}
+
+	return o.Conn.Skip(n)
+}
+
+func (o *OneTimeConn) Flush() error {
+	if o.isFlushed {
+		return errs.ErrConnectionClosed
+	}
+	o.isFlushed = true
+	return o.Conn.Flush()
+}
+
+func NewOneTimeConn(source string) *OneTimeConn {
+	return &OneTimeConn{isRead: false, isFlushed: false, Conn: NewConn(source), contentLength: len(source)}
 }
 
 func NewSlowReadConn(source string) *SlowReadConn {
@@ -200,7 +261,7 @@ func (m *SlowWriteConn) Flush() error {
 	time.Sleep(100 * time.Millisecond)
 	if err == nil {
 		time.Sleep(m.writeTimeout)
-		return errs.ErrWriteTimeout
+		return ErrWriteTimeout
 	}
 	return err
 }
