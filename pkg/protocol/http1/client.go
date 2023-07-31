@@ -407,8 +407,6 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		// keep-alive connection on timeout.
 		//
 		// Apache and nginx usually do this.
-		//
-		// If the request is
 		if canIdempotentRetry && client.DefaultRetryIf(req, resp, err) && errors.Is(err, errs.ErrBadPoolConn) {
 			connAttempts++
 			continue
