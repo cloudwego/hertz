@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -55,6 +56,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/sirupsen/logrus"
 )
 
 const maxContentLengthInStream = 8 * 1024
@@ -111,21 +113,27 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 
 	var err error
 	var n int
+	var index int
 	for {
+		index++
 		n, err = r.Read(buf)
+		logrus.Infof("WriteBodyChunked Read! index[%d], now_time[%v], size[%d], err[%v], buf[%s]", index, time.Now(), n, err, string(buf))
 		if n == 0 {
 			if err == nil {
 				panic("BUG: io.Reader returned 0, nil")
 			}
 			if err == io.EOF {
 				if err = WriteChunk(w, buf[:0], true); err != nil {
+					logrus.Infof("WriteBodyChunked break! index[%d], now_time[%v], size[%d], err[%v], buf[%s]", index, time.Now(), n, err, string(buf))
 					break
 				}
 				err = nil
 			}
+			logrus.Infof("WriteBodyChunked break! index[%d], now_time[%v], size[%d], err[%v], buf[%s]", index, time.Now(), n, err, string(buf))
 			break
 		}
 		if err = WriteChunk(w, buf[:n], true); err != nil {
+			logrus.Infof("WriteBodyChunked break! index[%d], now_time[%v], size[%d], err[%v], buf[%s]", index, time.Now(), n, err, string(buf))
 			break
 		}
 	}
