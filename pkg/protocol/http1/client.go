@@ -661,6 +661,10 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		}
 		// if this is not a pooled connection,
 		// we should not retry to avoid getting stuck in an endless retry loop.
+		errNorm, ok := conn.(network.ErrorNormalization)
+		if ok {
+			err = errNorm.ToHertzError(err)
+		}
 		return false, err
 	}
 
