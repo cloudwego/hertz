@@ -341,8 +341,8 @@ func (engine *Engine) Run() (err error) {
 		return err
 	}
 
-	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
-		return errAlreadyRunning
+	if err = engine.SetEngineRun(); err != nil {
+		return err
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
 
@@ -1021,4 +1021,11 @@ func versionToALNP(v uint32) string {
 		return suite.HTTP3Draft29
 	}
 	return ""
+}
+
+func (engine *Engine) SetEngineRun() (err error) {
+	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
+		return errAlreadyRunning
+	}
+	return nil
 }

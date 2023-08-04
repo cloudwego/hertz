@@ -502,6 +502,14 @@ func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
 }
 
+func TestSetEngineRun(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	e.Init()
+	assert.True(t, !e.IsRunning())
+	e.SetEngineRun()
+	assert.True(t, e.IsRunning())
+}
+
 type mockConn struct{}
 
 func (m *mockConn) SetWriteTimeout(t time.Duration) error {
