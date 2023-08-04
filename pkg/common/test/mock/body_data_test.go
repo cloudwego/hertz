@@ -18,6 +18,8 @@ package mock
 
 import (
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestGenerateCreateFixedBody(t *testing.T) {
@@ -32,4 +34,14 @@ func TestGenerateCreateFixedBody(t *testing.T) {
 	if nilFixedBody != nil {
 		t.Fatalf("Unexpected %s. Expecting a nil", nilFixedBody)
 	}
+}
+
+func TestGenerateCreateChunkedBody(t *testing.T) {
+	bodySize := 10
+	b := CreateFixedBody(bodySize)
+	trailer := map[string]string{"Foo": "chunked shit"}
+	expectCb := "1\r\n0\r\n2\r\n12\r\n3\r\n345\r\n4\r\n6789\r\n0\r\nFoo: chunked shit\r\n\r\n"
+
+	cb := CreateChunkedBody(b, trailer, true)
+	assert.DeepEqual(t, expectCb, string(cb))
 }

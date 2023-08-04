@@ -29,17 +29,21 @@ import (
 )
 
 type HttpMethod struct {
-	Name            string
-	HTTPMethod      string
-	Comment         string
-	RequestTypeName string
-	ReturnTypeName  string
-	Path            string
-	Serializer      string
-	OutputDir       string
-	RefPackage      string
-	RefPackageAlias string
-	ModelPackage    map[string]string
+	Name               string
+	HTTPMethod         string
+	Comment            string
+	RequestTypeName    string
+	RequestTypePackage string
+	RequestTypeRawName string
+	ReturnTypeName     string
+	ReturnTypePackage  string
+	ReturnTypeRawName  string
+	Path               string
+	Serializer         string
+	OutputDir          string
+	RefPackage         string // handler import dir
+	RefPackageAlias    string // handler import alias
+	ModelPackage       map[string]string
 	// Annotations     map[string]string
 	Models map[string]*model.Model
 }

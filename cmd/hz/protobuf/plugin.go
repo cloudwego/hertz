@@ -76,8 +76,20 @@ type Plugin struct {
 	ModelDir     string
 	UseDir       string
 	IdlClientDir string
+	RmTags       RemoveTags
 	PkgMap       map[string]string
 	logger       *logs.StdLogger
+}
+
+type RemoveTags []string
+
+func (rm *RemoveTags) Exist(tag string) bool {
+	for _, rmTag := range *rm {
+		if rmTag == tag {
+			return true
+		}
+	}
+	return false
 }
 
 func (plugin *Plugin) Run() int {
@@ -192,6 +204,7 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	opts := protogen.Options{}
 	gen, err := opts.New(req)
 	plugin.Plugin = gen
+	plugin.RmTags = args.RmTags
 	if err != nil {
 		return fmt.Errorf("new protoc plugin failed: %s", err.Error())
 	}
@@ -322,7 +335,6 @@ func (plugin *Plugin) fixModelPathAndPackage(pkg string) (impt, path string) {
 func (plugin *Plugin) GenerateFiles(pluginPb *protogen.Plugin) error {
 	idl := pluginPb.Request.FileToGenerate[len(pluginPb.Request.FileToGenerate)-1]
 	pluginPb.SupportedFeatures = gengo.SupportedFeatures
-
 	for _, f := range pluginPb.Files {
 		if f.Proto.GetName() == idl {
 			err := plugin.GenerateFile(pluginPb, f)
@@ -358,7 +370,7 @@ func (plugin *Plugin) GenerateFile(gen *protogen.Plugin, f *protogen.File) error
 	if len(plugin.UseDir) != 0 {
 		return nil
 	}
-	file, err := generateFile(gen, f)
+	file, err := generateFile(gen, f, plugin.RmTags)
 	if err != nil || file == nil {
 		return fmt.Errorf("generate file %s failed: %s", f.Proto.GetName(), err.Error())
 	}
@@ -366,7 +378,7 @@ func (plugin *Plugin) GenerateFile(gen *protogen.Plugin, f *protogen.File) error
 }
 
 // generateFile generates the contents of a .pb.go file.
-func generateFile(gen *protogen.Plugin, file *protogen.File) (*protogen.GeneratedFile, error) {
+func generateFile(gen *protogen.Plugin, file *protogen.File, rmTags RemoveTags) (*protogen.GeneratedFile, error) {
 	filename := file.GeneratedFilenamePrefix + ".pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	f := newFileInfo(file)
@@ -398,7 +410,7 @@ func generateFile(gen *protogen.Plugin, file *protogen.File) (*protogen.Generate
 	}
 	var err error
 	for _, message := range f.allMessages {
-		err = genMessage(g, f, message)
+		err = genMessage(g, f, message, rmTags)
 		if err != nil {
 			return nil, err
 		}
@@ -410,7 +422,7 @@ func generateFile(gen *protogen.Plugin, file *protogen.File) (*protogen.Generate
 	return g, nil
 }
 
-func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) error {
+func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags RemoveTags) error {
 	if m.Desc.IsMapEntry() {
 		return nil
 	}
@@ -421,7 +433,7 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) error {
 		m.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
 	g.P(leadingComments,
 		"type ", m.GoIdent, " struct {")
-	err := genMessageFields(g, f, m)
+	err := genMessageFields(g, f, m, rmTags)
 	if err != nil {
 		return err
 	}
@@ -435,12 +447,12 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) error {
 	return nil
 }
 
-func genMessageFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) error {
+func genMessageFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags RemoveTags) error {
 	sf := f.allMessageFieldsByPtr[m]
 	genMessageInternalFields(g, f, m, sf)
 	var err error
 	for _, field := range m.Fields {
-		err = genMessageField(g, f, m, field, sf)
+		err = genMessageField(g, f, m, field, sf, rmTags)
 		if err != nil {
 			return err
 		}
@@ -448,7 +460,7 @@ func genMessageFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) er
 	return nil
 }
 
-func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, field *protogen.Field, sf *structFields) error {
+func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, field *protogen.Field, sf *structFields, rmTags RemoveTags) error {
 	if oneof := field.Oneof; oneof != nil && !oneof.Desc.IsSynthetic() {
 		// It would be a bit simpler to iterate over the oneofs below,
 		// but generating the field here keeps the contents of the Go
@@ -504,6 +516,16 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 
 	if m.isTracked {
 		tags = append(tags, gotrackTags...)
+	}
+
+	if len(rmTags) > 0 {
+		tmp := structTags{}
+		for _, tag := range tags {
+			if !rmTags.Exist(tag[0]) {
+				tmp = append(tmp, tag)
+			}
+		}
+		tags = tmp
 	}
 
 	name := field.GoName

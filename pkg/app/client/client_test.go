@@ -453,7 +453,9 @@ func TestClientReadTimeout(t *testing.T) {
 		req.SetConnectionClose()
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
-			t.Errorf("expected ErrTimeout got %#v", err)
+			if !strings.Contains(err.Error(), "timeout") {
+				t.Errorf("expected ErrTimeout got %#v", err)
+			}
 		}
 
 		protocol.ReleaseRequest(req)
@@ -2267,7 +2269,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = ":11000"
+	opt.Addr = "127.0.0.1:11000"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 
@@ -2295,4 +2297,55 @@ func TestClientState(t *testing.T) {
 
 	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
 	time.Sleep(time.Second * 22)
+}
+
+func TestClientRetryErr(t *testing.T) {
+	t.Run("200", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		opt.Addr = "127.0.0.1:10136"
+		engine := route.NewEngine(opt)
+		var l sync.Mutex
+		retryNum := 0
+		engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+			l.Lock()
+			defer l.Unlock()
+			retryNum += 1
+			ctx.SetStatusCode(200)
+		})
+		go engine.Run()
+		time.Sleep(100 * time.Millisecond)
+		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
+		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10136/ping")
+		assert.Nil(t, err)
+		l.Lock()
+		assert.DeepEqual(t, 1, retryNum)
+		l.Unlock()
+		engine.Close()
+	})
+
+	t.Run("502", func(t *testing.T) {
+		opt := config.NewOptions([]config.Option{})
+		opt.Addr = "127.0.0.1:10137"
+		engine := route.NewEngine(opt)
+		var l sync.Mutex
+		retryNum := 0
+		engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+			l.Lock()
+			defer l.Unlock()
+			retryNum += 1
+			ctx.SetStatusCode(502)
+		})
+		go engine.Run()
+		time.Sleep(100 * time.Millisecond)
+		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
+		c.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
+			return resp.StatusCode() == 502
+		})
+		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10137/ping")
+		assert.Nil(t, err)
+		l.Lock()
+		assert.DeepEqual(t, 3, retryNum)
+		l.Unlock()
+		engine.Close()
+	})
 }

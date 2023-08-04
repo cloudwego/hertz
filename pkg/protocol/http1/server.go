@@ -48,7 +48,7 @@ const NextProtoTLS = suite.HTTP1
 
 var (
 	errHijacked        = errs.New(errs.ErrHijacked, errs.ErrorTypePublic, nil)
-	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePublic, nil)
+	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePrivate, nil)
 	errShortConnection = errs.New(errs.ErrShortConnection, errs.ErrorTypePublic, "server is going to close the connection")
 	errUnexpectedEOF   = errs.NewPublic(io.ErrUnexpectedEOF.Error() + " when reading request")
 )
@@ -350,11 +350,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		if hijackHandler != nil {
-			if zr != nil {
-				zr.Release() //nolint:errcheck
-				zr = nil
-			}
-
 			// Hijacked conn process the timeout by itself
 			err = ctx.GetConn().SetReadTimeout(0)
 			if err != nil {

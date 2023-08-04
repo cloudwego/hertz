@@ -311,16 +311,17 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 }
 
 func TestWithBasePath(t *testing.T) {
-	engine := New(WithBasePath("/hertz"), WithHostPorts("127.0.0.1:9898"))
+	engine := New(WithBasePath("/hertz"), WithHostPorts("127.0.0.1:19898"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	time.Sleep(500 * time.Microsecond)
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, _ := http.Post("http://127.0.0.1:9898/hertz/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post("http://127.0.0.1:19898/hertz/test", "application/x-www-form-urlencoded", body)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 

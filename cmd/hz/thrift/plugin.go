@@ -41,6 +41,7 @@ type Plugin struct {
 	req    *thriftgo_plugin.Request
 	args   *config.Argument
 	logger *logs.StdLogger
+	rmTags []string
 }
 
 func (plugin *Plugin) Run() int {
@@ -74,6 +75,7 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
+	plugin.rmTags = args.RmTags
 	if args.CmdType == meta.CmdModel {
 		res, err := plugin.GetResponse(nil, args.OutDir)
 		if err != nil {
@@ -334,7 +336,7 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				tagString, err := getTagString(f)
+				tagString, err := getTagString(f, plugin.rmTags)
 				if err != nil {
 					return nil, err
 				}
@@ -360,7 +362,7 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 			stName := st.GetName()
 			for _, f := range st.Fields {
 				fieldName := f.GetName()
-				tagString, err := getTagString(f)
+				tagString, err := getTagString(f, plugin.rmTags)
 				if err != nil {
 					return nil, err
 				}
@@ -400,7 +402,7 @@ func (plugin *Plugin) GetResponse(files []generator.File, outputDir string) (*th
 	}, nil
 }
 
-func getTagString(f *parser.Field) (string, error) {
+func getTagString(f *parser.Field, rmTags []string) (string, error) {
 	field := model.Field{}
 	err := injectTags(f, &field, true, false)
 	if err != nil {
@@ -412,6 +414,11 @@ func getTagString(f *parser.Field) (string, error) {
 			disableTag = true
 		}
 	}
+
+	for _, rmTag := range rmTags {
+		field.Tags.Remove(rmTag)
+	}
+
 	var tagString string
 	tags := field.Tags
 	for idx, tag := range tags {

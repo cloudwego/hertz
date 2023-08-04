@@ -754,7 +754,8 @@ func (ctx *RequestContext) ResetWithoutConn() {
 		close(ctx.finished)
 		ctx.finished = nil
 	}
-	ctx.Request.Reset()
+
+	ctx.Request.ResetWithoutConn()
 	ctx.Response.Reset()
 	if ctx.IsEnableTrace() {
 		ctx.traceInfo.Reset()
