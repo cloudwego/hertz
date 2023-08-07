@@ -44,6 +44,7 @@ type HttpMethod struct {
 	RefPackage         string // handler import dir
 	RefPackageAlias    string // handler import alias
 	ModelPackage       map[string]string
+	GenHandler         bool // Whether to generate a handler, when an idl interface corresponds to multiple http method
 	// Annotations     map[string]string
 	Models map[string]*model.Model
 }
@@ -78,8 +79,10 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 					return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
 				}
 
-				if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {
-					return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+				if m.GenHandler {
+					if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {
+						return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+					}
 				}
 			}
 		} else { // generate handler service
@@ -103,6 +106,15 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 
 			if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
 				return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+			}
+
+			// Avoid generating duplicate handlers when IDL interface corresponds to multiple http methods
+			methods := handler.Methods
+			handler.Methods = []*HttpMethod{}
+			for _, m := range methods {
+				if m.GenHandler {
+					handler.Methods = append(handler.Methods, m)
+				}
 			}
 
 			if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {

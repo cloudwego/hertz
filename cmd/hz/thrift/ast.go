@@ -18,6 +18,7 @@ package thrift
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/config"
@@ -105,22 +106,29 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		}
 		for _, m := range ms {
 			rs := getAnnotations(m.Annotations, HttpMethodAnnotations)
-			if len(rs) > 1 {
-				return nil, fmt.Errorf("too many 'api.XXX' annotations: %s", rs)
-			}
 			if len(rs) == 0 {
 				continue
 			}
-
+			httpAnnos := httpAnnotations{}
+			for k, v := range rs {
+				httpAnnos = append(httpAnnos, httpAnnotation{
+					method: k,
+					path:   v,
+				})
+			}
+			// turn the map into a slice and sort it to make sure getting the results in the same order every time
+			sort.Sort(httpAnnos)
 			handlerOutDir := servicePath
 			genPaths := getAnnotation(m.Annotations, ApiGenPath)
-			if len(genPaths) == 1 {
-				handlerOutDir = genPaths[0]
-			} else if len(genPaths) > 0 {
+			if len(genPaths) == 0 {
+				handlerOutDir = ""
+			} else if len(genPaths) > 1 {
 				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
+			} else {
+				handlerOutDir = genPaths[0]
 			}
 
-			hmethod, path := util.GetFirstKV(rs)
+			hmethod, path := httpAnnos[0].method, httpAnnos[0].path
 			if len(path) != 1 || path[0] == "" {
 				return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
 			}
@@ -178,6 +186,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				Path:               path[0],
 				Serializer:         sr,
 				OutputDir:          handlerOutDir,
+				GenHandler:         true,
 				// Annotations:     m.Annotations,
 			}
 			refs := resolver.ExportReferred(false, true)
@@ -190,6 +199,20 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			}
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
+			for idx, anno := range httpAnnos {
+				if idx == 0 {
+					continue
+				}
+				tmp := *method
+				hmethod, path := anno.method, anno.path
+				if len(path) != 1 || path[0] == "" {
+					return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
+				}
+				tmp.HTTPMethod = hmethod
+				tmp.Path = path[0]
+				tmp.GenHandler = false
+				methods = append(methods, &tmp)
+			}
 			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
