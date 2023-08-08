@@ -117,12 +117,10 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 			if err == nil {
 				panic("BUG: io.Reader returned 0, nil")
 			}
-			if err == io.EOF {
-				if err = WriteChunk(w, buf[:0], true); err != nil {
-					break
-				}
-				err = nil
+			if err = WriteChunk(w, buf[:0], true); err != nil {
+				break
 			}
+			err = nil
 			break
 		}
 		if err = WriteChunk(w, buf[:n], true); err != nil {
