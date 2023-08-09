@@ -112,9 +112,7 @@ Hertz is distributed under the [Apache License, version 2.0](https://github.com/
 - Lark: Scan the QR code below with [Lark](https://www.larksuite.com/zh_cn/download) to join our CloudWeGo/hertz user group.
 
 ![LarkGroup](images/lark_group.png)
-- WeChat: CloudWeGo community WeChat group.
 
-![WechatGroup](images/wechat_group_cn.png)
 ## Contributors
 Thank you for your contribution to Hertz!
 

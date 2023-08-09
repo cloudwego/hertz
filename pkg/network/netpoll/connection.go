@@ -35,6 +35,11 @@ func (c *Conn) ToHertzError(err error) error {
 	if errors.Is(err, netpoll.ErrConnClosed) || errors.Is(err, syscall.EPIPE) {
 		return errs.ErrConnectionClosed
 	}
+
+	// only unify read timeout for now
+	if errors.Is(err, netpoll.ErrReadTimeout) {
+		return errs.ErrTimeout
+	}
 	return err
 }
 

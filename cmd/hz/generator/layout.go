@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"gopkg.in/yaml.v2"
 )
@@ -169,10 +170,14 @@ func serviceToLayoutData(service Layout) (map[string]interface{}, error) {
 	if len(service.RouterDir) != 0 {
 		routerPkg = filepath.Base(service.RouterDir)
 	}
+	serviceName := service.ServiceName
+	if len(serviceName) == 0 {
+		serviceName = meta.DefaultServiceName
+	}
 
 	return map[string]interface{}{
 		"GoModule":        goMod,
-		"ServiceName":     service.ServiceName,
+		"ServiceName":     serviceName,
 		"UseApacheThrift": service.UseApacheThrift,
 		"HandlerPkg":      handlerPkg,
 		"RouterPkg":       routerPkg,

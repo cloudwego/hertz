@@ -19,11 +19,15 @@ package http1
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -31,7 +35,7 @@ import (
 )
 
 func TestGcBodyStream(t *testing.T) {
-	srv := &http.Server{Addr: ":11001", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	srv := &http.Server{Addr: "127.0.0.1:11001", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		for range [1024]int{} {
 			w.Write([]byte("hello world\n"))
 		}
@@ -62,4 +66,56 @@ func TestGcBodyStream(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	c.CloseIdleConnections()
 	assert.DeepEqual(t, 0, c.ConnPoolState().TotalConnNum)
+}
+
+func TestMaxConn(t *testing.T) {
+	srv := &http.Server{Addr: "127.0.0.1:11002", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello world\n"))
+	})}
+	go srv.ListenAndServe()
+	time.Sleep(100 * time.Millisecond)
+
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer:             netpoll.NewDialer(),
+			ResponseBodyStream: true,
+			MaxConnWaitTimeout: time.Millisecond * 100,
+			MaxConns:           5,
+		},
+		Addr: "127.0.0.1:11002",
+	}
+
+	var successCount int32
+	var noFreeCount int32
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
+			req.SetRequestURI("http://127.0.0.1:11002")
+			req.SetMethod(consts.MethodPost)
+			err := c.Do(context.Background(), req, resp)
+			if err != nil {
+				if errors.Is(err, errs.ErrNoFreeConns) {
+					atomic.AddInt32(&noFreeCount, 1)
+					return
+				}
+				t.Errorf("client Do error=%v", err.Error())
+			}
+			atomic.AddInt32(&successCount, 1)
+		}()
+	}
+	wg.Wait()
+
+	assert.True(t, atomic.LoadInt32(&successCount) == 5)
+	assert.True(t, atomic.LoadInt32(&noFreeCount) == 5)
+	assert.DeepEqual(t, 0, c.ConnectionCount())
+	assert.DeepEqual(t, 5, c.WantConnectionCount())
+
+	runtime.GC()
+	// wait for gc
+	time.Sleep(100 * time.Millisecond)
+	c.CloseIdleConnections()
+	assert.DeepEqual(t, 0, c.WantConnectionCount())
 }

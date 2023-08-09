@@ -135,6 +135,9 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 }
 
 func WriteBodyFixedSize(w network.Writer, r io.Reader, size int64) error {
+	if size == 0 {
+		return nil
+	}
 	if size > consts.MaxSmallFileSize {
 		if err := w.Flush(); err != nil {
 			return err

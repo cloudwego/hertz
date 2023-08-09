@@ -44,11 +44,13 @@ package req
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -411,4 +413,11 @@ func TestRequestHeader_PeekIfExists(t *testing.T) {
 	}
 	assert.DeepEqual(t, []byte{}, rh.Peek("exists"))
 	assert.DeepEqual(t, []byte(nil), rh.Peek("non-exists"))
+}
+
+func TestRequestHeaderError(t *testing.T) {
+	er := mock.EOFReader{}
+	rh := protocol.RequestHeader{}
+	err := ReadHeader(&rh, &er)
+	assert.True(t, errors.Is(err, errs.ErrNothingRead))
 }

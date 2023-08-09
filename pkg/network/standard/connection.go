@@ -54,6 +54,10 @@ func (c *Conn) ToHertzError(err error) error {
 	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ENOTCONN) {
 		return errs.ErrConnectionClosed
 	}
+	if netErr, ok := err.(*net.OpError); ok && netErr.Timeout() {
+		return errs.ErrTimeout
+	}
+
 	return err
 }
 

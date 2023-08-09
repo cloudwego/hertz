@@ -113,9 +113,7 @@ Hertz 基于[Apache License 2.0](https://github.com/cloudwego/hertz/blob/main/LI
 - 飞书用户群（[注册飞书](https://www.larksuite.com/zh_cn/download)进群）
 
   ![LarkGroup](images/lark_group_cn.png)
-- 微信: CloudWeGo community
 
-  ![WechatGroup](images/wechat_group_cn.png)
 ## 贡献者
 感谢您对 Hertz 作出的贡献！
 
