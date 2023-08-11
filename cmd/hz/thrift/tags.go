@@ -63,7 +63,8 @@ const (
 const (
 	ApiBaseDomain    = "api.base_domain"
 	ApiServiceGroup  = "api.service_group"
-	ApiServiceGenDir = "api.service_gen_dir"
+	ApiServiceGenDir = "api.service_gen_dir" // handler_dir for handler_by_service
+	ApiServicePath   = "api.service_path"    // declare the path to the service's handler according to this annotation for handler_by_method
 )
 
 var (

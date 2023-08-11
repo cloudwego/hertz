@@ -64,6 +64,7 @@ extend google.protobuf.ServiceOptions {
 
   // 50731~50760 used to extend service option by hz
   optional string base_domain_compatible = 50731;
+  optional string service_path = 50732;
 }
 
 extend google.protobuf.MessageOptions {
