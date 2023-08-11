@@ -506,7 +506,7 @@ func TestSetEngineRun(t *testing.T) {
 	e := NewEngine(config.NewOptions(nil))
 	e.Init()
 	assert.True(t, !e.IsRunning())
-	e.SetEngineRun()
+	e.MarkAsEngineRun()
 	assert.True(t, e.IsRunning())
 }
 

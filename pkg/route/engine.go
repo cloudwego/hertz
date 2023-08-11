@@ -341,7 +341,7 @@ func (engine *Engine) Run() (err error) {
 		return err
 	}
 
-	if err = engine.SetEngineRun(); err != nil {
+	if err = engine.MarkAsEngineRun(); err != nil {
 		return err
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
@@ -1023,7 +1023,9 @@ func versionToALNP(v uint32) string {
 	return ""
 }
 
-func (engine *Engine) SetEngineRun() (err error) {
+// MarkAsEngineRun will mark the status of the hertz engine as "running".
+// Warning: do not call this method by yourself, unless you know what you are doing.
+func (engine *Engine) MarkAsEngineRun() (err error) {
 	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
 		return errAlreadyRunning
 	}
