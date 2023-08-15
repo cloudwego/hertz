@@ -23,6 +23,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/localsession/backup"
 )
 
 type ConnPoolState struct {
@@ -117,7 +118,7 @@ type ClientOptions struct {
 	// Disabled path normalization may be useful for proxying incoming requests
 	// to servers that are expecting paths to be forwarded as-is.
 	//
-	// By default path values are normalized, i.e.
+	// By default, path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
 
@@ -128,6 +129,9 @@ type ClientOptions struct {
 
 	// StateObserve execution interval
 	ObservationInterval time.Duration
+
+	// local session for context backup
+	CtxBackupHandler backup.BackupHandler
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {

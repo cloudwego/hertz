@@ -49,7 +49,6 @@ func New(opts ...config.Option) *Hertz {
 func Default(opts ...config.Option) *Hertz {
 	h := New(opts...)
 	h.Use(recovery.Recovery())
-
 	return h
 }
 

@@ -24,6 +24,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/localsession/backup"
 )
 
 // Option is the only struct that can be used to set Options.
@@ -97,6 +98,9 @@ type Options struct {
 	// The HTML template will reload according to files' changing event
 	// otherwise it will reload after AutoReloadInterval.
 	AutoReloadInterval time.Duration
+
+	// local session for context backup
+	BackupOpt backup.Options
 }
 
 func (o *Options) Apply(opts []Option) {

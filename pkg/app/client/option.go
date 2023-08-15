@@ -17,6 +17,7 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
@@ -171,6 +172,15 @@ func WithDialFunc(f network.DialFunc, dialers ...network.Dialer) config.ClientOp
 			d = dialers[0]
 		}
 		o.Dialer = newCustomDialerWithDialFunc(d, f)
+	}}
+}
+
+// WithContextBackup enables local-session to retrieve context which is backed up by server,
+// in case of user don't correctly pass context into next HTTP/RPC call.
+//   - backupHandler pass a handler to check and handler user-defined key-values according to current context, returning backup==false means no need further operations.
+func WithContextBackup(backupHandler func(prev, cur context.Context) (ctx context.Context, backup bool)) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.CtxBackupHandler = backupHandler
 	}}
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/localsession/backup"
 )
 
 // WithKeepAliveTimeout sets keep-alive timeout.
@@ -339,10 +340,22 @@ func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
 	}}
 }
 
-// WithOnConnect sets the onConnect function. It can received data from connection in netpoll.
+// WithOnConnect sets the onConnect function. It can receive data from connection in netpoll.
 // In go net, it will be called after converting tls connection.
 func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.OnConnect = fn
+	}}
+}
+
+// WithContextBackup enables local-session to back up hertz server's context,
+// in case of user don't correctly pass context into next HTTP/RPC call.
+//   - enable means enable context backup
+//   - async means backup session will propagate to children goroutines, otherwise it only works on the same goroutine handler
+func WithContextBackup(enable, async bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.BackupOpt = backup.DefaultOptions()
+		o.BackupOpt.Enable = enable
+		o.BackupOpt.EnableImplicitlyTransmitAsync = async
 	}}
 }
