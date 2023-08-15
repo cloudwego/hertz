@@ -26,6 +26,7 @@ import (
 var funcMap = template.FuncMap{
 	"GetUniqueHandlerOutDir": getUniqueHandlerOutDir,
 	"ToSnakeCase":            util.ToSnakeCase,
+	"ToCamelCase":            util.ToCamelCase,
 	"Split":                  strings.Split,
 	"Trim":                   strings.Trim,
 }
