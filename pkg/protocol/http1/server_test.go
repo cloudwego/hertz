@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	inStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
@@ -33,6 +35,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
@@ -247,14 +250,124 @@ func TestHijackResponseWriter(t *testing.T) {
 	assert.True(t, isFinal)
 }
 
+func TestHijackHandler(t *testing.T) {
+	server := NewServer()
+	reqCtx := &app.RequestContext{}
+	originReadTimeout := time.Second
+	hijackReadTimeout := 200 * time.Millisecond
+	reqCtx.SetHijackHandler(func(c network.Conn) {
+		c.SetReadTimeout(hijackReadTimeout) // hijack read timeout
+	})
+
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+	}
+
+	server.HijackConnHandle = func(c network.Conn, h app.HijackHandler) {
+		h(c)
+	}
+
+	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	defaultConn.SetReadTimeout(originReadTimeout)
+	assert.DeepEqual(t, originReadTimeout, defaultConn.GetReadTimeout())
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrHijacked))
+	assert.DeepEqual(t, hijackReadTimeout, defaultConn.GetReadTimeout())
+}
+
+func TestKeepAlive(t *testing.T) {
+	server := NewServer()
+	reqCtx := &app.RequestContext{}
+	times := 0
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		isRunning: true,
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			times++
+			if string(ctx.Path()) == "/close" {
+				ctx.SetConnectionClose()
+			}
+		},
+	}
+	server.IdleTimeout = time.Second
+
+	var s strings.Builder
+	s.WriteString("GET / HTTP/1.1\r\nHost: aaa\r\nConnection: keep-alive\r\n\r\n")
+	s.WriteString("GET /close HTTP/1.0\r\nHost: aaa\r\nConnection: keep-alive\r\n\r\n") // set connection close
+
+	defaultConn := mock.NewConn(s.String())
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	assert.DeepEqual(t, times, 2)
+}
+
+func TestExpect100Continue(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			data, err := ctx.Body()
+			if err == nil {
+				ctx.Write(data)
+			}
+		},
+	}
+
+	defaultConn := mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: a/b\r\n\r\n12345")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	defaultResponseResult := defaultConn.WriterRecorder()
+	assert.DeepEqual(t, 0, defaultResponseResult.Len())
+	response := protocol.AcquireResponse()
+	resp.Read(response, defaultResponseResult)
+	assert.DeepEqual(t, "12345", string(response.Body()))
+}
+
+func TestExpect100ContinueHandler(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			data, err := ctx.Body()
+			if err == nil {
+				ctx.Write(data)
+			}
+		},
+	}
+	server.ContinueHandler = func(header *protocol.RequestHeader) bool {
+		return false
+	}
+
+	defaultConn := mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: a/b\r\n\r\n12345")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	defaultResponseResult := defaultConn.WriterRecorder()
+	assert.DeepEqual(t, 0, defaultResponseResult.Len())
+	response := protocol.AcquireResponse()
+	resp.Read(response, defaultResponseResult)
+	assert.DeepEqual(t, consts.StatusExpectationFailed, response.StatusCode())
+	assert.DeepEqual(t, "", string(response.Body()))
+}
+
 type mockCore struct {
 	ctxPool     *sync.Pool
 	controller  tracer.Controller
 	mockHandler func(c context.Context, ctx *app.RequestContext)
+	isRunning   bool
 }
 
 func (m *mockCore) IsRunning() bool {
-	return false
+	return m.isRunning
 }
 
 func (m *mockCore) GetCtxPool() *sync.Pool {

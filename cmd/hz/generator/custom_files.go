@@ -48,16 +48,17 @@ type IDLPackageRenderInfo struct {
 
 type CustomizedFileForMethod struct {
 	*HttpMethod
-	FilePath    string
-	FilePackage string
-	ServiceInfo *Service // service info for that method
+	FilePath       string
+	FilePackage    string
+	ServiceInfo    *Service              // service info for this method
+	IDLPackageInfo *IDLPackageRenderInfo // IDL info for this service
 }
 
 type CustomizedFileForService struct {
 	*Service
 	FilePath       string
 	FilePackage    string
-	IDLPackageInfo *IDLPackageRenderInfo // IDL info for that service
+	IDLPackageInfo *IDLPackageRenderInfo // IDL info for this service
 }
 
 type CustomizedFileForIDL struct {
@@ -110,7 +111,7 @@ func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 						filePathRenderInfo.ServiceName = service.Name
 						filePathRenderInfo.MethodName = method.Name
 						filePathRenderInfo.HandlerGenPath = method.OutputDir
-						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method, service)
+						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method, service, &idlPackageRenderInfo)
 						if err != nil {
 							return err
 						}
@@ -323,10 +324,11 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 			if tplInfo.UpdateBehavior.AppendKey == "method" {
 				for _, method := range service.Methods {
 					data := CustomizedFileForMethod{
-						HttpMethod:  method,
-						FilePath:    filePath,
-						FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-						ServiceInfo: service,
+						HttpMethod:     method,
+						FilePath:       filePath,
+						FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+						ServiceInfo:    service,
+						IDLPackageInfo: idlPackageRenderInfo,
 					}
 					insertKey, err := renderInsertKey(tplInfo, data)
 					if err != nil {
@@ -395,7 +397,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 }
 
 // genLoopMethod used to generate files by 'method'
-func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod, service *Service) error {
+func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod, service *Service, idlPackageRenderInfo *IDLPackageRenderInfo) error {
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
 	if err != nil {
 		return err
@@ -408,10 +410,11 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 
 	if !exist { // create file
 		data := CustomizedFileForMethod{
-			HttpMethod:  method,
-			FilePath:    filePath,
-			FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-			ServiceInfo: service,
+			HttpMethod:     method,
+			FilePath:       filePath,
+			FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+			ServiceInfo:    service,
+			IDLPackageInfo: idlPackageRenderInfo,
 		}
 		err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 		if err != nil {
@@ -426,10 +429,11 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForMethod{
-				HttpMethod:  method,
-				FilePath:    filePath,
-				FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-				ServiceInfo: service,
+				HttpMethod:     method,
+				FilePath:       filePath,
+				FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+				ServiceInfo:    service,
+				IDLPackageInfo: idlPackageRenderInfo,
 			}
 			err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 			if err != nil {
@@ -497,10 +501,11 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
 					for _, method := range service.Methods {
 						data := CustomizedFileForMethod{
-							HttpMethod:  method,
-							FilePath:    filePath,
-							FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-							ServiceInfo: service,
+							HttpMethod:     method,
+							FilePath:       filePath,
+							FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+							ServiceInfo:    service,
+							IDLPackageInfo: &idlPackageRenderInfo,
 						}
 						insertKey, err := renderInsertKey(tplInfo, data)
 						if err != nil {

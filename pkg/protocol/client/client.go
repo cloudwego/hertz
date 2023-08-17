@@ -43,7 +43,6 @@ package client
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -86,16 +85,6 @@ func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) b
 	}
 
 	if isIdempotent(req, resp, err) {
-		return true
-	}
-	// Retry non-idempotent requests if the server closes
-	// the connection before sending the response.
-	//
-	// This case is possible if the server closes the idle
-	// keep-alive connection on timeout.
-	//
-	// Apache and nginx usually do this.
-	if err == io.EOF {
 		return true
 	}
 

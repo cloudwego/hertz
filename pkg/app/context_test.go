@@ -654,8 +654,10 @@ func TestContextReset(t *testing.T) {
 	c.Params = param.Params{param.Param{}}
 	c.Error(errors.New("test")) // nolint: errcheck
 	c.Set("foo", "bar")
+	c.Request.SetIsTLS(true)
 	c.ResetWithoutConn()
-
+	c.Request.URI()
+	assert.DeepEqual(t, "https", string(c.Request.Scheme()))
 	assert.False(t, c.IsAborted())
 	assert.DeepEqual(t, 0, len(c.Errors))
 	assert.Nil(t, c.Errors.Errors())
