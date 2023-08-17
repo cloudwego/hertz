@@ -188,7 +188,8 @@ type RequestContext struct {
 	// This mutex protect Keys map.
 	mu sync.RWMutex
 
-	// Keys is a key/value pair exclusively for the context of each request.
+	// Deprecated: DO NOT CALL IT DIRECTLY.
+	// Use .Get/.Set/.ForEachKey APIs to manipulate it.
 	Keys map[string]interface{}
 
 	hijackHandler HijackHandler
