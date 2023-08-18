@@ -179,6 +179,7 @@ func Init() *cli.App {
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
 	enableExtendsFlag := cli.BoolFlag{Name: "enable_extends", Usage: "Parse 'extends' for thrift IDL", Destination: &globalArgs.EnableExtends}
+	sortRouterFlag := cli.BoolFlag{Name: "sort_router", Usage: "Sort router register code, to avoid code difference", Destination: &globalArgs.SortRouter}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
 	queryEnumIntFlag := cli.BoolFlag{Name: "query_enumint", Usage: "Use num instead of string for query enum parameter.", Destination: &globalArgs.QueryEnumAsInt}
@@ -227,6 +228,7 @@ func Init() *cli.App {
 				&noRecurseFlag,
 				&forceNewFlag,
 				&enableExtendsFlag,
+				&sortRouterFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -261,6 +263,7 @@ func Init() *cli.App {
 				&optPkgFlag,
 				&noRecurseFlag,
 				&enableExtendsFlag,
+				&sortRouterFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
