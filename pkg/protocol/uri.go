@@ -77,6 +77,10 @@ var uriPool = &sync.Pool{
 type URI struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+
 	pathOriginal []byte
 	scheme       []byte
 	path         []byte
@@ -108,6 +112,12 @@ func (kv *argsKV) GetKey() []byte {
 
 func (kv *argsKV) GetValue() []byte {
 	return kv.value
+}
+
+// CopyToAndMark copies uri contents to dst and mark the dst uri as a copy.
+func (u *URI) CopyToAndMark(dst *URI) {
+	dst.isCopy = true
+	u.CopyTo(dst)
 }
 
 // CopyTo copies uri contents to dst.
@@ -288,6 +298,7 @@ func (u *URI) Reset() {
 	u.queryArgs.Reset()
 	u.parsedQueryArgs = false
 	u.DisablePathNormalizing = false
+	u.isCopy = false
 
 	// There is no need in u.fullURI = u.fullURI[:0], since full uri
 	// is calculated on each call to FullURI().

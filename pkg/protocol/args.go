@@ -63,6 +63,10 @@ type argsScanner struct {
 type Args struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+
 	args []argsKV
 	buf  []byte
 }
@@ -75,6 +79,13 @@ func (a *Args) Set(key, value string) {
 // Reset clears query args.
 func (a *Args) Reset() {
 	a.args = a.args[:0]
+	a.isCopy = false
+}
+
+// CopyToAndMark copies all args to dst and mark the dst args as a copy.
+func (a *Args) CopyToAndMark(dst *Args) {
+	dst.isCopy = true
+	a.CopyTo(dst)
 }
 
 // CopyTo copies all args to dst.

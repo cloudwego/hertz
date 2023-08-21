@@ -65,6 +65,10 @@ var (
 type RequestHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+
 	disableNormalizing   bool
 	connectionClose      bool
 	noDefaultContentType bool
@@ -109,6 +113,10 @@ func (h *RequestHeader) SetRawHeaders(r []byte) {
 // goroutines.
 type ResponseHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
+
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
 
 	disableNormalizing   bool
 	connectionClose      bool
@@ -221,9 +229,13 @@ func (h *ResponseHeader) GetHeaders() []argsKV {
 func (h *ResponseHeader) Reset() {
 	h.disableNormalizing = false
 	h.Trailer().disableNormalizing = false
-	h.noDefaultContentType = false
-	h.noDefaultDate = false
 	h.ResetSkipNormalize()
+}
+
+// CopyToAndMark copies all the headers to dst and mark the dst header as a copy.
+func (h *ResponseHeader) CopyToAndMark(dst *ResponseHeader) {
+	dst.isCopy = true
+	h.CopyTo(dst)
 }
 
 // CopyTo copies all the headers to dst.
@@ -506,6 +518,10 @@ func checkWriteHeaderCode(code int) {
 
 func (h *ResponseHeader) ResetSkipNormalize() {
 	h.protocol = ""
+
+	h.isCopy = false
+	h.noDefaultContentType = false
+	h.noDefaultDate = false
 	h.connectionClose = false
 
 	h.statusCode = 0
@@ -1089,6 +1105,12 @@ func (h *RequestHeader) del(key []byte) {
 	h.h = delAllArgsBytes(h.h, key)
 }
 
+// CopyToAndMark copies all the headers to dst and mark the dst header as a copy.
+func (h *RequestHeader) CopyToAndMark(dst *RequestHeader) {
+	dst.isCopy = true
+	h.CopyTo(dst)
+}
+
 // CopyTo copies all the headers to dst.
 func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.Reset()
@@ -1414,6 +1436,7 @@ func (h *RequestHeader) SetCanonical(key, value []byte) {
 }
 
 func (h *RequestHeader) ResetSkipNormalize() {
+	h.isCopy = false
 	h.connectionClose = false
 	h.protocol = ""
 	h.noDefaultContentType = false

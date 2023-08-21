@@ -87,6 +87,10 @@ func (noBody) Close() error             { return nil }
 type Request struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+
 	Header RequestHeader
 
 	uri      URI
@@ -190,6 +194,7 @@ func (req *Request) resetSkipHeaderAndConn() {
 	req.uri.Reset()
 	req.parsedURI = false
 	req.parsedPostArgs = false
+	req.isCopy = false
 	req.postArgs.Reset()
 }
 
@@ -359,6 +364,39 @@ func (req *Request) SwapBody(body []byte) []byte {
 	oldBody := bb.B
 	bb.B = body
 	return oldBody
+}
+
+// CopyToAndMark copies req contents to dst except of body stream and mark the dst req as a copy.
+func (req *Request) CopyToAndMark(dst *Request) {
+	dst.isCopy = true
+
+	// Same with req.CopyTo(dst), but use the .CopyToAndMark instead of .CopyTo
+	dst.Reset()
+	req.Header.CopyToAndMark(&dst.Header)
+
+	req.uri.CopyToAndMark(&dst.uri)
+	dst.parsedURI = req.parsedURI
+
+	req.postArgs.CopyToAndMark(&dst.postArgs)
+	dst.parsedPostArgs = req.parsedPostArgs
+	dst.isTLS = req.isTLS
+
+	if req.options != nil {
+		dst.options = &config.RequestOptions{}
+		req.options.CopyTo(dst.options)
+	}
+
+	// copy body
+	if req.bodyRaw != nil {
+		dst.bodyRaw = append(dst.bodyRaw[:0], req.bodyRaw...)
+		if dst.body != nil {
+			dst.body.Reset()
+		}
+	} else if req.body != nil {
+		dst.BodyBuffer().Set(req.body.B)
+	} else if dst.body != nil {
+		dst.body.Reset()
+	}
 }
 
 // CopyTo copies req contents to dst except of body stream.
