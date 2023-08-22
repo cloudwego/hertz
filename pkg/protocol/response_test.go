@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
@@ -257,6 +258,54 @@ func TestSetBodyStreamNoReset(t *testing.T) {
 	resp.bodyStream = bsA
 	resp.SetBodyStream(bsC, 1)
 	assert.DeepEqual(t, bsA.String(), "")
+}
+
+func TestCopyResponseHeader_Header(t *testing.T) {
+	h := ResponseHeader{}
+	h.Add("Foo", "Bar")
+
+	assert.True(t, strings.Contains(string(h.Header()), "Foo: Bar"))
+	assert.DeepEqual(t, h.Header(), h.bufKV.value)
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.bufKV.value))
+
+	h.isCopy = true
+	assert.True(t, strings.Contains(string(h.Header()), "Foo: Bar"))
+	assert.DeepEqual(t, 0, len(h.bufKV.value))
+}
+
+func TestCopyResponseHeader_Peek(t *testing.T) {
+	h := ResponseHeader{}
+	h.Add("Foo", "Bar")
+
+	assert.DeepEqual(t, "Bar", string(h.Peek("Foo")))
+	assert.DeepEqual(t, "Foo", string(h.bufKV.key))
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.bufKV.value))
+
+	h.isCopy = true
+	assert.DeepEqual(t, "Bar", string(h.Peek("Foo")))
+	assert.DeepEqual(t, 0, len(h.bufKV.key))
+}
+
+func TestCopyResponseHeader_PeekAll(t *testing.T) {
+	h := RequestHeader{}
+	h.Add("Foo", "Bar")
+
+	v := h.PeekAll("Foo")
+	assert.DeepEqual(t, 1, len(v))
+	assert.DeepEqual(t, "Bar", string(h.PeekAll("Foo")[0]))
+	assert.DeepEqual(t, "Foo", string(h.bufKV.key))
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.bufKV.value))
+
+	h.isCopy = true
+	v = h.PeekAll("Foo")
+	assert.DeepEqual(t, "Bar", string(v[0]))
+	assert.DeepEqual(t, 0, len(h.bufKV.key))
 }
 
 func TestRespSafeCopy(t *testing.T) {

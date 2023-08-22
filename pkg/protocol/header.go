@@ -650,6 +650,9 @@ func (h *ResponseHeader) DelBytes(key []byte) {
 //
 // The returned value is valid until the next call to ResponseHeader methods.
 func (h *ResponseHeader) Header() []byte {
+	if h.isCopy {
+		return h.AppendBytes(nil)
+	}
 	h.bufKV.value = h.AppendBytes(h.bufKV.value[:0])
 	return h.bufKV.value
 }
@@ -703,6 +706,9 @@ func (h *ResponseHeader) DelClientCookieBytes(key []byte) {
 // Returned value is valid until the next call to ResponseHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *ResponseHeader) Peek(key string) []byte {
+	if h.isCopy {
+		return h.peek(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peek(k)
 }
@@ -749,6 +755,9 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use ResponseHeader.GetAll(key) instead.
 func (h *ResponseHeader) PeekAll(key string) [][]byte {
+	if h.isCopy {
+		return h.peekAll(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peekAll(k)
 }
