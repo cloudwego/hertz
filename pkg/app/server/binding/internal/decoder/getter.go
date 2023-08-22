@@ -75,6 +75,13 @@ func postForm(req *protocol.Request, params param.Params, key string, defaultVal
 		}
 	}
 
+	if len(ret) != 0 {
+		return
+	}
+	if val := req.URI().QueryArgs().Peek(key); val != nil {
+		ret = string(val)
+	}
+
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = defaultValue[0]
 	}
