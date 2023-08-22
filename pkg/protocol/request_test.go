@@ -484,6 +484,79 @@ func TestRequestBodyWriteToMultipart(t *testing.T) {
 	testBodyWriteTo(t, &r, expectedS, true)
 }
 
+func TestCopyRequestHeader_Header(t *testing.T) {
+	h := RequestHeader{}
+	h.Add("Foo", "Bar")
+
+	assert.True(t, strings.Contains(string(h.Header()), "Foo: Bar"))
+	assert.DeepEqual(t, h.Header(), h.GetBufValue())
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.GetBufValue()))
+
+	h.isCopy = true
+	assert.True(t, strings.Contains(string(h.Header()), "Foo: Bar"))
+	assert.DeepEqual(t, 0, len(h.GetBufValue()))
+}
+
+func TestCopyRequestHeader_Peek(t *testing.T) {
+	h := RequestHeader{}
+	h.Add("Foo", "Bar")
+
+	assert.DeepEqual(t, "Bar", string(h.Peek("Foo")))
+	assert.DeepEqual(t, "Foo", string(h.bufKV.key))
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.GetBufValue()))
+
+	h.isCopy = true
+	assert.DeepEqual(t, "Bar", string(h.Peek("Foo")))
+	assert.DeepEqual(t, 0, len(h.bufKV.key))
+}
+
+func TestCopyRequestHeader_PeekAll(t *testing.T) {
+	h := RequestHeader{}
+	h.Add("Foo", "Bar")
+
+	v := h.PeekAll("Foo")
+	assert.DeepEqual(t, 1, len(v))
+	assert.DeepEqual(t, "Bar", string(h.PeekAll("Foo")[0]))
+	assert.DeepEqual(t, "Foo", string(h.bufKV.key))
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.GetBufValue()))
+
+	h.isCopy = true
+	v = h.PeekAll("Foo")
+	assert.DeepEqual(t, "Bar", string(v[0]))
+	assert.DeepEqual(t, 0, len(h.bufKV.key))
+}
+
+func TestCopyRequestHeader_VisitAll(t *testing.T) {
+	h := RequestHeader{}
+	h.Add("Cookie", "Foo=Bar")
+
+	headers := make(map[string]string)
+	h.VisitAll(func(key, value []byte) {
+		headers[string(key)] = string(value)
+	})
+
+	assert.DeepEqual(t, 1, len(headers))
+	assert.DeepEqual(t, "Foo=Bar", headers["Cookie"])
+	assert.DeepEqual(t, "Foo=Bar", string(h.bufKV.value))
+
+	h.bufKV = argsKV{}
+	assert.DeepEqual(t, 0, len(h.GetBufValue()))
+
+	h.isCopy = true
+	headers = make(map[string]string)
+	h.VisitAll(func(key, value []byte) {
+		headers[string(key)] = string(value)
+	})
+	assert.DeepEqual(t, "Foo=Bar", headers["Cookie"])
+	assert.DeepEqual(t, 0, len(h.bufKV.value))
+}
+
 func TestNewRequest(t *testing.T) {
 	// get
 	req := NewRequest("GET", "http://www.google.com/hi", bytes.NewReader([]byte("hello")))

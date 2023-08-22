@@ -455,6 +455,9 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 //
 // The returned representation is valid until the next call to RequestHeader methods.
 func (h *RequestHeader) Header() []byte {
+	if h.isCopy {
+		return h.AppendBytes(nil)
+	}
 	h.bufKV.value = h.AppendBytes(h.bufKV.value[:0])
 	return h.bufKV.value
 }
@@ -788,6 +791,9 @@ func (h *ResponseHeader) peekAll(key []byte) [][]byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use RequestHeader.GetAll(key) instead.
 func (h *RequestHeader) PeekAll(key string) [][]byte {
+	if h.isCopy {
+		return h.peekAll(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peekAll(k)
 }
@@ -1139,6 +1145,9 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 // Returned value is valid until the next call to RequestHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *RequestHeader) Peek(key string) []byte {
+	if h.isCopy {
+		return h.peek(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peek(k)
 }
@@ -1553,8 +1562,12 @@ func (h *RequestHeader) VisitAll(f func(key, value []byte)) {
 
 	h.collectCookies()
 	if len(h.cookies) > 0 {
-		h.bufKV.value = appendRequestCookieBytes(h.bufKV.value[:0], h.cookies)
-		f(bytestr.StrCookie, h.bufKV.value)
+		if h.isCopy {
+			f(bytestr.StrCookie, appendRequestCookieBytes(nil, h.cookies))
+		} else {
+			h.bufKV.value = appendRequestCookieBytes(h.bufKV.value[:0], h.cookies)
+			f(bytestr.StrCookie, h.bufKV.value)
+		}
 	}
 	visitArgs(h.h, f)
 	if h.ConnectionClose() {
