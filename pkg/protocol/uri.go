@@ -80,6 +80,8 @@ type URI struct {
 	// isCopy shows that whether it is a copy through ctx.Copy().
 	// Other APIs such as CopyTo do not need to handle this.
 	isCopy bool
+	// readLock is used to protect lazy load read APIs
+	readLock sync.Mutex
 
 	pathOriginal []byte
 	scheme       []byte
@@ -142,6 +144,11 @@ func (u *URI) CopyTo(dst *URI) {
 
 // QueryArgs returns query args.
 func (u *URI) QueryArgs() *Args {
+	if u.isCopy {
+		// use lock to prevent concurrent parse.
+		u.readLock.Lock()
+		defer u.readLock.Unlock()
+	}
 	u.parseQueryArgs()
 	return &u.queryArgs
 }

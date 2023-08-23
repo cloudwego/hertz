@@ -90,6 +90,8 @@ type Request struct {
 	// isCopy shows that whether it is a copy through ctx.Copy().
 	// Other APIs such as CopyTo do not need to handle this.
 	isCopy bool
+	// readLock is used to protect lazy load read APIs
+	readLock sync.Mutex
 
 	Header RequestHeader
 
@@ -236,6 +238,11 @@ func (req *Request) PostArgString() []byte {
 // RemoveMultipartFormFiles must be called after returned multipart form
 // is processed.
 func (req *Request) MultipartForm() (*multipart.Form, error) {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	if req.multipartForm != nil {
 		return req.multipartForm, nil
 	}
@@ -714,6 +721,11 @@ func (req *Request) BodyWriter() io.Writer {
 
 // PostArgs returns POST arguments.
 func (req *Request) PostArgs() *Args {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	req.parsePostArgs()
 	return &req.postArgs
 }
@@ -793,6 +805,11 @@ func (req *Request) CloseBodyStream() error {
 
 // URI returns request URI
 func (req *Request) URI() *URI {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	req.ParseURI()
 	return &req.uri
 }
