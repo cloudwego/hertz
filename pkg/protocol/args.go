@@ -354,6 +354,9 @@ func peekArgStrExists(h []argsKV, k string) (string, bool) {
 //
 // The returned value is valid until the next call to Args methods.
 func (a *Args) QueryString() []byte {
+	if a.isCopy {
+		return a.AppendBytes(nil)
+	}
 	a.buf = a.AppendBytes(a.buf[:0])
 	return a.buf
 }

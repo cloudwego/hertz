@@ -129,3 +129,16 @@ func TestArgsVisitAll(t *testing.T) {
 	})
 	assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
 }
+
+func TestCopyArgs_QueryString(t *testing.T) {
+	a := Args{}
+	a.Add("foo", "bar")
+	assert.DeepEqual(t, "foo=bar", string(a.QueryString()))
+	assert.DeepEqual(t, "foo=bar", string(a.buf))
+
+	a.buf = nil
+	a.isCopy = true
+
+	assert.DeepEqual(t, "foo=bar", string(a.QueryString()))
+	assert.Nil(t, a.buf)
+}
