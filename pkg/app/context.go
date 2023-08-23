@@ -774,8 +774,9 @@ func (ctx *RequestContext) Reset() {
 // Note that this will not stop the current handler.
 // in other words, even if Redirect() is called, the remaining handlers will still be executed and cause unexpected result.
 // So it should call Abort to ensure the remaining handlers for this request are not called.
-// ctx.Abort()
-// return
+//
+//	ctx.Abort()
+//	return
 func (ctx *RequestContext) Redirect(statusCode int, uri []byte) {
 	ctx.redirect(uri, statusCode)
 }
