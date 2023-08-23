@@ -66,7 +66,7 @@ func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
 
 	el := rt.Elem()
 	if el.Kind() != reflect.Struct {
-		return nil, false, fmt.Errorf("unsupported \"%s\" type binding", el.String())
+		return nil, false, fmt.Errorf("unsupported \"%s\" type binding", rt.String())
 	}
 
 	for i := 0; i < el.NumField(); i++ {
