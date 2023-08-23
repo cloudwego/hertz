@@ -772,7 +772,10 @@ func (ctx *RequestContext) Reset() {
 
 // Redirect returns an HTTP redirect to the specific location.
 // Note that this will not stop the current handler.
-// in other words, if existed,the following code maybe execute and cause unexpected result
+// in other words, even if Redirect() is called, the remaining handlers will still be executed and cause unexpected result.
+// So it should call Abort to ensure the remaining handlers for this request are not called.
+// ctx.Abort()
+// return
 func (ctx *RequestContext) Redirect(statusCode int, uri []byte) {
 	ctx.redirect(uri, statusCode)
 }
