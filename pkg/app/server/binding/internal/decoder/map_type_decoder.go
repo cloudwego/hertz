@@ -91,7 +91,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	if text == "" {
+	if len(text) == 0 {
 		return nil
 	}
 

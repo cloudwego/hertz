@@ -82,7 +82,6 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 			bindRawBody = true
 		}
 		texts = tagInfo.SliceGetter(req, params, tagInfo.Value)
-		// todo: array/slice default value
 		defaultValue = tagInfo.Default
 		if len(texts) != 0 {
 			err = nil
@@ -133,7 +132,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 
 	// handle internal multiple pointer, []**int
 	var ptrDepth int
-	t := d.fieldType.Elem()
+	t := d.fieldType.Elem() // d.fieldType is non-pointer type for the field
 	elemKind := t.Kind()
 	for elemKind == reflect.Ptr {
 		t = t.Elem()
@@ -156,7 +155,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 		// text[0] can be a complete json content for []Type.
 		err = hjson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
 		if err != nil {
-			return err
+			return fmt.Errorf("using '%s' to unmarshal type '%s' failed, %s", texts[0], reqValue.Field(d.index).Kind().String(), err.Error())
 		}
 	} else {
 		reqValue.Field(d.index).Set(ReferenceValue(field, parentPtrDepth))
@@ -205,6 +204,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
 	}
+	// fieldType.Elem() is the type for array/slice elem
 	t := getElemType(fieldType.Elem())
 	if t == reflect.TypeOf(multipart.FileHeader{}) {
 		return getMultipartFileDecoder(field, index, tagInfos, parentIdx)

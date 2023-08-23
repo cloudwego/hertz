@@ -79,14 +79,6 @@ func RegTypeUnmarshal(t reflect.Type, fn customizeDecodeFunc) error {
 	case reflect.Ptr:
 		return fmt.Errorf("registration type cannot be a pointer type")
 	}
-	// test
-	//vv, err := fn(&protocol.Request{}, nil)
-	//if err != nil {
-	//	return fmt.Errorf("test fail: %s", err)
-	//}
-	//if tt := vv.Type(); tt != t {
-	//	return fmt.Errorf("test fail: expect return value type is %s, but got %s", t.String(), tt.String())
-	//}
 
 	typeUnmarshalFuncs[t] = fn
 	return nil

@@ -53,8 +53,8 @@ type fieldInfo struct {
 	index       int
 	parentIndex []int
 	fieldName   string
-	tagInfos    []TagInfo    // querySlice,param,headerSlice,respHeader ...
-	fieldType   reflect.Type // can not be pointer type
+	tagInfos    []TagInfo
+	fieldType   reflect.Type
 }
 
 type baseTypeFieldTextDecoder struct {
@@ -74,7 +74,7 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request body does not have this parameter '%s'", d.fieldName, tagInfo.JSONName)
 				}
 			}
 			continue
@@ -98,11 +98,11 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	if text == "" {
+	if len(text) == 0 {
 		return nil
 	}
 
-	// get the non-nil value for the field
+	// get the non-nil value for the parent field
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
 	field := reqValue.Field(d.index)
 	if field.Kind() == reflect.Ptr {

@@ -102,10 +102,15 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
+	// skip anonymous definitions, like:
+	// type A struct {
+	// 		string
+	// }
 	if field.Type.Kind() != reflect.Struct && field.Anonymous {
 		return nil, false, nil
 	}
 
+	// JSONName is like 'a.b.c' for 'required validate'
 	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName)
 	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
@@ -120,26 +125,29 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 		return dec, needValidate, err
 	}
 
+	// slice/array field decoder
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
 		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
 		return dec, needValidate, err
 	}
 
+	// map filed decoder
 	if field.Type.Kind() == reflect.Map {
 		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
 		return dec, needValidate, err
 	}
 
+	// struct field will be resolved recursively
 	if field.Type.Kind() == reflect.Struct {
 		var decoders []fieldDecoder
 		el := field.Type
 		// todo: more built-in common struct binding, ex. time...
 		switch el {
-		case reflect.TypeOf(multipart.FileHeader{}):
+		case reflect.TypeOf(multipart.FileHeader{}): // file binding
 			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
 			return dec, needValidate, err
 		}
-		if EnableStructFieldResolve {
+		if EnableStructFieldResolve { // decode struct type separately
 			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx)
 			if err != nil {
 				return nil, needValidate, err
@@ -172,6 +180,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 		return decoders, needValidate, nil
 	}
 
+	// base type decoder
 	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
 	return dec, needValidate, err
 }
