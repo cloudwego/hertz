@@ -500,8 +500,8 @@ func (ctx *RequestContext) String(code int, format string, values ...interface{}
 // FullPath returns a matched route full path. For not found routes
 // returns an empty string.
 //
-//	router.GET("/user/:id", func(c context.Context,ctx *RequestContext) {
-//	    ctx.FullPath() == "/user/:id" // true
+//	router.GET("/user/:id", func(c *hertz.RequestContext) {
+//	    c.FullPath() == "/user/:id" // true
 //	})
 func (ctx *RequestContext) FullPath() string {
 	return ctx.fullPath
@@ -950,9 +950,9 @@ func (ctx *RequestContext) GetStringMapStringSlice(key string) (smss map[string]
 // Param returns the value of the URL param.
 // It is a shortcut for c.Params.ByName(key)
 //
-//	router.GET("/user/:id", func(c context.Context,ctx *RequestContext) {
+//	router.GET("/user/:id", func(c *hertz.RequestContext) {
 //	    // a GET request to /user/john
-//	    id := ctx.Param("id") // id == "john"
+//	    id := c.Param("id") // id == "john"
 //	})
 func (ctx *RequestContext) Param(key string) string {
 	return ctx.Params.ByName(key)
