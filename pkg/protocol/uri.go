@@ -652,10 +652,16 @@ func (u *URI) AppendBytes(dst []byte) []byte {
 // RequestURI returns RequestURI - i.e. URI without Scheme and Host.
 func (u *URI) RequestURI() []byte {
 	var dst []byte
+
+	buf := u.requestURI[:0]
+	if u.isCopy {
+		buf = nil
+	}
+
 	if u.DisablePathNormalizing {
-		dst = append(u.requestURI[:0], u.PathOriginal()...)
+		dst = append(buf, u.PathOriginal()...)
 	} else {
-		dst = bytesconv.AppendQuotedPath(u.requestURI[:0], u.Path())
+		dst = bytesconv.AppendQuotedPath(buf, u.Path())
 	}
 	if u.queryArgs.Len() > 0 {
 		dst = append(dst, '?')
@@ -663,6 +669,9 @@ func (u *URI) RequestURI() []byte {
 	} else if len(u.queryString) > 0 {
 		dst = append(dst, '?')
 		dst = append(dst, u.queryString...)
+	}
+	if u.isCopy {
+		return dst
 	}
 	u.requestURI = dst
 	return u.requestURI
@@ -676,6 +685,9 @@ func (u *URI) appendSchemeHost(dst []byte) []byte {
 
 // FullURI returns full uri in the form {Scheme}://{Host}{RequestURI}#{Hash}.
 func (u *URI) FullURI() []byte {
+	if u.isCopy {
+		return u.AppendBytes(nil)
+	}
 	u.fullURI = u.AppendBytes(u.fullURI[:0])
 	return u.fullURI
 }

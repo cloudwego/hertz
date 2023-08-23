@@ -697,7 +697,7 @@ func getRedirectStatusCode(statusCode int) int {
 // NOTE2: The copy of the ctx is READ-ONLY, any writing scenario should be passed
 // back to the origin ctx, and process in the origin ctx.
 // NOTE3: The copy of the ctx will be marked as copy, which means it is safe for
-// concurrent read not write.
+// concurrent read only not write.
 func (ctx *RequestContext) Copy() *RequestContext {
 	cp := &RequestContext{
 		conn:   ctx.conn,
