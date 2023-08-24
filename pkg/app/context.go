@@ -1362,7 +1362,7 @@ func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
 // BindByContentType will select the binding type on the ContentType automatically.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindByContentType(obj interface{}) error {
-	if bytesconv.B2s(ctx.Request.Method()) == consts.MethodGet {
+	if ctx.Request.Header.IsGet() {
 		return ctx.BindQuery(obj)
 	}
 	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
@@ -1371,16 +1371,10 @@ func (ctx *RequestContext) BindByContentType(obj interface{}) error {
 		return ctx.BindJSON(obj)
 	case "application/x-protobuf":
 		return ctx.BindProtobuf(obj)
-	case "application/xml", "text/xml":
-		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
-	case "application/x-msgpack", "application/msgpack":
-		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
-	case "application/x-yaml":
-		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
-	case "application/toml":
-		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
-	default: // case MIMEPOSTForm/MIMEMultipartPOSTForm
+	case "application/x-www-form-urlencoded", "multipart/form-data":
 		return ctx.BindForm(obj)
+	default: // case MIMEPOSTForm/MIMEMultipartPOSTForm
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
 	}
 }
 
