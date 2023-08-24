@@ -27,6 +27,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
+var (
+	enableDecoderUseNumber             = false
+	enableDecoderDisallowUnknownFields = false
+)
+
 // UseThirdPartyJSONUnmarshaler uses third-party json library for binding
 // NOTE:
 //
@@ -89,10 +94,6 @@ func SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) e
 		panic("customized validator can not use 'SetValidatorErrorFactory'")
 	}
 }
-
-var enableDecoderUseNumber = false
-
-var enableDecoderDisallowUnknownFields = false
 
 // EnableDecoderUseNumber is used to call the UseNumber method on the JSON
 // Decoder instance. UseNumber causes the Decoder to unmarshal a number into an
