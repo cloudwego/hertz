@@ -1320,18 +1320,26 @@ func (ctx *RequestContext) Validate(obj interface{}) error {
 	return binding.DefaultValidator().ValidateStruct(obj)
 }
 
+// BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindQuery(obj interface{}) error {
 	return binding.DefaultBinder().BindQuery(&ctx.Request, obj)
 }
 
+// BindHeader binds header parameters from *RequestContext to obj with 'header' tag. It will only use 'header' tag for binding.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindHeader(obj interface{}) error {
 	return binding.DefaultBinder().BindHeader(&ctx.Request, obj)
 }
 
+// BindPath binds router parameters from *RequestContext to obj with 'path' tag. It will only use 'path' tag for binding.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindPath(obj interface{}) error {
 	return binding.DefaultBinder().BindPath(&ctx.Request, obj, ctx.Params)
 }
 
+// BindForm binds form parameters from *RequestContext to obj with 'form' tag. It will only use 'form' tag for binding.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindForm(obj interface{}) error {
 	if len(ctx.Request.Body()) == 0 {
 		return fmt.Errorf("missing form body")
@@ -1339,14 +1347,20 @@ func (ctx *RequestContext) BindForm(obj interface{}) error {
 	return binding.DefaultBinder().BindForm(&ctx.Request, obj)
 }
 
+// BindJSON binds JSON body from *RequestContext.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindJSON(obj interface{}) error {
 	return binding.DefaultBinder().BindJSON(&ctx.Request, obj)
 }
 
+// BindProtobuf binds protobuf body from *RequestContext.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
 	return binding.DefaultBinder().BindProtobuf(&ctx.Request, obj)
 }
 
+// BindByContentType will select the binding type on the ContentType automatically.
+// NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindByContentType(obj interface{}) error {
 	if bytesconv.B2s(ctx.Request.Method()) == consts.MethodGet {
 		return ctx.BindQuery(obj)
