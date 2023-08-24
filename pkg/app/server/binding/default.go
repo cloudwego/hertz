@@ -68,7 +68,7 @@ import (
 
 	"github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
+	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -77,7 +77,7 @@ import (
 )
 
 type decoderInfo struct {
-	decoder      decoder.Decoder
+	decoder      inDecoder.Decoder
 	needValidate bool
 }
 
@@ -87,6 +87,31 @@ type defaultBinder struct {
 	formDecoderCache   sync.Map
 	headerDecoderCache sync.Map
 	pathDecoderCache   sync.Map
+}
+
+// BindAndValidate binds data from *protocol.Request to obj and validates them if needed.
+// NOTE:
+//
+//	obj should be a pointer.
+func BindAndValidate(req *protocol.Request, obj interface{}, pathParams param.Params) error {
+	return DefaultBinder().BindAndValidate(req, obj, pathParams)
+}
+
+// Bind binds data from *protocol.Request to obj.
+// NOTE:
+//
+//	obj should be a pointer.
+func Bind(req *protocol.Request, obj interface{}, pathParams param.Params) error {
+	return DefaultBinder().Bind(req, obj, pathParams)
+}
+
+// Validate validates obj with "vd" tag
+// NOTE:
+//
+//	obj should be a pointer.
+//	Validate should be called after Bind.
+func Validate(obj interface{}) error {
+	return DefaultValidator().ValidateStruct(obj)
 }
 
 func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
@@ -104,7 +129,7 @@ func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
 		return decoder.decoder(req, nil, rv.Elem())
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "query")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "query")
 	if err != nil {
 		return err
 	}
@@ -128,7 +153,7 @@ func (b *defaultBinder) BindHeader(req *protocol.Request, v interface{}) error {
 		return decoder.decoder(req, nil, rv.Elem())
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "header")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "header")
 	if err != nil {
 		return err
 	}
@@ -137,7 +162,7 @@ func (b *defaultBinder) BindHeader(req *protocol.Request, v interface{}) error {
 	return decoder(req, nil, rv.Elem())
 }
 
-func (b *defaultBinder) BindPath(req *protocol.Request, params param.Params, v interface{}) error {
+func (b *defaultBinder) BindPath(req *protocol.Request, v interface{}, params param.Params) error {
 	rv, typeID := valueAndTypeID(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
@@ -152,7 +177,7 @@ func (b *defaultBinder) BindPath(req *protocol.Request, params param.Params, v i
 		return decoder.decoder(req, params, rv.Elem())
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "path")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "path")
 	if err != nil {
 		return err
 	}
@@ -176,7 +201,7 @@ func (b *defaultBinder) BindForm(req *protocol.Request, v interface{}) error {
 		return decoder.decoder(req, nil, rv.Elem())
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "form")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "form")
 	if err != nil {
 		return err
 	}
@@ -213,7 +238,7 @@ func (b *defaultBinder) Name() string {
 	return "hertz"
 }
 
-func (b *defaultBinder) BindAndValidate(req *protocol.Request, params param.Params, v interface{}) error {
+func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, params param.Params) error {
 	err := b.preBindBody(req, v)
 	if err != nil {
 		return fmt.Errorf("bind body failed, err=%v", err)
@@ -239,7 +264,7 @@ func (b *defaultBinder) BindAndValidate(req *protocol.Request, params param.Para
 		return err
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "")
 	if err != nil {
 		return err
 	}
@@ -255,7 +280,7 @@ func (b *defaultBinder) BindAndValidate(req *protocol.Request, params param.Para
 	return err
 }
 
-func (b *defaultBinder) Bind(req *protocol.Request, params param.Params, v interface{}) error {
+func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.Params) error {
 	err := b.preBindBody(req, v)
 	if err != nil {
 		return fmt.Errorf("bind body failed, err=%v", err)
@@ -274,7 +299,7 @@ func (b *defaultBinder) Bind(req *protocol.Request, params param.Params, v inter
 		return decoder.decoder(req, params, rv.Elem())
 	}
 
-	decoder, needValidate, err := decoder.GetReqDecoder(rv.Type(), "")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "")
 	if err != nil {
 		return err
 	}

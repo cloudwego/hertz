@@ -1305,13 +1305,13 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.DefaultBinder().BindAndValidate(&ctx.Request, ctx.Params, obj)
+	return binding.DefaultBinder().BindAndValidate(&ctx.Request, obj, ctx.Params)
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.DefaultBinder().Bind(&ctx.Request, ctx.Params, obj)
+	return binding.DefaultBinder().Bind(&ctx.Request, obj, ctx.Params)
 }
 
 // Validate validates obj with "vd" tag
@@ -1329,7 +1329,7 @@ func (ctx *RequestContext) BindHeader(obj interface{}) error {
 }
 
 func (ctx *RequestContext) BindPath(obj interface{}) error {
-	return binding.DefaultBinder().BindPath(&ctx.Request, ctx.Params, obj)
+	return binding.DefaultBinder().BindPath(&ctx.Request, obj, ctx.Params)
 }
 
 func (ctx *RequestContext) BindForm(obj interface{}) error {
