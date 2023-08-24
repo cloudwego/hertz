@@ -46,7 +46,7 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
@@ -153,7 +153,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 			return err
 		}
 		// text[0] can be a complete json content for []Type.
-		err = hjson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
+		err = hJson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
 		if err != nil {
 			return fmt.Errorf("using '%s' to unmarshal type '%s' failed, %s", texts[0], reqValue.Field(d.index).Kind().String(), err.Error())
 		}
@@ -233,9 +233,9 @@ func stringToValue(elemType reflect.Type, text string, req *protocol.Request, pa
 	}
 	switch elemType.Kind() {
 	case reflect.Struct:
-		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
+		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Map:
-		err = hjson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
+		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
 	case reflect.Array, reflect.Slice:
 		// do nothing
 	default:

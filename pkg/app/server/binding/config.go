@@ -17,12 +17,12 @@
 package binding
 
 import (
-	standardJson "encoding/json"
+	stdJson "encoding/json"
 	"reflect"
 
 	"github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -32,7 +32,7 @@ import (
 //
 //	UseThirdPartyJSONUnmarshaler will remain in effect once it has been called.
 func UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
-	hjson.Unmarshal = fn
+	hJson.Unmarshal = fn
 }
 
 // UseStdJSONUnmarshaler uses encoding/json as json library
@@ -41,7 +41,7 @@ func UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 //	The current version uses encoding/json by default.
 //	UseStdJSONUnmarshaler will remain in effect once it has been called.
 func UseStdJSONUnmarshaler() {
-	UseThirdPartyJSONUnmarshaler(standardJson.Unmarshal)
+	UseThirdPartyJSONUnmarshaler(stdJson.Unmarshal)
 }
 
 // EnableDefaultTag is used to enable or disable adding default tags to a field when it has no tag, it is true by default.

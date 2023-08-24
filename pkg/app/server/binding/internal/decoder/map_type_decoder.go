@@ -45,7 +45,7 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
@@ -113,7 +113,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 		return nil
 	}
 
-	err = hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
+	err = hJson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 	}

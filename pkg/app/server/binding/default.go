@@ -69,7 +69,7 @@ import (
 	"github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -216,7 +216,7 @@ func (b *defaultBinder) BindJSON(req *protocol.Request, v interface{}) error {
 }
 
 func decodeJSON(r io.Reader, obj interface{}) error {
-	decoder := hjson.NewDecoder(r)
+	decoder := hJson.NewDecoder(r)
 	if enableDecoderUseNumber {
 		decoder.UseNumber()
 	}
@@ -317,7 +317,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	ct := bytesconv.B2s(req.Header.ContentType())
 	switch utils.FilterContentType(ct) {
 	case consts.MIMEApplicationJSON:
-		return hjson.Unmarshal(req.Body(), v)
+		return hJson.Unmarshal(req.Body(), v)
 	case consts.MIMEPROTOBUF:
 		msg, ok := v.(proto.Message)
 		if !ok {
