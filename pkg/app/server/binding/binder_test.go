@@ -48,6 +48,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	req2 "github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -93,7 +94,7 @@ func (m *mockRequest) SetUrlEncodeContentType() *mockRequest {
 }
 
 func (m *mockRequest) SetJSONContentType() *mockRequest {
-	m.Req.Header.SetContentTypeBytes([]byte(jsonContentType))
+	m.Req.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationJSON))
 	return m
 }
 

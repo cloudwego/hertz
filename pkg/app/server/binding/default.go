@@ -72,6 +72,7 @@ import (
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route/param"
 	"google.golang.org/protobuf/proto"
 )
@@ -308,11 +309,6 @@ func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.
 	return decoder(req, params, rv.Elem())
 }
 
-var (
-	jsonContentType     = "application/json"
-	protobufContentType = "application/x-protobuf"
-)
-
 // best effort binding
 func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error {
 	if req.Header.ContentLength() <= 0 {
@@ -320,9 +316,9 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
 	switch utils.FilterContentType(ct) {
-	case jsonContentType:
+	case consts.MIMEApplicationJSON:
 		return hjson.Unmarshal(req.Body(), v)
-	case protobufContentType:
+	case consts.MIMEPROTOBUF:
 		msg, ok := v.(proto.Message)
 		if !ok {
 			return fmt.Errorf("%s can not implement 'proto.Message'", v)

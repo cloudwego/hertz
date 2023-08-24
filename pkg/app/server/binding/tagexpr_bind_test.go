@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route/param"
 	"google.golang.org/protobuf/proto"
 )
@@ -419,7 +420,7 @@ func TestJSON(t *testing.T) {
 	}`)
 
 	header := make(http.Header)
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", consts.MIMEApplicationJSON)
 	req := newRequest("", header, nil, bodyReader)
 	recv := new(Recv)
 
@@ -540,7 +541,7 @@ func TestDefault(t *testing.T) {
 
 	// var nilMap map[string]string
 	header := make(http.Header)
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", consts.MIMEApplicationJSON)
 	req := newRequest("", header, nil, bodyReader)
 	recv := new(Recv)
 
@@ -684,7 +685,7 @@ func TestOption(t *testing.T) {
 		Y string `json:"y"`
 	}
 	header := make(http.Header)
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", consts.MIMEApplicationJSON)
 
 	bodyReader := strings.NewReader(`{
 			"X": {
@@ -1140,7 +1141,7 @@ func TestIssue26(t *testing.T) {
 	}
 
 	header := make(http.Header)
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", consts.MIMEApplicationJSON)
 	header.Set("A", "from header")
 	cookies := []*http.Cookie{
 		{Name: "A", Value: "from cookie"},
@@ -1169,7 +1170,7 @@ func TestIssue26(t *testing.T) {
 //		}
 //	}`)
 //	header := make(http.Header)
-//	header.Set("Content-Type", "application/json")
+//	header.Set("Content-Type", consts.MIMEApplicationJSON)
 //	req := newRequest("", header, nil, bodyReader)
 //	recv := new(Recv)
 //

@@ -27,6 +27,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
@@ -34,7 +35,7 @@ func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 		return true
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
-	if utils.FilterContentType(ct) != "application/json" {
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
 		return false
 	}
 	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)

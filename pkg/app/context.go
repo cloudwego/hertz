@@ -1367,13 +1367,13 @@ func (ctx *RequestContext) BindByContentType(obj interface{}) error {
 	}
 	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
 	switch ct {
-	case "application/json":
+	case consts.MIMEApplicationJSON:
 		return ctx.BindJSON(obj)
-	case "application/x-protobuf":
+	case consts.MIMEPROTOBUF:
 		return ctx.BindProtobuf(obj)
-	case "application/x-www-form-urlencoded", "multipart/form-data":
+	case consts.MIMEApplicationHTMLForm, consts.MIMEMultipartPOSTForm:
 		return ctx.BindForm(obj)
-	default: // case MIMEPOSTForm/MIMEMultipartPOSTForm
+	default:
 		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
 	}
 }

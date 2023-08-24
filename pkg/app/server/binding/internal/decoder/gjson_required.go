@@ -23,6 +23,7 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/tidwall/gjson"
 )
 
@@ -31,7 +32,7 @@ func checkRequireJSON2(req *protocol.Request, tagInfo TagInfo) bool {
 		return true
 	}
 	ct := bytesconv.B2s(req.Req.Header.ContentType())
-	if utils.FilterContentType(ct) != "application/json" {
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
 		return false
 	}
 	result := gjson.GetBytes(req.Req.Body(), tagInfo.JSONName)
