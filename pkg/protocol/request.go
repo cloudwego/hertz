@@ -375,10 +375,11 @@ func (req *Request) SwapBody(body []byte) []byte {
 
 // CopyToAndMark copies req contents to dst except of body stream and mark the dst req as a copy.
 func (req *Request) CopyToAndMark(dst *Request) {
-	dst.isCopy = true
-
 	// Same with req.CopyTo(dst), but use the .CopyToAndMark instead of .CopyTo
 	dst.Reset()
+
+	dst.isCopy = true
+
 	req.Header.CopyToAndMark(&dst.Header)
 
 	req.uri.CopyToAndMark(&dst.uri)

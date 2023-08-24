@@ -47,6 +47,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -1399,6 +1400,116 @@ tailfoobar`
 			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
 		}
 	}
+}
+
+func TestCopyRequestReadMultipartFormWithFile(t *testing.T) {
+	t.Parallel()
+
+	s := `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Length: 520
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="f1"
+
+value1
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="fileaaa"; filename="TODO"
+Content-Type: application/octet-stream
+
+- SessionClient with referer and cookies support.
+- Client with requests' pipelining support.
+- ProxyHandler similar to FSHandler.
+- WebSockets. See https://tools.ietf.org/html/rfc6455 .
+- HTTP/2.0. See https://tools.ietf.org/html/rfc7540 .
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--`
+
+	mr := mock.NewOneTimeConn(s)
+
+	var r protocol.Request
+	if err := ReadHeader(&r.Header, mr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := ReadBodyStream(&r, mr, 0, false, false); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var copyRequest protocol.Request
+
+	r.CopyToAndMark(&copyRequest)
+
+	eg := errgroup.Group{}
+	for i := 0; i < 500; i++ {
+		eg.Go(func() error {
+			return testCopyRequestReadMultipartForm(t, &copyRequest)
+		})
+
+	}
+	err := eg.Wait()
+	assert.Nil(t, err)
+
+	r.RemoveMultipartFormFiles()
+
+	eg = errgroup.Group{}
+	for i := 0; i < 500; i++ {
+		eg.Go(func() error {
+			return testCopyRequestReadMultipartForm(t, &r)
+		})
+
+	}
+	err = eg.Wait()
+	assert.NotNil(t, err)
+
+	r.RemoveMultipartFormFiles()
+}
+
+func testCopyRequestReadMultipartForm(t *testing.T, r *protocol.Request) error {
+	f, err := r.MultipartForm()
+	if err != nil {
+		return err
+	}
+
+	// verify values
+	if len(f.Value) != 1 {
+		t.Fatalf("unexpected number of values in multipart form: %d. Expecting 1", len(f.Value))
+	}
+	for k, vv := range f.Value {
+		if k != "f1" {
+			t.Fatalf("unexpected value name %q. Expecting %q", k, "f1")
+		}
+		if len(vv) != 1 {
+			t.Fatalf("unexpected number of values %d. Expecting 1", len(vv))
+		}
+		v := vv[0]
+		if v != "value1" {
+			t.Fatalf("unexpected value %q. Expecting %q", v, "value1")
+		}
+	}
+
+	// verify files
+	if len(f.File) != 1 {
+		t.Fatalf("unexpected number of file values in multipart form: %d. Expecting 1", len(f.File))
+	}
+	for k, vv := range f.File {
+		if k != "fileaaa" {
+			t.Fatalf("unexpected file value name %q. Expecting %q", k, "fileaaa")
+		}
+		if len(vv) != 1 {
+			t.Fatalf("unexpected number of file values %d. Expecting 1", len(vv))
+		}
+		v := vv[0]
+		if v.Filename != "TODO" {
+			t.Fatalf("unexpected filename %q. Expecting %q", v.Filename, "TODO")
+		}
+		ct := v.Header.Get("Content-Type")
+		if ct != "application/octet-stream" {
+			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
+		}
+	}
+
+	return nil
 }
 
 func testRequestMultipartFormBoundary(t *testing.T, s, boundary string) {
