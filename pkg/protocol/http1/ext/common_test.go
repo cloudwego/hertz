@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -123,6 +124,9 @@ func TestReadRawHeaders(t *testing.T) {
 }
 
 func TestBodyChunked(t *testing.T) {
+	var log bytes.Buffer
+	hlog.SetOutput(&log)
+
 	body := "foobar baz aaa bbb ccc"
 	chunk := "16\r\nfoobar baz aaa bbb ccc\r\n0\r\n"
 	b := bytes.NewBufferString(body)
@@ -137,6 +141,22 @@ func TestBodyChunked(t *testing.T) {
 	rb, err := ReadBody(zr, -1, 0, nil)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, body, string(rb))
+
+	assert.DeepEqual(t, 0, log.Len())
+}
+
+func TestBrokenBodyChunked(t *testing.T) {
+	brokenReader := mock.NewBrokenConn("")
+	var log bytes.Buffer
+	hlog.SetOutput(&log)
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	err := WriteBodyChunked(zw, brokenReader)
+	assert.Nil(t, err)
+
+	assert.DeepEqual(t, []byte("0\r\n"), w.Bytes())
+	assert.True(t, bytes.Contains(log.Bytes(), []byte("writing chunked response body encountered an error from the reader")))
 }
 
 func TestBodyFixedSize(t *testing.T) {
