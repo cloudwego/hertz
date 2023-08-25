@@ -58,6 +58,7 @@ type mapTypeFieldTextDecoder struct {
 func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var text string
+	var exist bool
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
@@ -75,9 +76,9 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 		if tagInfo.Key == headerTag {
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
-		text = tagInfo.Getter(req, params, tagInfo.Value)
+		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
-		if len(text) != 0 {
+		if exist {
 			err = nil
 			break
 		}
@@ -91,7 +92,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	if len(text) == 0 {
+	if !exist && len(text) == 0 {
 		return nil
 	}
 

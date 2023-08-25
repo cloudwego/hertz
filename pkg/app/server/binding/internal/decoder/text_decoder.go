@@ -46,6 +46,18 @@ import (
 	"strconv"
 )
 
+var looseZeroMode = false
+
+// SetLooseZeroMode if set to true,
+// the empty string request parameter is bound to the zero value of parameter.
+// NOTE:
+//
+//	The default is false;
+//	Suitable for these parameter types: query/header/cookie/form .
+func SetLooseZeroMode(enable bool) {
+	looseZeroMode = enable
+}
+
 type TextDecoder interface {
 	UnmarshalString(s string, fieldValue reflect.Value) error
 }
@@ -88,7 +100,7 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 type boolDecoder struct{}
 
 func (d *boolDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
-	if s == "" {
+	if s == "" && looseZeroMode {
 		s = "false"
 	}
 	v, err := strconv.ParseBool(s)
@@ -104,7 +116,7 @@ type floatDecoder struct {
 }
 
 func (d *floatDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
-	if s == "" {
+	if s == "" && looseZeroMode {
 		s = "0.0"
 	}
 	v, err := strconv.ParseFloat(s, d.bitSize)
@@ -120,7 +132,7 @@ type intDecoder struct {
 }
 
 func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
-	if s == "" {
+	if s == "" && looseZeroMode {
 		s = "0"
 	}
 	v, err := strconv.ParseInt(s, 10, d.bitSize)
@@ -143,7 +155,7 @@ type uintDecoder struct {
 }
 
 func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
-	if s == "" {
+	if s == "" && looseZeroMode {
 		s = "0"
 	}
 	v, err := strconv.ParseUint(s, 10, d.bitSize)

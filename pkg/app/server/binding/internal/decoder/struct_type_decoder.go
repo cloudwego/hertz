@@ -34,6 +34,7 @@ type structTypeFieldTextDecoder struct {
 func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
 	var err error
 	var text string
+	var exist bool
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
@@ -51,9 +52,9 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 		if tagInfo.Key == headerTag {
 			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
-		text = tagInfo.Getter(req, params, tagInfo.Value)
+		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
-		if len(text) != 0 {
+		if exist {
 			err = nil
 			break
 		}
@@ -67,7 +68,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
-	if text == "" {
+	if !exist && len(text) == 0 {
 		return nil
 	}
 	reqValue = GetFieldValue(reqValue, d.parentIndex)

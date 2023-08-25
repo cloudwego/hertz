@@ -52,6 +52,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func init() {
+	SetLooseZeroMode(true)
+}
+
 func TestRawBody(t *testing.T) {
 	type Recv struct {
 		S []byte   `raw_body:""`

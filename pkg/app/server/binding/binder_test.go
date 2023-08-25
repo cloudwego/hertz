@@ -53,6 +53,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
+func init() {
+	SetLooseZeroMode(true)
+}
+
 type mockRequest struct {
 	Req *protocol.Request
 }
@@ -904,6 +908,34 @@ func TestBind_BindQuery(t *testing.T) {
 	assert.DeepEqual(t, "4", result.Q4)
 	assert.DeepEqual(t, 51, result.Q5[0])
 	assert.DeepEqual(t, 52, result.Q5[1])
+}
+
+func TestBind_LooseMode(t *testing.T) {
+	SetLooseZeroMode(false)
+	defer SetLooseZeroMode(true)
+	type Req struct {
+		ID int `query:"id"`
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=")
+
+	var result Req
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err == nil {
+		t.Fatal("expected err")
+	}
+	assert.DeepEqual(t, 0, result.ID)
+
+	SetLooseZeroMode(true)
+	var result2 Req
+
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 0, result.ID)
 }
 
 func Benchmark_Binding(b *testing.B) {

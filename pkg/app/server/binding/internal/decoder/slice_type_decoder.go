@@ -155,7 +155,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 		// text[0] can be a complete json content for []Type.
 		err = hJson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
 		if err != nil {
-			return fmt.Errorf("using '%s' to unmarshal type '%s' failed, %s", texts[0], reqValue.Field(d.index).Kind().String(), err.Error())
+			return fmt.Errorf("using '%s' to unmarshal field '%s: %s' failed, %v", texts[0], d.fieldName, d.fieldType.String(), err)
 		}
 	} else {
 		reqValue.Field(d.index).Set(ReferenceValue(field, parentPtrDepth))

@@ -45,24 +45,21 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type getter func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string)
+type getter func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool)
 
-func path(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+func path(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
 	if params != nil {
-		ret, _ = params.Get(key)
+		ret, exist = params.Get(key)
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = defaultValue[0]
 	}
-	return ret
+	return ret, exist
 }
 
-func postForm(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
-	if val := req.PostArgs().Peek(key); val != nil {
-		ret = string(val)
-	}
-	if len(ret) > 0 {
+func postForm(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
+	if ret, exist = req.PostArgs().PeekExists(key); exist {
 		return
 	}
 
@@ -76,10 +73,22 @@ func postForm(req *protocol.Request, params param.Params, key string, defaultVal
 	}
 
 	if len(ret) != 0 {
+		return ret, true
+	}
+	if ret, exist = req.URI().QueryArgs().PeekExists(key); exist {
 		return
 	}
-	if val := req.URI().QueryArgs().Peek(key); val != nil {
-		ret = string(val)
+
+	if len(ret) == 0 && len(defaultValue) != 0 {
+		ret = defaultValue[0]
+	}
+
+	return ret, false
+}
+
+func query(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
+	if ret, exist = req.URI().QueryArgs().PeekExists(key); exist {
+		return
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
@@ -89,45 +98,37 @@ func postForm(req *protocol.Request, params param.Params, key string, defaultVal
 	return
 }
 
-func query(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
-	if val := req.URI().QueryArgs().Peek(key); val != nil {
-		ret = string(val)
-	}
-
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = defaultValue[0]
-	}
-
-	return
-}
-
-func cookie(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+func cookie(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
 	if val := req.Header.Cookie(key); val != nil {
 		ret = string(val)
+		return ret, true
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = defaultValue[0]
 	}
 
-	return
+	return ret, false
 }
 
-func header(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+func header(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
 	if val := req.Header.Peek(key); val != nil {
 		ret = string(val)
+		return ret, true
 	}
 
 	if len(ret) == 0 && len(defaultValue) != 0 {
 		ret = defaultValue[0]
 	}
 
-	return
+	return ret, false
 }
 
-func rawBody(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+func rawBody(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
+	exist = false
 	if req.Header.ContentLength() > 0 {
 		ret = string(req.Body())
+		exist = true
 	}
 	return
 }
