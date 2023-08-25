@@ -47,13 +47,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/url"
 	"strings"
 	"testing"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -202,6 +203,44 @@ func TestMethodAndPathAndQueryString(t *testing.T) {
 	if string(r.QueryString()) != "query=1" {
 		t.Fatalf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1")
 	}
+}
+
+func TestCopyURIMethodAndPathAndQueryString(t *testing.T) {
+	s := "PUT /foo/bar?query=1 HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+
+	var r protocol.Request
+	if err := Read(&r, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var copyR protocol.Request
+	r.CopyToAndMark(&copyR)
+
+	errG := errgroup.Group{}
+
+	for i := 0; i < 500; i++ {
+		errG.Go(func() error {
+			if string(copyR.RequestURI()) != "/foo/bar?query=1" {
+				return errors.New(fmt.Sprintf("unexpected request uri %s. Expecting %s", r.RequestURI(), "/foo/bar?query=1"))
+			}
+			if string(copyR.Method()) != "PUT" {
+				return errors.New(fmt.Sprintf("unexpected method %s. Expecting %s", r.Header.Method(), "PUT"))
+			}
+
+			if string(copyR.Path()) != "/foo/bar" {
+				return errors.New(fmt.Sprintf("unexpected uri path %s. Expecting %s", r.URI().Path(), "/foo/bar"))
+			}
+			if string(copyR.QueryString()) != "query=1" {
+				return errors.New(fmt.Sprintf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1"))
+			}
+
+			return nil
+		})
+	}
+
+	err := errG.Wait()
+	assert.Nil(t, err)
 }
 
 func TestRequestSuccess(t *testing.T) {
@@ -407,8 +446,7 @@ func TestCopyRequestPostArgsBodyStream(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		errG.Go(func() error {
 			if string(copyReq.PostArgs().Peek("key")) != content {
-				//assert.DeepEqual(t, content, string(copyReq.PostArgs().Peek("key")))
-				return errors.New("error happened")
+				return errors.New("race error happened")
 			}
 			return nil
 		})
@@ -1522,7 +1560,6 @@ Content-Type: application/octet-stream
 		eg.Go(func() error {
 			return testCopyRequestReadMultipartForm(t, &copyRequest)
 		})
-
 	}
 	err := eg.Wait()
 	assert.Nil(t, err)
@@ -1534,7 +1571,6 @@ Content-Type: application/octet-stream
 		eg.Go(func() error {
 			return testCopyRequestReadMultipartForm(t, &r)
 		})
-
 	}
 	err = eg.Wait()
 	assert.NotNil(t, err)

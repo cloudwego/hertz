@@ -45,9 +45,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestURI_Username(t *testing.T) {
@@ -248,6 +251,33 @@ func TestURICopyToQueryArgs(t *testing.T) {
 		t.Fatalf("unexpected query args value %q. Expecting %q", a1.Peek("foo"), "bar")
 	}
 	assert.DeepEqual(t, "bar", string(a1.Peek("foo")))
+}
+
+func TestCopyURI_QueryArgs(t *testing.T) {
+	t.Parallel()
+
+	var u URI
+	a := u.QueryArgs()
+	k := strings.Repeat("foo", 1000)
+	v := strings.Repeat("bar", 1000)
+	a.Set(k, v)
+
+	var copyU URI
+	u.CopyToAndMark(&copyU)
+
+	errG := errgroup.Group{}
+
+	for i := 0; i < 500; i++ {
+		errG.Go(func() error {
+			if string(copyU.QueryArgs().Peek(k)) != v {
+				return errors.NewPrivate("race error happened")
+			}
+			return nil
+		})
+	}
+
+	err := errG.Wait()
+	assert.Nil(t, err)
 }
 
 func TestURICopyTo(t *testing.T) {
