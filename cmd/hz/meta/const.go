@@ -19,7 +19,7 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.6.5"
+const Version = "v0.6.6"
 
 const DefaultServiceName = "hertz_service"
 

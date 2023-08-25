@@ -176,16 +176,25 @@ func (req *Request) MayContinue() bool {
 	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
 }
 
+// Scheme returns the scheme of the request.
+// uri will be parsed in ServeHTTP(before user's process), so that there is no need for uri nil-check.
 func (req *Request) Scheme() []byte {
 	return req.uri.Scheme()
 }
 
-func (req *Request) ResetSkipHeader() {
+// For keepalive connection reuse.
+// It is roughly the same as ResetSkipHeader, except that the connection related fields are removed:
+// - req.isTLS
+func (req *Request) resetSkipHeaderAndConn() {
 	req.ResetBody()
 	req.uri.Reset()
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+}
+
+func (req *Request) ResetSkipHeader() {
+	req.resetSkipHeaderAndConn()
 	req.isTLS = false
 }
 
@@ -812,6 +821,14 @@ func (req *Request) ConnectionClose() bool {
 // SetConnectionClose sets 'Connection: close' header.
 func (req *Request) SetConnectionClose() {
 	req.Header.SetConnectionClose(true)
+}
+
+func (req *Request) ResetWithoutConn() {
+	req.Header.Reset()
+	req.resetSkipHeaderAndConn()
+	req.CloseBodyStream()
+
+	req.options = nil
 }
 
 // AcquireRequest returns an empty Request instance from request pool.

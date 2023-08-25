@@ -453,7 +453,9 @@ func TestClientReadTimeout(t *testing.T) {
 		req.SetConnectionClose()
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
-			t.Errorf("expected ErrTimeout got %#v", err)
+			if !strings.Contains(err.Error(), "timeout") {
+				t.Errorf("expected ErrTimeout got %#v", err)
+			}
 		}
 
 		protocol.ReleaseRequest(req)

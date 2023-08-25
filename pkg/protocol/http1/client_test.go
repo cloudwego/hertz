@@ -58,6 +58,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -68,6 +69,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/cloudwego/netpoll"
 )
+
+var errDialTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "dial timeout")
 
 func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 	var (
@@ -235,7 +238,7 @@ type slowDialer struct {
 
 func (s *slowDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
 	time.Sleep(timeout)
-	return nil, errs.ErrDialTimeout
+	return nil, errDialTimeout
 }
 
 func TestReadTimeoutPriority(t *testing.T) {
@@ -264,7 +267,7 @@ func TestReadTimeoutPriority(t *testing.T) {
 	case <-time.After(time.Second * 2):
 		t.Fatalf("should use readTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrTimeout.Error(), err.Error())
+		assert.DeepEqual(t, mock.ErrReadTimeout, err)
 	}
 }
 
@@ -334,7 +337,7 @@ func TestWriteTimeoutPriority(t *testing.T) {
 	case <-time.After(time.Second * 2):
 		t.Fatalf("should use writeTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrWriteTimeout.Error(), err.Error())
+		assert.DeepEqual(t, mock.ErrWriteTimeout, err)
 	}
 }
 
@@ -359,10 +362,10 @@ func TestDialTimeoutPriority(t *testing.T) {
 		ch <- c.Do(context.Background(), req, resp)
 	}()
 	select {
-	case <-time.After(time.Second * 2000):
+	case <-time.After(time.Second * 2):
 		t.Fatalf("should use dialTimeout in request options")
 	case err := <-ch:
-		assert.DeepEqual(t, errs.ErrDialTimeout.Error(), err.Error())
+		assert.DeepEqual(t, errDialTimeout, err)
 	}
 }
 
@@ -478,4 +481,58 @@ type retryConn struct {
 
 func (w retryConn) SetWriteTimeout(t time.Duration) error {
 	return errors.New("should retry")
+}
+
+func TestConnInPoolRetry(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.NewOneTimeConn("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789"), nil
+			}),
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithWriteTimeout(time.Millisecond * 100))
+	resp := protocol.AcquireResponse()
+
+	logbuf := &bytes.Buffer{}
+	hlog.SetOutput(logbuf)
+
+	err := c.Do(context.Background(), req, resp)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 200)
+	assert.DeepEqual(t, string(resp.Body()), "0123456789")
+	assert.True(t, logbuf.String() == "")
+	protocol.ReleaseResponse(resp)
+	resp = protocol.AcquireResponse()
+	err = c.Do(context.Background(), req, resp)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 200)
+	assert.DeepEqual(t, string(resp.Body()), "0123456789")
+	assert.True(t, strings.Contains(logbuf.String(), "Client connection attempt times: 1"))
+}
+
+func TestConnNotRetry(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return mock.NewBrokenConn(""), nil
+			}),
+		},
+		Addr: "foobar",
+	}
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.SetOptions(config.WithWriteTimeout(time.Millisecond * 100))
+	resp := protocol.AcquireResponse()
+	logbuf := &bytes.Buffer{}
+	hlog.SetOutput(logbuf)
+	err := c.Do(context.Background(), req, resp)
+	assert.DeepEqual(t, errs.ErrConnectionClosed, err)
+	assert.True(t, logbuf.String() == "")
+	protocol.ReleaseResponse(resp)
 }
