@@ -194,6 +194,24 @@ type OneTimeConn struct {
 	*Conn
 }
 
+func (o *OneTimeConn) Read(b []byte) (int, error) {
+	length := len(b)
+	if o.Len() < length {
+		length = o.Len()
+	}
+	if length == 0 {
+		length = 1
+	}
+
+	buf, err := o.Peek(length)
+	if err != nil {
+		return 0, err
+	}
+	n := copy(b, buf)
+	o.Skip(n)
+	return n, err
+}
+
 func (o *OneTimeConn) Peek(n int) ([]byte, error) {
 	if o.isRead {
 		return nil, io.EOF

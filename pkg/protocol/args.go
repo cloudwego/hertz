@@ -79,7 +79,10 @@ func (a *Args) Set(key, value string) {
 // Reset clears query args.
 func (a *Args) Reset() {
 	a.args = a.args[:0]
-	a.isCopy = false
+
+	// a.ParseBytes() will trigger reset, which is a process during lazy load(read scenario), so do not reset this flag.
+	// Args is not a recycle object so the risk of dirty data is relatively low even though we do not reset this field.
+	// a.isCopy = false
 }
 
 // CopyToAndMark copies all args to dst and mark the dst args as a copy.
