@@ -18,6 +18,7 @@ package decoder
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -83,7 +84,8 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 		var vv reflect.Value
 		vv, err := stringToValue(t, text, req, params)
 		if err != nil {
-			return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
+			hlog.Warnf("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
+			return nil
 		}
 		field.Set(ReferenceValue(vv, ptrDepth))
 		return nil
@@ -91,7 +93,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 
 	err = hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
-		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
+		hlog.Warnf("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 	}
 
 	return nil
