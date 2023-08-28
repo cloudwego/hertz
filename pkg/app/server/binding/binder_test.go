@@ -565,6 +565,18 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	assert.DeepEqual(t, "1", (***(*result2.B).F).A)
 }
 
+func TestBind_CustomizedTypeDecodeForPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expect a panic, but get nil")
+		}
+	}()
+
+	MustRegTypeUnmarshal(reflect.TypeOf(string("")), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+		return reflect.Value{}, nil
+	})
+}
+
 func TestBind_JSON(t *testing.T) {
 	type Req struct {
 		J1 string    `json:"j1"`
@@ -700,14 +712,14 @@ func TestBind_FileSliceBind(t *testing.T) {
 
 func TestBind_AnonymousField(t *testing.T) {
 	type nest struct {
-		n1     string    `query:"n1"` // bind default value
-		N2     ***string `query:"n2"` // bind n2 value
-		string `query:"n3"`           // bind default value
+		n1     string       `query:"n1"` // bind default value
+		N2     ***string    `query:"n2"` // bind n2 value
+		string `query:"n3"` // bind default value
 	}
 
 	var s struct {
-		s1  int `query:"s1"` // bind default value
-		int `query:"s2"`     // bind default value
+		s1  int          `query:"s1"` // bind default value
+		int `query:"s2"` // bind default value
 		nest
 	}
 	req := newMockRequest().
@@ -1317,7 +1329,29 @@ func TestBind_UseNumberConfig(t *testing.T) {
 }
 
 func TestBind_InterfaceType(t *testing.T) {
+	type Bar struct {
+		B1 interface{} `query:"B1"`
+	}
 
+	var result Bar
+	query := make(url.Values)
+	query.Add("B1", `{"B1":"111"}`)
+	req := newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com?%s", query.Encode()))
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	type Bar2 struct {
+		B2 *interface{} `query:"B1"`
+	}
+
+	var result2 Bar2
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func Benchmark_Binding(b *testing.B) {
