@@ -42,6 +42,8 @@ package binding
 
 import (
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
+	"google.golang.org/protobuf/proto"
 	"mime/multipart"
 	"reflect"
 	"testing"
@@ -99,6 +101,11 @@ func (m *mockRequest) SetUrlEncodeContentType() *mockRequest {
 
 func (m *mockRequest) SetJSONContentType() *mockRequest {
 	m.Req.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationJSON))
+	return m
+}
+
+func (m *mockRequest) SetProtobufContentType() *mockRequest {
+	m.Req.Header.SetContentTypeBytes([]byte(consts.MIMEPROTOBUF))
 	return m
 }
 
@@ -947,6 +954,10 @@ func TestBind_NonStruct(t *testing.T) {
 		t.Error(err)
 	}
 
+	err = DefaultBinder().BindAndValidate(req.Req, &id, nil)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestBind_BindTag(t *testing.T) {
@@ -1055,7 +1066,7 @@ func TestBind_BindAndValidate(t *testing.T) {
 
 func TestBind_FastPath(t *testing.T) {
 	type Req struct {
-		ID int `query:"id"`
+		ID int `query:"id" vd:"$>10"`
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?id=12")
@@ -1076,6 +1087,75 @@ func TestBind_FastPath(t *testing.T) {
 		}
 		assert.DeepEqual(t, 12, result.ID)
 	}
+}
+
+func TestBind_NonPointer(t *testing.T) {
+	type Req struct {
+		ID int `query:"id" vd:"$>10"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=12")
+
+	// test bindAndValidate
+	var result Req
+	err := BindAndValidate(req.Req, result, nil)
+	if err == nil {
+		t.Error("expect an error, but get nil")
+	}
+
+	err = Bind(req.Req, result, nil)
+	if err == nil {
+		t.Error("expect an error, but get nil")
+	}
+}
+
+func TestBind_PreBind(t *testing.T) {
+	type Req struct {
+		Query  string
+		Header string
+		Path   string
+		Form   string
+	}
+	// test json tag
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetJSONContentType().
+		SetBody([]byte("\n    \"Query\": \"query\",\n    \"Path\": \"path\",\n    \"Header\": \"header\",\n    \"Form\": \"form\"\n}"))
+	result := Req{}
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err == nil {
+		t.Error("expect an error, but get nil")
+	}
+	err = DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	if err == nil {
+		t.Error("expect an error, but get nil")
+	}
+}
+
+func TestBind_BindProtobuf(t *testing.T) {
+	data := testdata.HertzReq{Name: "hertz"}
+	body, err := proto.Marshal(&data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetProtobufContentType().
+		SetBody(body)
+
+	result := testdata.HertzReq{}
+	err = DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "hertz", result.Name)
+
+	result = testdata.HertzReq{}
+	err = DefaultBinder().BindProtobuf(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "hertz", result.Name)
 }
 
 func Benchmark_Binding(b *testing.B) {
