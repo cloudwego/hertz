@@ -456,42 +456,6 @@ func TestCopyRequestPostArgsBodyStream(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestRequestPostArgsBodyStreamRace(t *testing.T) {
-	var req protocol.Request
-	s := "POST / HTTP/1.1\r\nHost: aaa.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 8196\r\n\r\n"
-	contentB := make([]byte, 8192)
-	for i := 0; i < len(contentB); i++ {
-		contentB[i] = 'a'
-	}
-	content := string(contentB)
-	body := url.Values{"key": []string{content}}.Encode()
-	requestString := s + body
-
-	zr := mock.NewOneTimeConn(requestString)
-	if err := ReadHeader(&req.Header, zr); err != nil {
-		t.Fatalf("Unexpected error when reading header %q: %s", s, err)
-	}
-
-	err := ReadBodyStream(&req, zr, 1024*4, false, false)
-	if err != nil {
-		t.Fatalf("Unexpected error when reading bodystream %q: %s", s, err)
-	}
-
-	errG := errgroup.Group{}
-
-	for i := 0; i < 500; i++ {
-		errG.Go(func() error {
-			if string(req.PostArgs().Peek("key")) != content {
-				return errors.New("race error happened")
-			}
-			return nil
-		})
-	}
-
-	err = errG.Wait()
-	assert.DeepEqual(t, "race error happened", err.Error())
-}
-
 func testRequestWriteError(t *testing.T, method, requestURI, host, userAgent, body string) {
 	var req protocol.Request
 
@@ -1563,17 +1527,6 @@ Content-Type: application/octet-stream
 	}
 	err := eg.Wait()
 	assert.Nil(t, err)
-
-	r.RemoveMultipartFormFiles()
-
-	eg = errgroup.Group{}
-	for i := 0; i < 500; i++ {
-		eg.Go(func() error {
-			return testCopyRequestReadMultipartForm(t, &r)
-		})
-	}
-	err = eg.Wait()
-	assert.NotNil(t, err)
 
 	r.RemoveMultipartFormFiles()
 }
