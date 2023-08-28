@@ -444,8 +444,46 @@ func TestJSON(t *testing.T) {
 	assert.DeepEqual(t, (int64)(6), *recv.Z)
 }
 
-// unsupported non-struct
 func TestNonstruct(t *testing.T) {
+	bodyReader := strings.NewReader(`{
+		"X": {
+			"a": ["a1","a2"],
+			"B": 21,
+			"C": [31,32],
+			"d": 41,
+			"e": "qps",
+			"f": 100
+		},
+		"Z": 6
+	}`)
+
+	header := make(http.Header)
+	header.Set("Content-Type", "application/json")
+	req := newRequest("", header, nil, bodyReader)
+	var recv interface{}
+	err := DefaultBinder().Bind(req.Req, &recv, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	b, err := json.Marshal(recv)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("%s", b)
+
+	bodyReader = strings.NewReader("b=334ddddd&token=yoMba34uspjVQEbhflgTRe2ceeDFUK32&type=url_verification")
+	header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+	req = newRequest("", header, nil, bodyReader)
+	recv = nil
+	err = DefaultBinder().Bind(req.Req, &recv, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	b, err = json.Marshal(recv)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("%s", b)
 }
 
 func TestPath(t *testing.T) {

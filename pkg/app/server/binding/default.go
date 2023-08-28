@@ -61,8 +61,10 @@
 package binding
 
 import (
+	stdJson "encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
 	"sync"
 
@@ -120,8 +122,17 @@ func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.queryDecoderCache.Load(typeID)
 	if ok {
@@ -144,8 +155,17 @@ func (b *defaultBinder) BindHeader(req *protocol.Request, v interface{}) error {
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.headerDecoderCache.Load(typeID)
 	if ok {
@@ -168,8 +188,17 @@ func (b *defaultBinder) BindPath(req *protocol.Request, v interface{}, params pa
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.pathDecoderCache.Load(typeID)
 	if ok {
@@ -192,8 +221,17 @@ func (b *defaultBinder) BindForm(req *protocol.Request, v interface{}) error {
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.formDecoderCache.Load(typeID)
 	if ok {
@@ -240,16 +278,21 @@ func (b *defaultBinder) Name() string {
 }
 
 func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, params param.Params) error {
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
 	rv, typeID := valueAndTypeID(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.decoderCache.Load(typeID)
 	if ok {
@@ -282,16 +325,21 @@ func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, pa
 }
 
 func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.Params) error {
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
 	rv, typeID := valueAndTypeID(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return fmt.Errorf("receiver must be a non-nil pointer")
 	}
-	if rv.Elem().Kind() == reflect.Map {
-		return nil
+	rt := rv.Type()
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return b.bindNonStruct(req, v)
+	}
+
+	err := b.preBindBody(req, v)
+	if err != nil {
+		return fmt.Errorf("bind body failed, err=%v", err)
 	}
 	cached, ok := b.decoderCache.Load(typeID)
 	if ok {
@@ -327,6 +375,48 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	default:
 		return nil
 	}
+}
+
+func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err error) {
+	ct := bytesconv.B2s(req.Header.ContentType())
+	switch utils.FilterContentType(ct) {
+	case consts.MIMEApplicationJSON:
+		err = hJson.Unmarshal(req.Body(), v)
+	case consts.MIMEPROTOBUF:
+		msg, ok := v.(proto.Message)
+		if !ok {
+			return fmt.Errorf("%s can not implement 'proto.Message'", v)
+		}
+		err = proto.Unmarshal(req.Body(), msg)
+	case consts.MIMEMultipartPOSTForm:
+		form := make(url.Values)
+		mf, err := req.MultipartForm()
+		if err == nil && mf.Value != nil {
+			for k, v := range mf.Value {
+				for _, vv := range v {
+					form.Add(k, vv)
+				}
+			}
+		}
+		b, _ := stdJson.Marshal(form)
+		err = hJson.Unmarshal(b, v)
+	case consts.MIMEApplicationHTMLForm:
+		form := make(url.Values)
+		req.PostArgs().VisitAll(func(formKey, value []byte) {
+			form.Add(string(formKey), string(value))
+		})
+		b, _ := stdJson.Marshal(form)
+		err = hJson.Unmarshal(b, v)
+	default:
+		// using query to decode
+		query := make(url.Values)
+		req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+			query.Add(string(queryKey), string(value))
+		})
+		b, _ := stdJson.Marshal(query)
+		err = hJson.Unmarshal(b, v)
+	}
+	return
 }
 
 var _ StructValidator = (*defaultValidator)(nil)

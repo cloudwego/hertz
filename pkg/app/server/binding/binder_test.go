@@ -938,6 +938,17 @@ func TestBind_LooseMode(t *testing.T) {
 	assert.DeepEqual(t, 0, result.ID)
 }
 
+func TestBind_NonStruct(t *testing.T) {
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=1&id=2")
+	var id interface{}
+	err := DefaultBinder().Bind(req.Req, &id, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
