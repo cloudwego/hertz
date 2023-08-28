@@ -222,17 +222,17 @@ func TestCopyURIMethodAndPathAndQueryString(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		errG.Go(func() error {
 			if string(copyR.RequestURI()) != "/foo/bar?query=1" {
-				return errors.New(fmt.Sprintf("unexpected request uri %s. Expecting %s", r.RequestURI(), "/foo/bar?query=1"))
+				return fmt.Errorf("unexpected request uri %s. Expecting %s", r.RequestURI(), "/foo/bar?query=1")
 			}
 			if string(copyR.Method()) != "PUT" {
-				return errors.New(fmt.Sprintf("unexpected method %s. Expecting %s", r.Header.Method(), "PUT"))
+				return fmt.Errorf("unexpected method %s. Expecting %s", r.Header.Method(), "PUT")
 			}
 
 			if string(copyR.Path()) != "/foo/bar" {
-				return errors.New(fmt.Sprintf("unexpected uri path %s. Expecting %s", r.URI().Path(), "/foo/bar"))
+				return fmt.Errorf("unexpected uri path %s. Expecting %s", r.URI().Path(), "/foo/bar")
 			}
 			if string(copyR.QueryString()) != "query=1" {
-				return errors.New(fmt.Sprintf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1"))
+				return fmt.Errorf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1")
 			}
 
 			return nil
