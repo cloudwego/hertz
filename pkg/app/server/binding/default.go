@@ -61,6 +61,7 @@
 package binding
 
 import (
+	"bytes"
 	stdJson "encoding/json"
 	"fmt"
 	"io"
@@ -77,6 +78,13 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route/param"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	queryTag  = "query"
+	headerTag = "header"
+	formTag   = "form"
+	pathTag   = "path"
 )
 
 type decoderInfo struct {
@@ -117,81 +125,27 @@ func Validate(obj interface{}) error {
 	return DefaultValidator().ValidateStruct(obj)
 }
 
-func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
-	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
+func (b *defaultBinder) tagCache(tag string) *sync.Map {
+	switch tag {
+	case queryTag:
+		return &b.queryDecoderCache
+	case headerTag:
+		return &b.headerDecoderCache
+	case formTag:
+		return &b.formDecoderCache
+	case pathTag:
+		return &b.pathDecoderCache
+	default:
+		return &b.decoderCache
 	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
-	if rt.Kind() != reflect.Struct {
-		return b.bindNonStruct(req, v)
-	}
-
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
-	cached, ok := b.queryDecoderCache.Load(typeID)
-	if ok {
-		// cached fieldDecoder, fast path
-		decoder := cached.(decoderInfo)
-		return decoder.decoder(req, nil, rv.Elem())
-	}
-
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "query")
-	if err != nil {
-		return err
-	}
-
-	b.queryDecoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	return decoder(req, nil, rv.Elem())
 }
 
-func (b *defaultBinder) BindHeader(req *protocol.Request, v interface{}) error {
+func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params param.Params, tag string) error {
 	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
-	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
-	if rt.Kind() != reflect.Struct {
-		return b.bindNonStruct(req, v)
-	}
-
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
-	cached, ok := b.headerDecoderCache.Load(typeID)
-	if ok {
-		// cached fieldDecoder, fast path
-		decoder := cached.(decoderInfo)
-		return decoder.decoder(req, nil, rv.Elem())
-	}
-
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "header")
-	if err != nil {
+	if err := checkPointer(rv); err != nil {
 		return err
 	}
-
-	b.headerDecoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	return decoder(req, nil, rv.Elem())
-}
-
-func (b *defaultBinder) BindPath(req *protocol.Request, v interface{}, params param.Params) error {
-	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
-	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
+	rt := dereferPointer(rv)
 	if rt.Kind() != reflect.Struct {
 		return b.bindNonStruct(req, v)
 	}
@@ -200,31 +154,29 @@ func (b *defaultBinder) BindPath(req *protocol.Request, v interface{}, params pa
 	if err != nil {
 		return fmt.Errorf("bind body failed, err=%v", err)
 	}
-	cached, ok := b.pathDecoderCache.Load(typeID)
+	cache := b.tagCache(tag)
+	cached, ok := cache.Load(typeID)
 	if ok {
 		// cached fieldDecoder, fast path
 		decoder := cached.(decoderInfo)
 		return decoder.decoder(req, params, rv.Elem())
 	}
 
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "path")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag)
 	if err != nil {
 		return err
 	}
 
-	b.pathDecoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
+	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
 	return decoder(req, params, rv.Elem())
 }
 
-func (b *defaultBinder) BindForm(req *protocol.Request, v interface{}) error {
+func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}, params param.Params, tag string) error {
 	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
+	if err := checkPointer(rv); err != nil {
+		return err
 	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
+	rt := dereferPointer(rv)
 	if rt.Kind() != reflect.Struct {
 		return b.bindNonStruct(req, v)
 	}
@@ -233,24 +185,55 @@ func (b *defaultBinder) BindForm(req *protocol.Request, v interface{}) error {
 	if err != nil {
 		return fmt.Errorf("bind body failed, err=%v", err)
 	}
-	cached, ok := b.formDecoderCache.Load(typeID)
+	cache := b.tagCache(tag)
+	cached, ok := cache.Load(typeID)
 	if ok {
 		// cached fieldDecoder, fast path
 		decoder := cached.(decoderInfo)
-		return decoder.decoder(req, nil, rv.Elem())
+		err = decoder.decoder(req, params, rv.Elem())
+		if err != nil {
+			return err
+		}
+		if decoder.needValidate {
+			err = DefaultValidator().ValidateStruct(rv.Elem())
+		}
+		return err
 	}
 
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "form")
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag)
 	if err != nil {
 		return err
 	}
 
-	b.formDecoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	return decoder(req, nil, rv.Elem())
+	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
+	err = decoder(req, params, rv.Elem())
+	if err != nil {
+		return err
+	}
+	if needValidate {
+		err = DefaultValidator().ValidateStruct(rv.Elem())
+	}
+	return err
+}
+
+func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
+	return b.bindTag(req, v, nil, queryTag)
+}
+
+func (b *defaultBinder) BindHeader(req *protocol.Request, v interface{}) error {
+	return b.bindTag(req, v, nil, headerTag)
+}
+
+func (b *defaultBinder) BindPath(req *protocol.Request, v interface{}, params param.Params) error {
+	return b.bindTag(req, v, params, pathTag)
+}
+
+func (b *defaultBinder) BindForm(req *protocol.Request, v interface{}) error {
+	return b.bindTag(req, v, nil, formTag)
 }
 
 func (b *defaultBinder) BindJSON(req *protocol.Request, v interface{}) error {
-	return decodeJSON(req.BodyStream(), v)
+	return decodeJSON(bytes.NewReader(req.Body()), v)
 }
 
 func decodeJSON(r io.Reader, obj interface{}) error {
@@ -278,83 +261,11 @@ func (b *defaultBinder) Name() string {
 }
 
 func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, params param.Params) error {
-	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
-	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
-	if rt.Kind() != reflect.Struct {
-		return b.bindNonStruct(req, v)
-	}
-
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
-	cached, ok := b.decoderCache.Load(typeID)
-	if ok {
-		// cached fieldDecoder, fast path
-		decoder := cached.(decoderInfo)
-		err = decoder.decoder(req, params, rv.Elem())
-		if err != nil {
-			return err
-		}
-		if decoder.needValidate {
-			err = DefaultValidator().ValidateStruct(rv.Elem())
-		}
-		return err
-	}
-
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "")
-	if err != nil {
-		return err
-	}
-
-	b.decoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	err = decoder(req, params, rv.Elem())
-	if err != nil {
-		return err
-	}
-	if needValidate {
-		err = DefaultValidator().ValidateStruct(rv.Elem())
-	}
-	return err
+	return b.bindTagWithValidate(req, v, params, "")
 }
 
 func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.Params) error {
-	rv, typeID := valueAndTypeID(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return fmt.Errorf("receiver must be a non-nil pointer")
-	}
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-	}
-	if rt.Kind() != reflect.Struct {
-		return b.bindNonStruct(req, v)
-	}
-
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
-	cached, ok := b.decoderCache.Load(typeID)
-	if ok {
-		// cached fieldDecoder, fast path
-		decoder := cached.(decoderInfo)
-		return decoder.decoder(req, params, rv.Elem())
-	}
-
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), "")
-	if err != nil {
-		return err
-	}
-
-	b.decoderCache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	return decoder(req, params, rv.Elem())
+	return b.bindTag(req, v, params, "")
 }
 
 // best effort binding

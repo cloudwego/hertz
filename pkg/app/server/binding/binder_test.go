@@ -949,6 +949,135 @@ func TestBind_NonStruct(t *testing.T) {
 
 }
 
+func TestBind_BindTag(t *testing.T) {
+	type Req struct {
+		Query  string
+		Header string
+		Path   string
+		Form   string
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?Query=query").
+		SetHeader("Header", "header").
+		SetPostArg("Form", "form")
+	var params param.Params
+	params = append(params, param.Param{
+		Key:   "Path",
+		Value: "path",
+	})
+	result := Req{}
+
+	// test query tag
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "query", result.Query)
+
+	// test header tag
+	result = Req{}
+	err = DefaultBinder().BindHeader(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "header", result.Header)
+
+	// test form tag
+	result = Req{}
+	err = DefaultBinder().BindForm(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "form", result.Form)
+
+	// test path tag
+	result = Req{}
+	err = DefaultBinder().BindPath(req.Req, &result, params)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "path", result.Path)
+
+	// test json tag
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetJSONContentType().
+		SetBody([]byte("{\n    \"Query\": \"query\",\n    \"Path\": \"path\",\n    \"Header\": \"header\",\n    \"Form\": \"form\"\n}"))
+	result = Req{}
+	err = DefaultBinder().BindJSON(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "form", result.Form)
+	assert.DeepEqual(t, "query", result.Query)
+	assert.DeepEqual(t, "header", result.Header)
+	assert.DeepEqual(t, "path", result.Path)
+}
+
+func TestBind_BindAndValidate(t *testing.T) {
+	type Req struct {
+		ID int `query:"id" vd:"$>10"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=12")
+
+	// test bindAndValidate
+	var result Req
+	err := BindAndValidate(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 12, result.ID)
+
+	// test bind
+	result = Req{}
+	err = Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 12, result.ID)
+
+	// test validate
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com?id=9")
+	result = Req{}
+	err = Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	err = Validate(result)
+	if err == nil {
+		t.Errorf("expect an error, but get nil")
+	}
+	assert.DeepEqual(t, 9, result.ID)
+
+}
+
+func TestBind_FastPath(t *testing.T) {
+	type Req struct {
+		ID int `query:"id"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?id=12")
+
+	// test bindAndValidate
+	var result Req
+	err := BindAndValidate(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, 12, result.ID)
+	// execute multiple times, test cache
+	for i := 0; i < 10; i++ {
+		result = Req{}
+		err := BindAndValidate(req.Req, &result, nil)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.DeepEqual(t, 12, result.ID)
+	}
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
