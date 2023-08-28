@@ -41,6 +41,7 @@
 package binding
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
 	"google.golang.org/protobuf/proto"
@@ -338,6 +339,24 @@ func TestBind_MapFieldType(t *testing.T) {
 	}
 	assert.DeepEqual(t, 1, len(***result.F1))
 	assert.DeepEqual(t, "f1", (***result.F1)["f1"])
+
+	type Foo2 struct {
+		F1 map[string]string `query:"f1" json:"f1"`
+	}
+	result2 := Foo2{}
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 1, len(result2.F1))
+	assert.DeepEqual(t, "f1", result2.F1["f1"])
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com?f1={\"f1\":\"f1\"")
+	result2 = Foo2{}
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	if err == nil {
+		t.Error(err)
+	}
 }
 
 func TestBind_UnexportedField(t *testing.T) {
@@ -681,14 +700,14 @@ func TestBind_FileSliceBind(t *testing.T) {
 
 func TestBind_AnonymousField(t *testing.T) {
 	type nest struct {
-		n1     string       `query:"n1"` // bind default value
-		N2     ***string    `query:"n2"` // bind n2 value
-		string `query:"n3"` // bind default value
+		n1     string    `query:"n1"` // bind default value
+		N2     ***string `query:"n2"` // bind n2 value
+		string `query:"n3"`           // bind default value
 	}
 
 	var s struct {
-		s1  int          `query:"s1"` // bind default value
-		int `query:"s2"` // bind default value
+		s1  int `query:"s1"` // bind default value
+		int `query:"s2"`     // bind default value
 		nest
 	}
 	req := newMockRequest().
@@ -1209,6 +1228,18 @@ func TestBind_StructRequired(t *testing.T) {
 	if err == nil {
 		t.Error("expect an error, but get nil")
 	}
+
+	type Bar2 struct {
+		B1 **Foo `query:"B1"`
+	}
+	var result2 Bar2
+	req = newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com"))
+
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestBind_StructErrorToWarn(t *testing.T) {
@@ -1231,6 +1262,62 @@ func TestBind_StructErrorToWarn(t *testing.T) {
 		t.Error(err)
 	}
 	assert.DeepEqual(t, "222", (**result.B1).F1)
+
+	type Bar2 struct {
+		B1 Foo `query:"B1,required"`
+	}
+	var result2 Bar2
+	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	// transfer 'unmarsahl err' to 'warn'
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "222", result2.B1.F1)
+}
+
+func TestBind_DisallowUnknownFieldsConfig(t *testing.T) {
+	EnableDecoderDisallowUnknownFields(true)
+	defer EnableDecoderDisallowUnknownFields(false)
+	type FooStructUseNumber struct {
+		Foo interface{} `json:"foo"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetJSONContentType().
+		SetBody([]byte(`{"foo": 123,"bar": "456"}`))
+	var result FooStructUseNumber
+
+	err := DefaultBinder().BindJSON(req.Req, &result)
+	if err == nil {
+		t.Errorf("expected an error, but get nil")
+	}
+}
+
+func TestBind_UseNumberConfig(t *testing.T) {
+	EnableDecoderUseNumber(true)
+	defer EnableDecoderUseNumber(false)
+	type FooStructUseNumber struct {
+		Foo interface{} `json:"foo"`
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetJSONContentType().
+		SetBody([]byte(`{"foo": 123}`))
+	var result FooStructUseNumber
+
+	err := DefaultBinder().BindJSON(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	v, err := result.Foo.(json.Number).Int64()
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, int64(123), v)
+}
+
+func TestBind_InterfaceType(t *testing.T) {
+
 }
 
 func Benchmark_Binding(b *testing.B) {

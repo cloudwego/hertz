@@ -44,6 +44,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 )
 
 var looseZeroMode = false
@@ -92,6 +95,9 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 		return &floatDecoder{bitSize: 32}, nil
 	case reflect.Float64:
 		return &floatDecoder{bitSize: 64}, nil
+	case reflect.Interface:
+		return &interfaceDecoder{}, nil
+
 	}
 
 	return nil, fmt.Errorf("unsupported type " + rt.String())
@@ -164,4 +170,14 @@ func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error 
 	}
 	fieldValue.SetUint(v)
 	return nil
+}
+
+type interfaceDecoder struct {
+}
+
+func (d *interfaceDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+	if s == "" && looseZeroMode {
+		s = "0"
+	}
+	return hJson.Unmarshal(bytesconv.S2b(s), fieldValue.Addr().Interface())
 }
