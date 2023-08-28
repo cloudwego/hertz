@@ -45,6 +45,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
 	"google.golang.org/protobuf/proto"
 	"mime/multipart"
+	"net/url"
 	"reflect"
 	"testing"
 
@@ -1156,6 +1157,80 @@ func TestBind_BindProtobuf(t *testing.T) {
 		t.Error(err)
 	}
 	assert.DeepEqual(t, "hertz", result.Name)
+}
+
+func TestBind_PointerStruct(t *testing.T) {
+	EnableStructFieldResolve(true)
+	defer EnableStructFieldResolve(false)
+	type Foo struct {
+		F1 string `query:"F1"`
+	}
+	type Bar struct {
+		B1 **Foo `query:"B1,required"`
+	}
+	query := make(url.Values)
+	query.Add("B1", "{\n    \"F1\": \"111\"\n}")
+
+	var result Bar
+	req := newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com?%s", query.Encode()))
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "111", (**result.B1).F1)
+
+	result = Bar{}
+	req = newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com?%s&F1=222", query.Encode()))
+	err = DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "222", (**result.B1).F1)
+}
+
+func TestBind_StructRequired(t *testing.T) {
+	EnableStructFieldResolve(true)
+	defer EnableStructFieldResolve(false)
+	type Foo struct {
+		F1 string `query:"F1"`
+	}
+	type Bar struct {
+		B1 **Foo `query:"B1,required"`
+	}
+
+	var result Bar
+	req := newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com"))
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err == nil {
+		t.Error("expect an error, but get nil")
+	}
+}
+
+func TestBind_StructErrorToWarn(t *testing.T) {
+	EnableStructFieldResolve(true)
+	defer EnableStructFieldResolve(false)
+	type Foo struct {
+		F1 string `query:"F1"`
+	}
+	type Bar struct {
+		B1 **Foo `query:"B1,required"`
+	}
+
+	var result Bar
+	req := newMockRequest().
+		SetRequestURI(fmt.Sprintf("http://foobar.com?B1=111&F1=222"))
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	// transfer 'unmarsahl err' to 'warn'
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "222", (**result.B1).F1)
 }
 
 func Benchmark_Binding(b *testing.B) {
