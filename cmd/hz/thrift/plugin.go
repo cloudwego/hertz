@@ -77,6 +77,8 @@ func (plugin *Plugin) Run() int {
 	}
 	plugin.rmTags = args.RmTags
 	if args.CmdType == meta.CmdModel {
+		// check tag options for model mode
+		CheckTagOption(plugin.args)
 		res, err := plugin.GetResponse(nil, args.OutDir)
 		if err != nil {
 			logs.Errorf("get response failed: %s", err.Error())
