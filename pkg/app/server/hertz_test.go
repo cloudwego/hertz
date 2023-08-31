@@ -784,3 +784,40 @@ func TestSilentMode(t *testing.T) {
 		t.Fatalf("unexpected error in log: %s", b.String())
 	}
 }
+
+func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
+	h := New(
+		WithHostPorts("localhost:9212"),
+		WithDisableResponseHeaderNamesNormalizing(true),
+		WithDisableRequestHeaderNamesNormalizing(true),
+	)
+	headerName := "CASE-senSITive-HEAder-NAME"
+	headerValue := "foobar baz"
+	succeed := false
+	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.VisitAllHeaders(func(key, value []byte) {
+			if string(key) == headerName && string(value) == headerValue {
+				succeed = true
+				return
+			}
+		})
+		if !succeed {
+			t.Fatalf("DisableHeaderNamesNormalizing failed")
+		} else {
+			ctx.Header(headerName, headerValue)
+		}
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+
+	cli, _ := c.NewClient(c.WithDisableHeaderNamesNormalizing(true))
+
+	r := protocol.NewRequest("GET", "http://localhost:9212/test", nil)
+	r.Header.DisableNormalizing()
+	r.Header.Set(headerName, headerValue)
+	res := protocol.AcquireResponse()
+	err := cli.Do(context.Background(), r, res)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, headerValue, res.Header.Get(headerName))
+}

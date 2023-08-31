@@ -104,7 +104,7 @@ type Options struct {
 	// Disabled header names' normalization may be useful only for proxying
 	// responses to other clients expecting case-sensitive header names.
 	//
-	// By default request and response header names are normalized, i.e.
+	// By default, request and response header names are normalized, i.e.
 	// The first letter and the first letters following dashes
 	// are uppercased, while all the other letters are lowercased.
 	// Examples:
@@ -112,7 +112,9 @@ type Options struct {
 	//     * HOST -> Host
 	//     * content-type -> Content-Type
 	//     * cONTENT-lenGTH -> Content-Length
-	DisableHeaderNamesNormalizing bool
+	DisableRequestHeaderNamesNormalizing bool
+
+	DisableResponseHeaderNamesNormalizing bool
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -243,7 +245,9 @@ func NewOptions(opts []Option) *Options {
 		Registry: registry.NoopRegistry,
 
 		// Disabled header names' normalization, default false
-		DisableHeaderNamesNormalizing: false,
+		DisableRequestHeaderNamesNormalizing: false,
+
+		DisableResponseHeaderNamesNormalizing: false,
 	}
 	options.Apply(opts)
 	return options

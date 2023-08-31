@@ -347,9 +347,16 @@ func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Conte
 	}}
 }
 
-// WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
-func WithDisableHeaderNamesNormalizing(disable bool) config.Option {
+// WithDisableRequestHeaderNamesNormalizing is used to set whether disable header names normalizing.
+func WithDisableRequestHeaderNamesNormalizing(disable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		o.DisableHeaderNamesNormalizing = disable
+		o.DisableRequestHeaderNamesNormalizing = disable
+	}}
+}
+
+// WithDisableResponseHeaderNamesNormalizing is used to set whether disable header names normalizing.
+func WithDisableResponseHeaderNamesNormalizing(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisableResponseHeaderNamesNormalizing = disable
 	}}
 }
