@@ -784,7 +784,11 @@ func TestSilentMode(t *testing.T) {
 }
 
 func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
-	h := New(WithHostPorts("localhost:9212"), WithDisableHeaderNamesNormalizing(true))
+	h := New(
+		WithHostPorts("localhost:9212"),
+		WithDisableResponseHeaderNamesNormalizing(true),
+		WithDisableRequestHeaderNamesNormalizing(true),
+	)
 	headerName := "CASE-senSITive-HEAder-NAME"
 	headerValue := "foobar baz"
 	succeed := false

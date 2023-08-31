@@ -62,7 +62,8 @@ func TestOptions(t *testing.T) {
 		WithTraceLevel(stats.LevelDisabled),
 		WithRegistry(nil, info),
 		WithAutoReloadRender(true, 5*time.Second),
-		WithDisableHeaderNamesNormalizing(true),
+		WithDisableRequestHeaderNamesNormalizing(true),
+		WithDisableResponseHeaderNamesNormalizing(true),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
 	assert.DeepEqual(t, opt.WriteTimeout, time.Second)
@@ -93,7 +94,8 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.Registry, nil)
 	assert.DeepEqual(t, opt.AutoReloadRender, true)
 	assert.DeepEqual(t, opt.AutoReloadInterval, 5*time.Second)
-	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, true)
+	assert.DeepEqual(t, opt.DisableRequestHeaderNamesNormalizing, true)
+	assert.DeepEqual(t, opt.DisableResponseHeaderNamesNormalizing, true)
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -126,5 +128,6 @@ func TestDefaultOptions(t *testing.T) {
 	assert.Assert(t, opt.RegistryInfo == nil)
 	assert.DeepEqual(t, opt.AutoReloadRender, false)
 	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
-	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, false)
+	assert.DeepEqual(t, opt.DisableRequestHeaderNamesNormalizing, false)
+	assert.DeepEqual(t, opt.DisableResponseHeaderNamesNormalizing, false)
 }
