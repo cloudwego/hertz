@@ -129,6 +129,11 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		ms := s.GetMethod()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
+		servicePathAnno := checkFirstOption(api.E_ServicePath, s.GetOptions())
+		servicePath := ""
+		if val, ok := servicePathAnno.(string); ok {
+			servicePath = val
+		}
 		for _, m := range ms {
 			hmethod, vpath := checkFirstOptions(HttpMethodOptions, m.GetOptions())
 			if hmethod == "" {
@@ -141,6 +146,9 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			handlerOutDir, ok := genPath.(string)
 			if !ok || len(handlerOutDir) == 0 {
 				handlerOutDir = ""
+			}
+			if len(handlerOutDir) == 0 {
+				handlerOutDir = servicePath
 			}
 
 			// protoGoInfo can get generated "Go Info" for proto file.

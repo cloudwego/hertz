@@ -98,6 +98,11 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		}
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
+		servicePathAnno := getAnnotation(s.Annotations, ApiServicePath)
+		servicePath := ""
+		if len(servicePathAnno) > 0 {
+			servicePath = servicePathAnno[0]
+		}
 		for _, m := range ms {
 			rs := getAnnotations(m.Annotations, HttpMethodAnnotations)
 			if len(rs) > 1 {
@@ -107,14 +112,12 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				continue
 			}
 
-			var handlerOutDir string
+			handlerOutDir := servicePath
 			genPaths := getAnnotation(m.Annotations, ApiGenPath)
-			if len(genPaths) == 0 {
-				handlerOutDir = ""
-			} else if len(genPaths) > 1 {
-				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
-			} else {
+			if len(genPaths) == 1 {
 				handlerOutDir = genPaths[0]
+			} else if len(genPaths) > 0 {
+				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
 			}
 
 			hmethod, path := util.GetFirstKV(rs)
