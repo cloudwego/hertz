@@ -17,6 +17,10 @@
 package server
 
 import (
+	"context"
+	"net"
+	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -25,6 +29,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 )
 
 func TestOptions(t *testing.T) {
@@ -32,6 +37,12 @@ func TestOptions(t *testing.T) {
 		ServiceName: "hertz.test.api",
 		Weight:      10,
 		Addr:        utils.NewNetAddr("tcp", ":8888"),
+	}
+	cfg := &net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
+		return c.Control(func(fd uintptr) {})
+	}}
+	transporter := func(options *config.Options) network.Transporter {
+		return &mockTransporter{}
 	}
 	opt := config.NewOptions([]config.Option{
 		WithReadTimeout(time.Second),
@@ -62,6 +73,8 @@ func TestOptions(t *testing.T) {
 		WithTraceLevel(stats.LevelDisabled),
 		WithRegistry(nil, info),
 		WithAutoReloadRender(true, 5*time.Second),
+		WithListenConfig(cfg),
+		WithAltTransport(transporter),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
 	assert.DeepEqual(t, opt.WriteTimeout, time.Second)
@@ -92,6 +105,8 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.Registry, nil)
 	assert.DeepEqual(t, opt.AutoReloadRender, true)
 	assert.DeepEqual(t, opt.AutoReloadInterval, 5*time.Second)
+	assert.DeepEqual(t, opt.ListenConfig, cfg)
+	assert.Assert(t, reflect.TypeOf(opt.AltTransporterNewer) == reflect.TypeOf(transporter))
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -124,4 +139,18 @@ func TestDefaultOptions(t *testing.T) {
 	assert.Assert(t, opt.RegistryInfo == nil)
 	assert.DeepEqual(t, opt.AutoReloadRender, false)
 	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
+}
+
+type mockTransporter struct{}
+
+func (m *mockTransporter) ListenAndServe(onData network.OnData) (err error) {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Close() error {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Shutdown(ctx context.Context) error {
+	panic("implement me")
 }

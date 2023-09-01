@@ -53,6 +53,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -223,6 +224,32 @@ func TestServeFileSmallNoReadFrom(t *testing.T) {
 	if body != teststr {
 		t.Fatalf("expected '%s'", teststr)
 	}
+
+	data := make([]byte, len([]byte(teststr)))
+	nn, err := reader.Read(data)
+	assert.DeepEqual(t, len([]byte(teststr)), nn)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, teststr, string(data))
+	assert.DeepEqual(t, reader.startPos, len([]byte(teststr)))
+
+	nn, err = reader.Read(data)
+	assert.DeepEqual(t, 0, nn)
+	assert.DeepEqual(t, io.EOF, err)
+
+	data1 := make([]byte, 2)
+	reader.startPos = len([]byte(teststr)) - 1
+	nn, err = reader.Read(data1)
+	assert.DeepEqual(t, []byte("!"), []byte{data1[0]})
+	assert.DeepEqual(t, 1, nn)
+	assert.DeepEqual(t, nil, err)
+
+	reader.startPos = 0
+	reader.ff.f = nil
+	buf = bytes.NewBuffer(nil)
+	reader.ff.dirIndex = make([]byte, len([]byte(teststr)))
+	n, err = reader.WriteTo(pureWriter{buf})
+	assert.DeepEqual(t, int64(len(teststr)), n)
+	assert.Nil(t, err)
 }
 
 type pureWriter struct {
@@ -659,4 +686,12 @@ func TestServeFileContentType(t *testing.T) {
 	if !bytes.Equal(r.Header.ContentType(), expected) {
 		t.Fatalf("Unexpected Content-Type, expected: %q got %q", expected, r.Header.ContentType())
 	}
+}
+
+func TestFileSmallUpdateByteRange(t *testing.T) {
+	r := &fsSmallFileReader{}
+	err := r.UpdateByteRange(1, 1)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 1, r.startPos)
+	assert.DeepEqual(t, 2, r.endPos)
 }
