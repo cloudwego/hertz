@@ -31,7 +31,7 @@ var funcMap = func() template.FuncMap {
 		"Split":                  strings.Split,
 		"Trim":                   strings.Trim,
 	}
-	for key, f := range sprig.FuncMap() {
+	for key, f := range sprig.TxtFuncMap() {
 		m[key] = f
 	}
 	return m
