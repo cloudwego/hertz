@@ -44,7 +44,7 @@ type HttpMethod struct {
 	RefPackage         string // handler import dir
 	RefPackageAlias    string // handler import alias
 	ModelPackage       map[string]string
-	GenHandler         bool // Whether to generate a handler, when an idl interface corresponds to multiple http method
+	GenHandler         bool // Whether to generate one handler, when an idl interface corresponds to multiple http method
 	// Annotations     map[string]string
 	Models map[string]*model.Model
 }
