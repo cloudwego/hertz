@@ -142,6 +142,25 @@ func getAnnotation(input parser.Annotations, target string) []string {
 	return []string{}
 }
 
+type httpAnnotation struct {
+	method string
+	path   []string
+}
+
+type httpAnnotations []httpAnnotation
+
+func (s httpAnnotations) Len() int {
+	return len(s)
+}
+
+func (s httpAnnotations) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s httpAnnotations) Less(i, j int) bool {
+	return s[i].method < s[j].method
+}
+
 func getAnnotations(input parser.Annotations, targets map[string]string) map[string][]string {
 	if len(input) == 0 || len(targets) == 0 {
 		return nil

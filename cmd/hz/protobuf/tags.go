@@ -94,6 +94,38 @@ var (
 	SerializerOptions = map[*protoimpl.ExtensionInfo]string{api.E_Serializer: "serializer"}
 )
 
+type httpOption struct {
+	method string
+	path   string
+}
+
+type httpOptions []httpOption
+
+func (s httpOptions) Len() int {
+	return len(s)
+}
+
+func (s httpOptions) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s httpOptions) Less(i, j int) bool {
+	return s[i].method < s[j].method
+}
+
+func getAllOptions(extensions map[*protoimpl.ExtensionInfo]string, opts ...protoreflect.ProtoMessage) map[string]interface{} {
+	out := map[string]interface{}{}
+	for _, opt := range opts {
+		for e, t := range extensions {
+			if proto.HasExtension(opt, e) {
+				v := proto.GetExtension(opt, e)
+				out[t] = v
+			}
+		}
+	}
+	return out
+}
+
 func checkFirstOptions(extensions map[*protoimpl.ExtensionInfo]string, opts ...protoreflect.ProtoMessage) (string, interface{}) {
 	for _, opt := range opts {
 		for e, t := range extensions {
