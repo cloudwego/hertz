@@ -47,6 +47,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/common/testdata/proto"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
@@ -96,8 +97,59 @@ func TestRenderJSONError(t *testing.T) {
 	resp := &protocol.Response{}
 	data := make(chan int)
 
+	err := (JSONRender{data}).Render(resp)
 	// json: unsupported type: chan int
-	assert.NotNil(t, func() { (JSONRender{data}).Render(resp) })
+	assert.NotNil(t, err)
+}
+
+func TestRenderPureJSON(t *testing.T) {
+	resp := &protocol.Response{}
+	data := map[string]interface{}{
+		"foo":  "bar",
+		"html": "<b>",
+	}
+
+	(PureJSON{data}).WriteContentType(resp)
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
+
+	err := (PureJSON{data}).Render(resp)
+
+	assert.Nil(t, err)
+
+	assert.DeepEqual(t, []byte("{\"foo\":\"bar\",\"html\":\"<b>\"}\n"), resp.Body())
+	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
+}
+
+func TestRenderPureJSONError(t *testing.T) {
+	resp := &protocol.Response{}
+	data := make(chan int)
+
+	err := (PureJSON{data}).Render(resp)
+	// json: unsupported type: chan int
+	assert.NotNil(t, err)
+}
+
+func TestRenderProtobuf(t *testing.T) {
+	resp := &protocol.Response{}
+	data := proto.TestStruct{Body: []byte("Hello World")}
+
+	(ProtoBuf{&data}).WriteContentType(resp)
+	assert.DeepEqual(t, []byte("application/x-protobuf"), resp.Header.Peek("Content-Type"))
+
+	err := (ProtoBuf{&data}).Render(resp)
+
+	assert.Nil(t, err)
+	assert.DeepEqual(t, []byte("\n\vHello World"), resp.Body())
+	assert.DeepEqual(t, []byte("application/x-protobuf"), resp.Header.Peek("Content-Type"))
+}
+
+func TestRenderProtobufError(t *testing.T) {
+	resp := &protocol.Response{}
+	data := proto.Test{}
+
+	err := (ProtoBuf{&data}).Render(resp)
+
+	assert.NotNil(t, err)
 }
 
 func TestRenderString(t *testing.T) {
@@ -160,6 +212,15 @@ func TestRenderXML(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("<map><foo>bar</foo></map>"), resp.Body())
 	assert.DeepEqual(t, []byte(consts.MIMEApplicationXMLUTF8), resp.Header.Peek("Content-Type"))
+}
+
+func TestRenderXMLError(t *testing.T) {
+	resp := &protocol.Response{}
+	data := make(chan int)
+
+	err := (XML{data}).Render(resp)
+
+	assert.NotNil(t, err)
 }
 
 func TestRenderIndentedJSON(t *testing.T) {

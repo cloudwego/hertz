@@ -18,6 +18,7 @@ package thrift
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/config"
@@ -98,26 +99,34 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		}
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
+		servicePathAnno := getAnnotation(s.Annotations, ApiServicePath)
+		servicePath := ""
+		if len(servicePathAnno) > 0 {
+			servicePath = servicePathAnno[0]
+		}
 		for _, m := range ms {
 			rs := getAnnotations(m.Annotations, HttpMethodAnnotations)
-			if len(rs) > 1 {
-				return nil, fmt.Errorf("too many 'api.XXX' annotations: %s", rs)
-			}
 			if len(rs) == 0 {
 				continue
 			}
-
-			var handlerOutDir string
+			httpAnnos := httpAnnotations{}
+			for k, v := range rs {
+				httpAnnos = append(httpAnnos, httpAnnotation{
+					method: k,
+					path:   v,
+				})
+			}
+			// turn the map into a slice and sort it to make sure getting the results in the same order every time
+			sort.Sort(httpAnnos)
+			handlerOutDir := servicePath
 			genPaths := getAnnotation(m.Annotations, ApiGenPath)
-			if len(genPaths) == 0 {
-				handlerOutDir = ""
-			} else if len(genPaths) > 1 {
-				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
-			} else {
+			if len(genPaths) == 1 {
 				handlerOutDir = genPaths[0]
+			} else if len(genPaths) > 0 {
+				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
 			}
 
-			hmethod, path := util.GetFirstKV(rs)
+			hmethod, path := httpAnnos[0].method, httpAnnos[0].path
 			if len(path) != 1 || path[0] == "" {
 				return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
 			}
@@ -175,6 +184,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				Path:               path[0],
 				Serializer:         sr,
 				OutputDir:          handlerOutDir,
+				GenHandler:         true,
 				// Annotations:     m.Annotations,
 			}
 			refs := resolver.ExportReferred(false, true)
@@ -187,6 +197,20 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			}
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
+			for idx, anno := range httpAnnos {
+				if idx == 0 {
+					continue
+				}
+				tmp := *method
+				hmethod, path := anno.method, anno.path
+				if len(path) != 1 || path[0] == "" {
+					return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
+				}
+				tmp.HTTPMethod = hmethod
+				tmp.Path = path[0]
+				tmp.GenHandler = false
+				methods = append(methods, &tmp)
+			}
 			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
@@ -353,18 +377,7 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 				}
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
-					// the method of other file is extended, and the package of req/resp needs to be changed
-					// ex. base.thrift -> Resp Method(Req){}
-					//					  base.Resp Method(base.Req){}
-					// todo: support container for Struct
-					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
-							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
-						}
-					}
-					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
-						f.FunctionType.Name = base + "." + f.FunctionType.Name
-					}
+					processExtendsType(f, base)
 				}
 				extendFuncs, err := getAllExtendFunction(extendSvc, ast, resolver, args)
 				if err != nil {
@@ -392,18 +405,7 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 			if found {
 				funcs := extendSvc.GetFunctions()
 				for _, f := range funcs {
-					// the method of other file is extended, and the package of req/resp needs to be changed
-					// ex. base.thrift -> Resp Method(Req){}
-					//					  base.Resp Method(base.Req){}
-					// todo: support container for Struct
-					if len(f.Arguments) > 0 {
-						if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
-							f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
-						}
-					}
-					if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
-						f.FunctionType.Name = base + "." + f.FunctionType.Name
-					}
+					processExtendsType(f, base)
 				}
 				extendFuncs, err := getAllExtendFunction(extendSvc, refAst, resolver, args)
 				if err != nil {
@@ -416,6 +418,53 @@ func getAllExtendFunction(svc *parser.Service, ast *parser.Thrift, resolver *Res
 	}
 
 	return res, nil
+}
+
+func processExtendsType(f *parser.Function, base string) {
+	// the method of other file is extended, and the package of req/resp needs to be changed
+	// ex. base.thrift -> Resp Method(Req){}
+	//					  base.Resp Method(base.Req){}
+	if len(f.Arguments) > 0 {
+		if f.Arguments[0].Type.Category.IsContainerType() {
+			switch f.Arguments[0].Type.Category {
+			case parser.Category_Set, parser.Category_List:
+				if !strings.Contains(f.Arguments[0].Type.ValueType.Name, ".") && f.Arguments[0].Type.ValueType.Category.IsStruct() {
+					f.Arguments[0].Type.ValueType.Name = base + "." + f.Arguments[0].Type.ValueType.Name
+				}
+			case parser.Category_Map:
+				if !strings.Contains(f.Arguments[0].Type.ValueType.Name, ".") && f.Arguments[0].Type.ValueType.Category.IsStruct() {
+					f.Arguments[0].Type.ValueType.Name = base + "." + f.Arguments[0].Type.ValueType.Name
+				}
+				if !strings.Contains(f.Arguments[0].Type.KeyType.Name, ".") && f.Arguments[0].Type.KeyType.Category.IsStruct() {
+					f.Arguments[0].Type.KeyType.Name = base + "." + f.Arguments[0].Type.KeyType.Name
+				}
+			}
+		} else {
+			if !strings.Contains(f.Arguments[0].Type.Name, ".") && f.Arguments[0].Type.Category.IsStruct() {
+				f.Arguments[0].Type.Name = base + "." + f.Arguments[0].Type.Name
+			}
+		}
+	}
+
+	if f.FunctionType.Category.IsContainerType() {
+		switch f.FunctionType.Category {
+		case parser.Category_Set, parser.Category_List:
+			if !strings.Contains(f.FunctionType.ValueType.Name, ".") && f.FunctionType.ValueType.Category.IsStruct() {
+				f.FunctionType.ValueType.Name = base + "." + f.FunctionType.ValueType.Name
+			}
+		case parser.Category_Map:
+			if !strings.Contains(f.FunctionType.ValueType.Name, ".") && f.FunctionType.ValueType.Category.IsStruct() {
+				f.FunctionType.ValueType.Name = base + "." + f.FunctionType.ValueType.Name
+			}
+			if !strings.Contains(f.FunctionType.KeyType.Name, ".") && f.FunctionType.KeyType.Category.IsStruct() {
+				f.FunctionType.KeyType.Name = base + "." + f.FunctionType.KeyType.Name
+			}
+		}
+	} else {
+		if !strings.Contains(f.FunctionType.Name, ".") && f.FunctionType.Category.IsStruct() {
+			f.FunctionType.Name = base + "." + f.FunctionType.Name
+		}
+	}
 }
 
 func getUniqueResolveDependentName(name string, resolver *Resolver) string {

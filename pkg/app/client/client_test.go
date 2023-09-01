@@ -2269,7 +2269,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:11000"
+	opt.Addr = ":10037"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 
@@ -2282,12 +2282,12 @@ func TestClientState(t *testing.T) {
 			case int32(0):
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
 				return
 			case int32(2):
@@ -2295,7 +2295,7 @@ func TestClientState(t *testing.T) {
 			}
 		}, time.Second*9))
 
-	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
+	client.Get(context.Background(), nil, "http://127.0.0.1:10037")
 	time.Sleep(time.Second * 22)
 }
 

@@ -63,7 +63,8 @@ const (
 const (
 	ApiBaseDomain    = "api.base_domain"
 	ApiServiceGroup  = "api.service_group"
-	ApiServiceGenDir = "api.service_gen_dir"
+	ApiServiceGenDir = "api.service_gen_dir" // handler_dir for handler_by_service
+	ApiServicePath   = "api.service_path"    // declare the path to the service's handler according to this annotation for handler_by_method
 )
 
 var (
@@ -139,6 +140,25 @@ func getAnnotation(input parser.Annotations, target string) []string {
 	}
 
 	return []string{}
+}
+
+type httpAnnotation struct {
+	method string
+	path   []string
+}
+
+type httpAnnotations []httpAnnotation
+
+func (s httpAnnotations) Len() int {
+	return len(s)
+}
+
+func (s httpAnnotations) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s httpAnnotations) Less(i, j int) bool {
+	return s[i].method < s[j].method
 }
 
 func getAnnotations(input parser.Annotations, targets map[string]string) map[string][]string {
