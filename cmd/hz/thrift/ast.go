@@ -120,12 +120,10 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			sort.Sort(httpAnnos)
 			handlerOutDir := servicePath
 			genPaths := getAnnotation(m.Annotations, ApiGenPath)
-			if len(genPaths) == 0 {
-				handlerOutDir = ""
-			} else if len(genPaths) > 1 {
-				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
-			} else {
+			if len(genPaths) == 1 {
 				handlerOutDir = genPaths[0]
+			} else if len(genPaths) > 0 {
+				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
 			}
 
 			hmethod, path := httpAnnos[0].method, httpAnnos[0].path
