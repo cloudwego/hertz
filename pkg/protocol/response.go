@@ -54,7 +54,13 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
-var responsePool sync.Pool
+var (
+	responsePool sync.Pool
+	// NoResponseBody is an io.ReadCloser with no bytes. Read always returns EOF
+	// and Close always returns nil. It can be used in an ingoing client
+	// response to explicitly signal that a response has zero bytes.
+	NoResponseBody = noBody{}
+)
 
 // Response represents HTTP response.
 //
@@ -334,6 +340,9 @@ func (resp *Response) SetBody(body []byte) {
 }
 
 func (resp *Response) BodyStream() io.Reader {
+	if resp.bodyStream == nil {
+		resp.bodyStream = NoResponseBody
+	}
 	return resp.bodyStream
 }
 
