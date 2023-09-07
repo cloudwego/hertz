@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -96,6 +97,13 @@ func WithDialer(d network.Dialer) config.ClientOption {
 func WithResponseBodyStream(b bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.ResponseBodyStream = b
+	}}
+}
+
+// WithHostClientConfigHook is used to set the function hook for re-configure the host client.
+func WithHostClientConfigHook(h func(hc client.HostClient) error) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.HostClientConfigHook = h
 	}}
 }
 
