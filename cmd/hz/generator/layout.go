@@ -124,7 +124,7 @@ func (lg *LayoutGenerator) GenerateByService(service Layout) error {
 
 	if !service.NeedGoMod {
 		gomodFile := "go.mod"
-		if _, exist := lg.tpls["go.mod"]; exist {
+		if _, exist := lg.tpls[gomodFile]; exist {
 			delete(lg.tpls, gomodFile)
 		}
 	}
