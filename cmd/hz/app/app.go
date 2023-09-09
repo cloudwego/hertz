@@ -131,6 +131,13 @@ func Client(c *cli.Context) error {
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
 
+	if args.CustomizeLayout != "" {
+		err = GenerateLayout(args)
+		if err != nil {
+			return cli.Exit(err, meta.GenerateLayoutError)
+		}
+	}
+
 	err = TriggerPlugin(args)
 	if err != nil {
 		return cli.Exit(err, meta.PluginError)
