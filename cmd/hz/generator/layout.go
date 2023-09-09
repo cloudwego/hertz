@@ -129,6 +129,17 @@ func (lg *LayoutGenerator) GenerateByService(service Layout) error {
 		}
 	}
 
+	if util.IsWindows() {
+		buildSh := "build.sh"
+		bootstrapSh := defaultScriptDir + sp + "bootstrap.sh"
+		if _, exist := lg.tpls[buildSh]; exist {
+			delete(lg.tpls, buildSh)
+		}
+		if _, exist := lg.tpls[bootstrapSh]; exist {
+			delete(lg.tpls, bootstrapSh)
+		}
+	}
+
 	sd, err := serviceToLayoutData(service)
 	if err != nil {
 		return err
