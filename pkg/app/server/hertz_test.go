@@ -788,11 +788,10 @@ func TestSilentMode(t *testing.T) {
 func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
 	h := New(
 		WithHostPorts("localhost:9212"),
-		WithDisableResponseHeaderNamesNormalizing(true),
-		WithDisableRequestHeaderNamesNormalizing(true),
+		WithDisableHeaderNamesNormalizing(true),
 	)
 	headerName := "CASE-senSITive-HEAder-NAME"
-	headerValue := "foobar baz"
+	headerValue := "foobar-baz"
 	succeed := false
 	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		ctx.VisitAllHeaders(func(key, value []byte) {

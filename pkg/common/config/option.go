@@ -112,9 +112,7 @@ type Options struct {
 	//     * HOST -> Host
 	//     * content-type -> Content-Type
 	//     * cONTENT-lenGTH -> Content-Length
-	DisableRequestHeaderNamesNormalizing bool
-
-	DisableResponseHeaderNamesNormalizing bool
+	DisableHeaderNamesNormalizing bool
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -245,9 +243,7 @@ func NewOptions(opts []Option) *Options {
 		Registry: registry.NoopRegistry,
 
 		// Disabled header names' normalization, default false
-		DisableRequestHeaderNamesNormalizing: false,
-
-		DisableResponseHeaderNamesNormalizing: false,
+		DisableHeaderNamesNormalizing: false,
 	}
 	options.Apply(opts)
 	return options

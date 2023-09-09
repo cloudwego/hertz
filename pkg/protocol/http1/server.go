@@ -54,20 +54,21 @@ var (
 )
 
 type Option struct {
-	StreamRequestBody            bool
-	GetOnly                      bool
-	DisablePreParseMultipartForm bool
-	DisableKeepalive             bool
-	NoDefaultServerHeader        bool
-	MaxRequestBodySize           int
-	IdleTimeout                  time.Duration
-	ReadTimeout                  time.Duration
-	ServerName                   []byte
-	TLS                          *tls.Config
-	HTMLRender                   render.HTMLRender
-	EnableTrace                  bool
-	ContinueHandler              func(header *protocol.RequestHeader) bool
-	HijackConnHandle             func(c network.Conn, h app.HijackHandler)
+	StreamRequestBody             bool
+	GetOnly                       bool
+	DisablePreParseMultipartForm  bool
+	DisableKeepalive              bool
+	NoDefaultServerHeader         bool
+	DisableHeaderNamesNormalizing bool
+	MaxRequestBodySize            int
+	IdleTimeout                   time.Duration
+	ReadTimeout                   time.Duration
+	ServerName                    []byte
+	TLS                           *tls.Config
+	HTMLRender                    render.HTMLRender
+	EnableTrace                   bool
+	ContinueHandler               func(header *protocol.RequestHeader) bool
+	HijackConnHandle              func(c network.Conn, h app.HijackHandler)
 }
 
 type Server struct {
@@ -178,6 +179,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			eventsToTrigger.push(func(ti traceinfo.TraceInfo, err error) {
 				internalStats.Record(ti, stats.ReadHeaderFinish, err)
 			})
+		}
+
+		if s.DisableHeaderNamesNormalizing {
+			ctx.Request.Header.DisableNormalizing()
+			ctx.Response.Header.DisableNormalizing()
 		}
 
 		// Read Headers

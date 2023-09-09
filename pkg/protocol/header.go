@@ -1497,6 +1497,7 @@ func (h *RequestHeader) UserAgent() []byte {
 // Disable header names' normalization only if you know what are you doing.
 func (h *RequestHeader) DisableNormalizing() {
 	h.disableNormalizing = true
+	h.Trailer().DisableNormalizing()
 }
 
 func (h *RequestHeader) IsDisableNormalizing() bool {
@@ -1697,6 +1698,7 @@ func (h *RequestHeader) SetMethodBytes(method []byte) {
 // Disable header names' normalization only if you know what are you doing.
 func (h *ResponseHeader) DisableNormalizing() {
 	h.disableNormalizing = true
+	h.Trailer().DisableNormalizing()
 }
 
 // setSpecialHeader handles special headers and return true when a header is processed.
