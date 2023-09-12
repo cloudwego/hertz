@@ -75,7 +75,7 @@ func GetNonNilReferenceValue(v reflect.Value) (reflect.Value, int) {
 }
 
 func GetFieldValue(reqValue reflect.Value, parentIndex []int) reflect.Value {
-	// reqVaule -> (***bar)(nil) need new a default
+	// reqValue -> (***bar)(nil) need new a default
 	if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
 		nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
 		reqValue = ReferenceValue(nonNilVal, ptrDepth)
