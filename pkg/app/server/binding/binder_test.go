@@ -43,18 +43,18 @@ package binding
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
-	"google.golang.org/protobuf/proto"
 	"mime/multipart"
 	"net/url"
 	"reflect"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	req2 "github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/route/param"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -1093,7 +1093,6 @@ func TestBind_BindAndValidate(t *testing.T) {
 		t.Errorf("expect an error, but get nil")
 	}
 	assert.DeepEqual(t, 9, result.ID)
-
 }
 
 func TestBind_FastPath(t *testing.T) {
@@ -1234,7 +1233,7 @@ func TestBind_StructRequired(t *testing.T) {
 
 	var result Bar
 	req := newMockRequest().
-		SetRequestURI(fmt.Sprintf("http://foobar.com"))
+		SetRequestURI("http://foobar.com")
 
 	err := DefaultBinder().Bind(req.Req, &result, nil)
 	if err == nil {
@@ -1246,7 +1245,7 @@ func TestBind_StructRequired(t *testing.T) {
 	}
 	var result2 Bar2
 	req = newMockRequest().
-		SetRequestURI(fmt.Sprintf("http://foobar.com"))
+		SetRequestURI("http://foobar.com")
 
 	err = DefaultBinder().Bind(req.Req, &result2, nil)
 	if err != nil {
@@ -1266,7 +1265,7 @@ func TestBind_StructErrorToWarn(t *testing.T) {
 
 	var result Bar
 	req := newMockRequest().
-		SetRequestURI(fmt.Sprintf("http://foobar.com?B1=111&F1=222"))
+		SetRequestURI("http://foobar.com?B1=111&F1=222")
 
 	err := DefaultBinder().Bind(req.Req, &result, nil)
 	// transfer 'unmarsahl err' to 'warn'

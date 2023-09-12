@@ -301,8 +301,8 @@ func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err
 		err = proto.Unmarshal(req.Body(), msg)
 	case consts.MIMEMultipartPOSTForm:
 		form := make(url.Values)
-		mf, err := req.MultipartForm()
-		if err == nil && mf.Value != nil {
+		mf, err1 := req.MultipartForm()
+		if err1 == nil && mf.Value != nil {
 			for k, v := range mf.Value {
 				for _, vv := range v {
 					form.Add(k, vv)

@@ -172,8 +172,7 @@ func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error 
 	return nil
 }
 
-type interfaceDecoder struct {
-}
+type interfaceDecoder struct{}
 
 func (d *interfaceDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
 	if s == "" && looseZeroMode {

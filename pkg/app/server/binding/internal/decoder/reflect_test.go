@@ -17,9 +17,10 @@
 package decoder
 
 import (
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"reflect"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 type foo struct {

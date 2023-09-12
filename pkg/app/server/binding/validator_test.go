@@ -18,8 +18,9 @@ package binding
 
 import (
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func Test_ValidateStruct(t *testing.T) {
@@ -40,7 +41,6 @@ type mockValidator struct{}
 
 func (m *mockValidator) ValidateStruct(interface{}) error {
 	return fmt.Errorf("test mock")
-
 }
 
 func (m *mockValidator) Engine() interface{} {
