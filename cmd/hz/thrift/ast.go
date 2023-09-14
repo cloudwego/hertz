@@ -312,7 +312,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(field.GoName().String()), field.GoName().String())
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(field.GetName()), field.GoName().String())
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam
