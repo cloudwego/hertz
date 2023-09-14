@@ -51,7 +51,7 @@ import (
 
 var (
 	EnableDefaultTag         = true
-	EnableStructFieldResolve = false
+	EnableStructFieldResolve = true
 )
 
 type fieldDecoder interface {
