@@ -106,6 +106,23 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	assert.DeepEqual(t, written, srcLen)
 	assert.DeepEqual(t, err, nil)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
+
+	// 测试没有数据可读的情况
+	writeBuffer.Reset()
+	emptySrc := bytes.NewBufferString("")
+	written, err = CopyBuffer(dst, emptySrc, buf)
+	assert.DeepEqual(t, written, int64(0))
+	assert.Nil(t, err)
+	assert.DeepEqual(t, []byte(""), writeBuffer.Bytes())
+
+	// 测试有限阅读器（LimitedReader）的情况
+	writeBuffer.Reset()
+	limit := int64(5)
+	limitedSrc := io.LimitedReader{R: bytes.NewBufferString(str), N: limit}
+	written, err = CopyBuffer(dst, &limitedSrc, buf)
+	assert.DeepEqual(t, written, limit)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, []byte(str[:limit]), writeBuffer.Bytes())
 }
 
 func TestIoutilCopyBufferWithIoWriter(t *testing.T) {
@@ -198,7 +215,7 @@ func TestIoutilCopyBufferWithNilBufferAndIoLimitedReader(t *testing.T) {
 
 func TestIoutilCopyZeroAlloc(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	str := string("hertz is very good!!!")
+	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	srcLen := int64(src.Len())
@@ -207,4 +224,48 @@ func TestIoutilCopyZeroAlloc(t *testing.T) {
 	assert.DeepEqual(t, written, srcLen)
 	assert.DeepEqual(t, err, nil)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
+
+	// Test when no data is readable
+	writeBuffer.Reset()
+	emptySrc := bytes.NewBufferString("")
+	written, err = CopyZeroAlloc(dst, emptySrc)
+	assert.DeepEqual(t, written, int64(0))
+	assert.Nil(t, err)
+	assert.DeepEqual(t, []byte(""), writeBuffer.Bytes())
+}
+func TestIoutilCopyBufferWithEmptyBuffer(t *testing.T) {
+	var writeBuffer bytes.Buffer
+	str := "hertz is very good!!!"
+	src := bytes.NewBufferString(str)
+	dst := network.NewWriter(&writeBuffer)
+	// Use a non-empty buffer of length 0
+	emptyBuf := make([]byte, 0)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				assert.DeepEqual(t, "empty buffer in io.CopyBuffer", r) // 验证恐慌消息
+			}
+		}()
+
+		written, err := CopyBuffer(dst, src, emptyBuf)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, written, int64(len(str)))
+		assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
+	}()
+
+}
+func TestIoutilCopyBufferWithLimitedReader(t *testing.T) {
+	var writeBuffer bytes.Buffer
+	str := "hertz is very good!!!"
+	src := bytes.NewBufferString(str)
+	limit := int64(5)
+	limitedSrc := io.LimitedReader{R: src, N: limit}
+	dst := network.NewWriter(&writeBuffer)
+	var buf []byte
+
+	// Test LimitedReader status
+	written, err := CopyBuffer(dst, &limitedSrc, buf)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, written, limit)
+	assert.DeepEqual(t, []byte(str[:limit]), writeBuffer.Bytes())
 }

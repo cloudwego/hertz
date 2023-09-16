@@ -17,9 +17,8 @@
 package utils
 
 import (
-	"testing"
-
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"testing"
 )
 
 func TestTLSRecordHeaderLooksLikeHTTP(t *testing.T) {
@@ -39,5 +38,16 @@ func TestTLSRecordHeaderLooksLikeHTTP(t *testing.T) {
 	for _, testCase := range HeaderValueAndExpectedResult {
 		value, expectedResult := testCase[0].([5]byte), testCase[1].(bool)
 		assert.DeepEqual(t, expectedResult, TLSRecordHeaderLooksLikeHTTP(value))
+	}
+
+}
+func TestLocalIP(t *testing.T) {
+	// Mock the localIP variable for testing purposes.
+	localIP = "192.168.0.1"
+
+	// Ensure that LocalIP() returns the expected local IP.
+	expectedIP := "192.168.0.1"
+	if got := LocalIP(); got != expectedIP {
+		assert.DeepEqual(t, got, expectedIP)
 	}
 }
