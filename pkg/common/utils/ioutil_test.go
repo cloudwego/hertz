@@ -107,7 +107,7 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	assert.DeepEqual(t, err, nil)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 
-	// 测试没有数据可读的情况
+	// Test when no data is readable
 	writeBuffer.Reset()
 	emptySrc := bytes.NewBufferString("")
 	written, err = CopyBuffer(dst, emptySrc, buf)
@@ -115,7 +115,7 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(""), writeBuffer.Bytes())
 
-	// 测试有限阅读器（LimitedReader）的情况
+	// Test a LimitedReader
 	writeBuffer.Reset()
 	limit := int64(5)
 	limitedSrc := io.LimitedReader{R: bytes.NewBufferString(str), N: limit}
@@ -243,7 +243,7 @@ func TestIoutilCopyBufferWithEmptyBuffer(t *testing.T) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				assert.DeepEqual(t, "empty buffer in io.CopyBuffer", r) // 验证恐慌消息
+				assert.DeepEqual(t, "empty buffer in io.CopyBuffer", r)
 			}
 		}()
 
