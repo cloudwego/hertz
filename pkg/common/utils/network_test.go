@@ -40,8 +40,8 @@ func TestTLSRecordHeaderLooksLikeHTTP(t *testing.T) {
 		value, expectedResult := testCase[0].([5]byte), testCase[1].(bool)
 		assert.DeepEqual(t, expectedResult, TLSRecordHeaderLooksLikeHTTP(value))
 	}
-
 }
+
 func TestLocalIP(t *testing.T) {
 	// Mock the localIP variable for testing purposes.
 	localIP = "192.168.0.1"

@@ -233,6 +233,7 @@ func TestIoutilCopyZeroAlloc(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(""), writeBuffer.Bytes())
 }
+
 func TestIoutilCopyBufferWithEmptyBuffer(t *testing.T) {
 	var writeBuffer bytes.Buffer
 	str := "hertz is very good!!!"
@@ -252,8 +253,8 @@ func TestIoutilCopyBufferWithEmptyBuffer(t *testing.T) {
 		assert.DeepEqual(t, written, int64(len(str)))
 		assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 	}()
-
 }
+
 func TestIoutilCopyBufferWithLimitedReader(t *testing.T) {
 	var writeBuffer bytes.Buffer
 	str := "hertz is very good!!!"
