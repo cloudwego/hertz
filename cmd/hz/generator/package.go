@@ -167,6 +167,9 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 		if err := pkgGen.genClient(pkg, clientDir); err != nil {
 			return err
 		}
+		if err := pkgGen.genCustomizedFile(pkg); err != nil {
+			return err
+		}
 		return nil
 	}
 
