@@ -234,7 +234,6 @@ func TestRequestHeaderDel(t *testing.T) {
 		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "bbb")
 	}
 	hv = h.Peek("ccc")
-	println(string(hv))
 	if string(hv) != "" {
 		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "")
 	}
