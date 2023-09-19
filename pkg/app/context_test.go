@@ -1513,6 +1513,74 @@ func TestBindForm(t *testing.T) {
 	}
 }
 
+type mockBinder struct{}
+
+func (m *mockBinder) Name() string {
+	return "test binder"
+}
+
+func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) ValidateTag() string {
+	return "test"
+}
+
+func (m *mockBinder) SetValidateTag(s string) {}
+
+func TestSetBinder(t *testing.T) {
+	mockBind := &mockBinder{}
+	c := NewContext(0)
+	c.SetBinder(mockBind)
+	defer c.SetBinder(binding.DefaultBinder())
+	type T struct{}
+	req := T{}
+	err := c.Bind(&req)
+	assert.NotNil(t, err)
+	err = c.BindAndValidate(&req)
+	assert.NotNil(t, err)
+	err = c.BindProtobuf(&req)
+	assert.NotNil(t, err)
+	err = c.BindJSON(&req)
+	assert.NotNil(t, err)
+	err = c.BindForm(&req)
+	assert.NotNil(t, err)
+	err = c.BindPath(&req)
+	assert.NotNil(t, err)
+	err = c.BindQuery(&req)
+	assert.NotNil(t, err)
+	err = c.BindHeader(&req)
+}
+
 func TestRequestContext_SetCookie(t *testing.T) {
 	c := NewContext(0)
 	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteLaxMode, true, true)
