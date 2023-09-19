@@ -1064,6 +1064,12 @@ func (h *RequestHeader) DelBytes(key []byte) {
 	h.del(h.bufKV.key)
 }
 
+// Del deletes header with the given key.
+func (h *RequestHeader) Del(key string) {
+	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	h.del(k)
+}
+
 func (h *RequestHeader) SetArgBytes(key, value []byte, noValue bool) {
 	h.h = setArgBytes(h.h, key, value, noValue)
 }
