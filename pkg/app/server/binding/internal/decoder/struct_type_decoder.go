@@ -84,7 +84,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 		var vv reflect.Value
 		vv, err := stringToValue(t, text, req, params)
 		if err != nil {
-			hlog.Warnf("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
+			hlog.Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 			return nil
 		}
 		field.Set(ReferenceValue(vv, ptrDepth))
@@ -93,7 +93,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 
 	err = hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
-		hlog.Warnf("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
+		hlog.Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 	}
 
 	return nil
