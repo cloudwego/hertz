@@ -23,23 +23,24 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/tidwall/gjson"
 )
 
-func checkRequireJSON2(req *protocol.Request, tagInfo TagInfo) bool {
+func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 	if !tagInfo.Required {
 		return true
 	}
-	ct := bytesconv.B2s(req.Req.Header.ContentType())
+	ct := bytesconv.B2s(req.Header.ContentType())
 	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
 		return false
 	}
-	result := gjson.GetBytes(req.Req.Body(), tagInfo.JSONName)
+	result := gjson.GetBytes(req.Body(), tagInfo.JSONName)
 	if !result.Exists() {
 		idx := strings.LastIndex(tagInfo.JSONName, ".")
 		// There should be a superior if it is empty, it will report 'true' for required
-		if idx > 0 && !gjson.GetBytes(req.Req.Body(), tagInfo.JSONName[:idx]).Exists() {
+		if idx > 0 && !gjson.GetBytes(req.Body(), tagInfo.JSONName[:idx]).Exists() {
 			return true
 		}
 		return false
