@@ -59,6 +59,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -192,6 +193,11 @@ type Engine struct {
 	// Custom Functions
 	clientIPFunc  app.ClientIP
 	formValueFunc app.FormValueFunc
+
+	// Custom Binder and Validator
+	binder      binding.Binder
+	validator   binding.StructValidator
+	validateTag string
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -737,6 +743,8 @@ func (engine *Engine) allocateContext() *app.RequestContext {
 	ctx.Response.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
 	ctx.SetClientIPFunc(engine.clientIPFunc)
 	ctx.SetFormValueFunc(engine.formValueFunc)
+	ctx.SetBinder(engine.binder)
+	ctx.SetValidator(engine.validator, engine.validateTag)
 	return ctx
 }
 
@@ -889,6 +897,15 @@ func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 
 func (engine *Engine) SetClientIPFunc(f app.ClientIP) {
 	engine.clientIPFunc = f
+}
+
+func (engine *Engine) SetBinder(binder binding.Binder) {
+	engine.binder = binder
+}
+
+func (engine *Engine) SetValidator(validator binding.StructValidator, tag string) {
+	engine.validator = validator
+	engine.validateTag = tag
 }
 
 func (engine *Engine) SetFormValueFunc(f app.FormValueFunc) {

@@ -33,6 +33,7 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -871,6 +872,35 @@ func TestSetClientIPFunc(t *testing.T) {
 	}
 	SetClientIPFunc(fn)
 	assert.DeepEqual(t, reflect.ValueOf(fn).Pointer(), reflect.ValueOf(defaultClientIP).Pointer())
+}
+
+type mockValidator struct{}
+
+func (m *mockValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func (m *mockValidator) Engine() interface{} {
+	return nil
+}
+
+func TestSetValidator(t *testing.T) {
+	m := &mockValidator{}
+	c := NewContext(0)
+	c.SetValidator(m, "vt")
+	defer c.SetValidator(binding.DefaultValidator(), "vd")
+	type User struct {
+		Age int `vt:"$>=0&&$<=130"`
+	}
+
+	user := &User{
+		Age: 135,
+	}
+	err := c.Validate(user)
+	if err == nil {
+		t.Fatalf("expected an error, but got nil")
+	}
+	assert.DeepEqual(t, "test mock", err.Error())
 }
 
 func TestGetQuery(t *testing.T) {

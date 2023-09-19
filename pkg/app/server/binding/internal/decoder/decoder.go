@@ -60,7 +60,7 @@ type fieldDecoder interface {
 
 type Decoder func(req *protocol.Request, params param.Params, rv reflect.Value) error
 
-func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
+func GetReqDecoder(rt reflect.Type, byTag string, validateTag string) (Decoder, bool, error) {
 	var decoders []fieldDecoder
 	var needValidate bool
 
@@ -75,7 +75,7 @@ func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
 			continue
 		}
 
-		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag)
+		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag, validateTag)
 		if err != nil {
 			return nil, false, err
 		}
@@ -98,7 +98,7 @@ func GetReqDecoder(rt reflect.Type, byTag string) (Decoder, bool, error) {
 	}, needValidate, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string) ([]fieldDecoder, bool, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string, validateTag string) ([]fieldDecoder, bool, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -111,7 +111,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// JSONName is like 'a.b.c' for 'required validate'
-	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName)
+	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName, validateTag)
 	if len(fieldTagInfos) == 0 && EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
@@ -167,7 +167,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 				idxes = append(idxes, parentIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag)
+			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag, validateTag)
 			needValidate = needValidate || needValidate2
 			if err != nil {
 				return nil, false, err

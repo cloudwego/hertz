@@ -93,6 +93,7 @@ type decoderInfo struct {
 }
 
 type defaultBinder struct {
+	validateTag        string
 	decoderCache       sync.Map
 	queryDecoderCache  sync.Map
 	formDecoderCache   sync.Map
@@ -162,7 +163,7 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 		return decoder.decoder(req, params, rv.Elem())
 	}
 
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag)
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, b.ValidateTag())
 	if err != nil {
 		return err
 	}
@@ -200,7 +201,7 @@ func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}
 		return err
 	}
 
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag)
+	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, b.ValidateTag())
 	if err != nil {
 		return err
 	}
@@ -266,6 +267,14 @@ func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, pa
 
 func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.Params) error {
 	return b.bindTag(req, v, params, "")
+}
+
+func (b *defaultBinder) ValidateTag() string {
+	return b.validateTag
+}
+
+func (b *defaultBinder) SetValidateTag(tag string) {
+	b.validateTag = tag
 }
 
 // best effort binding

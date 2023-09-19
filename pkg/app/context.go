@@ -233,6 +233,10 @@ type RequestContext struct {
 
 	// clientIPFunc get form value by use custom function.
 	formValueFunc FormValueFunc
+
+	binder      binding.Binder
+	validator   binding.StructValidator
+	validateTag string
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
@@ -250,6 +254,15 @@ func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {
 
 func (ctx *RequestContext) SetFormValueFunc(f FormValueFunc) {
 	ctx.formValueFunc = f
+}
+
+func (ctx *RequestContext) SetBinder(binder binding.Binder) {
+	ctx.binder = binder
+}
+
+func (ctx *RequestContext) SetValidator(validator binding.StructValidator, tag string) {
+	ctx.validator = validator
+	ctx.validateTag = tag
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -1305,36 +1318,54 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindAndValidate(&ctx.Request, obj, ctx.Params)
+	}
 	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.Bind(&ctx.Request, obj, ctx.Params)
+	}
 	return binding.Bind(&ctx.Request, obj, ctx.Params)
 }
 
 // Validate validates obj with "vd" tag
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
+	if ctx.validator != nil {
+		return ctx.validator.ValidateStruct(obj)
+	}
 	return binding.Validate(obj)
 }
 
 // BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindQuery(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindQuery(&ctx.Request, obj)
+	}
 	return binding.DefaultBinder().BindQuery(&ctx.Request, obj)
 }
 
 // BindHeader binds header parameters from *RequestContext to obj with 'header' tag. It will only use 'header' tag for binding.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindHeader(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindHeader(&ctx.Request, obj)
+	}
 	return binding.DefaultBinder().BindHeader(&ctx.Request, obj)
 }
 
 // BindPath binds router parameters from *RequestContext to obj with 'path' tag. It will only use 'path' tag for binding.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindPath(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindPath(&ctx.Request, obj, ctx.Params)
+	}
 	return binding.DefaultBinder().BindPath(&ctx.Request, obj, ctx.Params)
 }
 
@@ -1344,18 +1375,27 @@ func (ctx *RequestContext) BindForm(obj interface{}) error {
 	if len(ctx.Request.Body()) == 0 {
 		return fmt.Errorf("missing form body")
 	}
+	if ctx.binder != nil {
+		return ctx.binder.BindForm(&ctx.Request, obj)
+	}
 	return binding.DefaultBinder().BindForm(&ctx.Request, obj)
 }
 
 // BindJSON binds JSON body from *RequestContext.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindJSON(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindJSON(&ctx.Request, obj)
+	}
 	return binding.DefaultBinder().BindJSON(&ctx.Request, obj)
 }
 
 // BindProtobuf binds protobuf body from *RequestContext.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
+	if ctx.binder != nil {
+		return ctx.binder.BindProtobuf(&ctx.Request, obj)
+	}
 	return binding.DefaultBinder().BindProtobuf(&ctx.Request, obj)
 }
 
