@@ -1305,19 +1305,19 @@ func bodyAllowedForStatus(status int) bool {
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.DefaultBinder().BindAndValidate(&ctx.Request, obj, ctx.Params)
+	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.DefaultBinder().Bind(&ctx.Request, obj, ctx.Params)
+	return binding.Bind(&ctx.Request, obj, ctx.Params)
 }
 
 // Validate validates obj with "vd" tag
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.DefaultValidator().ValidateStruct(obj)
+	return binding.Validate(obj)
 }
 
 // BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.

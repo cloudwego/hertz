@@ -81,7 +81,7 @@ func MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params 
 	decoder.MustRegTypeUnmarshal(t, fn)
 }
 
-// ResetValidator reset a customized
+// ResetValidator reset a customized validator.
 func ResetValidator(v StructValidator, validatorTag string) {
 	defaultValidate = v
 	decoder.DefaultValidatorTag = validatorTag

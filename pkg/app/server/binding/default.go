@@ -251,7 +251,7 @@ func decodeJSON(r io.Reader, obj interface{}) error {
 func (b *defaultBinder) BindProtobuf(req *protocol.Request, v interface{}) error {
 	msg, ok := v.(proto.Message)
 	if !ok {
-		return fmt.Errorf("%s can not implement 'proto.Message'", v)
+		return fmt.Errorf("%s does not implement 'proto.Message'", v)
 	}
 	return proto.Unmarshal(req.Body(), msg)
 }
