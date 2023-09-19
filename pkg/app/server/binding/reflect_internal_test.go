@@ -40,7 +40,7 @@ func Test_ReferenceValue(t *testing.T) {
 	if foo1PointerVal.Kind() != reflect.Ptr {
 		t.Errorf("expect a pointer, but get nil")
 	}
-	assert.DeepEqual(t, "*****decoder.foo", foo1PointerVal.Type().String())
+	assert.DeepEqual(t, "*****decoder.foo2but it may", foo1PointerVal.Type().String())
 
 	deFoo1PointerVal := decoder.ReferenceValue(foo1PointerVal, -5)
 	if deFoo1PointerVal.Kind() == reflect.Ptr {
