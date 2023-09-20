@@ -72,6 +72,10 @@ type Options struct {
 	Tracers                      []interface{}
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
+	BindConfig                   interface{}
+	CustomBinder                 interface{}
+	ValidateConfig               interface{}
+	CustomValidator              interface{}
 
 	// TransporterNewer is the function to create a transporter.
 	TransporterNewer    func(opt *Options) network.Transporter

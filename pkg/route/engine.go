@@ -195,9 +195,8 @@ type Engine struct {
 	formValueFunc app.FormValueFunc
 
 	// Custom Binder and Validator
-	binder      binding.Binder
-	validator   binding.StructValidator
-	validateTag string
+	binder    binding.Binder
+	validator binding.StructValidator
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -557,6 +556,47 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 	return errs.ErrNotSupportProtocol
 }
 
+func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	// init validator
+	engine.validator = binding.DefaultValidator()
+	if opt.ValidateConfig != nil {
+		vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
+		if !ok {
+			panic("validate config error")
+		}
+		engine.validator = binding.NewDefaultValidator(vConf)
+	}
+	if opt.CustomValidator != nil {
+		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
+		if !ok {
+			panic("customized validator can not implement binding.StructValidator")
+		}
+		engine.validator = customValidator
+	}
+
+	// Init binder. Due to the existence of the "BindAndValidate" interface, the Validator needs to be injected here.
+	defaultBindConfig := binding.NewBindConfig()
+	defaultBindConfig.Validator = engine.validator
+	engine.binder = binding.NewDefaultBinder(defaultBindConfig)
+	if opt.BindConfig != nil {
+		bConf, ok := opt.BindConfig.(*binding.BindConfig)
+		if !ok {
+			panic("bind config error")
+		}
+		if bConf.Validator != nil {
+			bConf.Validator = engine.validator
+		}
+		engine.binder = binding.NewDefaultBinder(bConf)
+	}
+	if opt.CustomBinder != nil {
+		customBinder, ok := opt.CustomBinder.(binding.Binder)
+		if !ok {
+			panic("customized binder can not implement binding.Binder")
+		}
+		engine.binder = customBinder
+	}
+}
+
 func NewEngine(opt *config.Options) *Engine {
 	engine := &Engine{
 		trees: make(MethodTrees, 0, 9),
@@ -572,6 +612,7 @@ func NewEngine(opt *config.Options) *Engine {
 		enableTrace:           true,
 		options:               opt,
 	}
+	engine.initBinderAndValidator(opt)
 	if opt.TransporterNewer != nil {
 		engine.transport = opt.TransporterNewer(opt)
 	}
@@ -744,7 +785,7 @@ func (engine *Engine) allocateContext() *app.RequestContext {
 	ctx.SetClientIPFunc(engine.clientIPFunc)
 	ctx.SetFormValueFunc(engine.formValueFunc)
 	ctx.SetBinder(engine.binder)
-	ctx.SetValidator(engine.validator, engine.validateTag)
+	ctx.SetValidator(engine.validator)
 	return ctx
 }
 
@@ -897,15 +938,6 @@ func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 
 func (engine *Engine) SetClientIPFunc(f app.ClientIP) {
 	engine.clientIPFunc = f
-}
-
-func (engine *Engine) SetBinder(binder binding.Binder) {
-	engine.binder = binder
-}
-
-func (engine *Engine) SetValidator(validator binding.StructValidator, tag string) {
-	engine.validator = validator
-	engine.validateTag = tag
 }
 
 func (engine *Engine) SetFormValueFunc(f app.FormValueFunc) {

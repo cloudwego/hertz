@@ -106,7 +106,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 			ptrDepth++
 		}
 		var vv reflect.Value
-		vv, err := stringToValue(t, text, req, params)
+		vv, err := stringToValue(t, text, req, params, d.config)
 		if err != nil {
 			return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
 		}
@@ -122,7 +122,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 	return nil
 }
 
-func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
+func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, config *DecodeConfig) ([]fieldDecoder, error) {
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
@@ -163,6 +163,7 @@ func getMapTypeTextDecoder(field reflect.StructField, index int, tagInfos []TagI
 			fieldName:   field.Name,
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
+			config:      config,
 		},
 	}}, nil
 }

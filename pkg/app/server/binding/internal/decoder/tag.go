@@ -60,10 +60,10 @@ func head(str, sep string) (head, tail string) {
 	return str[:idx], str[idx+len(sep):]
 }
 
-func lookupFieldTags(field reflect.StructField, parentJSONName string, validateTag string) ([]TagInfo, string, bool) {
+func lookupFieldTags(field reflect.StructField, parentJSONName string, config *DecodeConfig) ([]TagInfo, string, bool) {
 	var ret []string
 	var needValidate bool
-	if _, ok := field.Tag.Lookup(validateTag); ok {
+	if _, ok := field.Tag.Lookup(config.ValidateTag); ok {
 		needValidate = true
 	}
 	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag}

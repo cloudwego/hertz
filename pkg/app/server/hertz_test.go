@@ -34,6 +34,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -47,6 +48,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 func TestHertz_Run(t *testing.T) {
@@ -819,4 +821,172 @@ func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
 	err := cli.Do(context.Background(), r, res)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, headerValue, res.Header.Get(headerName))
+}
+
+func TestBindConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	h := New(
+		WithHostPorts("localhost:9229"),
+		WithBindConfig(&binding.BindConfig{
+			LooseZeroMode: true,
+		}))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err != nil {
+			t.Fatal("unexpected error")
+		}
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9229/bind?a=")
+	assert.Nil(t, err)
+
+	h2 := New(
+		WithHostPorts("localhost:9230"),
+		WithBindConfig(&binding.BindConfig{
+			LooseZeroMode: false,
+		}))
+	h2.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+	})
+
+	go h2.Spin()
+	time.Sleep(100 * time.Millisecond)
+
+	_, err = hc.Get("http://127.0.0.1:9230/bind?a=")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+}
+
+type mockBinder struct{}
+
+func (m *mockBinder) Name() string {
+	return "test binder"
+}
+
+func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
+	return fmt.Errorf("test binder")
+}
+
+func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func TestCustomBinder(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	h := New(
+		WithHostPorts("localhost:9229"),
+		WithCustomBinder(&mockBinder{}))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "test binder", err.Error())
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9229/bind?a=")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestValidateConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"f($)"`
+	}
+	validateConfig := &binding.ValidateConfig{}
+	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
+		return fmt.Errorf("test validator")
+	})
+	h := New(
+		WithHostPorts("localhost:9229"),
+		WithValidateConfig(validateConfig))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "test validator", err.Error())
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9229/bind?a=2")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+}
+
+type mockValidator struct{}
+
+func (m *mockValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock validator")
+}
+
+func (m *mockValidator) Engine() interface{} {
+	return nil
+}
+
+func TestCustomValidator(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"f($)"`
+	}
+	h := New(
+		WithHostPorts("localhost:9229"),
+		WithCustomValidator(&mockValidator{}))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "test mock validator", err.Error())
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9229/bind?a=2")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
 }

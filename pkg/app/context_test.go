@@ -887,8 +887,8 @@ func (m *mockValidator) Engine() interface{} {
 func TestSetValidator(t *testing.T) {
 	m := &mockValidator{}
 	c := NewContext(0)
-	c.SetValidator(m, "vt")
-	defer c.SetValidator(binding.DefaultValidator(), "vd")
+	c.SetValidator(m)
+	c.SetBinder(binding.NewDefaultBinder(&binding.BindConfig{ValidateTag: "vt"}))
 	type User struct {
 		Age int `vt:"$>=0&&$<=130"`
 	}
@@ -1550,12 +1550,6 @@ func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
 func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
 	return nil
 }
-
-func (m *mockBinder) ValidateTag() string {
-	return "test"
-}
-
-func (m *mockBinder) SetValidateTag(s string) {}
 
 func TestSetBinder(t *testing.T) {
 	mockBind := &mockBinder{}

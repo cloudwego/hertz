@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"net"
 	"strings"
 	"time"
@@ -344,6 +345,34 @@ func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
 func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.OnConnect = fn
+	}}
+}
+
+// WithBindConfig sets bind config.
+func WithBindConfig(bc *binding.BindConfig) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.BindConfig = bc
+	}}
+}
+
+// WithCustomBinder sets customized Binder.
+func WithCustomBinder(b binding.Binder) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomBinder = b
+	}}
+}
+
+// WithValidateConfig sets bind config.
+func WithValidateConfig(vc *binding.ValidateConfig) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.ValidateConfig = vc
+	}}
+}
+
+// WithCustomValidator sets customized Binder.
+func WithCustomValidator(b binding.StructValidator) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomValidator = b
 	}}
 }
 

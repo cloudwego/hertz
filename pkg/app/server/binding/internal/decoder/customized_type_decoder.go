@@ -41,60 +41,18 @@
 package decoder
 
 import (
-	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-func init() {
-	MustRegTypeUnmarshal(reflect.TypeOf(time.Time{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
-		if text == "" {
-			return reflect.ValueOf(time.Time{}), nil
-		}
-		t, err := time.Parse(time.RFC3339, text)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(t), nil
-	})
-}
-
-type customizeDecodeFunc func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)
-
-var typeUnmarshalFuncs = make(map[reflect.Type]customizeDecodeFunc)
-
-// RegTypeUnmarshal registers customized type unmarshaler.
-func RegTypeUnmarshal(t reflect.Type, fn customizeDecodeFunc) error {
-	// check
-	switch t.Kind() {
-	case reflect.String, reflect.Bool,
-		reflect.Float32, reflect.Float64,
-		reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8,
-		reflect.Uint, reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8:
-		return fmt.Errorf("registration type cannot be a basic type")
-	case reflect.Ptr:
-		return fmt.Errorf("registration type cannot be a pointer type")
-	}
-
-	typeUnmarshalFuncs[t] = fn
-	return nil
-}
-
-// MustRegTypeUnmarshal registers customized type unmarshaler. It will panic if exist error.
-func MustRegTypeUnmarshal(t reflect.Type, fn customizeDecodeFunc) {
-	err := RegTypeUnmarshal(t, fn)
-	if err != nil {
-		panic(err)
-	}
-}
+type CustomizeDecodeFunc func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)
 
 type customizedFieldTextDecoder struct {
 	fieldInfo
-	decodeFunc customizeDecodeFunc
+	decodeFunc CustomizeDecodeFunc
 }
 
 func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
@@ -141,7 +99,7 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 	return nil
 }
 
-func getCustomizedFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, decodeFunc customizeDecodeFunc) ([]fieldDecoder, error) {
+func getCustomizedFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, decodeFunc CustomizeDecodeFunc, config *DecodeConfig) ([]fieldDecoder, error) {
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
@@ -180,6 +138,7 @@ func getCustomizedFieldDecoder(field reflect.StructField, index int, tagInfos []
 			fieldName:   field.Name,
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
+			config:      config,
 		},
 		decodeFunc: decodeFunc,
 	}}, nil

@@ -141,7 +141,7 @@ func (d *fileTypeDecoder) fileSliceDecode(req *protocol.Request, params param.Pa
 	return nil
 }
 
-func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
+func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, config *DecodeConfig) ([]fieldDecoder, error) {
 	fieldType := field.Type
 	for field.Type.Kind() == reflect.Ptr {
 		fieldType = field.Type.Elem()
@@ -158,6 +158,7 @@ func getMultipartFileDecoder(field reflect.StructField, index int, tagInfos []Ta
 			fieldName:   field.Name,
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
+			config:      config,
 		},
 		isRepeated: isRepeated,
 	}}, nil

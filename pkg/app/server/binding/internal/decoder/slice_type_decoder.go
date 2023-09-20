@@ -142,7 +142,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 
 	for idx, text := range texts {
 		var vv reflect.Value
-		vv, err = stringToValue(t, text, req, params)
+		vv, err = stringToValue(t, text, req, params, d.config)
 		if err != nil {
 			break
 		}
@@ -164,7 +164,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 	return nil
 }
 
-func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
+func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, config *DecodeConfig) ([]fieldDecoder, error) {
 	if !(field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array) {
 		return nil, fmt.Errorf("unexpected type %s, expected slice or array", field.Type.String())
 	}
@@ -207,7 +207,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 	// fieldType.Elem() is the type for array/slice elem
 	t := getElemType(fieldType.Elem())
 	if t == reflect.TypeOf(multipart.FileHeader{}) {
-		return getMultipartFileDecoder(field, index, tagInfos, parentIdx)
+		return getMultipartFileDecoder(field, index, tagInfos, parentIdx, config)
 	}
 
 	return []fieldDecoder{&sliceTypeFieldTextDecoder{
@@ -217,14 +217,15 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 			fieldName:   field.Name,
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
+			config:      config,
 		},
 		isArray: isArray,
 	}}, nil
 }
 
-func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params) (v reflect.Value, err error) {
+func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params, config *DecodeConfig) (v reflect.Value, err error) {
 	v = reflect.New(elemType).Elem()
-	if customizedFunc, exist := typeUnmarshalFuncs[elemType]; exist {
+	if customizedFunc, exist := config.TypeUnmarshalFuncs[elemType]; exist {
 		val, err := customizedFunc(req, params, text)
 		if err != nil {
 			return reflect.Value{}, err
@@ -243,7 +244,7 @@ func stringToValue(elemType reflect.Type, text string, req *protocol.Request, pa
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
 		}
-		err = decoder.UnmarshalString(text, v)
+		err = decoder.UnmarshalString(text, v, config.LooseZeroMode)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("unable to decode '%s' as %s: %w", text, elemType.String(), err)
 		}

@@ -18,35 +18,121 @@ package binding
 
 import (
 	stdJson "encoding/json"
+	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/bytedance/go-tagexpr/v2/validator"
-	"github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
+	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-var (
-	enableDecoderUseNumber             = false
-	enableDecoderDisallowUnknownFields = false
-)
+// BindConfig contains options for default bind behavior.
+type BindConfig struct {
+	// LooseZeroMode if set to true,
+	// the empty string request parameter is bound to the zero value of parameter.
+	// NOTE:
+	//	The default is false.
+	//	Suitable for these parameter types: query/header/cookie/form .
+	LooseZeroMode bool
+	// EnableDefaultTag is used to add default tags to a field when it has no tag
+	// If is true, the field with no tag will be added default tags, for more automated binding. But there may be additional overhead.
+	// NOTE:
+	// The default is true.
+	EnableDefaultTag bool
+	// EnableStructFieldResolve is used to generate a separate decoder for a struct.
+	// If is true, the 'struct' field will get a single inDecoder.structTypeFieldTextDecoder, and use json.Unmarshal for decode it.
+	// It usually used to add json string to query parameter.
+	// NOTE:
+	// The default is true.
+	EnableStructFieldResolve bool
+	// EnableDecoderUseNumber is used to call the UseNumber method on the JSON
+	// Decoder instance. UseNumber causes the Decoder to unmarshal a number into an
+	// interface{} as a Number instead of as a float64.
+	// NOTE:
+	// The default is false.
+	// It is used for BindJSON().
+	EnableDecoderUseNumber bool
+	// EnableDecoderDisallowUnknownFields is used to call the DisallowUnknownFields method
+	// on the JSON Decoder instance. DisallowUnknownFields causes the Decoder to
+	// return an error when the destination is a struct and the input contains object
+	// keys which do not match any non-ignored, exported fields in the destination.
+	// NOTE:
+	// The default is false.
+	// It is used for BindJSON().
+	EnableDecoderDisallowUnknownFields bool
+	// ValidateTag is used to determine if a filed needs to be validated.
+	// NOTE:
+	// The default is "vd".
+	ValidateTag string
+	// TypeUnmarshalFuncs registers customized type unmarshaler.
+	// NOTE:
+	// time.Time is registered by default
+	TypeUnmarshalFuncs map[reflect.Type]inDecoder.CustomizeDecodeFunc
+	// Validator is used to validate for BindAndValidate()
+	Validator StructValidator
+}
 
-// SetLooseZeroMode if set to true,
-// the empty string request parameter is bound to the zero value of parameter.
-// NOTE:
-//
-//	The default is false;
-//	Suitable for these parameter types: query/header/cookie/form .
-func SetLooseZeroMode(enable bool) {
-	decoder.SetLooseZeroMode(enable)
+func NewBindConfig() *BindConfig {
+	return &BindConfig{
+		LooseZeroMode:                      false,
+		EnableDefaultTag:                   true,
+		EnableStructFieldResolve:           true,
+		EnableDecoderUseNumber:             false,
+		EnableDecoderDisallowUnknownFields: false,
+		ValidateTag:                        "vd",
+		TypeUnmarshalFuncs:                 make(map[reflect.Type]inDecoder.CustomizeDecodeFunc),
+		Validator:                          defaultValidate,
+	}
+}
+
+// RegTypeUnmarshal registers customized type unmarshaler.
+func (config *BindConfig) RegTypeUnmarshal(t reflect.Type, fn inDecoder.CustomizeDecodeFunc) error {
+	// check
+	switch t.Kind() {
+	case reflect.String, reflect.Bool,
+		reflect.Float32, reflect.Float64,
+		reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8,
+		reflect.Uint, reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8:
+		return fmt.Errorf("registration type cannot be a basic type")
+	case reflect.Ptr:
+		return fmt.Errorf("registration type cannot be a pointer type")
+	}
+	if config.TypeUnmarshalFuncs == nil {
+		config.TypeUnmarshalFuncs = make(map[reflect.Type]inDecoder.CustomizeDecodeFunc)
+	}
+	config.TypeUnmarshalFuncs[t] = fn
+	return nil
+}
+
+// MustRegTypeUnmarshal registers customized type unmarshaler. It will panic if exist error.
+func (config *BindConfig) MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) {
+	err := config.RegTypeUnmarshal(t, fn)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (config *BindConfig) initTypeUnmarshal() {
+	config.MustRegTypeUnmarshal(reflect.TypeOf(time.Time{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+		if text == "" {
+			return reflect.ValueOf(time.Time{}), nil
+		}
+		t, err := time.Parse(time.RFC3339, text)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		return reflect.ValueOf(t), nil
+	})
 }
 
 // UseThirdPartyJSONUnmarshaler uses third-party json library for binding
 // NOTE:
 //
 //	UseThirdPartyJSONUnmarshaler will remain in effect once it has been called.
-func UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
+func (config *BindConfig) UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 	hJson.Unmarshal = fn
 }
 
@@ -55,63 +141,26 @@ func UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
 //
 //	The current version uses encoding/json by default.
 //	UseStdJSONUnmarshaler will remain in effect once it has been called.
-func UseStdJSONUnmarshaler() {
-	UseThirdPartyJSONUnmarshaler(stdJson.Unmarshal)
+func (config *BindConfig) UseStdJSONUnmarshaler() {
+	config.UseThirdPartyJSONUnmarshaler(stdJson.Unmarshal)
 }
 
-// EnableDefaultTag is used to enable or disable adding default tags to a field when it has no tag, it is true by default.
-// If is true, the field with no tag will be added default tags, for more automated parameter binding. But there may be additional overhead
-func EnableDefaultTag(b bool) {
-	decoder.EnableDefaultTag = b
-}
-
-// EnableStructFieldResolve to enable or disable the generation of a separate decoder for a struct, it is false by default.
-// If is true, the 'struct' field will get a single decoder.structTypeFieldTextDecoder, and use json.Unmarshal for decode it.
-func EnableStructFieldResolve(b bool) {
-	decoder.EnableStructFieldResolve = b
-}
-
-// RegTypeUnmarshal registers customized type unmarshaler.
-func RegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) error {
-	return decoder.RegTypeUnmarshal(t, fn)
-}
-
-// MustRegTypeUnmarshal registers customized type unmarshaler. It will panic if exist error.
-func MustRegTypeUnmarshal(t reflect.Type, fn func(req *protocol.Request, params param.Params, text string) (reflect.Value, error)) {
-	decoder.MustRegTypeUnmarshal(t, fn)
-}
+type ValidateConfig struct{}
 
 // MustRegValidateFunc registers validator function expression.
 // NOTE:
 //
 //	If force=true, allow to cover the existed same funcName.
 //	MustRegValidateFunc will remain in effect once it has been called.
-func MustRegValidateFunc(funcName string, fn func(args ...interface{}) error, force ...bool) {
+func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args ...interface{}) error, force ...bool) {
 	validator.MustRegFunc(funcName, fn, force...)
 }
 
 // SetValidatorErrorFactory customizes the factory of validation error.
-func SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) error) {
+func (config *ValidateConfig) SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) error) {
 	if val, ok := DefaultValidator().(*defaultValidator); ok {
 		val.validate.SetErrorFactory(validatingErrFactory)
 	} else {
 		panic("customized validator can not use 'SetValidatorErrorFactory'")
 	}
-}
-
-// EnableDecoderUseNumber is used to call the UseNumber method on the JSON
-// Decoder instance. UseNumber causes the Decoder to unmarshal a number into an
-// interface{} as a Number instead of as a float64.
-// NOTE: it is used for BindJSON().
-func EnableDecoderUseNumber(b bool) {
-	enableDecoderUseNumber = b
-}
-
-// EnableDecoderDisallowUnknownFields is used to call the DisallowUnknownFields method
-// on the JSON Decoder instance. DisallowUnknownFields causes the Decoder to
-// return an error when the destination is a struct and the input contains object
-// keys which do not match any non-ignored, exported fields in the destination.
-// NOTE: it is used for BindJSON().
-func EnableDecoderDisallowUnknownFields(b bool) {
-	enableDecoderDisallowUnknownFields = b
 }

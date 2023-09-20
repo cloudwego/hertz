@@ -52,10 +52,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func init() {
-	SetLooseZeroMode(true)
-}
-
 func TestRawBody(t *testing.T) {
 	type Recv struct {
 		S []byte   `raw_body:""`
@@ -94,7 +90,10 @@ func TestQueryString(t *testing.T) {
 	}
 	req := newRequest("http://localhost:8080/?a=a1&a=a2&b=b1&c=c1&c=c2&d=d1&d=d&f=qps&g=1002&g=1003&e=&e=2&y=y1", nil, nil, nil)
 	recv := new(Recv)
-	err := DefaultBinder().Bind(req.Req, recv, nil)
+	bindConfig := &BindConfig{}
+	bindConfig.LooseZeroMode = true
+	binder := NewDefaultBinder(bindConfig)
+	err := binder.Bind(req.Req, recv, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -784,11 +783,10 @@ func TestOption(t *testing.T) {
 		}`)
 	req = newRequest("", header, nil, bodyReader)
 	recv2 := new(Recv2)
-	EnableStructFieldResolve(true)
-	defer func() {
-		EnableStructFieldResolve(false)
-	}()
-	err = DefaultBinder().Bind(req.Req, recv2, nil)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
+	err = binder.Bind(req.Req, recv2, nil)
 	assert.DeepEqual(t, err.Error(), "'X' field is a 'required' parameter, but the request does not have this parameter")
 	assert.True(t, recv2.X == nil)
 	assert.DeepEqual(t, "y1", recv2.Y)
@@ -937,11 +935,10 @@ func TestRegTypeUnmarshal(t *testing.T) {
 	req := newRequest("http://localhost:8080/?"+values.Encode(), nil, nil, nil)
 	recv := new(T)
 
-	EnableStructFieldResolve(true)
-	defer func() {
-		EnableStructFieldResolve(false)
-	}()
-	err = DefaultBinder().Bind(req.Req, recv, nil)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
+	err = binder.Bind(req.Req, recv, nil)
 	if err != nil {
 		t.Error(err)
 	}

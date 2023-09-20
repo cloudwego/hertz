@@ -57,10 +57,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func init() {
-	SetLooseZeroMode(true)
-}
-
 type mockRequest struct {
 	Req *protocol.Request
 }
@@ -407,7 +403,10 @@ func TestBind_ZeroValueBind(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=&b")
 
-	err := DefaultBinder().Bind(req.Req, &s, nil)
+	bindConfig := &BindConfig{}
+	bindConfig.LooseZeroMode = true
+	binder := NewDefaultBinder(bindConfig)
+	err := binder.Bind(req.Req, &s, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +529,8 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 		F ***CustomizedDecode
 	}
 
-	err := RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+	bindConfig := &BindConfig{}
+	err := bindConfig.RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
 		q1 := req.URI().QueryArgs().Peek("a")
 		if len(q1) == 0 {
 			return reflect.Value{}, fmt.Errorf("can be nil")
@@ -543,11 +543,12 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	binder := NewDefaultBinder(bindConfig)
 
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=1&b=2")
 	result := Foo{}
-	err = DefaultBinder().Bind(req.Req, &result, nil)
+	err = binder.Bind(req.Req, &result, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +559,7 @@ func TestBind_CustomizedTypeDecode(t *testing.T) {
 	}
 
 	result2 := Bar{}
-	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	err = binder.Bind(req.Req, &result2, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -572,9 +573,11 @@ func TestBind_CustomizedTypeDecodeForPanic(t *testing.T) {
 		}
 	}()
 
-	MustRegTypeUnmarshal(reflect.TypeOf(string("")), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+	bindConfig := &BindConfig{}
+	bindConfig.MustRegTypeUnmarshal(reflect.TypeOf(string("")), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
 		return reflect.Value{}, nil
 	})
+
 }
 
 func TestBind_JSON(t *testing.T) {
@@ -607,7 +610,9 @@ func TestBind_JSON(t *testing.T) {
 }
 
 func TestBind_ResetJSONUnmarshal(t *testing.T) {
-	UseStdJSONUnmarshaler()
+	bindConfig := &BindConfig{}
+	bindConfig.UseStdJSONUnmarshaler()
+	binder := NewDefaultBinder(bindConfig)
 	type Req struct {
 		J1 string    `json:"j1"`
 		J2 int       `json:"j2"`
@@ -621,7 +626,7 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	err := binder.Bind(req.Req, &result, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -799,12 +804,11 @@ func TestBind_DefaultTag(t *testing.T) {
 	assert.DeepEqual(t, "header", result.Header)
 	assert.DeepEqual(t, "form", result.Form)
 
-	EnableDefaultTag(false)
-	defer func() {
-		EnableDefaultTag(true)
-	}()
+	bindConfig := &BindConfig{}
+	bindConfig.EnableDefaultTag = false
+	binder := NewDefaultBinder(bindConfig)
 	result2 := Req2{}
-	err = DefaultBinder().Bind(req.Req, &result2, params)
+	err = binder.Bind(req.Req, &result2, params)
 	if err != nil {
 		t.Error(err)
 	}
@@ -829,11 +833,10 @@ func TestBind_StructFieldResolve(t *testing.T) {
 		SetPostArg("Form", "form").
 		SetUrlEncodeContentType()
 	var result Req
-	EnableStructFieldResolve(true)
-	defer func() {
-		EnableStructFieldResolve(false)
-	}()
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
+	err := binder.Bind(req.Req, &result, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -950,8 +953,9 @@ func TestBind_BindQuery(t *testing.T) {
 }
 
 func TestBind_LooseMode(t *testing.T) {
-	SetLooseZeroMode(false)
-	defer SetLooseZeroMode(true)
+	bindConfig := &BindConfig{}
+	bindConfig.LooseZeroMode = false
+	binder := NewDefaultBinder(bindConfig)
 	type Req struct {
 		ID int `query:"id"`
 	}
@@ -961,16 +965,17 @@ func TestBind_LooseMode(t *testing.T) {
 
 	var result Req
 
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	err := binder.Bind(req.Req, &result, nil)
 	if err == nil {
 		t.Fatal("expected err")
 	}
 	assert.DeepEqual(t, 0, result.ID)
 
-	SetLooseZeroMode(true)
+	bindConfig.LooseZeroMode = true
+	binder = NewDefaultBinder(bindConfig)
 	var result2 Req
 
-	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	err = binder.Bind(req.Req, &result2, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1190,8 +1195,9 @@ func TestBind_BindProtobuf(t *testing.T) {
 }
 
 func TestBind_PointerStruct(t *testing.T) {
-	EnableStructFieldResolve(true)
-	defer EnableStructFieldResolve(false)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
 	}
@@ -1205,7 +1211,7 @@ func TestBind_PointerStruct(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI(fmt.Sprintf("http://foobar.com?%s", query.Encode()))
 
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	err := binder.Bind(req.Req, &result, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1214,7 +1220,7 @@ func TestBind_PointerStruct(t *testing.T) {
 	result = Bar{}
 	req = newMockRequest().
 		SetRequestURI(fmt.Sprintf("http://foobar.com?%s&F1=222", query.Encode()))
-	err = DefaultBinder().Bind(req.Req, &result, nil)
+	err = binder.Bind(req.Req, &result, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1222,8 +1228,9 @@ func TestBind_PointerStruct(t *testing.T) {
 }
 
 func TestBind_StructRequired(t *testing.T) {
-	EnableStructFieldResolve(true)
-	defer EnableStructFieldResolve(false)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
 	}
@@ -1235,7 +1242,7 @@ func TestBind_StructRequired(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
 
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	err := binder.Bind(req.Req, &result, nil)
 	if err == nil {
 		t.Error("expect an error, but get nil")
 	}
@@ -1247,15 +1254,16 @@ func TestBind_StructRequired(t *testing.T) {
 	req = newMockRequest().
 		SetRequestURI("http://foobar.com")
 
-	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	err = binder.Bind(req.Req, &result2, nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestBind_StructErrorToWarn(t *testing.T) {
-	EnableStructFieldResolve(true)
-	defer EnableStructFieldResolve(false)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableStructFieldResolve = true
+	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
 	}
@@ -1267,7 +1275,7 @@ func TestBind_StructErrorToWarn(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?B1=111&F1=222")
 
-	err := DefaultBinder().Bind(req.Req, &result, nil)
+	err := binder.Bind(req.Req, &result, nil)
 	// transfer 'unmarsahl err' to 'warn'
 	if err != nil {
 		t.Error(err)
@@ -1278,7 +1286,7 @@ func TestBind_StructErrorToWarn(t *testing.T) {
 		B1 Foo `query:"B1,required"`
 	}
 	var result2 Bar2
-	err = DefaultBinder().Bind(req.Req, &result2, nil)
+	err = binder.Bind(req.Req, &result2, nil)
 	// transfer 'unmarsahl err' to 'warn'
 	if err != nil {
 		t.Error(err)
@@ -1287,8 +1295,9 @@ func TestBind_StructErrorToWarn(t *testing.T) {
 }
 
 func TestBind_DisallowUnknownFieldsConfig(t *testing.T) {
-	EnableDecoderDisallowUnknownFields(true)
-	defer EnableDecoderDisallowUnknownFields(false)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableDecoderDisallowUnknownFields = true
+	binder := NewDefaultBinder(bindConfig)
 	type FooStructUseNumber struct {
 		Foo interface{} `json:"foo"`
 	}
@@ -1298,15 +1307,16 @@ func TestBind_DisallowUnknownFieldsConfig(t *testing.T) {
 		SetBody([]byte(`{"foo": 123,"bar": "456"}`))
 	var result FooStructUseNumber
 
-	err := DefaultBinder().BindJSON(req.Req, &result)
+	err := binder.BindJSON(req.Req, &result)
 	if err == nil {
 		t.Errorf("expected an error, but get nil")
 	}
 }
 
 func TestBind_UseNumberConfig(t *testing.T) {
-	EnableDecoderUseNumber(true)
-	defer EnableDecoderUseNumber(false)
+	bindConfig := &BindConfig{}
+	bindConfig.EnableDecoderUseNumber = true
+	binder := NewDefaultBinder(bindConfig)
 	type FooStructUseNumber struct {
 		Foo interface{} `json:"foo"`
 	}
@@ -1316,7 +1326,7 @@ func TestBind_UseNumberConfig(t *testing.T) {
 		SetBody([]byte(`{"foo": 123}`))
 	var result FooStructUseNumber
 
-	err := DefaultBinder().BindJSON(req.Req, &result)
+	err := binder.BindJSON(req.Req, &result)
 	if err != nil {
 		t.Error(err)
 	}

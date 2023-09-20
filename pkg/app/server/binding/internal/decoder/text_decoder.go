@@ -49,20 +49,8 @@ import (
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
 )
 
-var looseZeroMode = false
-
-// SetLooseZeroMode if set to true,
-// the empty string request parameter is bound to the zero value of parameter.
-// NOTE:
-//
-//	The default is false;
-//	Suitable for these parameter types: query/header/cookie/form .
-func SetLooseZeroMode(enable bool) {
-	looseZeroMode = enable
-}
-
 type TextDecoder interface {
-	UnmarshalString(s string, fieldValue reflect.Value) error
+	UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error
 }
 
 func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
@@ -97,7 +85,6 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 		return &floatDecoder{bitSize: 64}, nil
 	case reflect.Interface:
 		return &interfaceDecoder{}, nil
-
 	}
 
 	return nil, fmt.Errorf("unsupported type " + rt.String())
@@ -105,7 +92,7 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 
 type boolDecoder struct{}
 
-func (d *boolDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *boolDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	if s == "" && looseZeroMode {
 		s = "false"
 	}
@@ -121,7 +108,7 @@ type floatDecoder struct {
 	bitSize int
 }
 
-func (d *floatDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *floatDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	if s == "" && looseZeroMode {
 		s = "0.0"
 	}
@@ -137,7 +124,7 @@ type intDecoder struct {
 	bitSize int
 }
 
-func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	if s == "" && looseZeroMode {
 		s = "0"
 	}
@@ -151,7 +138,7 @@ func (d *intDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
 
 type stringDecoder struct{}
 
-func (d *stringDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *stringDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	fieldValue.SetString(s)
 	return nil
 }
@@ -160,7 +147,7 @@ type uintDecoder struct {
 	bitSize int
 }
 
-func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	if s == "" && looseZeroMode {
 		s = "0"
 	}
@@ -174,7 +161,7 @@ func (d *uintDecoder) UnmarshalString(s string, fieldValue reflect.Value) error 
 
 type interfaceDecoder struct{}
 
-func (d *interfaceDecoder) UnmarshalString(s string, fieldValue reflect.Value) error {
+func (d *interfaceDecoder) UnmarshalString(s string, fieldValue reflect.Value, looseZeroMode bool) error {
 	if s == "" && looseZeroMode {
 		s = "0"
 	}

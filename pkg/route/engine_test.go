@@ -54,13 +54,16 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 func TestNew_Engine(t *testing.T) {
@@ -622,4 +625,182 @@ func (f *fakeTransporter) Shutdown(ctx context.Context) error {
 func (f *fakeTransporter) ListenAndServe(onData network.OnData) error {
 	// TODO implement me
 	panic("implement me")
+}
+
+type mockBinder struct{}
+
+func (m *mockBinder) Name() string {
+	return "test binder"
+}
+
+func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+type mockValidator struct{}
+
+func (m *mockValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func (m *mockValidator) Engine() interface{} {
+	return nil
+}
+
+type mockNonValidator struct{}
+
+func (m *mockNonValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func TestInitBinderAndValidator(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("unexpect panic, %v", r)
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	opt.BindConfig = &binding.BindConfig{
+		EnableDefaultTag: true,
+	}
+	binder := &mockBinder{}
+	opt.CustomBinder = binder
+	opt.ValidateConfig = &binding.ValidateConfig{}
+	validator := &mockValidator{}
+	opt.CustomValidator = validator
+	NewEngine(opt)
+}
+
+func TestInitBinderAndValidatorForPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expect a panic, but get nil")
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	opt.BindConfig = &binding.BindConfig{
+		EnableDefaultTag: true,
+	}
+	binder := &mockBinder{}
+	opt.CustomBinder = binder
+	opt.ValidateConfig = &binding.ValidateConfig{}
+	nonValidator := &mockNonValidator{}
+	opt.CustomValidator = nonValidator
+	NewEngine(opt)
+}
+
+func TestBindConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.BindConfig = &binding.BindConfig{LooseZeroMode: false}
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+	})
+	performRequest(e, "GET", "/bind?a=")
+
+	opt.BindConfig = &binding.BindConfig{LooseZeroMode: true}
+	e = NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err != nil {
+			t.Fatal("unexpected error")
+		}
+		assert.DeepEqual(t, 0, req.A)
+	})
+	performRequest(e, "GET", "/bind?a=")
+}
+
+func TestCustomBinder(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomBinder = &mockBinder{}
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err != nil {
+			t.Fatal("unexpected error")
+		}
+		assert.NotEqual(t, 2, req.A)
+	})
+	performRequest(e, "GET", "/bind?a=2")
+}
+
+func TestValidateConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"f($)"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	validateConfig := &binding.ValidateConfig{}
+	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
+		return fmt.Errorf("test error")
+	})
+	opt.ValidateConfig = validateConfig
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test error", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidator(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"f($)"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	validateConfig := &binding.ValidateConfig{}
+	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
+		return fmt.Errorf("test error")
+	})
+	opt.ValidateConfig = validateConfig
+	opt.CustomValidator = &mockValidator{}
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test mock", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
 }

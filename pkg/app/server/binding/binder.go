@@ -55,11 +55,9 @@ type Binder interface {
 	BindForm(*protocol.Request, interface{}) error
 	BindJSON(*protocol.Request, interface{}) error
 	BindProtobuf(*protocol.Request, interface{}) error
-	ValidateTag() string
-	SetValidateTag(string)
 }
 
-var defaultBind Binder = &defaultBinder{validateTag: "vd"}
+var defaultBind = NewDefaultBinder(nil)
 
 func DefaultBinder() Binder {
 	return defaultBind

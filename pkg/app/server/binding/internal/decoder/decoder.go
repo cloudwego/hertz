@@ -49,18 +49,23 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-var (
-	EnableDefaultTag         = true
-	EnableStructFieldResolve = true
-)
-
 type fieldDecoder interface {
 	Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error
 }
 
 type Decoder func(req *protocol.Request, params param.Params, rv reflect.Value) error
 
-func GetReqDecoder(rt reflect.Type, byTag string, validateTag string) (Decoder, bool, error) {
+type DecodeConfig struct {
+	LooseZeroMode                      bool
+	EnableDefaultTag                   bool
+	EnableStructFieldResolve           bool
+	EnableDecoderUseNumber             bool
+	EnableDecoderDisallowUnknownFields bool
+	ValidateTag                        string
+	TypeUnmarshalFuncs                 map[reflect.Type]CustomizeDecodeFunc
+}
+
+func GetReqDecoder(rt reflect.Type, byTag string, config *DecodeConfig) (Decoder, bool, error) {
 	var decoders []fieldDecoder
 	var needValidate bool
 
@@ -75,7 +80,7 @@ func GetReqDecoder(rt reflect.Type, byTag string, validateTag string) (Decoder, 
 			continue
 		}
 
-		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag, validateTag)
+		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag, config)
 		if err != nil {
 			return nil, false, err
 		}
@@ -98,7 +103,7 @@ func GetReqDecoder(rt reflect.Type, byTag string, validateTag string) (Decoder, 
 	}, needValidate, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string, validateTag string) ([]fieldDecoder, bool, error) {
+func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string, config *DecodeConfig) ([]fieldDecoder, bool, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -111,8 +116,8 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// JSONName is like 'a.b.c' for 'required validate'
-	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName, validateTag)
-	if len(fieldTagInfos) == 0 && EnableDefaultTag {
+	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName, config)
+	if len(fieldTagInfos) == 0 && config.EnableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
 	if len(byTag) != 0 {
@@ -120,20 +125,20 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// customized type decoder has the highest priority
-	if customizedFunc, exist := typeUnmarshalFuncs[field.Type]; exist {
-		dec, err := getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc)
+	if customizedFunc, exist := config.TypeUnmarshalFuncs[field.Type]; exist {
+		dec, err := getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc, config)
 		return dec, needValidate, err
 	}
 
 	// slice/array field decoder
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
-		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx)
+		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx, config)
 		return dec, needValidate, err
 	}
 
 	// map filed decoder
 	if field.Type.Kind() == reflect.Map {
-		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx, config)
 		return dec, needValidate, err
 	}
 
@@ -144,11 +149,11 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 		// todo: more built-in common struct binding, ex. time...
 		switch el {
 		case reflect.TypeOf(multipart.FileHeader{}): // file binding
-			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx)
+			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx, config)
 			return dec, needValidate, err
 		}
-		if EnableStructFieldResolve { // decode struct type separately
-			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx)
+		if config.EnableStructFieldResolve { // decode struct type separately
+			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx, config)
 			if err != nil {
 				return nil, needValidate, err
 			}
@@ -167,7 +172,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 				idxes = append(idxes, parentIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag, validateTag)
+			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag, config)
 			needValidate = needValidate || needValidate2
 			if err != nil {
 				return nil, false, err
@@ -181,6 +186,6 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// base type decoder
-	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx)
+	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx, config)
 	return dec, needValidate, err
 }

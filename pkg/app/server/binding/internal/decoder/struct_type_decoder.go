@@ -82,7 +82,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 			ptrDepth++
 		}
 		var vv reflect.Value
-		vv, err := stringToValue(t, text, req, params)
+		vv, err := stringToValue(t, text, req, params, d.config)
 		if err != nil {
 			hlog.Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 			return nil
@@ -99,7 +99,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 	return nil
 }
 
-func getStructTypeFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int) ([]fieldDecoder, error) {
+func getStructTypeFieldDecoder(field reflect.StructField, index int, tagInfos []TagInfo, parentIdx []int, config *DecodeConfig) ([]fieldDecoder, error) {
 	for idx, tagInfo := range tagInfos {
 		switch tagInfo.Key {
 		case pathTag:
@@ -140,6 +140,7 @@ func getStructTypeFieldDecoder(field reflect.StructField, index int, tagInfos []
 			fieldName:   field.Name,
 			tagInfos:    tagInfos,
 			fieldType:   fieldType,
+			config:      config,
 		},
 	}}, nil
 }
