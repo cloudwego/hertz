@@ -1454,6 +1454,8 @@ func TestBindAndValidate(t *testing.T) {
 
 	c := &RequestContext{}
 	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
+	c.SetValidator(binding.DefaultValidator())
+	c.SetBinder(binding.DefaultBinder())
 
 	var req Test
 	err := c.BindAndValidate(&req)
@@ -1494,6 +1496,8 @@ func TestBindForm(t *testing.T) {
 	}
 
 	c := &RequestContext{}
+	c.SetValidator(binding.DefaultValidator())
+	c.SetBinder(binding.DefaultBinder())
 	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
 	c.Request.SetBody([]byte("A=123&B=11"))
 	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
@@ -1555,7 +1559,6 @@ func TestSetBinder(t *testing.T) {
 	mockBind := &mockBinder{}
 	c := NewContext(0)
 	c.SetBinder(mockBind)
-	defer c.SetBinder(binding.DefaultBinder())
 	type T struct{}
 	req := T{}
 	err := c.Bind(&req)
