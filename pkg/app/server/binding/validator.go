@@ -44,9 +44,3 @@ type StructValidator interface {
 	ValidateStruct(interface{}) error
 	Engine() interface{}
 }
-
-var defaultValidate StructValidator = &defaultValidator{}
-
-func DefaultValidator() StructValidator {
-	return defaultValidate
-}

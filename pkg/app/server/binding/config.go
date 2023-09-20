@@ -147,6 +147,10 @@ func (config *BindConfig) UseStdJSONUnmarshaler() {
 
 type ValidateConfig struct{}
 
+func NewValidateConfig() *ValidateConfig {
+	return &ValidateConfig{}
+}
+
 // MustRegValidateFunc registers validator function expression.
 // NOTE:
 //

@@ -92,6 +92,12 @@ type decoderInfo struct {
 	needValidate bool
 }
 
+var defaultBind = NewDefaultBinder(nil)
+
+func DefaultBinder() Binder {
+	return defaultBind
+}
+
 type defaultBinder struct {
 	config             *BindConfig
 	decoderCache       sync.Map
@@ -392,4 +398,10 @@ func (v *defaultValidator) lazyinit() {
 func (v *defaultValidator) Engine() interface{} {
 	v.lazyinit()
 	return v.validate
+}
+
+var defaultValidate = NewDefaultValidator(nil)
+
+func DefaultValidator() StructValidator {
+	return defaultValidate
 }

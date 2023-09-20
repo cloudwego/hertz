@@ -56,9 +56,3 @@ type Binder interface {
 	BindJSON(*protocol.Request, interface{}) error
 	BindProtobuf(*protocol.Request, interface{}) error
 }
-
-var defaultBind = NewDefaultBinder(nil)
-
-func DefaultBinder() Binder {
-	return defaultBind
-}
