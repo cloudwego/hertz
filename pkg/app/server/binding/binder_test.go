@@ -577,7 +577,6 @@ func TestBind_CustomizedTypeDecodeForPanic(t *testing.T) {
 	bindConfig.MustRegTypeUnmarshal(reflect.TypeOf(string("")), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
 		return reflect.Value{}, nil
 	})
-
 }
 
 func TestBind_JSON(t *testing.T) {

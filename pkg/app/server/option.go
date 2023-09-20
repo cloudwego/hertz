@@ -19,11 +19,11 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"

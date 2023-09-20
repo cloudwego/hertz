@@ -1573,6 +1573,7 @@ func TestSetBinder(t *testing.T) {
 	err = c.BindQuery(&req)
 	assert.NotNil(t, err)
 	err = c.BindHeader(&req)
+	assert.NotNil(t, err)
 }
 
 func TestRequestContext_SetCookie(t *testing.T) {
