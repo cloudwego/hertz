@@ -695,7 +695,7 @@ type CloseWithoutResetBuffer interface {
 
 func TestOnprepare(t *testing.T) {
 	h1 := New(
-		WithHostPorts("localhost:9229"),
+		WithHostPorts("localhost:9333"),
 		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
@@ -713,7 +713,7 @@ func TestOnprepare(t *testing.T) {
 
 	go h1.Spin()
 	time.Sleep(time.Second)
-	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9229/ping")
+	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9333/ping")
 	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
 
 	h2 := New(
@@ -721,13 +721,13 @@ func TestOnprepare(t *testing.T) {
 			conn.Close()
 			return context.Background()
 		}),
-		WithHostPorts("localhost:9230"))
+		WithHostPorts("localhost:9331"))
 	h2.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go h2.Spin()
 	time.Sleep(time.Second)
-	_, _, err = c.Get(context.Background(), nil, "http://127.0.0.1:9230/ping")
+	_, _, err = c.Get(context.Background(), nil, "http://127.0.0.1:9331/ping")
 	if err == nil {
 		t.Fatalf("err should not be nil")
 	}
@@ -828,7 +828,7 @@ func TestBindConfig(t *testing.T) {
 		A int `query:"a"`
 	}
 	h := New(
-		WithHostPorts("localhost:9229"),
+		WithHostPorts("localhost:9332"),
 		WithBindConfig(&binding.BindConfig{
 			LooseZeroMode: true,
 		}))
@@ -843,11 +843,11 @@ func TestBindConfig(t *testing.T) {
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9229/bind?a=")
+	_, err := hc.Get("http://127.0.0.1:9332/bind?a=")
 	assert.Nil(t, err)
 
 	h2 := New(
-		WithHostPorts("localhost:9230"),
+		WithHostPorts("localhost:9448"),
 		WithBindConfig(&binding.BindConfig{
 			LooseZeroMode: false,
 		}))
@@ -862,7 +862,7 @@ func TestBindConfig(t *testing.T) {
 	go h2.Spin()
 	time.Sleep(100 * time.Millisecond)
 
-	_, err = hc.Get("http://127.0.0.1:9230/bind?a=")
+	_, err = hc.Get("http://127.0.0.1:9448/bind?a=")
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -910,7 +910,7 @@ func TestCustomBinder(t *testing.T) {
 		A int `query:"a"`
 	}
 	h := New(
-		WithHostPorts("localhost:9229"),
+		WithHostPorts("localhost:9334"),
 		WithCustomBinder(&mockBinder{}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -924,7 +924,7 @@ func TestCustomBinder(t *testing.T) {
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9229/bind?a=")
+	_, err := hc.Get("http://127.0.0.1:9334/bind?a=")
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -972,7 +972,7 @@ func TestCustomValidator(t *testing.T) {
 		A int `query:"a" vd:"f($)"`
 	}
 	h := New(
-		WithHostPorts("localhost:9229"),
+		WithHostPorts("localhost:9555"),
 		WithCustomValidator(&mockValidator{}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -986,7 +986,7 @@ func TestCustomValidator(t *testing.T) {
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9229/bind?a=2")
+	_, err := hc.Get("http://127.0.0.1:9555/bind?a=2")
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
