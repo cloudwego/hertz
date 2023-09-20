@@ -786,11 +786,11 @@ func TestValidateConfig(t *testing.T) {
 
 func TestCustomValidator(t *testing.T) {
 	type Req struct {
-		A int `query:"a" vd:"f($)"`
+		A int `query:"a" vd:"d($)"`
 	}
 	opt := config.NewOptions([]config.Option{})
 	validateConfig := &binding.ValidateConfig{}
-	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
+	validateConfig.MustRegValidateFunc("d", func(args ...interface{}) error {
 		return fmt.Errorf("test error")
 	})
 	opt.ValidateConfig = validateConfig

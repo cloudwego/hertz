@@ -712,6 +712,8 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	ctx.SetBinder(engine.binder)
+	ctx.SetValidator(engine.validator)
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}
@@ -784,8 +786,6 @@ func (engine *Engine) allocateContext() *app.RequestContext {
 	ctx.Response.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
 	ctx.SetClientIPFunc(engine.clientIPFunc)
 	ctx.SetFormValueFunc(engine.formValueFunc)
-	ctx.SetBinder(engine.binder)
-	ctx.SetValidator(engine.validator)
 	return ctx
 }
 
