@@ -684,7 +684,7 @@ func (m *mockNonValidator) ValidateStruct(interface{}) error {
 func TestInitBinderAndValidator(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("unexpect panic, %v", r)
+			t.Errorf("unexpected panic, %v", r)
 		}
 	}()
 	opt := config.NewOptions([]config.Option{})
