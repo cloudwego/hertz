@@ -1454,8 +1454,6 @@ func TestBindAndValidate(t *testing.T) {
 
 	c := &RequestContext{}
 	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
-	c.SetValidator(binding.DefaultValidator())
-	c.SetBinder(binding.DefaultBinder())
 
 	var req Test
 	err := c.BindAndValidate(&req)
@@ -1496,8 +1494,6 @@ func TestBindForm(t *testing.T) {
 	}
 
 	c := &RequestContext{}
-	c.SetValidator(binding.DefaultValidator())
-	c.SetBinder(binding.DefaultBinder())
 	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
 	c.Request.SetBody([]byte("A=123&B=11"))
 	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
@@ -1528,7 +1524,7 @@ func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param
 }
 
 func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
+	return fmt.Errorf("test binder")
 }
 
 func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
@@ -1556,27 +1552,27 @@ func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) erro
 }
 
 func TestSetBinder(t *testing.T) {
-	mockBind := &mockBinder{}
 	c := NewContext(0)
-	c.SetBinder(mockBind)
+	c.SetBinder(&mockBinder{})
 	type T struct{}
 	req := T{}
 	err := c.Bind(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	err = c.BindAndValidate(&req)
 	assert.NotNil(t, err)
+	assert.DeepEqual(t, "test binder", err.Error())
 	err = c.BindProtobuf(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	err = c.BindJSON(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	err = c.BindForm(&req)
 	assert.NotNil(t, err)
 	err = c.BindPath(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	err = c.BindQuery(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	err = c.BindHeader(&req)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func TestRequestContext_SetCookie(t *testing.T) {
