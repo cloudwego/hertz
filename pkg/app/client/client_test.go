@@ -2151,6 +2151,44 @@ func TestClientRetry(t *testing.T) {
 	}
 }
 
+func TestClientHostClientConfigHookError(t *testing.T) {
+	client, _ := NewClient(WithHostClientConfigHook(func(hc interface{}) error {
+		hct, ok := hc.(*http1.HostClient)
+		assert.True(t, ok)
+		assert.DeepEqual(t, "foo.bar:80", hct.Addr)
+		return errors.New("hook return")
+	}))
+
+	req := protocol.AcquireRequest()
+	req.SetMethod(consts.MethodGet)
+	req.SetRequestURI("http://foo.bar/")
+	resp := protocol.AcquireResponse()
+	err := client.do(nil, req, resp)
+	assert.DeepEqual(t, "hook return", err.Error())
+}
+
+func TestClientHostClientConfigHook(t *testing.T) {
+	client, _ := NewClient(WithHostClientConfigHook(func(hc interface{}) error {
+		hct, ok := hc.(*http1.HostClient)
+		assert.True(t, ok)
+		assert.DeepEqual(t, "foo.bar:80", hct.Addr)
+		hct.Addr = "FOO.BAR:443"
+		return nil
+	}))
+
+	req := protocol.AcquireRequest()
+	req.SetMethod(consts.MethodGet)
+	req.SetRequestURI("http://foo.bar/")
+	resp := protocol.AcquireResponse()
+	client.do(context.Background(), req, resp)
+	client.mLock.Lock()
+	hc := client.m["foo.bar"]
+	client.mLock.Unlock()
+	hcr, ok := hc.(*http1.HostClient)
+	assert.True(t, ok)
+	assert.DeepEqual(t, "FOO.BAR:443", hcr.Addr)
+}
+
 func TestClientDialerName(t *testing.T) {
 	client, _ := NewClient()
 	dName, err := client.GetDialerName()

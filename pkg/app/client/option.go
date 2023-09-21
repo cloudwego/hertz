@@ -99,6 +99,13 @@ func WithResponseBodyStream(b bool) config.ClientOption {
 	}}
 }
 
+// WithHostClientConfigHook is used to set the function hook for re-configure the host client.
+func WithHostClientConfigHook(h func(hc interface{}) error) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.HostClientConfigHook = h
+	}}
+}
+
 // WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
 func WithDisableHeaderNamesNormalizing(disable bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
