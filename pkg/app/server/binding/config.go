@@ -37,17 +37,17 @@ type BindConfig struct {
 	//	The default is false.
 	//	Suitable for these parameter types: query/header/cookie/form .
 	LooseZeroMode bool
-	// EnableDefaultTag is used to add default tags to a field when it has no tag
-	// If is true, the field with no tag will be added default tags, for more automated binding. But there may be additional overhead.
+	// DisableDefaultTag is used to add default tags to a field when it has no tag
+	// If is false, the field with no tag will be added default tags, for more automated binding. But there may be additional overhead.
 	// NOTE:
-	// The default is true.
-	EnableDefaultTag bool
-	// EnableStructFieldResolve is used to generate a separate decoder for a struct.
-	// If is true, the 'struct' field will get a single inDecoder.structTypeFieldTextDecoder, and use json.Unmarshal for decode it.
+	// The default is false.
+	DisableDefaultTag bool
+	// DisableStructFieldResolve is used to generate a separate decoder for a struct.
+	// If is false, the 'struct' field will get a single inDecoder.structTypeFieldTextDecoder, and use json.Unmarshal for decode it.
 	// It usually used to add json string to query parameter.
 	// NOTE:
-	// The default is true.
-	EnableStructFieldResolve bool
+	// The default is false.
+	DisableStructFieldResolve bool
 	// EnableDecoderUseNumber is used to call the UseNumber method on the JSON
 	// Decoder instance. UseNumber causes the Decoder to unmarshal a number into an
 	// interface{} as a Number instead of as a float64.
@@ -78,8 +78,8 @@ type BindConfig struct {
 func NewBindConfig() *BindConfig {
 	return &BindConfig{
 		LooseZeroMode:                      false,
-		EnableDefaultTag:                   true,
-		EnableStructFieldResolve:           true,
+		DisableDefaultTag:                  false,
+		DisableStructFieldResolve:          false,
 		EnableDecoderUseNumber:             false,
 		EnableDecoderDisallowUnknownFields: false,
 		ValidateTag:                        "vd",

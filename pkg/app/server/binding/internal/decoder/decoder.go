@@ -57,8 +57,8 @@ type Decoder func(req *protocol.Request, params param.Params, rv reflect.Value) 
 
 type DecodeConfig struct {
 	LooseZeroMode                      bool
-	EnableDefaultTag                   bool
-	EnableStructFieldResolve           bool
+	DisableDefaultTag                  bool
+	DisableStructFieldResolve          bool
 	EnableDecoderUseNumber             bool
 	EnableDecoderDisallowUnknownFields bool
 	ValidateTag                        string
@@ -117,7 +117,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 
 	// JSONName is like 'a.b.c' for 'required validate'
 	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName, config)
-	if len(fieldTagInfos) == 0 && config.EnableDefaultTag {
+	if len(fieldTagInfos) == 0 && !config.DisableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
 	if len(byTag) != 0 {
@@ -152,7 +152,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx, config)
 			return dec, needValidate, err
 		}
-		if config.EnableStructFieldResolve { // decode struct type separately
+		if !config.DisableStructFieldResolve { // decode struct type separately
 			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx, config)
 			if err != nil {
 				return nil, needValidate, err

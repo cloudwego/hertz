@@ -784,7 +784,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv2 := new(Recv2)
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	err = binder.Bind(req.Req, recv2, nil)
 	assert.DeepEqual(t, err.Error(), "'X' field is a 'required' parameter, but the request does not have this parameter")
@@ -936,7 +936,7 @@ func TestRegTypeUnmarshal(t *testing.T) {
 	recv := new(T)
 
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	err = binder.Bind(req.Req, recv, nil)
 	if err != nil {

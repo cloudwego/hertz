@@ -188,8 +188,8 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 
 	decodeConfig := &inDecoder.DecodeConfig{
 		LooseZeroMode:                      b.config.LooseZeroMode,
-		EnableDefaultTag:                   b.config.EnableDefaultTag,
-		EnableStructFieldResolve:           b.config.EnableStructFieldResolve,
+		DisableDefaultTag:                  b.config.DisableDefaultTag,
+		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
 		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
 		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
 		ValidateTag:                        b.config.ValidateTag,
@@ -234,8 +234,8 @@ func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}
 	}
 	decodeConfig := &inDecoder.DecodeConfig{
 		LooseZeroMode:                      b.config.LooseZeroMode,
-		EnableDefaultTag:                   b.config.EnableDefaultTag,
-		EnableStructFieldResolve:           b.config.EnableStructFieldResolve,
+		DisableDefaultTag:                  b.config.DisableDefaultTag,
+		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
 		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
 		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
 		ValidateTag:                        b.config.ValidateTag,

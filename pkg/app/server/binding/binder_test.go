@@ -804,7 +804,7 @@ func TestBind_DefaultTag(t *testing.T) {
 	assert.DeepEqual(t, "form", result.Form)
 
 	bindConfig := &BindConfig{}
-	bindConfig.EnableDefaultTag = false
+	bindConfig.DisableDefaultTag = true
 	binder := NewDefaultBinder(bindConfig)
 	result2 := Req2{}
 	err = binder.Bind(req.Req, &result2, params)
@@ -833,7 +833,7 @@ func TestBind_StructFieldResolve(t *testing.T) {
 		SetUrlEncodeContentType()
 	var result Req
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	err := binder.Bind(req.Req, &result, nil)
 	if err != nil {
@@ -1195,7 +1195,7 @@ func TestBind_BindProtobuf(t *testing.T) {
 
 func TestBind_PointerStruct(t *testing.T) {
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
@@ -1228,7 +1228,7 @@ func TestBind_PointerStruct(t *testing.T) {
 
 func TestBind_StructRequired(t *testing.T) {
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
@@ -1261,7 +1261,7 @@ func TestBind_StructRequired(t *testing.T) {
 
 func TestBind_StructErrorToWarn(t *testing.T) {
 	bindConfig := &BindConfig{}
-	bindConfig.EnableStructFieldResolve = true
+	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	type Foo struct {
 		F1 string `query:"F1"`
