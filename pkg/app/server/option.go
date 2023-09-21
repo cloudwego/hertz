@@ -362,13 +362,6 @@ func WithCustomBinder(b binding.Binder) config.Option {
 	}}
 }
 
-// WithValidateConfig sets bind config.
-func WithValidateConfig(vc *binding.ValidateConfig) config.Option {
-	return config.Option{F: func(o *config.Options) {
-		o.ValidateConfig = vc
-	}}
-}
-
 // WithCustomValidator sets customized Binder.
 func WithCustomValidator(b binding.StructValidator) config.Option {
 	return config.Option{F: func(o *config.Options) {

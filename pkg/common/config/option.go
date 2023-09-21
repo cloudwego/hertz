@@ -74,7 +74,6 @@ type Options struct {
 	ListenConfig                 *net.ListenConfig
 	BindConfig                   interface{}
 	CustomBinder                 interface{}
-	ValidateConfig               interface{}
 	CustomValidator              interface{}
 
 	// TransporterNewer is the function to create a transporter.

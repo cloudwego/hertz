@@ -688,12 +688,11 @@ func TestInitBinderAndValidator(t *testing.T) {
 		}
 	}()
 	opt := config.NewOptions([]config.Option{})
-	opt.BindConfig = &binding.BindConfig{
-		EnableDefaultTag: true,
-	}
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
 	binder := &mockBinder{}
 	opt.CustomBinder = binder
-	opt.ValidateConfig = &binding.ValidateConfig{}
 	validator := &mockValidator{}
 	opt.CustomValidator = validator
 	NewEngine(opt)
@@ -706,12 +705,11 @@ func TestInitBinderAndValidatorForPanic(t *testing.T) {
 		}
 	}()
 	opt := config.NewOptions([]config.Option{})
-	opt.BindConfig = &binding.BindConfig{
-		EnableDefaultTag: true,
-	}
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
 	binder := &mockBinder{}
 	opt.CustomBinder = binder
-	opt.ValidateConfig = &binding.ValidateConfig{}
 	nonValidator := &mockNonValidator{}
 	opt.CustomValidator = nonValidator
 	NewEngine(opt)
@@ -722,7 +720,9 @@ func TestBindConfig(t *testing.T) {
 		A int `query:"a"`
 	}
 	opt := config.NewOptions([]config.Option{})
-	opt.BindConfig = &binding.BindConfig{LooseZeroMode: false}
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = false
+	opt.BindConfig = bindConfig
 	e := NewEngine(opt)
 	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -733,7 +733,9 @@ func TestBindConfig(t *testing.T) {
 	})
 	performRequest(e, "GET", "/bind?a=")
 
-	opt.BindConfig = &binding.BindConfig{LooseZeroMode: true}
+	bindConfig = binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
 	e = NewEngine(opt)
 	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -773,7 +775,6 @@ func TestValidateConfig(t *testing.T) {
 	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
 		return fmt.Errorf("test error")
 	})
-	opt.ValidateConfig = validateConfig
 	e := NewEngine(opt)
 	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -793,7 +794,6 @@ func TestCustomValidator(t *testing.T) {
 	validateConfig.MustRegValidateFunc("d", func(args ...interface{}) error {
 		return fmt.Errorf("test error")
 	})
-	opt.ValidateConfig = validateConfig
 	opt.CustomValidator = &mockValidator{}
 	e := NewEngine(opt)
 	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {

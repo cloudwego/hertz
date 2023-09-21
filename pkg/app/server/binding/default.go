@@ -116,6 +116,9 @@ func NewDefaultBinder(config *BindConfig) Binder {
 		}
 	}
 	config.initTypeUnmarshal()
+	if config.Validator == nil {
+		config.Validator = DefaultValidator()
+	}
 	return &defaultBinder{
 		config: config,
 	}

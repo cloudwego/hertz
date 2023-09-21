@@ -559,13 +559,6 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 	// init validator
 	engine.validator = binding.DefaultValidator()
-	if opt.ValidateConfig != nil {
-		vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
-		if !ok {
-			panic("validate config error")
-		}
-		engine.validator = binding.NewDefaultValidator(vConf)
-	}
 	if opt.CustomValidator != nil {
 		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
 		if !ok {
@@ -574,6 +567,14 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		engine.validator = customValidator
 	}
 
+	if opt.CustomBinder != nil {
+		customBinder, ok := opt.CustomBinder.(binding.Binder)
+		if !ok {
+			panic("customized binder can not implement binding.Binder")
+		}
+		engine.binder = customBinder
+		return
+	}
 	// Init binder. Due to the existence of the "BindAndValidate" interface, the Validator needs to be injected here.
 	defaultBindConfig := binding.NewBindConfig()
 	defaultBindConfig.Validator = engine.validator
@@ -583,17 +584,10 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		if !ok {
 			panic("bind config error")
 		}
-		if bConf.Validator != nil {
+		if bConf.Validator == nil {
 			bConf.Validator = engine.validator
 		}
 		engine.binder = binding.NewDefaultBinder(bConf)
-	}
-	if opt.CustomBinder != nil {
-		customBinder, ok := opt.CustomBinder.(binding.Binder)
-		if !ok {
-			panic("customized binder can not implement binding.Binder")
-		}
-		engine.binder = customBinder
 	}
 }
 

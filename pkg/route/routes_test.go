@@ -68,7 +68,6 @@ func performRequest(e *Engine, method, path string, headers ...header) *httptest
 	ctx.HTMLRender = e.htmlRender
 
 	r := protocol.NewRequest(method, path, nil)
-	r.PostArgs()
 	r.CopyTo(&ctx.Request)
 	for _, v := range headers {
 		ctx.Request.Header.Add(v.Key, v.Value)

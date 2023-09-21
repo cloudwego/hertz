@@ -827,11 +827,11 @@ func TestBindConfig(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
 	}
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
 	h := New(
 		WithHostPorts("localhost:9332"),
-		WithBindConfig(&binding.BindConfig{
-			LooseZeroMode: true,
-		}))
+		WithBindConfig(bindConfig))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -846,11 +846,11 @@ func TestBindConfig(t *testing.T) {
 	_, err := hc.Get("http://127.0.0.1:9332/bind?a=")
 	assert.Nil(t, err)
 
+	bindConfig = binding.NewBindConfig()
+	bindConfig.LooseZeroMode = false
 	h2 := New(
 		WithHostPorts("localhost:9448"),
-		WithBindConfig(&binding.BindConfig{
-			LooseZeroMode: false,
-		}))
+		WithBindConfig(bindConfig))
 	h2.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -938,8 +938,7 @@ func TestValidateConfig(t *testing.T) {
 		return fmt.Errorf("test validator")
 	})
 	h := New(
-		WithHostPorts("localhost:9229"),
-		WithValidateConfig(validateConfig))
+		WithHostPorts("localhost:9229"))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
