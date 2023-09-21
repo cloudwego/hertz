@@ -2163,7 +2163,7 @@ func TestClientHostClientConfigHookError(t *testing.T) {
 	req.SetMethod(consts.MethodGet)
 	req.SetRequestURI("http://foo.bar/")
 	resp := protocol.AcquireResponse()
-	err := client.do(nil, req, resp)
+	err := client.do(context.TODO(), req, resp)
 	assert.DeepEqual(t, "hook return", err.Error())
 }
 

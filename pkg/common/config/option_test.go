@@ -53,6 +53,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, []interface{}{}, options.Tracers)
 	assert.DeepEqual(t, new(interface{}), options.TraceLevel)
 	assert.DeepEqual(t, registry.NoopRegistry, options.Registry)
+	assert.DeepEqual(t, false, options.DisableHeaderNamesNormalizing)
 }
 
 // TestApplyCustomOptions test apply options with custom values after init
