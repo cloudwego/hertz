@@ -59,6 +59,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -192,6 +193,10 @@ type Engine struct {
 	// Custom Functions
 	clientIPFunc  app.ClientIP
 	formValueFunc app.FormValueFunc
+
+	// Custom Binder and Validator
+	binder    binding.Binder
+	validator binding.StructValidator
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -551,6 +556,41 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 	return errs.ErrNotSupportProtocol
 }
 
+func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	// init validator
+	engine.validator = binding.DefaultValidator()
+	if opt.CustomValidator != nil {
+		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
+		if !ok {
+			panic("customized validator can not implement binding.StructValidator")
+		}
+		engine.validator = customValidator
+	}
+
+	if opt.CustomBinder != nil {
+		customBinder, ok := opt.CustomBinder.(binding.Binder)
+		if !ok {
+			panic("customized binder can not implement binding.Binder")
+		}
+		engine.binder = customBinder
+		return
+	}
+	// Init binder. Due to the existence of the "BindAndValidate" interface, the Validator needs to be injected here.
+	defaultBindConfig := binding.NewBindConfig()
+	defaultBindConfig.Validator = engine.validator
+	engine.binder = binding.NewDefaultBinder(defaultBindConfig)
+	if opt.BindConfig != nil {
+		bConf, ok := opt.BindConfig.(*binding.BindConfig)
+		if !ok {
+			panic("bind config error")
+		}
+		if bConf.Validator == nil {
+			bConf.Validator = engine.validator
+		}
+		engine.binder = binding.NewDefaultBinder(bConf)
+	}
+}
+
 func NewEngine(opt *config.Options) *Engine {
 	engine := &Engine{
 		trees: make(MethodTrees, 0, 9),
@@ -566,6 +606,7 @@ func NewEngine(opt *config.Options) *Engine {
 		enableTrace:           true,
 		options:               opt,
 	}
+	engine.initBinderAndValidator(opt)
 	if opt.TransporterNewer != nil {
 		engine.transport = opt.TransporterNewer(opt)
 	}
@@ -665,6 +706,8 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	ctx.SetBinder(engine.binder)
+	ctx.SetValidator(engine.validator)
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}

@@ -33,6 +33,7 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -873,6 +874,35 @@ func TestSetClientIPFunc(t *testing.T) {
 	assert.DeepEqual(t, reflect.ValueOf(fn).Pointer(), reflect.ValueOf(defaultClientIP).Pointer())
 }
 
+type mockValidator struct{}
+
+func (m *mockValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func (m *mockValidator) Engine() interface{} {
+	return nil
+}
+
+func TestSetValidator(t *testing.T) {
+	m := &mockValidator{}
+	c := NewContext(0)
+	c.SetValidator(m)
+	c.SetBinder(binding.NewDefaultBinder(&binding.BindConfig{ValidateTag: "vt"}))
+	type User struct {
+		Age int `vt:"$>=0&&$<=130"`
+	}
+
+	user := &User{
+		Age: 135,
+	}
+	err := c.Validate(user)
+	if err == nil {
+		t.Fatalf("expected an error, but got nil")
+	}
+	assert.DeepEqual(t, "test mock", err.Error())
+}
+
 func TestGetQuery(t *testing.T) {
 	c := NewContext(0)
 	c.Request.SetRequestURI("http://aaa.com?a=1&b=")
@@ -1455,6 +1485,94 @@ func TestBindAndValidate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+}
+
+func TestBindForm(t *testing.T) {
+	type Test struct {
+		A string
+		B int
+	}
+
+	c := &RequestContext{}
+	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
+	c.Request.SetBody([]byte("A=123&B=11"))
+	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+
+	var req Test
+	err := c.BindForm(&req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.DeepEqual(t, "123", req.A)
+	assert.DeepEqual(t, 11, req.B)
+
+	c.Request.SetBody([]byte(""))
+	err = c.BindForm(&req)
+	if err == nil {
+		t.Fatalf("expected error, but get nil")
+	}
+}
+
+type mockBinder struct{}
+
+func (m *mockBinder) Name() string {
+	return "test binder"
+}
+
+func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
+	return fmt.Errorf("test binder")
+}
+
+func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func TestSetBinder(t *testing.T) {
+	c := NewContext(0)
+	c.SetBinder(&mockBinder{})
+	type T struct{}
+	req := T{}
+	err := c.Bind(&req)
+	assert.Nil(t, err)
+	err = c.BindAndValidate(&req)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, "test binder", err.Error())
+	err = c.BindProtobuf(&req)
+	assert.Nil(t, err)
+	err = c.BindJSON(&req)
+	assert.Nil(t, err)
+	err = c.BindForm(&req)
+	assert.NotNil(t, err)
+	err = c.BindPath(&req)
+	assert.Nil(t, err)
+	err = c.BindQuery(&req)
+	assert.Nil(t, err)
+	err = c.BindHeader(&req)
+	assert.Nil(t, err)
 }
 
 func TestRequestContext_SetCookie(t *testing.T) {

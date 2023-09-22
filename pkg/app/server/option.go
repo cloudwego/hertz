@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
@@ -344,6 +345,27 @@ func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
 func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.OnConnect = fn
+	}}
+}
+
+// WithBindConfig sets bind config.
+func WithBindConfig(bc *binding.BindConfig) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.BindConfig = bc
+	}}
+}
+
+// WithCustomBinder sets customized Binder.
+func WithCustomBinder(b binding.Binder) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomBinder = b
+	}}
+}
+
+// WithCustomValidator sets customized Binder.
+func WithCustomValidator(b binding.StructValidator) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomValidator = b
 	}}
 }
 
