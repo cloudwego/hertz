@@ -379,7 +379,9 @@ type defaultValidator struct {
 }
 
 func NewDefaultValidator(config *ValidateConfig) StructValidator {
-	return &defaultValidator{}
+	vd := &defaultValidator{}
+	vd.lazyinit()
+	return vd
 }
 
 // ValidateStruct receives any kind of type, but only performed struct or pointer to struct type.

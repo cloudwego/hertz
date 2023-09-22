@@ -162,9 +162,5 @@ func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args 
 
 // SetValidatorErrorFactory customizes the factory of validation error.
 func (config *ValidateConfig) SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) error) {
-	if val, ok := DefaultValidator().(*defaultValidator); ok {
-		val.validate.SetErrorFactory(validatingErrFactory)
-	} else {
-		panic("customized validator can not use 'SetValidatorErrorFactory'")
-	}
+	validator.SetErrorFactory(validatingErrFactory)
 }

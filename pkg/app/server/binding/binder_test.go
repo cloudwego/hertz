@@ -1436,6 +1436,60 @@ func Test_BindHeaderNormalize(t *testing.T) {
 	assert.DeepEqual(t, "", result3.Header)
 }
 
+type ValidateError struct {
+	ErrType, FailField, Msg string
+}
+
+// Error implements error interface.
+func (e *ValidateError) Error() string {
+	if e.Msg != "" {
+		return e.ErrType + ": expr_path=" + e.FailField + ", cause=" + e.Msg
+	}
+	return e.ErrType + ": expr_path=" + e.FailField + ", cause=invalid"
+}
+
+func Test_ValidatorErrorFactory(t *testing.T) {
+	type TestBind struct {
+		A string `query:"a,required"`
+	}
+
+	r := protocol.NewRequest("GET", "/foo", nil)
+	r.SetRequestURI("/foo/bar?b=20")
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+
+	var req TestBind
+	err := Bind(r, &req, nil)
+	if err == nil {
+		t.Fatalf("unexpected nil, expected an error")
+	}
+
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+
+	var reqValidate TestValidate
+	err = Bind(r, &reqValidate, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = Validate(&reqValidate)
+	if err == nil {
+		t.Fatalf("unexpected nil, expected an error")
+	}
+	assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
