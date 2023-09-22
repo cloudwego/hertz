@@ -675,6 +675,10 @@ func (m *mockValidator) Engine() interface{} {
 	return nil
 }
 
+func (m *mockValidator) ValidateTag() string {
+	return "vd"
+}
+
 type mockNonValidator struct{}
 
 func (m *mockNonValidator) ValidateStruct(interface{}) error {

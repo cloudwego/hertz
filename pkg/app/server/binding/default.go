@@ -69,7 +69,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/bytedance/go-tagexpr/v2/validator"
+	exprValidator "github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
@@ -81,10 +81,11 @@ import (
 )
 
 const (
-	queryTag  = "query"
-	headerTag = "header"
-	formTag   = "form"
-	pathTag   = "path"
+	queryTag           = "query"
+	headerTag          = "header"
+	formTag            = "form"
+	pathTag            = "path"
+	defaultValidateTag = "vd"
 )
 
 type decoderInfo struct {
@@ -185,14 +186,17 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 		decoder := cached.(decoderInfo)
 		return decoder.decoder(req, params, rv.Elem())
 	}
-
+	validateTag := defaultValidateTag
+	if len(b.config.Validator.ValidateTag()) != 0 {
+		validateTag = b.config.Validator.ValidateTag()
+	}
 	decodeConfig := &inDecoder.DecodeConfig{
 		LooseZeroMode:                      b.config.LooseZeroMode,
 		DisableDefaultTag:                  b.config.DisableDefaultTag,
 		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
 		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
 		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        b.config.ValidateTag,
+		ValidateTag:                        validateTag,
 		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
 	}
 	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
@@ -232,13 +236,17 @@ func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}
 		}
 		return err
 	}
+	validateTag := defaultValidateTag
+	if len(b.config.Validator.ValidateTag()) != 0 {
+		validateTag = b.config.Validator.ValidateTag()
+	}
 	decodeConfig := &inDecoder.DecodeConfig{
 		LooseZeroMode:                      b.config.LooseZeroMode,
 		DisableDefaultTag:                  b.config.DisableDefaultTag,
 		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
 		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
 		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        b.config.ValidateTag,
+		ValidateTag:                        validateTag,
 		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
 	}
 	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
@@ -371,23 +379,25 @@ func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err
 	return
 }
 
-var _ StructValidator = (*defaultValidator)(nil)
+var _ StructValidator = (*validator)(nil)
 
-type defaultValidator struct {
-	validate *validator.Validator
+type validator struct {
+	validateTag string
+	validate    *exprValidator.Validator
 }
 
-func NewDefaultValidator(config *ValidateConfig) StructValidator {
-	validateTag := "vd"
+func NewValidator(config *ValidateConfig) StructValidator {
+	validateTag := defaultValidateTag
 	if config != nil && len(config.ValidateTag) != 0 {
 		validateTag = config.ValidateTag
 	}
-	vd := validator.New(validateTag).SetErrorFactory(defaultValidateErrorFactory)
+	vd := exprValidator.New(validateTag).SetErrorFactory(defaultValidateErrorFactory)
 	if config != nil && config.ErrFactory != nil {
 		vd.SetErrorFactory(config.ErrFactory)
 	}
-	return &defaultValidator{
-		validate: vd,
+	return &validator{
+		validateTag: validateTag,
+		validate:    vd,
 	}
 }
 
@@ -412,7 +422,7 @@ func defaultValidateErrorFactory(failPath, msg string) error {
 }
 
 // ValidateStruct receives any kind of type, but only performed struct or pointer to struct type.
-func (v *defaultValidator) ValidateStruct(obj interface{}) error {
+func (v *validator) ValidateStruct(obj interface{}) error {
 	if obj == nil {
 		return nil
 	}
@@ -420,11 +430,15 @@ func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 }
 
 // Engine returns the underlying validator
-func (v *defaultValidator) Engine() interface{} {
+func (v *validator) Engine() interface{} {
 	return v.validate
 }
 
-var defaultValidate = NewDefaultValidator(NewValidateConfig())
+func (v *validator) ValidateTag() string {
+	return v.validateTag
+}
+
+var defaultValidate = NewValidator(NewValidateConfig())
 
 func DefaultValidator() StructValidator {
 	return defaultValidate

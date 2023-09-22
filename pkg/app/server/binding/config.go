@@ -22,7 +22,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/bytedance/go-tagexpr/v2/validator"
+	exprValidator "github.com/bytedance/go-tagexpr/v2/validator"
 	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -63,10 +63,6 @@ type BindConfig struct {
 	// The default is false.
 	// It is used for BindJSON().
 	EnableDecoderDisallowUnknownFields bool
-	// ValidateTag is used to determine if a filed needs to be validated.
-	// NOTE:
-	// The default is "vd".
-	ValidateTag string
 	// TypeUnmarshalFuncs registers customized type unmarshaler.
 	// NOTE:
 	// time.Time is registered by default
@@ -82,7 +78,6 @@ func NewBindConfig() *BindConfig {
 		DisableStructFieldResolve:          false,
 		EnableDecoderUseNumber:             false,
 		EnableDecoderDisallowUnknownFields: false,
-		ValidateTag:                        "vd",
 		TypeUnmarshalFuncs:                 make(map[reflect.Type]inDecoder.CustomizeDecodeFunc),
 		Validator:                          defaultValidate,
 	}
@@ -162,7 +157,7 @@ func NewValidateConfig() *ValidateConfig {
 //	If force=true, allow to cover the existed same funcName.
 //	MustRegValidateFunc will remain in effect once it has been called.
 func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args ...interface{}) error, force ...bool) {
-	validator.MustRegFunc(funcName, fn, force...)
+	exprValidator.MustRegFunc(funcName, fn, force...)
 }
 
 // SetValidatorErrorFactory customizes the factory of validation error.

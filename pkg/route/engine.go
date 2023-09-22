@@ -565,13 +565,13 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		}
 		engine.validator = customValidator
 	} else {
-		engine.validator = binding.NewDefaultValidator(binding.NewValidateConfig())
+		engine.validator = binding.NewValidator(binding.NewValidateConfig())
 		if opt.ValidateConfig != nil {
 			vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
 			if !ok {
 				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
 			}
-			engine.validator = binding.NewDefaultValidator(vConf)
+			engine.validator = binding.NewValidator(vConf)
 		}
 	}
 

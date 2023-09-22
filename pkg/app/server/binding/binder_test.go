@@ -1467,7 +1467,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 
 	validateConfig := NewValidateConfig()
 	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
-	validator := NewDefaultValidator(validateConfig)
+	validator := NewValidator(validateConfig)
 
 	var req TestBind
 	err := Bind(r, &req, nil)
