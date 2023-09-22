@@ -1467,6 +1467,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 
 	validateConfig := NewValidateConfig()
 	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	validator := NewDefaultValidator(validateConfig)
 
 	var req TestBind
 	err := Bind(r, &req, nil)
@@ -1483,7 +1484,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	err = Validate(&reqValidate)
+	err = validator.ValidateStruct(&reqValidate)
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}

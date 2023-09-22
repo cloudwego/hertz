@@ -696,6 +696,10 @@ func TestInitBinderAndValidator(t *testing.T) {
 	validator := &mockValidator{}
 	opt.CustomValidator = validator
 	NewEngine(opt)
+	validateConfig := binding.NewValidateConfig()
+	opt.ValidateConfig = validateConfig
+	opt.CustomValidator = nil
+	NewEngine(opt)
 }
 
 func TestInitBinderAndValidatorForPanic(t *testing.T) {
@@ -748,6 +752,48 @@ func TestBindConfig(t *testing.T) {
 	performRequest(e, "GET", "/bind?a=")
 }
 
+type ValidateError struct {
+	ErrType, FailField, Msg string
+}
+
+// Error implements error interface.
+func (e *ValidateError) Error() string {
+	if e.Msg != "" {
+		return e.ErrType + ": expr_path=" + e.FailField + ", cause=" + e.Msg
+	}
+	return e.ErrType + ": expr_path=" + e.FailField + ", cause=invalid"
+}
+
+func TestValidateConfigSetErrorFactory(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	opt.ValidateConfig = validateConfig
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+	performRequest(e, "GET", "/bind?b=1")
+}
+
 func TestCustomBinder(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
@@ -766,7 +812,7 @@ func TestCustomBinder(t *testing.T) {
 	performRequest(e, "GET", "/bind?a=2")
 }
 
-func TestValidateConfig(t *testing.T) {
+func TestValidateRegValidateFunc(t *testing.T) {
 	type Req struct {
 		A int `query:"a" vd:"f($)"`
 	}

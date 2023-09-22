@@ -145,7 +145,11 @@ func (config *BindConfig) UseStdJSONUnmarshaler() {
 	config.UseThirdPartyJSONUnmarshaler(stdJson.Unmarshal)
 }
 
-type ValidateConfig struct{}
+type ValidateErrFactory func(fieldSelector, msg string) error
+
+type ValidateConfig struct {
+	ErrFactory ValidateErrFactory
+}
 
 func NewValidateConfig() *ValidateConfig {
 	return &ValidateConfig{}
@@ -161,6 +165,6 @@ func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args 
 }
 
 // SetValidatorErrorFactory customizes the factory of validation error.
-func (config *ValidateConfig) SetValidatorErrorFactory(validatingErrFactory func(failField, msg string) error) {
-	validator.SetErrorFactory(validatingErrFactory)
+func (config *ValidateConfig) SetValidatorErrorFactory(errFactory ValidateErrFactory) {
+	config.ErrFactory = errFactory
 }

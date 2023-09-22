@@ -73,6 +73,7 @@ type Options struct {
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
 	BindConfig                   interface{}
+	ValidateConfig               interface{}
 	CustomBinder                 interface{}
 	CustomValidator              interface{}
 

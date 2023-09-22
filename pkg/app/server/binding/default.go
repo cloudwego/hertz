@@ -374,14 +374,37 @@ func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err
 var _ StructValidator = (*defaultValidator)(nil)
 
 type defaultValidator struct {
-	once     sync.Once
 	validate *validator.Validator
 }
 
 func NewDefaultValidator(config *ValidateConfig) StructValidator {
-	vd := &defaultValidator{}
-	vd.lazyinit()
-	return vd
+	vd := validator.New("vd").SetErrorFactory(defaultErrorFactory)
+	if config != nil && config.ErrFactory != nil {
+		vd.SetErrorFactory(config.ErrFactory)
+	}
+	return &defaultValidator{
+		validate: vd,
+	}
+}
+
+// Error validate error
+type defaultError struct {
+	FailPath, Msg string
+}
+
+// Error implements error interface.
+func (e *defaultError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
+	}
+	return "invalid parameter: " + e.FailPath
+}
+
+func defaultErrorFactory(failPath, msg string) error {
+	return &defaultError{
+		FailPath: failPath,
+		Msg:      msg,
+	}
 }
 
 // ValidateStruct receives any kind of type, but only performed struct or pointer to struct type.
@@ -389,23 +412,15 @@ func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 	if obj == nil {
 		return nil
 	}
-	v.lazyinit()
 	return v.validate.Validate(obj)
-}
-
-func (v *defaultValidator) lazyinit() {
-	v.once.Do(func() {
-		v.validate = validator.Default()
-	})
 }
 
 // Engine returns the underlying validator
 func (v *defaultValidator) Engine() interface{} {
-	v.lazyinit()
 	return v.validate
 }
 
-var defaultValidate = NewDefaultValidator(nil)
+var defaultValidate = NewDefaultValidator(NewValidateConfig())
 
 func DefaultValidator() StructValidator {
 	return defaultValidate
