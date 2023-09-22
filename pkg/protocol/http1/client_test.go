@@ -536,3 +536,43 @@ func TestConnNotRetry(t *testing.T) {
 	assert.True(t, logbuf.String() == "")
 	protocol.ReleaseResponse(resp)
 }
+
+type countCloseConn struct {
+	network.Conn
+	isClose bool
+}
+
+func (c *countCloseConn) Close() error {
+	c.isClose = true
+	return nil
+}
+
+func newCountCloseConn(s string) *countCloseConn {
+	return &countCloseConn{
+		Conn: mock.NewConn(s),
+	}
+}
+
+func TestStreamNoContent(t *testing.T) {
+	conn := newCountCloseConn("HTTP/1.1 204 Foo Bar\r\nContent-Type: aab\r\nTrailer: Foo\r\nContent-Encoding: deflate\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nFoo: bar\r\n\r\nHTTP/1.2")
+
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: newSlowConnDialer(func(network, addr string) (network.Conn, error) {
+				return conn, nil
+			}),
+		},
+		Addr: "foobar",
+	}
+
+	c.ResponseBodyStream = true
+
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://foobar/baz")
+	req.Header.SetConnectionClose(true)
+	resp := protocol.AcquireResponse()
+
+	c.Do(context.Background(), req, resp)
+
+	assert.True(t, conn.isClose)
+}

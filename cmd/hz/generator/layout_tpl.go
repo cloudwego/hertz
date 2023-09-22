@@ -201,24 +201,20 @@ func GeneratedRegister(r *server.Hertz){
 		},
 		{
 			Path: "build.sh",
-			Body: `
-#!/bin/bash
+			Body: `#!/bin/bash
 RUN_NAME={{.ServiceName}}
 mkdir -p output/bin
 cp script/* output 2>/dev/null
 chmod +x output/bootstrap.sh
-go build -o output/bin/${RUN_NAME}
-`,
+go build -o output/bin/${RUN_NAME}`,
 		},
 		{
 			Path: defaultScriptDir + sp + "bootstrap.sh",
-			Body: `
-#!/bin/bash
+			Body: `#!/bin/bash
 CURDIR=$(cd $(dirname $0); pwd)
 BinaryName={{.ServiceName}}
 echo "$CURDIR/bin/${BinaryName}"
-exec $CURDIR/bin/${BinaryName}
-`,
+exec $CURDIR/bin/${BinaryName}`,
 		},
 	},
 }

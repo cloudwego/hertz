@@ -128,6 +128,10 @@ type ClientOptions struct {
 
 	// StateObserve execution interval
 	ObservationInterval time.Duration
+
+	// Callback hook for re-configuring host client
+	// If an error is returned, the request will be terminated.
+	HostClientConfigHook func(hc interface{}) error
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {

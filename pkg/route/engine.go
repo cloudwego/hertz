@@ -341,8 +341,8 @@ func (engine *Engine) Run() (err error) {
 		return err
 	}
 
-	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
-		return errAlreadyRunning
+	if err = engine.MarkAsRunning(); err != nil {
+		return err
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
 
@@ -990,20 +990,21 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 	opt := &http1.Option{
-		StreamRequestBody:            engine.options.StreamRequestBody,
-		GetOnly:                      engine.options.GetOnly,
-		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
-		DisableKeepalive:             engine.options.DisableKeepalive,
-		NoDefaultServerHeader:        engine.options.NoDefaultServerHeader,
-		MaxRequestBodySize:           engine.options.MaxRequestBodySize,
-		IdleTimeout:                  engine.options.IdleTimeout,
-		ReadTimeout:                  engine.options.ReadTimeout,
-		ServerName:                   engine.GetServerName(),
-		ContinueHandler:              engine.ContinueHandler,
-		TLS:                          engine.options.TLS,
-		HTMLRender:                   engine.htmlRender,
-		EnableTrace:                  engine.IsTraceEnable(),
-		HijackConnHandle:             engine.HijackConnHandle,
+		StreamRequestBody:             engine.options.StreamRequestBody,
+		GetOnly:                       engine.options.GetOnly,
+		DisablePreParseMultipartForm:  engine.options.DisablePreParseMultipartForm,
+		DisableKeepalive:              engine.options.DisableKeepalive,
+		NoDefaultServerHeader:         engine.options.NoDefaultServerHeader,
+		MaxRequestBodySize:            engine.options.MaxRequestBodySize,
+		IdleTimeout:                   engine.options.IdleTimeout,
+		ReadTimeout:                   engine.options.ReadTimeout,
+		ServerName:                    engine.GetServerName(),
+		ContinueHandler:               engine.ContinueHandler,
+		TLS:                           engine.options.TLS,
+		HTMLRender:                    engine.htmlRender,
+		EnableTrace:                   engine.IsTraceEnable(),
+		HijackConnHandle:              engine.HijackConnHandle,
+		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
 	}
 	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
 	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
@@ -1021,4 +1022,13 @@ func versionToALNP(v uint32) string {
 		return suite.HTTP3Draft29
 	}
 	return ""
+}
+
+// MarkAsRunning will mark the status of the hertz engine as "running".
+// Warning: do not call this method by yourself, unless you know what you are doing.
+func (engine *Engine) MarkAsRunning() (err error) {
+	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
+		return errAlreadyRunning
+	}
+	return nil
 }

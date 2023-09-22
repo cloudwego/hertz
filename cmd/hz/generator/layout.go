@@ -124,8 +124,19 @@ func (lg *LayoutGenerator) GenerateByService(service Layout) error {
 
 	if !service.NeedGoMod {
 		gomodFile := "go.mod"
-		if _, exist := lg.tpls["go.mod"]; exist {
+		if _, exist := lg.tpls[gomodFile]; exist {
 			delete(lg.tpls, gomodFile)
+		}
+	}
+
+	if util.IsWindows() {
+		buildSh := "build.sh"
+		bootstrapSh := defaultScriptDir + sp + "bootstrap.sh"
+		if _, exist := lg.tpls[buildSh]; exist {
+			delete(lg.tpls, buildSh)
+		}
+		if _, exist := lg.tpls[bootstrapSh]; exist {
+			delete(lg.tpls, bootstrapSh)
 		}
 	}
 

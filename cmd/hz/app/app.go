@@ -321,8 +321,6 @@ func Init() *cli.App {
 				&snakeNameFlag,
 				&rmTagFlag,
 				&excludeFilesFlag,
-				&customLayout,
-				&customLayoutData,
 				&customPackage,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,

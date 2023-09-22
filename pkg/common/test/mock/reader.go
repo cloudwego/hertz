@@ -65,6 +65,13 @@ func NewZeroCopyReader(r string) ZeroCopyReader {
 	return ZeroCopyReader{br}
 }
 
+func NewLimitReader(r *bytes.Buffer) io.LimitedReader {
+	return io.LimitedReader{
+		R: r,
+		N: int64(r.Len()),
+	}
+}
+
 type EOFReader struct{}
 
 func (e *EOFReader) Peek(n int) ([]byte, error) {

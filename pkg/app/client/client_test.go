@@ -2151,6 +2151,44 @@ func TestClientRetry(t *testing.T) {
 	}
 }
 
+func TestClientHostClientConfigHookError(t *testing.T) {
+	client, _ := NewClient(WithHostClientConfigHook(func(hc interface{}) error {
+		hct, ok := hc.(*http1.HostClient)
+		assert.True(t, ok)
+		assert.DeepEqual(t, "foo.bar:80", hct.Addr)
+		return errors.New("hook return")
+	}))
+
+	req := protocol.AcquireRequest()
+	req.SetMethod(consts.MethodGet)
+	req.SetRequestURI("http://foo.bar/")
+	resp := protocol.AcquireResponse()
+	err := client.do(context.TODO(), req, resp)
+	assert.DeepEqual(t, "hook return", err.Error())
+}
+
+func TestClientHostClientConfigHook(t *testing.T) {
+	client, _ := NewClient(WithHostClientConfigHook(func(hc interface{}) error {
+		hct, ok := hc.(*http1.HostClient)
+		assert.True(t, ok)
+		assert.DeepEqual(t, "foo.bar:80", hct.Addr)
+		hct.Addr = "FOO.BAR:443"
+		return nil
+	}))
+
+	req := protocol.AcquireRequest()
+	req.SetMethod(consts.MethodGet)
+	req.SetRequestURI("http://foo.bar/")
+	resp := protocol.AcquireResponse()
+	client.do(context.Background(), req, resp)
+	client.mLock.Lock()
+	hc := client.m["foo.bar"]
+	client.mLock.Unlock()
+	hcr, ok := hc.(*http1.HostClient)
+	assert.True(t, ok)
+	assert.DeepEqual(t, "FOO.BAR:443", hcr.Addr)
+}
+
 func TestClientDialerName(t *testing.T) {
 	client, _ := NewClient()
 	dName, err := client.GetDialerName()
@@ -2269,7 +2307,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:11000"
+	opt.Addr = ":10037"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 
@@ -2282,12 +2320,12 @@ func TestClientState(t *testing.T) {
 			case int32(0):
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, "127.0.0.1:11000", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
 				return
 			case int32(2):
@@ -2295,7 +2333,7 @@ func TestClientState(t *testing.T) {
 			}
 		}, time.Second*9))
 
-	client.Get(context.Background(), nil, "http://127.0.0.1:11000")
+	client.Get(context.Background(), nil, "http://127.0.0.1:10037")
 	time.Sleep(time.Second * 22)
 }
 

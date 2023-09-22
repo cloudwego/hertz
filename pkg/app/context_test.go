@@ -17,10 +17,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
+	"net"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -80,6 +85,17 @@ func TestContext(t *testing.T) {
 	if ctx.Value("testContextKey") != "testValue" {
 		t.Fatalf("unexpected value: %#v, expected: %#v", ctx.Value("testContextKey"), "testValue")
 	}
+}
+
+func TestValue(t *testing.T) {
+	ctx := NewContext(0)
+
+	v := ctx.Value("testContextKey")
+	assert.Nil(t, v)
+
+	ctx.Set("testContextKey", "testValue")
+	v = ctx.Value("testContextKey")
+	assert.DeepEqual(t, "testValue", v)
 }
 
 func TestContextNotModified(t *testing.T) {
@@ -273,6 +289,10 @@ func TestQuery(t *testing.T) {
 		t.Fatalf("unexpected query: %#v, expected menu", ctx.Query("name"))
 	}
 
+	if ctx.DefaultQuery("name", "default value") != "menu" {
+		t.Fatalf("unexpected query: %#v, expected menu", ctx.Query("name"))
+	}
+
 	if ctx.DefaultQuery("defaultQuery", "default value") != "default value" {
 		t.Fatalf("unexpected query: %#v, expected `default value`", ctx.Query("defaultQuery"))
 	}
@@ -436,6 +456,15 @@ tailfoobar`
 		}
 	}
 
+	err = ctx.SaveUploadedFile(f.File["fileaaa"][0], "TODO")
+	assert.Nil(t, err)
+	fileInfo, err := os.Stat("TODO")
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "TODO", fileInfo.Name())
+	assert.DeepEqual(t, f.File["fileaaa"][0].Size, fileInfo.Size())
+	err = os.Remove("TODO")
+	assert.Nil(t, err)
+
 	ff, err := ctx.FormFile("fileaaa")
 	if err != nil || ff == nil {
 		t.Fatalf("unexpected error happened when ctx.FormFile()")
@@ -525,6 +554,13 @@ func TestRequestContext_Header(t *testing.T) {
 	if val != "" {
 		t.Fatalf("unexpected %q. Expecting %q", val, "")
 	}
+
+	c.Header("header_key1", "header_val1")
+	c.Header("header_key1", "")
+	val = string(c.Response.Header.Peek("header_key1"))
+	if val != "" {
+		t.Fatalf("unexpected %q. Expecting %q", val, "")
+	}
 }
 
 func TestRequestContext_Keys(t *testing.T) {
@@ -554,6 +590,10 @@ func TestRequestContext_Handler(t *testing.T) {
 	if val != "123" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "123")
 	}
+
+	c.handlers = nil
+	handler := c.Handler()
+	assert.Nil(t, handler)
 }
 
 func TestRequestContext_Handlers(t *testing.T) {
@@ -574,6 +614,24 @@ func TestRequestContext_HandlerName(t *testing.T) {
 	if val != "github.com/cloudwego/hertz/pkg/app.testFunc2" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "github.com/cloudwego/hertz.testFunc2")
 	}
+}
+
+func TestNext(t *testing.T) {
+	c := NewContext(0)
+	a := 0
+
+	testFunc1 := func(c context.Context, ctx *RequestContext) {
+		a = 1
+	}
+	testFunc3 := func(c context.Context, ctx *RequestContext) {
+		a = 3
+	}
+	c.handlers = HandlersChain{testFunc1, testFunc3}
+
+	c.Next(context.Background())
+
+	assert.True(t, c.index == 2)
+	assert.DeepEqual(t, 3, a)
 }
 
 func TestContextError(t *testing.T) {
@@ -631,6 +689,77 @@ func TestRender(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, c.Response.StatusCode())
 	assert.True(t, strings.Contains(string(c.Response.Body()), "test"))
+
+	c.Reset()
+	c.Render(110, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+
+	c.Reset()
+	c.Render(consts.StatusNoContent, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+
+	c.Reset()
+	c.Render(consts.StatusNotModified, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+}
+
+func TestHTML(t *testing.T) {
+	c := NewContext(0)
+
+	tmpl := template.Must(template.New("").
+		Delims("{[{", "}]}").
+		Funcs(template.FuncMap{}).
+		ParseFiles("../common/testdata/template/index.tmpl"))
+
+	r := &render.HTMLProduction{Template: tmpl}
+	c.HTMLRender = r
+	c.HTML(consts.StatusOK, "index.tmpl", utils.H{"title": "Main website"})
+
+	assert.DeepEqual(t, []byte("text/html; charset=utf-8"), c.Response.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte("<html><h1>Main website</h1></html>"), c.Response.Body())
+}
+
+type xmlmap map[string]interface{}
+
+// Allows type H to be used with xml.Marshal
+func (h xmlmap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name = xml.Name{
+		Space: "",
+		Local: "map",
+	}
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+	for key, value := range h {
+		elem := xml.StartElement{
+			Name: xml.Name{Space: "", Local: key},
+			Attr: []xml.Attr{},
+		}
+		if err := e.EncodeElement(value, elem); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
+}
+
+func TestXML(t *testing.T) {
+	c := NewContext(0)
+	c.XML(consts.StatusOK, xmlmap{"foo": "bar"})
+	assert.DeepEqual(t, []byte("<map><foo>bar</foo></map>"), c.Response.Body())
+	assert.DeepEqual(t, []byte("application/xml; charset=utf-8"), c.Response.Header.Peek("Content-Type"))
 }
 
 func TestJSON(t *testing.T) {
@@ -654,6 +783,7 @@ func TestContextReset(t *testing.T) {
 	c.Params = param.Params{param.Param{}}
 	c.Error(errors.New("test")) // nolint: errcheck
 	c.Set("foo", "bar")
+	c.Finished()
 	c.Request.SetIsTLS(true)
 	c.ResetWithoutConn()
 	c.Request.URI()
@@ -664,6 +794,7 @@ func TestContextReset(t *testing.T) {
 	assert.Nil(t, c.Errors.ByType(errs.ErrorTypeAny))
 	assert.DeepEqual(t, 0, len(c.Params))
 	assert.DeepEqual(t, int8(-1), c.index)
+	assert.Nil(t, c.finished)
 }
 
 func TestContextContentType(t *testing.T) {
@@ -672,51 +803,66 @@ func TestContextContentType(t *testing.T) {
 	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
-func TestClientIp(t *testing.T) {
+type MockIpConn struct {
+	*mock.Conn
+	RemoteIp string
+	Port     int
+}
+
+func (c *MockIpConn) RemoteAddr() net.Addr {
+	return &net.UDPAddr{
+		IP:   net.ParseIP(c.RemoteIp),
+		Port: c.Port,
+	}
+}
+
+func newContextClientIPTest() *RequestContext {
 	c := NewContext(0)
-	c.conn = mock.NewConn("")
-	// 0.0.0.0 simulates a trusted proxy server
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val := c.ClientIP()
-	if val != "126.0.0.2" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
+	c.conn = &MockIpConn{
+		Conn:     mock.NewConn(""),
+		RemoteIp: "127.0.0.1",
+		Port:     8080,
 	}
-	// no proxy server
-	c = NewContext(0)
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Real-Ip", "126.0.0.1")
-	val = c.ClientIP()
-	if val != "126.0.0.1" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.1")
-	}
-	// custom RemoteIPHeaders and TrustedProxies
+	c.Request.Header.Set("X-Real-IP", " 10.10.10.10  ")
+	c.Request.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
+	return c
+}
+
+func TestClientIp(t *testing.T) {
+	c := newContextClientIPTest()
+	// default X-Forwarded-For and X-Real-IP behaviour
+	assert.DeepEqual(t, "20.20.20.20", c.ClientIP())
+
+	c.Request.Header.DelBytes([]byte("X-Forwarded-For"))
+	assert.DeepEqual(t, "10.10.10.10", c.ClientIP())
+
+	c.Request.Header.Set("X-Forwarded-For", "30.30.30.30  ")
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// No trusted CIDRS
+	c = newContextClientIPTest()
 	opts := ClientIPOptions{
 		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
-		TrustedProxies: map[string]bool{
-			"0.0.0.0": true,
-		},
+		TrustedCIDRs:    nil,
 	}
-	c = NewContext(0)
 	c.SetClientIPFunc(ClientIPWithOption(opts))
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val = c.ClientIP()
-	if val != "126.0.0.2" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
-	}
-	// no trusted proxy server
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ := net.ParseCIDR("30.30.30.30/32")
 	opts = ClientIPOptions{
 		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
-		TrustedProxies:  nil,
+		TrustedCIDRs:    []*net.IPNet{cidr},
 	}
-	c = NewContext(0)
 	c.SetClientIPFunc(ClientIPWithOption(opts))
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val = c.ClientIP()
-	if val != "0.0.0.0" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "0.0.0.0")
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ = net.ParseCIDR("127.0.0.1/32")
+	opts = ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedCIDRs:    []*net.IPNet{cidr},
 	}
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
 }
 
 func TestSetClientIPFunc(t *testing.T) {
@@ -749,6 +895,16 @@ func TestRemoteAddr(t *testing.T) {
 	c.Request.SetRequestURI("http://aaa.com?a=1&b=")
 	addr := c.RemoteAddr().String()
 	assert.DeepEqual(t, "0.0.0.0:0", addr)
+}
+
+func TestRequestBodyStream(t *testing.T) {
+	c := NewContext(0)
+	s := "testRequestBodyStream"
+	mr := bytes.NewBufferString(s)
+	c.Request.SetBodyStream(mr, -1)
+	data, err := ioutil.ReadAll(c.RequestBodyStream())
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "testRequestBodyStream", string(data))
 }
 
 func TestContextIsAborted(t *testing.T) {
@@ -827,6 +983,23 @@ func TestRequestCtxFormValue(t *testing.T) {
 	v = ctx.FormValue("a")
 	if string(v) != "1" {
 		t.Fatalf("unexpected value %q. Expecting %q", v, "1")
+	}
+
+	ctx.Request.Reset()
+	s := `------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="f"
+
+fff
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+`
+	mr := bytes.NewBufferString(s)
+	ctx.Request.SetBodyStream(mr, -1)
+	ctx.Request.Header.SetContentLength(len(s))
+	ctx.Request.Header.SetContentTypeBytes([]byte("multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg"))
+
+	v = ctx.FormValue("f")
+	if string(v) != "fff" {
+		t.Fatalf("unexpected value %q. Expecting %q", v, "fff")
 	}
 }
 
@@ -1076,6 +1249,25 @@ func TestForEachKey(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestFlush(t *testing.T) {
+	ctx := NewContext(0)
+	err := ctx.Flush()
+	assert.Nil(t, err)
+}
+
+func TestConn(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetConn()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
 func TestHijackHandler(t *testing.T) {
 	ctx := NewContext(0)
 	handle := func(c network.Conn) {
@@ -1086,6 +1278,32 @@ func TestHijackHandler(t *testing.T) {
 
 	val1 := reflect.ValueOf(handle).Pointer()
 	val2 := reflect.ValueOf(handleRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestGetReader(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetReader()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestGetWriter(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetWriter()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
 	assert.DeepEqual(t, val1, val2)
 }
 

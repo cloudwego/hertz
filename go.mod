@@ -7,7 +7,7 @@ require (
 	github.com/bytedance/gopkg v0.0.0-20220413063733-65bf48ffb3a7
 	github.com/bytedance/mockey v1.2.1
 	github.com/bytedance/sonic v1.8.1
-	github.com/cloudwego/netpoll v0.3.2
+	github.com/cloudwego/netpoll v0.4.2-0.20230807055039-52fd5fb7b00f
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/tidwall/gjson v1.13.0 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
