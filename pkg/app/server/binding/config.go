@@ -148,7 +148,8 @@ func (config *BindConfig) UseStdJSONUnmarshaler() {
 type ValidateErrFactory func(fieldSelector, msg string) error
 
 type ValidateConfig struct {
-	ErrFactory ValidateErrFactory
+	ValidateTag string
+	ErrFactory  ValidateErrFactory
 }
 
 func NewValidateConfig() *ValidateConfig {
@@ -167,4 +168,9 @@ func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args 
 // SetValidatorErrorFactory customizes the factory of validation error.
 func (config *ValidateConfig) SetValidatorErrorFactory(errFactory ValidateErrFactory) {
 	config.ErrFactory = errFactory
+}
+
+// SetValidatorTag customizes the factory of validation error.
+func (config *ValidateConfig) SetValidatorTag(tag string) {
+	config.ValidateTag = tag
 }

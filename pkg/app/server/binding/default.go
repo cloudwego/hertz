@@ -378,7 +378,11 @@ type defaultValidator struct {
 }
 
 func NewDefaultValidator(config *ValidateConfig) StructValidator {
-	vd := validator.New("vd").SetErrorFactory(defaultErrorFactory)
+	validateTag := "vd"
+	if config != nil && len(config.ValidateTag) != 0 {
+		validateTag = config.ValidateTag
+	}
+	vd := validator.New(validateTag).SetErrorFactory(defaultValidateErrorFactory)
 	if config != nil && config.ErrFactory != nil {
 		vd.SetErrorFactory(config.ErrFactory)
 	}
@@ -388,20 +392,20 @@ func NewDefaultValidator(config *ValidateConfig) StructValidator {
 }
 
 // Error validate error
-type defaultError struct {
+type validateError struct {
 	FailPath, Msg string
 }
 
 // Error implements error interface.
-func (e *defaultError) Error() string {
+func (e *validateError) Error() string {
 	if e.Msg != "" {
 		return e.Msg
 	}
 	return "invalid parameter: " + e.FailPath
 }
 
-func defaultErrorFactory(failPath, msg string) error {
-	return &defaultError{
+func defaultValidateErrorFactory(failPath, msg string) error {
+	return &validateError{
 		FailPath: failPath,
 		Msg:      msg,
 	}
