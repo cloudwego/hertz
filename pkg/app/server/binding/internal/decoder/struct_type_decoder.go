@@ -23,7 +23,6 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	hjson "github.com/cloudwego/hertz/pkg/common/json"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -49,9 +48,6 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 				}
 			}
 			continue
-		}
-		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default

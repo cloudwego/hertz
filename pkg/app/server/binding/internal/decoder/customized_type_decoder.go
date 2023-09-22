@@ -43,7 +43,6 @@ package decoder
 import (
 	"reflect"
 
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -63,9 +62,6 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			defaultValue = tagInfo.Default
 			continue
-		}
-		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default

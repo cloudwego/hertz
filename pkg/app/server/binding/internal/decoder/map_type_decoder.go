@@ -46,7 +46,6 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -72,9 +71,6 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 				}
 			}
 			continue
-		}
-		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default

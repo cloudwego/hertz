@@ -82,12 +82,6 @@ func CaseInsensitiveCompare(a, b []byte) bool {
 	return true
 }
 
-func GetNormalizeHeaderKey(key string, disableNormalizing bool) string {
-	keyBytes := []byte(key)
-	NormalizeHeaderKey(keyBytes, disableNormalizing)
-	return string(keyBytes)
-}
-
 func NormalizeHeaderKey(b []byte, disableNormalizing bool) {
 	if disableNormalizing {
 		return

@@ -47,7 +47,6 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -74,9 +73,6 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 				}
 			}
 			continue
-		}
-		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		if tagInfo.Key == rawBodyTag {
 			bindRawBody = true

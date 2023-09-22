@@ -1362,6 +1362,80 @@ func TestBind_InterfaceType(t *testing.T) {
 	}
 }
 
+func Test_BindHeaderNormalize(t *testing.T) {
+	type Req struct {
+		Header string `header:"h"`
+	}
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetHeaders("h", "header")
+	var result Req
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "header", result.Header)
+	req = newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetHeaders("H", "header")
+	err = DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "header", result.Header)
+
+	type Req2 struct {
+		Header string `header:"H"`
+	}
+
+	req2 := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetHeaders("h", "header")
+	var result2 Req2
+
+	err2 := DefaultBinder().Bind(req2.Req, &result2, nil)
+	if err != nil {
+		t.Error(err2)
+	}
+	assert.DeepEqual(t, "header", result2.Header)
+	req2 = newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetHeaders("H", "header")
+	err2 = DefaultBinder().Bind(req2.Req, &result2, nil)
+	if err2 != nil {
+		t.Error(err2)
+	}
+	assert.DeepEqual(t, "header", result2.Header)
+
+	type Req3 struct {
+		Header string `header:"h"`
+	}
+
+	// without normalize, the header key & tag key need to be consistent
+	req3 := newMockRequest().
+		SetRequestURI("http://foobar.com")
+	req3.Req.Header.DisableNormalizing()
+	req3.SetHeaders("h", "header")
+	var result3 Req3
+	err3 := DefaultBinder().Bind(req3.Req, &result3, nil)
+	if err3 != nil {
+		t.Error(err3)
+	}
+	assert.DeepEqual(t, "header", result3.Header)
+	req3 = newMockRequest().
+		SetRequestURI("http://foobar.com")
+	req3.Req.Header.DisableNormalizing()
+	req3.SetHeaders("H", "header")
+	result3 = Req3{}
+	err3 = DefaultBinder().Bind(req3.Req, &result3, nil)
+	if err3 != nil {
+		t.Error(err3)
+	}
+	assert.DeepEqual(t, "", result3.Header)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`

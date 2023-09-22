@@ -44,7 +44,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -80,9 +79,6 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 				}
 			}
 			continue
-		}
-		if tagInfo.Key == headerTag {
-			tagInfo.Value = utils.GetNormalizeHeaderKey(tagInfo.Value, req.Header.IsDisableNormalizing())
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
