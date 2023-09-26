@@ -558,13 +558,21 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 	// init validator
-	engine.validator = binding.DefaultValidator()
 	if opt.CustomValidator != nil {
 		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
 		if !ok {
-			panic("customized validator can not implement binding.StructValidator")
+			panic("customized validator does not implement binding.StructValidator")
 		}
 		engine.validator = customValidator
+	} else {
+		engine.validator = binding.NewValidator(binding.NewValidateConfig())
+		if opt.ValidateConfig != nil {
+			vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
+			if !ok {
+				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
+			}
+			engine.validator = binding.NewValidator(vConf)
+		}
 	}
 
 	if opt.CustomBinder != nil {
@@ -582,7 +590,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 	if opt.BindConfig != nil {
 		bConf, ok := opt.BindConfig.(*binding.BindConfig)
 		if !ok {
-			panic("bind config error")
+			panic("opt.BindConfig is not the '*binding.BindConfig' type")
 		}
 		if bConf.Validator == nil {
 			bConf.Validator = engine.validator

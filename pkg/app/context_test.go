@@ -884,11 +884,15 @@ func (m *mockValidator) Engine() interface{} {
 	return nil
 }
 
+func (m *mockValidator) ValidateTag() string {
+	return "vt"
+}
+
 func TestSetValidator(t *testing.T) {
 	m := &mockValidator{}
 	c := NewContext(0)
 	c.SetValidator(m)
-	c.SetBinder(binding.NewDefaultBinder(&binding.BindConfig{ValidateTag: "vt"}))
+	c.SetBinder(binding.NewDefaultBinder(&binding.BindConfig{Validator: m}))
 	type User struct {
 		Age int `vt:"$>=0&&$<=130"`
 	}

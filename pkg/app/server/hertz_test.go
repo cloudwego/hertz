@@ -929,7 +929,7 @@ func TestCustomBinder(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestValidateConfig(t *testing.T) {
+func TestValidateConfigRegValidateFunc(t *testing.T) {
 	type Req struct {
 		A int `query:"a" vd:"f($)"`
 	}
@@ -966,6 +966,10 @@ func (m *mockValidator) Engine() interface{} {
 	return nil
 }
 
+func (m *mockValidator) ValidateTag() string {
+	return "vd"
+}
+
 func TestCustomValidator(t *testing.T) {
 	type Req struct {
 		A int `query:"a" vd:"f($)"`
@@ -986,6 +990,79 @@ func TestCustomValidator(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9555/bind?a=2")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+}
+
+type ValidateError struct {
+	ErrType, FailField, Msg string
+}
+
+// Error implements error interface.
+func (e *ValidateError) Error() string {
+	if e.Msg != "" {
+		return e.ErrType + ": expr_path=" + e.FailField + ", cause=" + e.Msg
+	}
+	return e.ErrType + ": expr_path=" + e.FailField + ", cause=invalid"
+}
+
+func TestValidateConfigSetSetErrorFactory(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	h := New(
+		WithHostPorts("localhost:9666"),
+		WithValidateConfig(validateConfig))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9666/bind?b=1")
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestValidateConfigAndBindConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vt:"$>=0&&$<=130"`
+	}
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.ValidateTag = "vt"
+	h := New(
+		WithHostPorts("localhost:9876"),
+		WithValidateConfig(validateConfig))
+	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		t.Log(err)
+	})
+
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	_, err := hc.Get("http://127.0.0.1:9876/bind?a=135")
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }

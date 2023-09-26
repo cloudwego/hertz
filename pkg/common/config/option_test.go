@@ -54,6 +54,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, new(interface{}), options.TraceLevel)
 	assert.DeepEqual(t, registry.NoopRegistry, options.Registry)
 	assert.Nil(t, options.BindConfig)
+	assert.Nil(t, options.ValidateConfig)
 	assert.Nil(t, options.CustomBinder)
 	assert.Nil(t, options.CustomValidator)
 	assert.DeepEqual(t, false, options.DisableHeaderNamesNormalizing)
