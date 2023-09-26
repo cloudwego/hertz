@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -802,51 +804,66 @@ func TestContextContentType(t *testing.T) {
 	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
-func TestClientIp(t *testing.T) {
+type MockIpConn struct {
+	*mock.Conn
+	RemoteIp string
+	Port     int
+}
+
+func (c *MockIpConn) RemoteAddr() net.Addr {
+	return &net.UDPAddr{
+		IP:   net.ParseIP(c.RemoteIp),
+		Port: c.Port,
+	}
+}
+
+func newContextClientIPTest() *RequestContext {
 	c := NewContext(0)
-	c.conn = mock.NewConn("")
-	// 0.0.0.0 simulates a trusted proxy server
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val := c.ClientIP()
-	if val != "126.0.0.2" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
+	c.conn = &MockIpConn{
+		Conn:     mock.NewConn(""),
+		RemoteIp: "127.0.0.1",
+		Port:     8080,
 	}
-	// no proxy server
-	c = NewContext(0)
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Real-Ip", "126.0.0.1")
-	val = c.ClientIP()
-	if val != "126.0.0.1" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.1")
-	}
-	// custom RemoteIPHeaders and TrustedProxies
+	c.Request.Header.Set("X-Real-IP", " 10.10.10.10  ")
+	c.Request.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
+	return c
+}
+
+func TestClientIp(t *testing.T) {
+	c := newContextClientIPTest()
+	// default X-Forwarded-For and X-Real-IP behaviour
+	assert.DeepEqual(t, "20.20.20.20", c.ClientIP())
+
+	c.Request.Header.DelBytes([]byte("X-Forwarded-For"))
+	assert.DeepEqual(t, "10.10.10.10", c.ClientIP())
+
+	c.Request.Header.Set("X-Forwarded-For", "30.30.30.30  ")
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// No trusted CIDRS
+	c = newContextClientIPTest()
 	opts := ClientIPOptions{
 		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
-		TrustedProxies: map[string]bool{
-			"0.0.0.0": true,
-		},
+		TrustedCIDRs:    nil,
 	}
-	c = NewContext(0)
 	c.SetClientIPFunc(ClientIPWithOption(opts))
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val = c.ClientIP()
-	if val != "126.0.0.2" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
-	}
-	// no trusted proxy server
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ := net.ParseCIDR("30.30.30.30/32")
 	opts = ClientIPOptions{
 		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
-		TrustedProxies:  nil,
+		TrustedCIDRs:    []*net.IPNet{cidr},
 	}
-	c = NewContext(0)
 	c.SetClientIPFunc(ClientIPWithOption(opts))
-	c.conn = mock.NewConn("")
-	c.Request.Header.Set("X-Forwarded-For", "  126.0.0.2, 0.0.0.0 ")
-	val = c.ClientIP()
-	if val != "0.0.0.0" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "0.0.0.0")
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ = net.ParseCIDR("127.0.0.1/32")
+	opts = ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedCIDRs:    []*net.IPNet{cidr},
 	}
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
 }
 
 func TestSetClientIPFunc(t *testing.T) {
@@ -855,6 +872,39 @@ func TestSetClientIPFunc(t *testing.T) {
 	}
 	SetClientIPFunc(fn)
 	assert.DeepEqual(t, reflect.ValueOf(fn).Pointer(), reflect.ValueOf(defaultClientIP).Pointer())
+}
+
+type mockValidator struct{}
+
+func (m *mockValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func (m *mockValidator) Engine() interface{} {
+	return nil
+}
+
+func (m *mockValidator) ValidateTag() string {
+	return "vt"
+}
+
+func TestSetValidator(t *testing.T) {
+	m := &mockValidator{}
+	c := NewContext(0)
+	c.SetValidator(m)
+	c.SetBinder(binding.NewDefaultBinder(&binding.BindConfig{Validator: m}))
+	type User struct {
+		Age int `vt:"$>=0&&$<=130"`
+	}
+
+	user := &User{
+		Age: 135,
+	}
+	err := c.Validate(user)
+	if err == nil {
+		t.Fatalf("expected an error, but got nil")
+	}
+	assert.DeepEqual(t, "test mock", err.Error())
 }
 
 func TestGetQuery(t *testing.T) {
@@ -1439,6 +1489,94 @@ func TestBindAndValidate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+}
+
+func TestBindForm(t *testing.T) {
+	type Test struct {
+		A string
+		B int
+	}
+
+	c := &RequestContext{}
+	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
+	c.Request.SetBody([]byte("A=123&B=11"))
+	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+
+	var req Test
+	err := c.BindForm(&req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.DeepEqual(t, "123", req.A)
+	assert.DeepEqual(t, 11, req.B)
+
+	c.Request.SetBody([]byte(""))
+	err = c.BindForm(&req)
+	if err == nil {
+		t.Fatalf("expected error, but get nil")
+	}
+}
+
+type mockBinder struct{}
+
+func (m *mockBinder) Name() string {
+	return "test binder"
+}
+
+func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
+	return fmt.Errorf("test binder")
+}
+
+func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
+	return nil
+}
+
+func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
+	return nil
+}
+
+func TestSetBinder(t *testing.T) {
+	c := NewContext(0)
+	c.SetBinder(&mockBinder{})
+	type T struct{}
+	req := T{}
+	err := c.Bind(&req)
+	assert.Nil(t, err)
+	err = c.BindAndValidate(&req)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, "test binder", err.Error())
+	err = c.BindProtobuf(&req)
+	assert.Nil(t, err)
+	err = c.BindJSON(&req)
+	assert.Nil(t, err)
+	err = c.BindForm(&req)
+	assert.NotNil(t, err)
+	err = c.BindPath(&req)
+	assert.Nil(t, err)
+	err = c.BindQuery(&req)
+	assert.Nil(t, err)
+	err = c.BindHeader(&req)
+	assert.Nil(t, err)
 }
 
 func TestRequestContext_SetCookie(t *testing.T) {

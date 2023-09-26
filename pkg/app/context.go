@@ -80,48 +80,72 @@ type ClientIP func(ctx *RequestContext) string
 
 type ClientIPOptions struct {
 	RemoteIPHeaders []string
-	TrustedProxies  map[string]bool
+	TrustedCIDRs    []*net.IPNet
+}
+
+var defaultTrustedCIDRs = []*net.IPNet{
+	{ // 0.0.0.0/0 (IPv4)
+		IP:   net.IP{0x0, 0x0, 0x0, 0x0},
+		Mask: net.IPMask{0x0, 0x0, 0x0, 0x0},
+	},
+	{ // ::/0 (IPv6)
+		IP:   net.IP{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+		Mask: net.IPMask{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+	},
 }
 
 var defaultClientIPOptions = ClientIPOptions{
-	RemoteIPHeaders: []string{"X-Real-IP", "X-Forwarded-For"},
-	TrustedProxies: map[string]bool{
-		"0.0.0.0": true,
-	},
+	RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+	TrustedCIDRs:    defaultTrustedCIDRs,
 }
 
 // ClientIPWithOption used to generate custom ClientIP function and set by engine.SetClientIPFunc
 func ClientIPWithOption(opts ClientIPOptions) ClientIP {
 	return func(ctx *RequestContext) string {
 		RemoteIPHeaders := opts.RemoteIPHeaders
-		TrustedProxies := opts.TrustedProxies
+		TrustedCIDRs := opts.TrustedCIDRs
 
-		remoteIP, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String()))
+		remoteIPStr, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String()))
 		if err != nil {
 			return ""
 		}
-		trusted := isTrustedProxy(TrustedProxies, remoteIP)
+
+		remoteIP := net.ParseIP(remoteIPStr)
+		if remoteIP == nil {
+			return ""
+		}
+
+		trusted := isTrustedProxy(TrustedCIDRs, remoteIP)
 
 		if trusted {
 			for _, headerName := range RemoteIPHeaders {
-				ip, valid := validateHeader(TrustedProxies, ctx.Request.Header.Get(headerName))
+				ip, valid := validateHeader(TrustedCIDRs, ctx.Request.Header.Get(headerName))
 				if valid {
 					return ip
 				}
 			}
 		}
 
-		return remoteIP
+		return remoteIPStr
 	}
 }
 
-// isTrustedProxy will check whether the IP address is included in the trusted list according to TrustedProxies
-func isTrustedProxy(trustedProxies map[string]bool, remoteIP string) bool {
-	return trustedProxies[remoteIP]
+// isTrustedProxy will check whether the IP address is included in the trusted list according to trustedCIDRs
+func isTrustedProxy(trustedCIDRs []*net.IPNet, remoteIP net.IP) bool {
+	if trustedCIDRs == nil {
+		return false
+	}
+
+	for _, cidr := range trustedCIDRs {
+		if cidr.Contains(remoteIP) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateHeader will parse X-Real-IP and X-Forwarded-For header and return the Initial client IP address or an untrusted IP address
-func validateHeader(trustedProxies map[string]bool, header string) (clientIP string, valid bool) {
+func validateHeader(trustedCIDRs []*net.IPNet, header string) (clientIP string, valid bool) {
 	if header == "" {
 		return "", false
 	}
@@ -135,7 +159,7 @@ func validateHeader(trustedProxies map[string]bool, header string) (clientIP str
 
 		// X-Forwarded-For is appended by proxy
 		// Check IPs in reverse order and stop when find untrusted proxy
-		if (i == 0) || (!isTrustedProxy(trustedProxies, ipStr)) {
+		if (i == 0) || (!isTrustedProxy(trustedCIDRs, ip)) {
 			return ipStr, true
 		}
 	}
@@ -209,6 +233,9 @@ type RequestContext struct {
 
 	// clientIPFunc get form value by use custom function.
 	formValueFunc FormValueFunc
+
+	binder    binding.Binder
+	validator binding.StructValidator
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
@@ -226,6 +253,14 @@ func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {
 
 func (ctx *RequestContext) SetFormValueFunc(f FormValueFunc) {
 	ctx.formValueFunc = f
+}
+
+func (ctx *RequestContext) SetBinder(binder binding.Binder) {
+	ctx.binder = binder
+}
+
+func (ctx *RequestContext) SetValidator(validator binding.StructValidator) {
+	ctx.validator = validator
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -500,8 +535,8 @@ func (ctx *RequestContext) String(code int, format string, values ...interface{}
 // FullPath returns a matched route full path. For not found routes
 // returns an empty string.
 //
-//	router.GET("/user/:id", func(c *hertz.RequestContext) {
-//	    c.FullPath() == "/user/:id" // true
+//	router.GET("/user/:id", func(c context.Context, ctx *app.RequestContext) {
+//	    ctx.FullPath() == "/user/:id" // true
 //	})
 func (ctx *RequestContext) FullPath() string {
 	return ctx.fullPath
@@ -708,6 +743,10 @@ func (ctx *RequestContext) Copy() *RequestContext {
 	paramCopy := make([]param.Param, len(cp.Params))
 	copy(paramCopy, cp.Params)
 	cp.Params = paramCopy
+	cp.clientIPFunc = ctx.clientIPFunc
+	cp.formValueFunc = ctx.formValueFunc
+	cp.binder = ctx.binder
+	cp.validator = ctx.validator
 	return cp
 }
 
@@ -950,9 +989,9 @@ func (ctx *RequestContext) GetStringMapStringSlice(key string) (smss map[string]
 // Param returns the value of the URL param.
 // It is a shortcut for c.Params.ByName(key)
 //
-//	router.GET("/user/:id", func(c *hertz.RequestContext) {
+//	router.GET("/user/:id", func(c context.Context, ctx *app.RequestContext) {
 //	    // a GET request to /user/john
-//	    id := c.Param("id") // id == "john"
+//	    id := ctx.Param("id") // id == "john"
 //	})
 func (ctx *RequestContext) Param(key string) string {
 	return ctx.Params.ByName(key)
@@ -1278,22 +1317,94 @@ func bodyAllowedForStatus(status int) bool {
 	return true
 }
 
+func (ctx *RequestContext) getBinder() binding.Binder {
+	if ctx.binder != nil {
+		return ctx.binder
+	}
+	return binding.DefaultBinder()
+}
+
+func (ctx *RequestContext) getValidator() binding.StructValidator {
+	if ctx.validator != nil {
+		return ctx.validator
+	}
+	return binding.DefaultValidator()
+}
+
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
+	return ctx.getBinder().BindAndValidate(&ctx.Request, obj, ctx.Params)
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.Bind(&ctx.Request, obj, ctx.Params)
+	return ctx.getBinder().Bind(&ctx.Request, obj, ctx.Params)
 }
 
 // Validate validates obj with "vd" tag
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.Validate(obj)
+	return ctx.getValidator().ValidateStruct(obj)
+}
+
+// BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindQuery(obj interface{}) error {
+	return ctx.getBinder().BindQuery(&ctx.Request, obj)
+}
+
+// BindHeader binds header parameters from *RequestContext to obj with 'header' tag. It will only use 'header' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindHeader(obj interface{}) error {
+	return ctx.getBinder().BindHeader(&ctx.Request, obj)
+}
+
+// BindPath binds router parameters from *RequestContext to obj with 'path' tag. It will only use 'path' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindPath(obj interface{}) error {
+	return ctx.getBinder().BindPath(&ctx.Request, obj, ctx.Params)
+}
+
+// BindForm binds form parameters from *RequestContext to obj with 'form' tag. It will only use 'form' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindForm(obj interface{}) error {
+	if len(ctx.Request.Body()) == 0 {
+		return fmt.Errorf("missing form body")
+	}
+	return ctx.getBinder().BindForm(&ctx.Request, obj)
+}
+
+// BindJSON binds JSON body from *RequestContext.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindJSON(obj interface{}) error {
+	return ctx.getBinder().BindJSON(&ctx.Request, obj)
+}
+
+// BindProtobuf binds protobuf body from *RequestContext.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
+	return ctx.getBinder().BindProtobuf(&ctx.Request, obj)
+}
+
+// BindByContentType will select the binding type on the ContentType automatically.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindByContentType(obj interface{}) error {
+	if ctx.Request.Header.IsGet() {
+		return ctx.BindQuery(obj)
+	}
+	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
+	switch ct {
+	case consts.MIMEApplicationJSON:
+		return ctx.BindJSON(obj)
+	case consts.MIMEPROTOBUF:
+		return ctx.BindProtobuf(obj)
+	case consts.MIMEApplicationHTMLForm, consts.MIMEMultipartPOSTForm:
+		return ctx.BindForm(obj)
+	default:
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	}
 }
 
 // VisitAllQueryArgs calls f for each existing query arg.

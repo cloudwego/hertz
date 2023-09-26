@@ -72,9 +72,12 @@ import (
 	respI "github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
-var errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
-	"Make sure the server returns 'Connection: close' response header before closing the connection")
-var errTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "host client")
+var (
+	errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
+		"Make sure the server returns 'Connection: close' response header before closing the connection")
+
+	errTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "host client")
+)
 
 // HostClient balances http requests among hosts listed in Addr.
 //
@@ -699,7 +702,8 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	shouldCloseConn = resetConnection || req.ConnectionClose() || resp.ConnectionClose()
 
-	if c.ResponseBodyStream {
+	// In stream mode, we still can close/release the connection immediately if there is no content on the wire.
+	if c.ResponseBodyStream && resp.BodyStream() != protocol.NoResponseBody {
 		return false, err
 	}
 
