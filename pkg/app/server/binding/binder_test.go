@@ -47,6 +47,7 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -526,7 +527,7 @@ type CustomizedDecode struct {
 
 func TestBind_CustomizedTypeDecode(t *testing.T) {
 	type Foo struct {
-		F ***CustomizedDecode
+		F ***CustomizedDecode `query:"a"`
 	}
 
 	bindConfig := &BindConfig{}
@@ -1489,6 +1490,29 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 		t.Fatalf("unexpected nil, expected an error")
 	}
 	assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+}
+
+// Test_Issue964 used to the cover issue for time.Time
+func Test_Issue964(t *testing.T) {
+	type CreateReq struct {
+		StartAt *time.Time `json:"startAt"`
+	}
+	r := newMockRequest().SetBody([]byte("{\n  \"startAt\": \"2006-01-02T15:04:05+07:00\"\n}")).SetJSONContentType()
+	var req CreateReq
+	err := DefaultBinder().BindAndValidate(r.Req, &req, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "2006-01-02 15:04:05 +0700 +0700", req.StartAt.String())
+	r = newMockRequest()
+	req = CreateReq{}
+	err = DefaultBinder().BindAndValidate(r.Req, &req, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	if req.StartAt != nil {
+		t.Error("expected nil")
+	}
 }
 
 func Benchmark_Binding(b *testing.B) {
