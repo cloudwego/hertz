@@ -69,6 +69,9 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 			break
 		}
 	}
+	if !exist {
+		return nil
+	}
 	if len(text) == 0 && len(defaultValue) != 0 {
 		text = defaultValue
 	}
@@ -76,6 +79,9 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 	v, err := d.decodeFunc(req, params, text)
 	if err != nil {
 		return err
+	}
+	if !v.IsValid() {
+		return nil
 	}
 
 	reqValue = GetFieldValue(reqValue, d.parentIndex)
