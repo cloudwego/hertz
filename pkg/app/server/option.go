@@ -335,15 +335,15 @@ func WithDisablePrintRoute(b bool) config.Option {
 // WithSenseClientDisconnection sets the ability to sense client disconnections.
 // If we don't set it, it will default to false.
 // There are three issues to note when using this option:
-//   1. It only applies to netpoll.
-//   2. It needs to be used in conjunction with WithOnAccept.
-//   Examples:
+//  1. It only applies to netpoll.
+//  2. It needs to be used in conjunction with WithOnAccept.
+//     Examples:
 //     server.Default(
-//			server.WithSenseClientDisconnection(true),
-//			server.WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-//				return ctx
-//			}))
-//   3. The cost is high after opening, please choose carefully.
+//     server.WithSenseClientDisconnection(true),
+//     server.WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+//     return ctx
+//     }))
+//  3. The cost is high after opening, please choose carefully.
 func WithSenseClientDisconnection(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.SenseClientDisconnection = b
