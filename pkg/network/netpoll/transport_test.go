@@ -21,6 +21,7 @@ package netpoll
 import (
 	"context"
 	"net"
+	"reflect"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -71,12 +72,14 @@ func TestTransport(t *testing.T) {
 
 	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
 		var onConnFlag int32
+		var ctxVal context.Context
 		transporter := NewTransporter(&config.Options{
 			Addr:                     addr,
 			Network:                  nw,
 			SenseClientDisconnection: true,
 			OnConnect: func(ctx context.Context, conn network.Conn) context.Context {
 				atomic.StoreInt32(&onConnFlag, 1)
+				ctxVal = ctx
 				return ctx
 			},
 		})
@@ -94,6 +97,7 @@ func TestTransport(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		assert.Assert(t, atomic.LoadInt32(&onConnFlag) == 1)
+		assert.DeepEqual(t, "*context.cancelCtx", reflect.TypeOf(ctxVal).String())
 	})
 
 	t.Run("TestListenConfig", func(t *testing.T) {
