@@ -69,6 +69,33 @@ func TestTransport(t *testing.T) {
 		assert.Assert(t, atomic.LoadInt32(&onDataFlag) == 1)
 	})
 
+	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
+		var onConnFlag int32
+		transporter := NewTransporter(&config.Options{
+			Addr:                     addr,
+			Network:                  nw,
+			SenseClientDisconnection: true,
+			OnConnect: func(ctx context.Context, conn network.Conn) context.Context {
+				atomic.StoreInt32(&onConnFlag, 1)
+				return ctx
+			},
+		})
+		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+			return nil
+		})
+		defer transporter.Close()
+		time.Sleep(100 * time.Millisecond)
+
+		dial := NewDialer()
+		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
+		assert.Nil(t, err)
+		_, err = conn.Write([]byte("456"))
+		assert.Nil(t, err)
+		time.Sleep(100 * time.Millisecond)
+
+		assert.Assert(t, atomic.LoadInt32(&onConnFlag) == 1)
+	})
+
 	t.Run("TestListenConfig", func(t *testing.T) {
 		listenCfg := &net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
