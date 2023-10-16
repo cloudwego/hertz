@@ -19,6 +19,7 @@ package protobuf
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
@@ -129,18 +130,34 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		ms := s.GetMethod()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
+		servicePathAnno := checkFirstOption(api.E_ServicePath, s.GetOptions())
+		servicePath := ""
+		if val, ok := servicePathAnno.(string); ok {
+			servicePath = val
+		}
 		for _, m := range ms {
-			hmethod, vpath := checkFirstOptions(HttpMethodOptions, m.GetOptions())
-			if hmethod == "" {
+			rs := getAllOptions(HttpMethodOptions, m.GetOptions())
+			if len(rs) == 0 {
 				continue
 			}
-			path := vpath.(string)
+			httpOpts := httpOptions{}
+			for k, v := range rs {
+				httpOpts = append(httpOpts, httpOption{
+					method: k,
+					path:   v.(string),
+				})
+			}
+			// turn the map into a slice and sort it to make sure getting the results in the same order every time
+			sort.Sort(httpOpts)
 
 			var handlerOutDir string
 			genPath := getCompatibleAnnotation(m.GetOptions(), api.E_HandlerPath, api.E_HandlerPathCompatible)
 			handlerOutDir, ok := genPath.(string)
 			if !ok || len(handlerOutDir) == 0 {
 				handlerOutDir = ""
+			}
+			if len(handlerOutDir) == 0 {
+				handlerOutDir = servicePath
 			}
 
 			// protoGoInfo can get generated "Go Info" for proto file.
@@ -181,10 +198,11 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 			method := &generator.HttpMethod{
 				Name:       util.CamelString(m.GetName()),
-				HTTPMethod: hmethod,
-				Path:       path,
+				HTTPMethod: httpOpts[0].method,
+				Path:       httpOpts[0].path,
 				Serializer: serializer,
 				OutputDir:  handlerOutDir,
+				GenHandler: true,
 			}
 
 			goOptMapAlias := make(map[string]string, 1)
@@ -223,6 +241,16 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			method.ReturnTypePackage = respPackage
 
 			methods = append(methods, method)
+			for idx, anno := range httpOpts {
+				if idx == 0 {
+					continue
+				}
+				tmp := *method
+				tmp.HTTPMethod = anno.method
+				tmp.Path = anno.path
+				tmp.GenHandler = false
+				methods = append(methods, &tmp)
+			}
 
 			if cmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
@@ -326,7 +354,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(f.GoName), f.GoName)
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(string(f.Desc.Name())), f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

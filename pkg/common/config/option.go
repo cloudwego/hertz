@@ -72,6 +72,10 @@ type Options struct {
 	Tracers                      []interface{}
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
+	BindConfig                   interface{}
+	ValidateConfig               interface{}
+	CustomBinder                 interface{}
+	CustomValidator              interface{}
 
 	// TransporterNewer is the function to create a transporter.
 	TransporterNewer    func(opt *Options) network.Transporter
@@ -97,6 +101,22 @@ type Options struct {
 	// The HTML template will reload according to files' changing event
 	// otherwise it will reload after AutoReloadInterval.
 	AutoReloadInterval time.Duration
+
+	// Header names are passed as-is without normalization
+	// if this option is set.
+	//
+	// Disabled header names' normalization may be useful only for proxying
+	// responses to other clients expecting case-sensitive header names.
+	//
+	// By default, request and response header names are normalized, i.e.
+	// The first letter and the first letters following dashes
+	// are uppercased, while all the other letters are lowercased.
+	// Examples:
+	//
+	//     * HOST -> Host
+	//     * content-type -> Content-Type
+	//     * cONTENT-lenGTH -> Content-Length
+	DisableHeaderNamesNormalizing bool
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -225,6 +245,9 @@ func NewOptions(opts []Option) *Options {
 		TraceLevel: new(interface{}),
 
 		Registry: registry.NoopRegistry,
+
+		// Disabled header names' normalization, default false
+		DisableHeaderNamesNormalizing: false,
 	}
 	options.Apply(opts)
 	return options

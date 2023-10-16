@@ -209,6 +209,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	var h RequestHeader
 	h.Set("Foo-Bar", "baz")
 	h.Set("aaa", "bbb")
+	h.Set("ccc", "ddd")
 	h.Set(consts.HeaderConnection, "keep-alive")
 	h.Set(consts.HeaderContentType, "aaa")
 	h.Set(consts.HeaderServer, "aaabbb")
@@ -226,10 +227,15 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.del([]byte("Host"))
 	h.del([]byte(consts.HeaderTrailer))
 	h.DelCookie("foo")
+	h.Del("ccc")
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
 		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "bbb")
+	}
+	hv = h.Peek("ccc")
+	if string(hv) != "" {
+		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "")
 	}
 	hv = h.Peek("Foo-Bar")
 	if len(hv) > 0 {

@@ -96,6 +96,7 @@ const (
 	MIMETextHtml              = "text/html"
 	MIMETextCss               = "text/css"
 	MIMETextJavascript        = "text/javascript"
+	MIMEMultipartPOSTForm     = "multipart/form-data"
 
 	// MIME application
 	MIMEApplicationOctetStream  = "application/octet-stream"
@@ -121,6 +122,7 @@ const (
 	MIMEApplicationOpenXMLWord  = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	MIMEApplicationOpenXMLExcel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	MIMEApplicationOpenXMLPPT   = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	MIMEPROTOBUF                = "application/x-protobuf"
 
 	// MIME image
 	MIMEImageJPEG         = "image/jpeg"

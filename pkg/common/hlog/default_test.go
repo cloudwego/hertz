@@ -107,6 +107,16 @@ func TestCtxLogger(t *testing.T) {
 		"[Error] work failed\n", string(w.b))
 }
 
+func TestFormatLoggerWithEscapedCharacters(t *testing.T) {
+	initTestLogger()
+
+	var w byteSliceWriter
+	SetOutput(&w)
+
+	Infof("http://localhost:8080/ping?f=http://localhost:3000/hello?c=%E5%A4%A7hi%E5%93%A6%E5%95%8A%E8%AF%B4%E5%BE%97%E5%A5%BD")
+	assert.DeepEqual(t, "[Info] http://localhost:8080/ping?f=http://localhost:3000/hello?c=%E5%A4%A7hi%E5%93%A6%E5%95%8A%E8%AF%B4%E5%BE%97%E5%A5%BD\n", string(w.b))
+}
+
 func TestSetLevel(t *testing.T) {
 	setLogger := &defaultLogger{
 		stdlog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile|log.Lmicroseconds),
