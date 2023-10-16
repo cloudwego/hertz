@@ -38,31 +38,33 @@ func init() {
 
 type transporter struct {
 	sync.RWMutex
-	network          string
-	addr             string
-	keepAliveTimeout time.Duration
-	readTimeout      time.Duration
-	writeTimeout     time.Duration
-	listener         net.Listener
-	eventLoop        netpoll.EventLoop
-	listenConfig     *net.ListenConfig
-	OnAccept         func(conn net.Conn) context.Context
-	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
+	network                  string
+	addr                     string
+	senseClientDisconnection bool
+	keepAliveTimeout         time.Duration
+	readTimeout              time.Duration
+	writeTimeout             time.Duration
+	listener                 net.Listener
+	eventLoop                netpoll.EventLoop
+	listenConfig             *net.ListenConfig
+	OnAccept                 func(conn net.Conn) context.Context
+	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
 }
 
 // For transporter switch
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transporter{
-		network:          options.Network,
-		addr:             options.Addr,
-		keepAliveTimeout: options.KeepAliveTimeout,
-		readTimeout:      options.ReadTimeout,
-		writeTimeout:     options.WriteTimeout,
-		listener:         nil,
-		eventLoop:        nil,
-		listenConfig:     options.ListenConfig,
-		OnAccept:         options.OnAccept,
-		OnConnect:        options.OnConnect,
+		network:                  options.Network,
+		addr:                     options.Addr,
+		senseClientDisconnection: options.SenseClientDisconnection,
+		keepAliveTimeout:         options.KeepAliveTimeout,
+		readTimeout:              options.ReadTimeout,
+		writeTimeout:             options.WriteTimeout,
+		listener:                 nil,
+		eventLoop:                nil,
+		listenConfig:             options.ListenConfig,
+		OnAccept:                 options.OnAccept,
+		OnConnect:                options.OnConnect,
 	}
 }
 
@@ -97,6 +99,14 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 
 	if t.OnConnect != nil {
 		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, conn netpoll.Connection) context.Context {
+			if t.senseClientDisconnection {
+				ctx, cancel := context.WithCancel(ctx)
+				conn.AddCloseCallback(func(connection netpoll.Connection) error {
+					cancel()
+					return nil
+				})
+				return t.OnConnect(ctx, newConn(conn))
+			}
 			return t.OnConnect(ctx, newConn(conn))
 		}))
 	}

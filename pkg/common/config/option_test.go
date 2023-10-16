@@ -37,6 +37,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.False(t, options.HandleMethodNotAllowed)
 	assert.False(t, options.UseRawPath)
 	assert.False(t, options.RemoveExtraSlash)
+	assert.False(t, options.SenseClientDisconnection)
 	assert.True(t, options.UnescapePathValues)
 	assert.False(t, options.DisablePreParseMultipartForm)
 	assert.DeepEqual(t, defaultNetwork, options.Network)
