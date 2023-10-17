@@ -809,10 +809,20 @@ func (ctx *RequestContext) Reset() {
 	ctx.conn = nil
 }
 
+// Redirect returns an HTTP redirect to the specific location.
+// Note that this will not stop the current handler.
+// In other words, even if Redirect() is called, the remaining handlers will still be executed and cause unexpected result.
+// So it should call Abort to ensure the remaining handlers of this request will not be called.
+//
+//	ctx.Abort()
+//	return
 func (ctx *RequestContext) Redirect(statusCode int, uri []byte) {
 	ctx.redirect(uri, statusCode)
 }
 
+// Header is an intelligent shortcut for ctx.Response.Header.Set(key, value).
+// It writes a header in the response.
+// If value == "", this method removes the header `ctx.Response.Header.Del(key)`.
 func (ctx *RequestContext) Header(key, value string) {
 	if value == "" {
 		ctx.Response.Header.Del(key)
