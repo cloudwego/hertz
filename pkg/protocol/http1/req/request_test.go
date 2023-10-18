@@ -54,6 +54,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
@@ -201,6 +203,44 @@ func TestMethodAndPathAndQueryString(t *testing.T) {
 	if string(r.QueryString()) != "query=1" {
 		t.Fatalf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1")
 	}
+}
+
+func TestCopyURIMethodAndPathAndQueryString(t *testing.T) {
+	s := "PUT /foo/bar?query=1 HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+
+	var r protocol.Request
+	if err := Read(&r, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var copyR protocol.Request
+	r.CopyToAndMark(&copyR)
+
+	errG := errgroup.Group{}
+
+	for i := 0; i < 500; i++ {
+		errG.Go(func() error {
+			if string(copyR.RequestURI()) != "/foo/bar?query=1" {
+				return fmt.Errorf("unexpected request uri %s. Expecting %s", r.RequestURI(), "/foo/bar?query=1")
+			}
+			if string(copyR.Method()) != "PUT" {
+				return fmt.Errorf("unexpected method %s. Expecting %s", r.Header.Method(), "PUT")
+			}
+
+			if string(copyR.Path()) != "/foo/bar" {
+				return fmt.Errorf("unexpected uri path %s. Expecting %s", r.URI().Path(), "/foo/bar")
+			}
+			if string(copyR.QueryString()) != "query=1" {
+				return fmt.Errorf("unexpected query string %s. Expecting %s", r.URI().QueryString(), "query=1")
+			}
+
+			return nil
+		})
+	}
+
+	err := errG.Wait()
+	assert.Nil(t, err)
 }
 
 func TestRequestSuccess(t *testing.T) {
@@ -374,6 +414,46 @@ func TestRequestPostArgsBodyStream(t *testing.T) {
 	if string(req.PostArgs().Peek("key")) != content {
 		assert.DeepEqual(t, content, string(req.PostArgs().Peek("key")))
 	}
+}
+
+func TestCopyRequestPostArgsBodyStream(t *testing.T) {
+	var req protocol.Request
+	s := "POST / HTTP/1.1\r\nHost: aaa.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 8196\r\n\r\n"
+	contentB := make([]byte, 8192)
+	for i := 0; i < len(contentB); i++ {
+		contentB[i] = 'a'
+	}
+	content := string(contentB)
+	body := url.Values{"key": []string{content}}.Encode()
+	requestString := s + body
+
+	zr := mock.NewOneTimeConn(requestString)
+	if err := ReadHeader(&req.Header, zr); err != nil {
+		t.Fatalf("Unexpected error when reading header %q: %s", s, err)
+	}
+
+	err := ReadBodyStream(&req, zr, 1024*4, false, false)
+	if err != nil {
+		t.Fatalf("Unexpected error when reading bodystream %q: %s", s, err)
+	}
+
+	var copyReq protocol.Request
+	req.CopyToAndMark(&copyReq)
+
+	copyReq.SetBodyStream(req.BodyStream(), 8196)
+	errG := errgroup.Group{}
+
+	for i := 0; i < 500; i++ {
+		errG.Go(func() error {
+			if string(copyReq.PostArgs().Peek("key")) != content {
+				return errors.New("race error happened")
+			}
+			return nil
+		})
+	}
+
+	err = errG.Wait()
+	assert.Nil(t, err)
 }
 
 func testRequestWriteError(t *testing.T, method, requestURI, host, userAgent, body string) {
@@ -1399,6 +1479,103 @@ tailfoobar`
 			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
 		}
 	}
+}
+
+func TestCopyRequestReadMultipartFormWithFile(t *testing.T) {
+	t.Parallel()
+
+	s := `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Length: 520
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="f1"
+
+value1
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="fileaaa"; filename="TODO"
+Content-Type: application/octet-stream
+
+- SessionClient with referer and cookies support.
+- Client with requests' pipelining support.
+- ProxyHandler similar to FSHandler.
+- WebSockets. See https://tools.ietf.org/html/rfc6455 .
+- HTTP/2.0. See https://tools.ietf.org/html/rfc7540 .
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--`
+
+	mr := mock.NewOneTimeConn(s)
+
+	var r protocol.Request
+	if err := ReadHeader(&r.Header, mr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := ReadBodyStream(&r, mr, 0, false, false); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var copyRequest protocol.Request
+
+	r.CopyToAndMark(&copyRequest)
+
+	eg := errgroup.Group{}
+	for i := 0; i < 500; i++ {
+		eg.Go(func() error {
+			return testCopyRequestReadMultipartForm(t, &copyRequest)
+		})
+	}
+	err := eg.Wait()
+	assert.Nil(t, err)
+
+	r.RemoveMultipartFormFiles()
+}
+
+func testCopyRequestReadMultipartForm(t *testing.T, r *protocol.Request) error {
+	f, err := r.MultipartForm()
+	if err != nil {
+		return err
+	}
+
+	// verify values
+	if len(f.Value) != 1 {
+		t.Fatalf("unexpected number of values in multipart form: %d. Expecting 1", len(f.Value))
+	}
+	for k, vv := range f.Value {
+		if k != "f1" {
+			t.Fatalf("unexpected value name %q. Expecting %q", k, "f1")
+		}
+		if len(vv) != 1 {
+			t.Fatalf("unexpected number of values %d. Expecting 1", len(vv))
+		}
+		v := vv[0]
+		if v != "value1" {
+			t.Fatalf("unexpected value %q. Expecting %q", v, "value1")
+		}
+	}
+
+	// verify files
+	if len(f.File) != 1 {
+		t.Fatalf("unexpected number of file values in multipart form: %d. Expecting 1", len(f.File))
+	}
+	for k, vv := range f.File {
+		if k != "fileaaa" {
+			t.Fatalf("unexpected file value name %q. Expecting %q", k, "fileaaa")
+		}
+		if len(vv) != 1 {
+			t.Fatalf("unexpected number of file values %d. Expecting 1", len(vv))
+		}
+		v := vv[0]
+		if v.Filename != "TODO" {
+			t.Fatalf("unexpected filename %q. Expecting %q", v.Filename, "TODO")
+		}
+		ct := v.Header.Get("Content-Type")
+		if ct != "application/octet-stream" {
+			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
+		}
+	}
+
+	return nil
 }
 
 func testRequestMultipartFormBoundary(t *testing.T, s, boundary string) {

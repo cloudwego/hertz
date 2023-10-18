@@ -86,6 +86,12 @@ func (noBody) Close() error             { return nil }
 type Request struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+	// readLock is used to protect lazy load read APIs
+	readLock sync.Mutex
+
 	Header RequestHeader
 
 	uri      URI
@@ -189,6 +195,7 @@ func (req *Request) resetSkipHeaderAndConn() {
 	req.uri.Reset()
 	req.parsedURI = false
 	req.parsedPostArgs = false
+	req.isCopy = false
 	req.postArgs.Reset()
 }
 
@@ -230,6 +237,11 @@ func (req *Request) PostArgString() []byte {
 // RemoveMultipartFormFiles must be called after returned multipart form
 // is processed.
 func (req *Request) MultipartForm() (*multipart.Form, error) {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	if req.multipartForm != nil {
 		return req.multipartForm, nil
 	}
@@ -358,6 +370,40 @@ func (req *Request) SwapBody(body []byte) []byte {
 	oldBody := bb.B
 	bb.B = body
 	return oldBody
+}
+
+// CopyToAndMark copies req contents to dst except of body stream and mark the dst req as a copy.
+func (req *Request) CopyToAndMark(dst *Request) {
+	// Same with req.CopyTo(dst), but use the .CopyToAndMark instead of .CopyTo
+	dst.Reset()
+
+	dst.isCopy = true
+
+	req.Header.CopyToAndMark(&dst.Header)
+
+	req.uri.CopyToAndMark(&dst.uri)
+	dst.parsedURI = req.parsedURI
+
+	req.postArgs.CopyToAndMark(&dst.postArgs)
+	dst.parsedPostArgs = req.parsedPostArgs
+	dst.isTLS = req.isTLS
+
+	if req.options != nil {
+		dst.options = &config.RequestOptions{}
+		req.options.CopyTo(dst.options)
+	}
+
+	// copy body
+	if req.bodyRaw != nil {
+		dst.bodyRaw = append(dst.bodyRaw[:0], req.bodyRaw...)
+		if dst.body != nil {
+			dst.body.Reset()
+		}
+	} else if req.body != nil {
+		dst.BodyBuffer().Set(req.body.B)
+	} else if dst.body != nil {
+		dst.body.Reset()
+	}
 }
 
 // CopyTo copies req contents to dst except of body stream.
@@ -675,6 +721,11 @@ func (req *Request) BodyWriter() io.Writer {
 
 // PostArgs returns POST arguments.
 func (req *Request) PostArgs() *Args {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	req.parsePostArgs()
 	return &req.postArgs
 }
@@ -754,6 +805,11 @@ func (req *Request) CloseBodyStream() error {
 
 // URI returns request URI
 func (req *Request) URI() *URI {
+	if req.isCopy {
+		// use lock to prevent concurrent parse.
+		req.readLock.Lock()
+		defer req.readLock.Unlock()
+	}
 	req.ParseURI()
 	return &req.uri
 }

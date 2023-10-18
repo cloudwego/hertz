@@ -153,7 +153,7 @@ func TestIoutilCopyBufferWithIoReaderFrom(t *testing.T) {
 	assert.DeepEqual(t, true, ok)
 	written, err := CopyBuffer(ioReaderFrom, src, buf)
 	assert.DeepEqual(t, written, int64(0))
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(nil), writeBuffer.Bytes())
 }
 
@@ -182,7 +182,7 @@ func TestIoutilCopyBufferWithNilBuffer(t *testing.T) {
 	written, err := CopyBuffer(dst, src, nil)
 
 	assert.DeepEqual(t, written, srcLen)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
 
@@ -196,7 +196,7 @@ func TestIoutilCopyBufferWithNilBufferAndIoLimitedReader(t *testing.T) {
 	written, err := CopyBuffer(dst, &reader, nil)
 
 	assert.DeepEqual(t, written, srcLen)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 
 	// test l.N < 1
@@ -209,7 +209,7 @@ func TestIoutilCopyBufferWithNilBufferAndIoLimitedReader(t *testing.T) {
 	written, err = CopyBuffer(dst, &reader, nil)
 
 	assert.DeepEqual(t, written, srcLen)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(str), writeBuffer.Bytes())
 }
 

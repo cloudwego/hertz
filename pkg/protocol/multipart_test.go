@@ -174,7 +174,7 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	assert.True(t, strings.Contains(bodyBuffer.String(), string(buf1)))
 
 	// test file not found
-	assert.NotNil(t, WriteMultipartFormFile(w, multipartFile.ParamName, "test.go", multipartFile.Reader))
+	assert.Nil(t, WriteMultipartFormFile(w, multipartFile.ParamName, "test.go", multipartFile.Reader))
 
 	// Test Add File Function
 	err = AddFile(w, "responseCode", "./response.go")

@@ -65,6 +65,10 @@ var (
 type RequestHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
+
 	disableNormalizing   bool
 	connectionClose      bool
 	noDefaultContentType bool
@@ -109,6 +113,10 @@ func (h *RequestHeader) SetRawHeaders(r []byte) {
 // goroutines.
 type ResponseHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
+
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	// Other APIs such as CopyTo do not need to handle this.
+	isCopy bool
 
 	disableNormalizing   bool
 	connectionClose      bool
@@ -221,9 +229,13 @@ func (h *ResponseHeader) GetHeaders() []argsKV {
 func (h *ResponseHeader) Reset() {
 	h.disableNormalizing = false
 	h.Trailer().disableNormalizing = false
-	h.noDefaultContentType = false
-	h.noDefaultDate = false
 	h.ResetSkipNormalize()
+}
+
+// CopyToAndMark copies all the headers to dst and mark the dst header as a copy.
+func (h *ResponseHeader) CopyToAndMark(dst *ResponseHeader) {
+	dst.isCopy = true
+	h.CopyTo(dst)
 }
 
 // CopyTo copies all the headers to dst.
@@ -443,6 +455,9 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 //
 // The returned representation is valid until the next call to RequestHeader methods.
 func (h *RequestHeader) Header() []byte {
+	if h.isCopy {
+		return h.AppendBytes(nil)
+	}
 	h.bufKV.value = h.AppendBytes(h.bufKV.value[:0])
 	return h.bufKV.value
 }
@@ -506,6 +521,10 @@ func checkWriteHeaderCode(code int) {
 
 func (h *ResponseHeader) ResetSkipNormalize() {
 	h.protocol = ""
+
+	h.isCopy = false
+	h.noDefaultContentType = false
+	h.noDefaultDate = false
 	h.connectionClose = false
 
 	h.statusCode = 0
@@ -631,6 +650,9 @@ func (h *ResponseHeader) DelBytes(key []byte) {
 //
 // The returned value is valid until the next call to ResponseHeader methods.
 func (h *ResponseHeader) Header() []byte {
+	if h.isCopy {
+		return h.AppendBytes(nil)
+	}
 	h.bufKV.value = h.AppendBytes(h.bufKV.value[:0])
 	return h.bufKV.value
 }
@@ -684,6 +706,9 @@ func (h *ResponseHeader) DelClientCookieBytes(key []byte) {
 // Returned value is valid until the next call to ResponseHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *ResponseHeader) Peek(key string) []byte {
+	if h.isCopy {
+		return h.peek(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peek(k)
 }
@@ -730,6 +755,9 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use ResponseHeader.GetAll(key) instead.
 func (h *ResponseHeader) PeekAll(key string) [][]byte {
+	if h.isCopy {
+		return h.peekAll(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peekAll(k)
 }
@@ -772,6 +800,9 @@ func (h *ResponseHeader) peekAll(key []byte) [][]byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use RequestHeader.GetAll(key) instead.
 func (h *RequestHeader) PeekAll(key string) [][]byte {
+	if h.isCopy {
+		return h.peekAll(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peekAll(k)
 }
@@ -1095,6 +1126,12 @@ func (h *RequestHeader) del(key []byte) {
 	h.h = delAllArgsBytes(h.h, key)
 }
 
+// CopyToAndMark copies all the headers to dst and mark the dst header as a copy.
+func (h *RequestHeader) CopyToAndMark(dst *RequestHeader) {
+	dst.isCopy = true
+	h.CopyTo(dst)
+}
+
 // CopyTo copies all the headers to dst.
 func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.Reset()
@@ -1123,6 +1160,9 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 // Returned value is valid until the next call to RequestHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *RequestHeader) Peek(key string) []byte {
+	if h.isCopy {
+		return h.peek(getHeaderKeyBytes(&argsKV{}, key, h.disableNormalizing))
+	}
 	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
 	return h.peek(k)
 }
@@ -1420,6 +1460,7 @@ func (h *RequestHeader) SetCanonical(key, value []byte) {
 }
 
 func (h *RequestHeader) ResetSkipNormalize() {
+	h.isCopy = false
 	h.connectionClose = false
 	h.protocol = ""
 	h.noDefaultContentType = false
@@ -1537,8 +1578,12 @@ func (h *RequestHeader) VisitAll(f func(key, value []byte)) {
 
 	h.collectCookies()
 	if len(h.cookies) > 0 {
-		h.bufKV.value = appendRequestCookieBytes(h.bufKV.value[:0], h.cookies)
-		f(bytestr.StrCookie, h.bufKV.value)
+		if h.isCopy {
+			f(bytestr.StrCookie, appendRequestCookieBytes(nil, h.cookies))
+		} else {
+			h.bufKV.value = appendRequestCookieBytes(h.bufKV.value[:0], h.cookies)
+			f(bytestr.StrCookie, h.bufKV.value)
+		}
 	}
 	visitArgs(h.h, f)
 	if h.ConnectionClose() {

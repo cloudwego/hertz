@@ -196,6 +196,9 @@ var defaultFormValue = func(ctx *RequestContext, key string) []byte {
 }
 
 type RequestContext struct {
+	// isCopy shows that whether it is a copy through ctx.Copy().
+	isCopy bool
+
 	conn     network.Conn
 	Request  protocol.Request
 	Response protocol.Response
@@ -212,7 +215,8 @@ type RequestContext struct {
 	// This mutex protect Keys map.
 	mu sync.RWMutex
 
-	// Keys is a key/value pair exclusively for the context of each request.
+	// Deprecated: DO NOT CALL IT DIRECTLY.
+	// Use .Get/.Set/.ForEachKey APIs to manipulate it.
 	Keys map[string]interface{}
 
 	hijackHandler HijackHandler
@@ -723,15 +727,19 @@ func getRedirectStatusCode(statusCode int) int {
 // Copy returns a copy of the current context that can be safely used outside
 // the request's scope.
 //
-// NOTE: If you want to pass requestContext to a goroutine, call this method
+// NOTE1: If you want to pass requestContext to a goroutine, call this method
 // to get a copy of requestContext.
+// NOTE2: The copy of the ctx is READ-ONLY, any writing scenario should be passed
+// back to the origin ctx, and process in the origin ctx.
+// NOTE3: The copy of the ctx will be marked as copy, which means it is safe for
+// concurrent read only not write.
 func (ctx *RequestContext) Copy() *RequestContext {
 	cp := &RequestContext{
 		conn:   ctx.conn,
 		Params: ctx.Params,
 	}
-	ctx.Request.CopyTo(&cp.Request)
-	ctx.Response.CopyTo(&cp.Response)
+	ctx.Request.CopyToAndMark(&cp.Request)
+	ctx.Response.CopyToAndMark(&cp.Response)
 	cp.index = rConsts.AbortIndex
 	cp.handlers = nil
 	cp.Keys = map[string]interface{}{}
@@ -788,6 +796,7 @@ func (ctx *RequestContext) ResetWithoutConn() {
 	ctx.index = -1
 	ctx.fullPath = ""
 	ctx.Keys = nil
+	ctx.isCopy = false
 
 	if ctx.finished != nil {
 		close(ctx.finished)

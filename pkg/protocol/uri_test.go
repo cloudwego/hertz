@@ -45,9 +45,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestURI_Username(t *testing.T) {
@@ -74,6 +77,28 @@ func TestURI_Username(t *testing.T) {
 	assert.DeepEqual(t, expectUser3, user3)
 	u.SetUsernameBytes([]byte(user4))
 	assert.DeepEqual(t, expectUser4, user4)
+}
+
+func TestCopyURI_FullURI(t *testing.T) {
+	u := URI{}
+	u.SetHost("foo.bar")
+	assert.DeepEqual(t, "http://foo.bar/", string(u.FullURI()))
+	assert.DeepEqual(t, "http://foo.bar/", string(u.fullURI))
+	u.fullURI = nil
+	u.isCopy = true
+	assert.DeepEqual(t, "http://foo.bar/", string(u.FullURI()))
+	assert.Nil(t, u.fullURI)
+}
+
+func TestCopyURI_RequestURI(t *testing.T) {
+	u := URI{}
+	u.SetPath("foo/bar")
+	assert.DeepEqual(t, "/foo/bar", string(u.RequestURI()))
+	assert.DeepEqual(t, "/foo/bar", string(u.requestURI))
+	u.requestURI = nil
+	u.isCopy = true
+	assert.DeepEqual(t, "/foo/bar", string(u.RequestURI()))
+	assert.Nil(t, u.requestURI)
 }
 
 func TestURI_Password(t *testing.T) {
@@ -226,6 +251,33 @@ func TestURICopyToQueryArgs(t *testing.T) {
 		t.Fatalf("unexpected query args value %q. Expecting %q", a1.Peek("foo"), "bar")
 	}
 	assert.DeepEqual(t, "bar", string(a1.Peek("foo")))
+}
+
+func TestCopyURI_QueryArgs(t *testing.T) {
+	t.Parallel()
+
+	var u URI
+	a := u.QueryArgs()
+	k := strings.Repeat("foo", 1000)
+	v := strings.Repeat("bar", 1000)
+	a.Set(k, v)
+
+	var copyU URI
+	u.CopyToAndMark(&copyU)
+
+	errG := errgroup.Group{}
+
+	for i := 0; i < 500; i++ {
+		errG.Go(func() error {
+			if string(copyU.QueryArgs().Peek(k)) != v {
+				return errors.NewPrivate("race error happened")
+			}
+			return nil
+		})
+	}
+
+	err := errG.Wait()
+	assert.Nil(t, err)
 }
 
 func TestURICopyTo(t *testing.T) {

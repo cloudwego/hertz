@@ -63,7 +63,7 @@ func Nil(t testing.TB, data interface{}) {
 func NotNil(t testing.TB, data interface{}) {
 	t.Helper()
 	if data == nil {
-		return
+		t.Fatalf("assertion failed, unexpected: %v, expected: not nil", data)
 	}
 
 	if reflect.ValueOf(data).IsNil() {

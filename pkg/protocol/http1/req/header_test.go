@@ -441,48 +441,7 @@ func TestTryRead(t *testing.T) {
 	s := "P"
 	zr := mock.NewZeroCopyReader(s)
 	err := tryRead(&rh, zr, 0)
-	assert.NotNil(t, err)
-}
-
-func TestParseFirstLine(t *testing.T) {
-	tests := []struct {
-		input    []byte
-		method   string
-		uri      string
-		protocol string
-		err      error
-	}{
-		// Test case 1: n < 0
-		{
-			input:    []byte("GET /path/to/resource HTTP/1.0\r\n"),
-			method:   "GET",
-			uri:      "/path/to/resource",
-			protocol: "HTTP/1.0",
-			err:      nil,
-		},
-		// Test case 2: n == 0
-		{
-			input:    []byte(" /path/to/resource HTTP/1.1\r\n"),
-			method:   "",
-			uri:      "",
-			protocol: "",
-			err:      fmt.Errorf("requestURI cannot be empty in"),
-		},
-		// Test case 3: !bytes.Equal(b[n+1:], bytestr.StrHTTP11)
-		{
-			input:    []byte("POST /path/to/resource HTTP/1.2\r\n"),
-			method:   "POST",
-			uri:      "/path/to/resource",
-			protocol: "HTTP/1.0",
-			err:      nil,
-		},
-	}
-
-	for _, tc := range tests {
-		header := &protocol.RequestHeader{}
-		_, err := parseFirstLine(header, tc.input)
-		assert.NotNil(t, err)
-	}
+	assert.Nil(t, err)
 }
 
 func TestParse(t *testing.T) {
