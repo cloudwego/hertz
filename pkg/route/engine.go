@@ -59,6 +59,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -192,6 +193,10 @@ type Engine struct {
 	// Custom Functions
 	clientIPFunc  app.ClientIP
 	formValueFunc app.FormValueFunc
+
+	// Custom Binder and Validator
+	binder    binding.Binder
+	validator binding.StructValidator
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -341,8 +346,8 @@ func (engine *Engine) Run() (err error) {
 		return err
 	}
 
-	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
-		return errAlreadyRunning
+	if err = engine.MarkAsRunning(); err != nil {
+		return err
 	}
 	defer atomic.StoreUint32(&engine.status, statusClosed)
 
@@ -459,7 +464,7 @@ func errProcess(conn io.Closer, err error) {
 		}
 	}
 	// other errors
-	hlog.SystemLogger().Errorf("Error=%s, remoteAddr=%s", err.Error(), rip)
+	hlog.SystemLogger().Errorf(hlog.EngineErrorFormat, err.Error(), rip)
 }
 
 func getRemoteAddrFromCloser(conn io.Closer) string {
@@ -551,6 +556,49 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 	return errs.ErrNotSupportProtocol
 }
 
+func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	// init validator
+	if opt.CustomValidator != nil {
+		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
+		if !ok {
+			panic("customized validator does not implement binding.StructValidator")
+		}
+		engine.validator = customValidator
+	} else {
+		engine.validator = binding.NewValidator(binding.NewValidateConfig())
+		if opt.ValidateConfig != nil {
+			vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
+			if !ok {
+				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
+			}
+			engine.validator = binding.NewValidator(vConf)
+		}
+	}
+
+	if opt.CustomBinder != nil {
+		customBinder, ok := opt.CustomBinder.(binding.Binder)
+		if !ok {
+			panic("customized binder can not implement binding.Binder")
+		}
+		engine.binder = customBinder
+		return
+	}
+	// Init binder. Due to the existence of the "BindAndValidate" interface, the Validator needs to be injected here.
+	defaultBindConfig := binding.NewBindConfig()
+	defaultBindConfig.Validator = engine.validator
+	engine.binder = binding.NewDefaultBinder(defaultBindConfig)
+	if opt.BindConfig != nil {
+		bConf, ok := opt.BindConfig.(*binding.BindConfig)
+		if !ok {
+			panic("opt.BindConfig is not the '*binding.BindConfig' type")
+		}
+		if bConf.Validator == nil {
+			bConf.Validator = engine.validator
+		}
+		engine.binder = binding.NewDefaultBinder(bConf)
+	}
+}
+
 func NewEngine(opt *config.Options) *Engine {
 	engine := &Engine{
 		trees: make(MethodTrees, 0, 9),
@@ -566,6 +614,7 @@ func NewEngine(opt *config.Options) *Engine {
 		enableTrace:           true,
 		options:               opt,
 	}
+	engine.initBinderAndValidator(opt)
 	if opt.TransporterNewer != nil {
 		engine.transport = opt.TransporterNewer(opt)
 	}
@@ -665,6 +714,8 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	ctx.SetBinder(engine.binder)
+	ctx.SetValidator(engine.validator)
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}
@@ -990,20 +1041,21 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 	opt := &http1.Option{
-		StreamRequestBody:            engine.options.StreamRequestBody,
-		GetOnly:                      engine.options.GetOnly,
-		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
-		DisableKeepalive:             engine.options.DisableKeepalive,
-		NoDefaultServerHeader:        engine.options.NoDefaultServerHeader,
-		MaxRequestBodySize:           engine.options.MaxRequestBodySize,
-		IdleTimeout:                  engine.options.IdleTimeout,
-		ReadTimeout:                  engine.options.ReadTimeout,
-		ServerName:                   engine.GetServerName(),
-		ContinueHandler:              engine.ContinueHandler,
-		TLS:                          engine.options.TLS,
-		HTMLRender:                   engine.htmlRender,
-		EnableTrace:                  engine.IsTraceEnable(),
-		HijackConnHandle:             engine.HijackConnHandle,
+		StreamRequestBody:             engine.options.StreamRequestBody,
+		GetOnly:                       engine.options.GetOnly,
+		DisablePreParseMultipartForm:  engine.options.DisablePreParseMultipartForm,
+		DisableKeepalive:              engine.options.DisableKeepalive,
+		NoDefaultServerHeader:         engine.options.NoDefaultServerHeader,
+		MaxRequestBodySize:            engine.options.MaxRequestBodySize,
+		IdleTimeout:                   engine.options.IdleTimeout,
+		ReadTimeout:                   engine.options.ReadTimeout,
+		ServerName:                    engine.GetServerName(),
+		ContinueHandler:               engine.ContinueHandler,
+		TLS:                           engine.options.TLS,
+		HTMLRender:                    engine.htmlRender,
+		EnableTrace:                   engine.IsTraceEnable(),
+		HijackConnHandle:              engine.HijackConnHandle,
+		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
 	}
 	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
 	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
@@ -1021,4 +1073,13 @@ func versionToALNP(v uint32) string {
 		return suite.HTTP3Draft29
 	}
 	return ""
+}
+
+// MarkAsRunning will mark the status of the hertz engine as "running".
+// Warning: do not call this method by yourself, unless you know what you are doing.
+func (engine *Engine) MarkAsRunning() (err error) {
+	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
+		return errAlreadyRunning
+	}
+	return nil
 }

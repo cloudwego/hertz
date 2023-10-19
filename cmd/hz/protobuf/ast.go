@@ -19,6 +19,7 @@ package protobuf
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
@@ -31,6 +32,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/runtime/protoimpl"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -117,7 +119,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		}
 
 		service.BaseDomain = ""
-		domainAnno := checkFirstOption(api.E_BaseDomain, s.GetOptions())
+		domainAnno := getCompatibleAnnotation(s.GetOptions(), api.E_BaseDomain, api.E_BaseDomainCompatible)
 		if cmdType == meta.CmdClient {
 			val, ok := domainAnno.(string)
 			if ok && len(val) != 0 {
@@ -128,18 +130,34 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		ms := s.GetMethod()
 		methods := make([]*generator.HttpMethod, 0, len(ms))
 		clientMethods := make([]*generator.ClientMethod, 0, len(ms))
+		servicePathAnno := checkFirstOption(api.E_ServicePath, s.GetOptions())
+		servicePath := ""
+		if val, ok := servicePathAnno.(string); ok {
+			servicePath = val
+		}
 		for _, m := range ms {
-			hmethod, vpath := checkFirstOptions(HttpMethodOptions, m.GetOptions())
-			if hmethod == "" {
+			rs := getAllOptions(HttpMethodOptions, m.GetOptions())
+			if len(rs) == 0 {
 				continue
 			}
-			path := vpath.(string)
+			httpOpts := httpOptions{}
+			for k, v := range rs {
+				httpOpts = append(httpOpts, httpOption{
+					method: k,
+					path:   v.(string),
+				})
+			}
+			// turn the map into a slice and sort it to make sure getting the results in the same order every time
+			sort.Sort(httpOpts)
 
 			var handlerOutDir string
-			genPath := checkFirstOption(api.E_HandlerPath, m.GetOptions())
+			genPath := getCompatibleAnnotation(m.GetOptions(), api.E_HandlerPath, api.E_HandlerPathCompatible)
 			handlerOutDir, ok := genPath.(string)
 			if !ok || len(handlerOutDir) == 0 {
 				handlerOutDir = ""
+			}
+			if len(handlerOutDir) == 0 {
+				handlerOutDir = servicePath
 			}
 
 			// protoGoInfo can get generated "Go Info" for proto file.
@@ -157,16 +175,20 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 			reqName := m.GetInputType()
 			sb, err := resolver.ResolveIdentifier(reqName)
-			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
+			reqName = util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "") + "." + inputGoType.GoIdent.GoName
+			reqRawName := inputGoType.GoIdent.GoName
+			reqPackage := util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "")
 			respName := m.GetOutputType()
 			st, err := resolver.ResolveIdentifier(respName)
-			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
 			if err != nil {
 				return nil, err
 			}
+			respName = util.BaseName(st.Scope.GetOptions().GetGoPackage(), "") + "." + outputGoType.GoIdent.GoName
+			respRawName := outputGoType.GoIdent.GoName
+			respPackage := util.BaseName(sb.Scope.GetOptions().GetGoPackage(), "")
 
 			var serializer string
 			sl, sv := checkFirstOptions(SerializerOptions, m.GetOptions())
@@ -176,10 +198,11 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 
 			method := &generator.HttpMethod{
 				Name:       util.CamelString(m.GetName()),
-				HTTPMethod: hmethod,
-				Path:       path,
+				HTTPMethod: httpOpts[0].method,
+				Path:       httpOpts[0].path,
 				Serializer: serializer,
 				OutputDir:  handlerOutDir,
+				GenHandler: true,
 			}
 
 			goOptMapAlias := make(map[string]string, 1)
@@ -211,9 +234,23 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 				respName = goOptMapAlias[st.Scope.GetOptions().GetGoPackage()] + "." + outputGoType.GoIdent.GoName
 			}
 			method.RequestTypeName = reqName
+			method.RequestTypeRawName = reqRawName
+			method.RequestTypePackage = reqPackage
 			method.ReturnTypeName = respName
+			method.ReturnTypeRawName = respRawName
+			method.ReturnTypePackage = respPackage
 
 			methods = append(methods, method)
+			for idx, anno := range httpOpts {
+				if idx == 0 {
+					continue
+				}
+				tmp := *method
+				tmp.HTTPMethod = anno.method
+				tmp.Path = anno.path
+				tmp.GenHandler = false
+				methods = append(methods, &tmp)
+			}
 
 			if cmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
@@ -232,6 +269,16 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 		out = append(out, service)
 	}
 	return out, nil
+}
+
+func getCompatibleAnnotation(options proto.Message, anno, compatibleAnno *protoimpl.ExtensionInfo) interface{} {
+	if proto.HasExtension(options, anno) {
+		return checkFirstOption(anno, options)
+	} else if proto.HasExtension(options, compatibleAnno) {
+		return checkFirstOption(compatibleAnno, options)
+	}
+
+	return nil
 }
 
 func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
@@ -258,14 +305,14 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Query) {
 			hasAnnotation = true
 			queryAnnos := proto.GetExtension(f.Desc.Options(), api.E_Query)
-			val := queryAnnos.(string)
+			val := checkSnakeName(queryAnnos.(string))
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
 			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
-			val := pathAnnos.(string)
+			val := checkSnakeName(pathAnnos.(string))
 			if isStringFieldType {
 				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -276,7 +323,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
 			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
-			val := headerAnnos.(string)
+			val := checkSnakeName(headerAnnos.(string))
 			if isStringFieldType {
 				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -284,11 +331,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			}
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_Form) {
+		if formAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_Form, api.E_FormCompatible); formAnnos != nil {
 			hasAnnotation = true
-			formAnnos := proto.GetExtension(f.Desc.Options(), api.E_Form)
 			hasFormAnnotation = true
-			val := formAnnos.(string)
+			val := checkSnakeName(formAnnos.(string))
 			if isStringFieldType {
 				clientMethod.FormValueCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -301,15 +347,14 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			hasBodyAnnotation = true
 		}
 
-		if proto.HasExtension(f.Desc.Options(), api.E_FileName) {
+		if fileAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_FileName, api.E_FileNameCompatible); fileAnnos != nil {
 			hasAnnotation = true
-			fileAnnos := proto.GetExtension(f.Desc.Options(), api.E_FileName)
 			hasFormAnnotation = true
-			val := fileAnnos.(string)
+			val := checkSnakeName(fileAnnos.(string))
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", f.GoName, f.GoName)
+			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(string(f.Desc.Name())), f.GoName)
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

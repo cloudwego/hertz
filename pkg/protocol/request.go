@@ -65,8 +65,7 @@ import (
 )
 
 var (
-	errMissingFile     = errors.NewPublic("http: no such file")
-	errNoMultipartForm = errors.NewPublic("request has no multipart/form-data Content-Type")
+	errMissingFile = errors.NewPublic("http: no such file")
 
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
@@ -77,7 +76,6 @@ var (
 // NoBody is an io.ReadCloser with no bytes. Read always returns EOF
 // and Close always returns nil. It can be used in an outgoing client
 // request to explicitly signal that a request has zero bytes.
-// An alternative, however, is to simply set Request.Body to nil.
 var NoBody = noBody{}
 
 type noBody struct{}
@@ -177,16 +175,25 @@ func (req *Request) MayContinue() bool {
 	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
 }
 
+// Scheme returns the scheme of the request.
+// uri will be parsed in ServeHTTP(before user's process), so that there is no need for uri nil-check.
 func (req *Request) Scheme() []byte {
 	return req.uri.Scheme()
 }
 
-func (req *Request) ResetSkipHeader() {
+// For keepalive connection reuse.
+// It is roughly the same as ResetSkipHeader, except that the connection related fields are removed:
+// - req.isTLS
+func (req *Request) resetSkipHeaderAndConn() {
 	req.ResetBody()
 	req.uri.Reset()
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+}
+
+func (req *Request) ResetSkipHeader() {
+	req.resetSkipHeaderAndConn()
 	req.isTLS = false
 }
 
@@ -217,7 +224,7 @@ func (req *Request) PostArgString() []byte {
 
 // MultipartForm returns request's multipart form.
 //
-// Returns errNoMultipartForm if request's Content-Type
+// Returns errors.ErrNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
 //
 // RemoveMultipartFormFiles must be called after returned multipart form
@@ -228,7 +235,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 	}
 	req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
 	if len(req.multipartFormBoundary) == 0 {
-		return nil, errNoMultipartForm
+		return nil, errors.ErrNoMultipartForm
 	}
 
 	ce := req.Header.peek(bytestr.StrContentEncoding)
@@ -383,6 +390,7 @@ func (req *Request) CopyToSkipBody(dst *Request) {
 		dst.options = &config.RequestOptions{}
 		req.options.CopyTo(dst.options)
 	}
+
 	// do not copy multipartForm - it will be automatically
 	// re-created on the first call to MultipartForm.
 }
@@ -812,6 +820,14 @@ func (req *Request) ConnectionClose() bool {
 // SetConnectionClose sets 'Connection: close' header.
 func (req *Request) SetConnectionClose() {
 	req.Header.SetConnectionClose(true)
+}
+
+func (req *Request) ResetWithoutConn() {
+	req.Header.Reset()
+	req.resetSkipHeaderAndConn()
+	req.CloseBodyStream()
+
+	req.options = nil
 }
 
 // AcquireRequest returns an empty Request instance from request pool.

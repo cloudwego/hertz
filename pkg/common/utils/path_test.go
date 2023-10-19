@@ -82,6 +82,11 @@ func TestPathCleanPath(t *testing.T) {
 	expectedMultiSlashPath := "/Foo/Bar/go/src/github.com/cloudwego"
 	cleanMultiSlashPath := CleanPath(multiSlashPath)
 	assert.DeepEqual(t, expectedMultiSlashPath, cleanMultiSlashPath)
+
+	inputPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go/."
+	expectedPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go/"
+	cleanedPath := CleanPath(inputPath)
+	assert.DeepEqual(t, expectedPath, cleanedPath)
 }
 
 // The Function AddMissingPort can only add the missed port, don't consider the other error case.

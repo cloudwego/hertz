@@ -35,6 +35,33 @@ func TestChunkParseChunkSizeGetCorrect(t *testing.T) {
 	}
 }
 
+func TestChunkParseChunkSizeGetError(t *testing.T) {
+	// test err from -----n, err := bytesconv.ReadHexInt(r)-----
+	chunkSizeBody := ""
+	zr := mock.NewZeroCopyReader(chunkSizeBody)
+	chunkSize, err := ParseChunkSize(zr)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, -1, chunkSize)
+	// test err from -----c, err := r.ReadByte()-----
+	chunkSizeBody = "0"
+	zr = mock.NewZeroCopyReader(chunkSizeBody)
+	chunkSize, err = ParseChunkSize(zr)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, -1, chunkSize)
+	// test err from -----c, err := r.ReadByte()-----
+	chunkSizeBody = "0" + "\r"
+	zr = mock.NewZeroCopyReader(chunkSizeBody)
+	chunkSize, err = ParseChunkSize(zr)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, -1, chunkSize)
+	// test err from -----c, err := r.ReadByte()-----
+	chunkSizeBody = "0" + "\r" + "\r"
+	zr = mock.NewZeroCopyReader(chunkSizeBody)
+	chunkSize, err = ParseChunkSize(zr)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, -1, chunkSize)
+}
+
 func TestChunkParseChunkSizeCorrectWhiteSpace(t *testing.T) {
 	// test the whitespace
 	whiteSpace := ""

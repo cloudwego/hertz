@@ -120,10 +120,10 @@ import (
 
 {{define "G"}}
 {{- if ne .Handler ""}}
-	{{- .GroupName}}.{{.HttpMethod}}("{{.Path}}", append({{.MiddleWare}}Mw(), {{.Handler}})...)
+	{{- .GroupName}}.{{.HttpMethod}}("{{.Path}}", append({{.HandlerMiddleware}}Mw(), {{.Handler}})...)
 {{- end}}
 {{- if ne (len .Children) 0}}
-{{.MiddleWare}} := {{template "g" .}}.Group("{{.Path}}", {{.MiddleWare}}Mw()...)
+{{.MiddleWare}} := {{template "g" .}}.Group("{{.Path}}", {{.GroupMiddleware}}Mw()...)
 {{- end}}
 {{- range $_, $router := .Children}}
 {{- if ne .Handler ""}}
@@ -177,10 +177,18 @@ import (
 )
 
 {{define "M"}}
-func {{.MiddleWare}}Mw() []app.HandlerFunc {
+{{- if ne .Children.Len 0}}
+func {{.GroupMiddleware}}Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+{{end}}
+{{- if ne .Handler ""}}
+func {{.HandlerMiddleware}}Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+{{end}}
 {{range $_, $router := $.Children}}{{template "M" $router}}{{end}}
 {{- end}}
 
@@ -821,7 +829,7 @@ func parseResponseBody(c *cli, res *response) (err error) {
 			}
 		} else {
 			jsonByte, jsonErr := json.Marshal(map[string]interface{}{
-				"status_code": res.rawResponse.StatusCode,
+				"status_code": res.rawResponse.StatusCode(),
 				"body":        string(res.bodyByte),
 			})
 			if jsonErr != nil {

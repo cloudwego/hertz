@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package psm;
+
+option go_package = "github.com/cloudwego/hertz/cmd/hz/test/hertz_model/psm";
+
+import "api.proto";
+import "base.proto";
+import "other/other.proto";
+
+enum EnumType {
+    TWEET = 0;
+    RETWEET = 1;
+}
+message UnusedMessageType {
+  optional string IsUnusedMessageType = 1;
+}
+
+message BaseType {
+  optional base.Base IsBaseType = 1;
+}
+
+message MultiTypeReq {
+  // basic type (leading comments)
+  optional bool IsBoolOpt = 1;
+  optional int32 IsInt32Opt = 3;
+  int64 IsInt64Default = 5;
+  optional uint32 IsUInt32Opt = 6;
+  uint64 IsUInt64Default = 7;
+  optional sint32 IsSInt32Opt = 8;
+  sint64 IsSInt64Default = 9;
+  optional fixed32 IsFix32Opt = 10;
+  optional fixed64 IsFix64Opt = 11;
+  optional sfixed32 IsSFix32Opt = 12;
+  optional sfixed64 IsSFix64Opt = 13;
+  optional double IsDoubleOpt = 14;
+  optional float IsFloatOpt = 16;
+  optional string IsStringOpt = 17;
+  optional bytes IsBytesOpt = 19;
+  bytes IsBytesDefault = 20;
+
+  // slice
+  repeated string IsRepeatedString = 21;
+  repeated BaseType IsRepeatedBaseType = 22;
+
+  // map
+  map<string, string> IsStringMap = 23;
+  map<string, BaseType> IsBaseTypeMap = 24;
+
+  // oneof
+  oneof TestOneof {
+    string IsOneofString = 25;
+    BaseType IsOneofBaseTypeString = 26;
+  }
+
+  oneof TestOneof2 {
+    string IsOneofString2 = 100;
+  }
+
+  // nested message
+  message NestedMessageType {
+    oneof NestedOneof {
+      string YYY = 4;
+      string GGG = 5;
+    }
+    optional string IsNestedString = 1;
+    optional BaseType IsNestedBaseType = 2;
+    repeated BaseType IsNestedRepeatedBaseType = 3;
+  }
+  optional NestedMessageType IsNestedType = 27;
+
+  // other dependency
+  optional base.Base IsCurrentPackageBase = 28;
+  optional hertz.other.OtherType IsOtherType = 29;
+
+  // enum
+  optional EnumType IsEnumTypeOpt = 30;
+  EnumType IsEnumTypeDefault = 31;
+}
+
+message MultiTagReq {
+  optional string QueryTag = 1 [(api.query) = "query", (api.none) = "true"];
+  optional string RawBodyTag = 2 [(api.raw_body)="raw_body"];
+  optional string CookieTag = 3 [(api.cookie)="cookie"];
+  optional string BodyTag = 4 [(api.body)="body"];
+  optional string PathTag = 5 [(api.path)="path"];
+  optional string VdTag = 6 [(api.vd)="$!='?'"];
+  optional string DefaultTag = 7;
+  oneof TestOneof {
+    string IsOneofString = 25;
+    BaseType IsOneofBaseTypeString = 26;
+  }
+}
+
+message CompatibleAnnoReq {
+  optional string FormCompatibleTag = 1 [(api.form_compatible) = "form"];
+  optional string FilenameCompatibleTag = 2 [(api.file_name_compatible) = "file_name"];
+  optional string NoneCompatibleTag = 3 [(api.none_compatible) = "true"];
+  optional string JsConvCompatibleTag = 4 [(api.js_conv_compatible) = "true"];
+}
+
+message Resp {
+  optional string Resp = 1;
+}
+
+service Hertz {
+  rpc Method1(MultiTypeReq) returns(Resp) {
+    option (api.get)="/company/department/group/user:id/name";
+  }
+  rpc Method2(MultiTypeReq) returns(Resp) {
+    option (api.post)="/company/department/group/user:id/sex";
+  }
+  rpc Method3(MultiTypeReq) returns(Resp) {
+    option (api.put)="/company/department/group/user:id/number";
+  }
+  rpc Method4(MultiTypeReq) returns(Resp) {
+    option (api.delete)="/company/department/group/user:id/age";
+  }
+
+
+  rpc Method5(MultiTagReq) returns(Resp) {
+    option (api.options)="/school/class/student/name";
+  }
+  rpc Method6(MultiTagReq) returns(Resp) {
+    option (api.head)="/school/class/student/number";
+  }
+  rpc Method7(MultiTagReq) returns(Resp) {
+    option (api.patch)="/school/class/student/sex";
+  }
+  rpc Method8(MultiTagReq) returns(Resp) {
+    option (api.any)="/school/class/student/grade/*subjects";
+  }
+}

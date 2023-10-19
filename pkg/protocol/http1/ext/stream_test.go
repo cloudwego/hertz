@@ -16,6 +16,8 @@
 package ext
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -87,4 +89,165 @@ func TestChunkedSkipRest(t *testing.T) {
 
 	// big body
 	testChunkedSkipRestWithBodySize(t, 3*1024*1024)
+}
+
+func TestBodyStream_Reset(t *testing.T) {
+	t.Parallel()
+	bs := bodyStream{
+		prefetchedBytes: bytes.NewReader([]byte("aaa")),
+		reader:          mock.NewZeroCopyReader("bbb"),
+		trailer:         &protocol.Trailer{},
+		offset:          10,
+		contentLength:   20,
+		chunkLeft:       50,
+		chunkEOF:        true,
+	}
+
+	bs.reset()
+
+	assert.Nil(t, bs.prefetchedBytes)
+	assert.Nil(t, bs.reader)
+	assert.Nil(t, bs.trailer)
+	assert.DeepEqual(t, 0, bs.offset)
+	assert.DeepEqual(t, 0, bs.contentLength)
+	assert.DeepEqual(t, 0, bs.chunkLeft)
+	assert.False(t, bs.chunkEOF)
+}
+
+func TestReadBodyWithStreaming(t *testing.T) {
+	t.Run("TestBodyFixedSize", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		reader := mock.NewZeroCopyReader(string(body))
+		dst, err := ReadBodyWithStreaming(reader, bodySize, -1, nil)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, body, dst)
+	})
+
+	t.Run("TestBodyFixedSizeMaxContentLength", func(t *testing.T) {
+		bodySize := 8 * 1024 * 2
+		body := mock.CreateFixedBody(bodySize)
+		reader := mock.NewZeroCopyReader(string(body))
+		dst, err := ReadBodyWithStreaming(reader, bodySize, 8*1024*10, nil)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, body[:maxContentLengthInStream], dst)
+	})
+
+	t.Run("TestBodyIdentity", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		reader := mock.NewZeroCopyReader(string(body))
+		dst, err := ReadBodyWithStreaming(reader, -2, 512, nil)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, body, dst)
+	})
+
+	t.Run("TestErrBodyTooLarge", func(t *testing.T) {
+		bodySize := 2048
+		body := mock.CreateFixedBody(bodySize)
+		reader := mock.NewZeroCopyReader(string(body))
+		dst, err := ReadBodyWithStreaming(reader, bodySize, 1024, nil)
+		assert.True(t, errors.Is(err, errBodyTooLarge))
+		assert.DeepEqual(t, body[:len(dst)], dst)
+	})
+
+	t.Run("TestErrChunkedStream", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		reader := mock.NewZeroCopyReader(string(body))
+		dst, err := ReadBodyWithStreaming(reader, -1, bodySize, nil)
+		assert.True(t, errors.Is(err, errChunkedStream))
+		assert.Nil(t, dst)
+	})
+}
+
+func TestBodyStream(t *testing.T) {
+	t.Run("TestBodyStreamPrereadBuffer", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		byteBuffer := &bytebufferpool.ByteBuffer{}
+		byteBuffer.Set(body)
+
+		bs := AcquireBodyStream(byteBuffer, mock.NewSlowReadConn(""), nil, len(body))
+		defer func() {
+			ReleaseBodyStream(bs)
+		}()
+
+		b := make([]byte, bodySize)
+		err := bodyStreamRead(bs, b)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, len(body), len(b))
+		assert.DeepEqual(t, string(body), string(b))
+	})
+
+	t.Run("TestBodyStreamRelease", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		byteBuffer := &bytebufferpool.ByteBuffer{}
+		byteBuffer.Set(body)
+		bs := AcquireBodyStream(byteBuffer, mock.NewSlowReadConn(string(body)), nil, bodySize*2)
+		err := ReleaseBodyStream(bs)
+		assert.Nil(t, err)
+	})
+
+	t.Run("TestBodyStreamChunked", func(t *testing.T) {
+		bodySize := 5
+		body := mock.CreateFixedBody(bodySize)
+		expectedTrailer := map[string]string{"Foo": "chunked shit"}
+		chunkedBody := mock.CreateChunkedBody(body, expectedTrailer, true)
+
+		byteBuffer := &bytebufferpool.ByteBuffer{}
+		byteBuffer.Set(chunkedBody)
+
+		bs := AcquireBodyStream(byteBuffer, mock.NewSlowReadConn(string(chunkedBody)), &protocol.Trailer{}, -1)
+		defer func() {
+			ReleaseBodyStream(bs)
+		}()
+
+		b := make([]byte, bodySize)
+		err := bodyStreamRead(bs, b)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, len(body), len(b))
+		assert.DeepEqual(t, string(body), string(b))
+	})
+
+	t.Run("TestBodyStreamReadFromWire", func(t *testing.T) {
+		bodySize := 1024
+		body := mock.CreateFixedBody(bodySize)
+		byteBuffer := &bytebufferpool.ByteBuffer{}
+		byteBuffer.Set(body)
+
+		rcBodySize := 128
+		rcBody := mock.CreateFixedBody(rcBodySize)
+		bs := AcquireBodyStream(byteBuffer, mock.NewSlowReadConn(string(rcBody)), nil, -2)
+		defer func() {
+			ReleaseBodyStream(bs)
+		}()
+
+		b := make([]byte, bodySize)
+		err := bodyStreamRead(bs, b)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, len(body), len(b))
+		assert.DeepEqual(t, string(body), string(b))
+	})
+}
+
+func bodyStreamRead(bs io.Reader, b []byte) (err error) {
+	nb := 0
+	for {
+		p := make([]byte, 64)
+		n, rErr := bs.Read(p)
+		if n > 0 {
+			copy(b[nb:], p[:])
+			nb = nb + n
+		}
+
+		if rErr != nil {
+			if rErr != io.EOF {
+				err = rErr
+			}
+			break
+		}
+	}
+	return
 }

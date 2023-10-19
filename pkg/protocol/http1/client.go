@@ -51,6 +51,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -71,8 +72,12 @@ import (
 	respI "github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
-var errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
-	"Make sure the server returns 'Connection: close' response header before closing the connection")
+var (
+	errConnectionClosed = errs.NewPublic("the server closed connection before returning the first response byte. " +
+		"Make sure the server returns 'Connection: close' response header before closing the connection")
+
+	errTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "host client")
+)
 
 // HostClient balances http requests among hosts listed in Addr.
 //
@@ -361,6 +366,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		canIdempotentRetry bool
 		isDefaultRetryFunc                    = true
 		attempts           uint               = 0
+		connAttempts       uint               = 0
 		maxAttempts        uint               = 1
 		isRequestRetryable client.RetryIfFunc = client.DefaultRetryIf
 	)
@@ -377,18 +383,40 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 	}
 
 	atomic.AddInt32(&c.pendingRequests, 1)
-
+	req.Options().StartRequest()
 	for {
+		select {
+		case <-ctx.Done():
+			req.CloseBodyStream() //nolint:errcheck
+			return ctx.Err()
+		default:
+		}
+
 		canIdempotentRetry, err = c.do(req, resp)
-		if err == nil {
+		// If there is no custom retry and err is equal to nil, the loop simply exits.
+		if err == nil && isDefaultRetryFunc {
+			if connAttempts != 0 {
+				hlog.SystemLogger().Warnf("Client connection attempt times: %d, url: %s. "+
+					"This is mainly because the connection in pool is closed by peer in advance. "+
+					"If this number is too high which indicates that long-connection are basically unavailable, "+
+					"try to change the request to short-connection.\n", connAttempts, req.URI().FullURI())
+			}
 			break
 		}
 
+		// This connection is closed by the peer when it is in the connection pool.
+		//
+		// This case is possible if the server closes the idle
+		// keep-alive connection on timeout.
+		//
+		// Apache and nginx usually do this.
+		if canIdempotentRetry && client.DefaultRetryIf(req, resp, err) && errors.Is(err, errs.ErrBadPoolConn) {
+			connAttempts++
+			continue
+		}
+
 		if isDefaultRetryFunc {
-			// canIdempotentRetry only makes sense if the user hasn't provided a custom retry function.
-			if !canIdempotentRetry {
-				break
-			}
+			break
 		}
 
 		attempts++
@@ -465,6 +493,26 @@ func (c *HostClient) preHandleConfig(o *config.RequestOptions) requestConfig {
 	return rc
 }
 
+func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time) (shouldCloseConn bool, timeout time.Duration) {
+	if reqTimeout <= 0 {
+		return false, compareTimeout
+	}
+	left := reqTimeout - time.Since(before)
+	if left <= 0 {
+		return true, 0
+	}
+
+	if compareTimeout <= 0 {
+		return false, left
+	}
+
+	if left > compareTimeout {
+		return false, compareTimeout
+	}
+
+	return false, left
+}
+
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
@@ -487,7 +535,14 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
-	cc, err := c.acquireConn(rc.dialTimeout)
+	reqTimeout := req.Options().RequestTimeout()
+	begin := req.Options().StartTime()
+
+	dialTimeout := rc.dialTimeout
+	if reqTimeout < dialTimeout || dialTimeout == 0 {
+		dialTimeout = reqTimeout
+	}
+	cc, inPool, err := c.acquireConn(dialTimeout)
 	// if getting connection error, fast fail
 	if err != nil {
 		return false, err
@@ -495,7 +550,6 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	conn := cc.c
 
 	usingProxy := false
-
 	if c.ProxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
 		usingProxy = true
 		proxy.SetProxyAuthHeader(&req.Header, c.ProxyURI)
@@ -503,12 +557,16 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	resp.ParseNetAddr(conn)
 
-	if rc.writeTimeout > 0 {
-		if err = conn.SetWriteTimeout(rc.writeTimeout); err != nil {
-			c.closeConn(cc)
-			// try another connection if retry is enabled
-			return true, err
-		}
+	shouldClose, timeout := updateReqTimeout(reqTimeout, rc.writeTimeout, begin)
+	if shouldClose {
+		c.closeConn(cc)
+		return false, errTimeout
+	}
+
+	if err = conn.SetWriteTimeout(timeout); err != nil {
+		c.closeConn(cc)
+		// try another connection if retry is enabled
+		return true, err
 	}
 
 	resetConnection := false
@@ -556,24 +614,31 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		// Only if the connection is closed while writing the request. Try to parse the response and return.
 		// In this case, the request/response is considered as successful.
 		// Otherwise, return the former error.
-
 		zr := c.acquireReader(conn)
 		defer zr.Release()
 		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
 			return false, nil
 		}
 
+		if inPool {
+			err = errs.ErrBadPoolConn
+		}
+
 		return true, err
 	}
 
-	if rc.readTimeout > 0 {
-		// Set Deadline every time, since golang has fixed the performance issue
-		// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
-		if err = conn.SetReadTimeout(rc.readTimeout); err != nil {
-			c.closeConn(cc)
-			// try another connection if retry is enabled
-			return true, err
-		}
+	shouldClose, timeout = updateReqTimeout(reqTimeout, rc.readTimeout, begin)
+	if shouldClose {
+		c.closeConn(cc)
+		return false, errTimeout
+	}
+
+	// Set Deadline every time, since golang has fixed the performance issue
+	// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
+	if err = conn.SetReadTimeout(timeout); err != nil {
+		c.closeConn(cc)
+		// try another connection if retry is enabled
+		return true, err
 	}
 
 	if customSkipBody || req.Header.IsHead() || req.Header.IsConnect() {
@@ -584,11 +649,43 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 	zr := c.acquireReader(conn)
 
+	// errs.ErrBadPoolConn error are returned when the
+	// 1 byte peek read fails, and we're actually anticipating a response.
+	// Usually this is just due to the inherent keep-alive shut down race,
+	// where the server closed the connection at the same time the client
+	// wrote. The underlying err field is usually io.EOF or some
+	// ECONNRESET sort of thing which varies by platform.
+	_, err = zr.Peek(1)
+	if err != nil {
+		zr.Release() //nolint:errcheck
+		c.closeConn(cc)
+		if inPool && (err == io.EOF || err == syscall.ECONNRESET) {
+			return true, errs.ErrBadPoolConn
+		}
+		// if this is not a pooled connection,
+		// we should not retry to avoid getting stuck in an endless retry loop.
+		errNorm, ok := conn.(network.ErrorNormalization)
+		if ok {
+			err = errNorm.ToHertzError(err)
+		}
+		return false, err
+	}
+
+	// init here for passing in ReadBodyStream's closure
+	// and this value will be assigned after reading Response's Header
+	//
+	// This is to solve the circular dependency problem of Response and BodyStream
+	shouldCloseConn := false
+
 	if !c.ResponseBodyStream {
 		err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
 	} else {
-		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func() error {
-			c.releaseConn(cc)
+		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func(shouldClose bool) error {
+			if shouldCloseConn || shouldClose {
+				c.closeConn(cc)
+			} else {
+				c.releaseConn(cc)
+			}
 			return nil
 		})
 	}
@@ -603,11 +700,14 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	zr.Release() //nolint:errcheck
 
-	if c.ResponseBodyStream {
+	shouldCloseConn = resetConnection || req.ConnectionClose() || resp.ConnectionClose()
+
+	// In stream mode, we still can close/release the connection immediately if there is no content on the wire.
+	if c.ResponseBodyStream && resp.BodyStream() != protocol.NoResponseBody {
 		return false, err
 	}
 
-	if resetConnection || req.ConnectionClose() || resp.ConnectionClose() {
+	if shouldCloseConn {
 		c.closeConn(cc)
 	} else {
 		c.releaseConn(cc)
@@ -628,7 +728,7 @@ func (c *HostClient) SetMaxConns(newMaxConns int) {
 	c.connsLock.Unlock()
 }
 
-func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err error) {
+func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inPool bool, err error) {
 	createConn := false
 	startCleaner := false
 
@@ -657,11 +757,11 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	c.connsLock.Unlock()
 
 	if cc != nil {
-		return cc, nil
+		return cc, true, nil
 	}
 	if !createConn {
 		if c.MaxConnWaitTimeout <= 0 {
-			return nil, errs.ErrNoFreeConns
+			return nil, true, errs.ErrNoFreeConns
 		}
 
 		timeout := c.MaxConnWaitTimeout
@@ -688,9 +788,9 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 
 		select {
 		case <-w.ready:
-			return w.conn, w.err
+			return w.conn, true, w.err
 		case <-tc.C:
-			return nil, errs.ErrNoFreeConns
+			return nil, true, errs.ErrNoFreeConns
 		}
 	}
 
@@ -701,11 +801,11 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	conn, err := c.dialHostHard(dialTimeout)
 	if err != nil {
 		c.decConnsCount()
-		return nil, err
+		return nil, false, err
 	}
 	cc = acquireClientConn(conn)
 
-	return cc, nil
+	return cc, false, nil
 }
 
 func (c *HostClient) queueForIdle(w *wantConn) {

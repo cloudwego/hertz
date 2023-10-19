@@ -50,6 +50,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -107,8 +108,6 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		}
 	}
 
-	var cLen int
-
 	if !resp.MustSkipBody() {
 		bodyBuf := resp.BodyBuffer()
 		bodyBuf.Reset()
@@ -116,18 +115,13 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 		if err != nil {
 			return err
 		}
-		cLen = len(bodyBuf.B)
-	}
-
-	if resp.Header.ContentLength() == -1 {
-		err = ext.ReadTrailer(resp.Header.Trailer(), r)
-		if err != nil && err != io.EOF {
-			return err
+		if resp.Header.ContentLength() == -1 {
+			err = ext.ReadTrailer(resp.Header.Trailer(), r)
+			if err != nil && err != io.EOF {
+				return err
+			}
 		}
-	}
-
-	if !resp.MustSkipBody() {
-		resp.Header.SetContentLength(cLen)
+		resp.Header.SetContentLength(len(bodyBuf.B))
 	}
 
 	return nil
@@ -135,14 +129,21 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 
 type clientRespStream struct {
 	r             io.Reader
-	closeCallback func() error
+	closeCallback func(shouldClose bool) error
 }
 
 func (c *clientRespStream) Close() (err error) {
 	runtime.SetFinalizer(c, nil)
-	ext.ReleaseBodyStream(c.r)
+	// If error happened in release, the connection may be in abnormal state.
+	// Close it in the callback in order to avoid other unexpected problems.
+	err = ext.ReleaseBodyStream(c.r)
+	shouldClose := false
+	if err != nil {
+		shouldClose = true
+		hlog.Warnf("connection will be closed instead of recycled because an error occurred during the stream body release: %s", err.Error())
+	}
 	if c.closeCallback != nil {
-		err = c.closeCallback()
+		err = c.closeCallback(shouldClose)
 	}
 	c.reset()
 	return
@@ -164,7 +165,7 @@ var clientRespStreamPool = sync.Pool{
 	},
 }
 
-func convertClientRespStream(bs io.Reader, fn func() error) *clientRespStream {
+func convertClientRespStream(bs io.Reader, fn func(shouldClose bool) error) *clientRespStream {
 	clientStream := clientRespStreamPool.Get().(*clientRespStream)
 	clientStream.r = bs
 	clientStream.closeCallback = fn
@@ -173,7 +174,7 @@ func convertClientRespStream(bs io.Reader, fn func() error) *clientRespStream {
 }
 
 // ReadBodyStream reads response body in stream
-func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, closeCallBack func() error) error {
+func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, closeCallBack func(shouldClose bool) error) error {
 	resp.ResetBody()
 	err := ReadHeader(&resp.Header, r)
 	if err != nil {

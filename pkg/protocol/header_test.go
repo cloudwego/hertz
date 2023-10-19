@@ -70,18 +70,18 @@ func TestResponseHeaderSetHeaderLength(t *testing.T) {
 func TestSetNoHTTP11(t *testing.T) {
 	rh := ResponseHeader{}
 	rh.SetNoHTTP11(true)
-	assert.True(t, rh.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP10, rh.protocol)
 
 	rh.SetNoHTTP11(false)
-	assert.False(t, rh.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP11, rh.protocol)
 	assert.True(t, rh.IsHTTP11())
 
 	h := RequestHeader{}
 	h.SetNoHTTP11(true)
-	assert.True(t, h.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP10, h.protocol)
 
 	h.SetNoHTTP11(false)
-	assert.False(t, h.noHTTP11)
+	assert.DeepEqual(t, consts.HTTP11, h.protocol)
 	assert.True(t, h.IsHTTP11())
 }
 
@@ -209,6 +209,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	var h RequestHeader
 	h.Set("Foo-Bar", "baz")
 	h.Set("aaa", "bbb")
+	h.Set("ccc", "ddd")
 	h.Set(consts.HeaderConnection, "keep-alive")
 	h.Set(consts.HeaderContentType, "aaa")
 	h.Set(consts.HeaderServer, "aaabbb")
@@ -226,10 +227,15 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.del([]byte("Host"))
 	h.del([]byte(consts.HeaderTrailer))
 	h.DelCookie("foo")
+	h.Del("ccc")
 
 	hv := h.Peek("aaa")
 	if string(hv) != "bbb" {
 		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "bbb")
+	}
+	hv = h.Peek("ccc")
+	if string(hv) != "" {
+		t.Fatalf("unexpected header value: %q. Expecting %q", hv, "")
 	}
 	hv = h.Peek("Foo-Bar")
 	if len(hv) > 0 {
@@ -655,4 +661,62 @@ func expectResponseHeaderAll(t *testing.T, h *ResponseHeader, key string, expect
 		t.Fatalf("Unexpected size for key %q: %d. Expected %d", key, len(h.PeekAll(key)), len(expectedValue))
 	}
 	assert.DeepEqual(t, h.PeekAll(key), expectedValue)
+}
+
+func TestRequestHeaderCopyTo(t *testing.T) {
+	t.Parallel()
+
+	h, hCopy := &RequestHeader{}, &RequestHeader{}
+	h.SetProtocol(consts.HTTP10)
+	h.SetMethod(consts.MethodPatch)
+	h.SetNoDefaultContentType(true)
+	h.Add(consts.HeaderConnection, "keep-alive")
+	h.Add("Content-Type", "aaa")
+	h.Add(consts.HeaderHost, "aaabbb")
+	h.Add("User-Agent", "asdfas")
+	h.Add("Content-Length", "1123")
+	h.Add("Cookie", "foobar=baz")
+	h.Add("aaa", "aaa")
+	h.Add("aaa", "bbb")
+
+	h.CopyTo(hCopy)
+	expectRequestHeaderAll(t, hCopy, consts.HeaderConnection, [][]byte{[]byte("keep-alive")})
+	expectRequestHeaderAll(t, hCopy, "Content-Type", [][]byte{[]byte("aaa")})
+	expectRequestHeaderAll(t, hCopy, consts.HeaderHost, [][]byte{[]byte("aaabbb")})
+	expectRequestHeaderAll(t, hCopy, "User-Agent", [][]byte{[]byte("asdfas")})
+	expectRequestHeaderAll(t, hCopy, "Content-Length", [][]byte{[]byte("1123")})
+	expectRequestHeaderAll(t, hCopy, "Cookie", [][]byte{[]byte("foobar=baz")})
+	expectRequestHeaderAll(t, hCopy, "aaa", [][]byte{[]byte("aaa"), []byte("bbb")})
+	assert.DeepEqual(t, hCopy.GetProtocol(), consts.HTTP10)
+	assert.DeepEqual(t, hCopy.noDefaultContentType, true)
+	assert.DeepEqual(t, string(hCopy.Method()), consts.MethodPatch)
+}
+
+func TestResponseHeaderCopyTo(t *testing.T) {
+	t.Parallel()
+
+	h, hCopy := &ResponseHeader{}, &ResponseHeader{}
+	h.SetProtocol(consts.HTTP10)
+	h.SetHeaderLength(100)
+	h.SetNoDefaultContentType(true)
+	h.Add(consts.HeaderContentType, "aaa/bbb")
+	h.Add(consts.HeaderContentEncoding, "gzip")
+	h.Add(consts.HeaderConnection, "close")
+	h.Add(consts.HeaderContentLength, "1234")
+	h.Add(consts.HeaderServer, "aaaa")
+	h.Add(consts.HeaderSetCookie, "cccc")
+	h.Add("aaa", "aaa")
+	h.Add("aaa", "bbb")
+
+	h.CopyTo(hCopy)
+	expectResponseHeaderAll(t, hCopy, consts.HeaderContentType, [][]byte{[]byte("aaa/bbb")})
+	expectResponseHeaderAll(t, hCopy, consts.HeaderContentEncoding, [][]byte{[]byte("gzip")})
+	expectResponseHeaderAll(t, hCopy, consts.HeaderConnection, [][]byte{[]byte("close")})
+	expectResponseHeaderAll(t, hCopy, consts.HeaderContentLength, [][]byte{[]byte("1234")})
+	expectResponseHeaderAll(t, hCopy, consts.HeaderServer, [][]byte{[]byte("aaaa")})
+	expectResponseHeaderAll(t, hCopy, consts.HeaderSetCookie, [][]byte{[]byte("cccc")})
+	expectResponseHeaderAll(t, hCopy, "aaa", [][]byte{[]byte("aaa"), []byte("bbb")})
+	assert.DeepEqual(t, hCopy.GetProtocol(), consts.HTTP10)
+	assert.DeepEqual(t, hCopy.noDefaultContentType, true)
+	assert.DeepEqual(t, hCopy.GetHeaderLength(), 100)
 }

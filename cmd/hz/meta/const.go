@@ -19,7 +19,9 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.6.1"
+const Version = "v0.7.0"
+
+const DefaultServiceName = "hertz_service"
 
 // Mode hz run modes
 type Mode int
@@ -28,6 +30,8 @@ type Mode int
 const SysType = runtime.GOOS
 
 const WindowsOS = "windows"
+
+const EnvPluginMode = "HERTZ_PLUGIN_MODE"
 
 // hz Commands
 const (

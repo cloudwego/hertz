@@ -48,16 +48,17 @@ type IDLPackageRenderInfo struct {
 
 type CustomizedFileForMethod struct {
 	*HttpMethod
-	FilePath    string
-	FilePackage string
-	ServiceInfo *Service // service info for that method
+	FilePath       string
+	FilePackage    string
+	ServiceInfo    *Service              // service info for this method
+	IDLPackageInfo *IDLPackageRenderInfo // IDL info for this service
 }
 
 type CustomizedFileForService struct {
 	*Service
 	FilePath       string
 	FilePackage    string
-	IDLPackageInfo *IDLPackageRenderInfo // IDL info for that service
+	IDLPackageInfo *IDLPackageRenderInfo // IDL info for this service
 }
 
 type CustomizedFileForIDL struct {
@@ -110,7 +111,7 @@ func (pkgGen *HttpPackageGenerator) genCustomizedFile(pkg *HttpPackage) error {
 						filePathRenderInfo.ServiceName = service.Name
 						filePathRenderInfo.MethodName = method.Name
 						filePathRenderInfo.HandlerGenPath = method.OutputDir
-						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method, service)
+						err := pkgGen.genLoopMethod(tplInfo, filePathRenderInfo, method, service, &idlPackageRenderInfo)
 						if err != nil {
 							return err
 						}
@@ -216,7 +217,14 @@ func appendUpdateFile(tplInfo *Template, renderInfo interface{}, fileContent []b
 	if err != nil {
 		return []byte(""), fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 	}
-	_, err = buf.WriteString("\n" + appendContent + "\n")
+	// "\r\n" && "\n" has the same suffix
+	if !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+		_, err = buf.WriteString("\n")
+		if err != nil {
+			return []byte(""), fmt.Errorf("write file(%s) line break failed, err: %v", tplInfo.Path, err)
+		}
+	}
+	_, err = buf.WriteString(appendContent)
 	if err != nil {
 		return []byte(""), fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
 	}
@@ -316,10 +324,11 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 			if tplInfo.UpdateBehavior.AppendKey == "method" {
 				for _, method := range service.Methods {
 					data := CustomizedFileForMethod{
-						HttpMethod:  method,
-						FilePath:    filePath,
-						FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-						ServiceInfo: service,
+						HttpMethod:     method,
+						FilePath:       filePath,
+						FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+						ServiceInfo:    service,
+						IDLPackageInfo: idlPackageRenderInfo,
 					}
 					insertKey, err := renderInsertKey(tplInfo, data)
 					if err != nil {
@@ -348,17 +357,34 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 						return err
 					}
 				}
-				buf := bytes.NewBuffer(nil)
-				_, err = buf.Write(fileContent)
-				if err != nil {
-					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
+					buf := bytes.NewBuffer(nil)
+					_, err = buf.Write(fileContent)
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					_, err = buf.Write(appendContent)
+					if err != nil {
+						return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+				} else { // 'append location', append new content after 'append location'
+					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
+					if len(part) == 0 {
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					if len(part) != 2 {
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					buf := bytes.NewBuffer(nil)
+					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 				}
-				_, err = buf.Write(appendContent)
-				if err != nil {
-					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
-				}
-				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
-				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 			} else {
 				logs.Warnf("Loop 'service' field for '%s' only append content by appendKey for 'method', so cannot append content", filePath)
 			}
@@ -371,7 +397,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 }
 
 // genLoopMethod used to generate files by 'method'
-func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod, service *Service) error {
+func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRenderInfo FilePathRenderInfo, method *HttpMethod, service *Service, idlPackageRenderInfo *IDLPackageRenderInfo) error {
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
 	if err != nil {
 		return err
@@ -384,10 +410,11 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 
 	if !exist { // create file
 		data := CustomizedFileForMethod{
-			HttpMethod:  method,
-			FilePath:    filePath,
-			FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-			ServiceInfo: service,
+			HttpMethod:     method,
+			FilePath:       filePath,
+			FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+			ServiceInfo:    service,
+			IDLPackageInfo: idlPackageRenderInfo,
 		}
 		err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 		if err != nil {
@@ -402,10 +429,11 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 			// re-generate
 			logs.Infof("re-generate file '%s', because the update behavior is 'Regenerate'", filePath)
 			data := CustomizedFileForMethod{
-				HttpMethod:  method,
-				FilePath:    filePath,
-				FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-				ServiceInfo: service,
+				HttpMethod:     method,
+				FilePath:       filePath,
+				FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+				ServiceInfo:    service,
+				IDLPackageInfo: idlPackageRenderInfo,
 			}
 			err := pkgGen.TemplateGenerator.Generate(data, tplInfo.Path, filePath, false)
 			if err != nil {
@@ -473,10 +501,11 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
 					for _, method := range service.Methods {
 						data := CustomizedFileForMethod{
-							HttpMethod:  method,
-							FilePath:    filePath,
-							FilePackage: util.SplitPackage(filepath.Dir(filePath), ""),
-							ServiceInfo: service,
+							HttpMethod:     method,
+							FilePath:       filePath,
+							FilePackage:    util.SplitPackage(filepath.Dir(filePath), ""),
+							ServiceInfo:    service,
+							IDLPackageInfo: &idlPackageRenderInfo,
 						}
 						insertKey, err := renderInsertKey(tplInfo, data)
 						if err != nil {
@@ -505,17 +534,34 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						}
 					}
 				}
-				buf := bytes.NewBuffer(nil)
-				_, err = buf.Write(fileContent)
-				if err != nil {
-					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
+					buf := bytes.NewBuffer(nil)
+					_, err = buf.Write(fileContent)
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					_, err = buf.Write(appendContent)
+					if err != nil {
+						return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+				} else { // 'append location', append new content after 'append location'
+					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
+					if len(part) == 0 {
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					if len(part) != 2 {
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					buf := bytes.NewBuffer(nil)
+					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 				}
-				_, err = buf.Write(appendContent)
-				if err != nil {
-					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
-				}
-				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
-				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 			} else if tplInfo.UpdateBehavior.AppendKey == "service" {
 				var appendContent []byte
 				for _, service := range idlPackageRenderInfo.ServiceInfos.Services {
@@ -550,17 +596,34 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return err
 					}
 				}
-				buf := bytes.NewBuffer(nil)
-				_, err = buf.Write(fileContent)
-				if err != nil {
-					return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 { // default, append to end of file
+					buf := bytes.NewBuffer(nil)
+					_, err = buf.Write(fileContent)
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					_, err = buf.Write(appendContent)
+					if err != nil {
+						return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+				} else { // 'append location', append new content after 'append location'
+					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
+					if len(part) == 0 {
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					if len(part) != 2 {
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					buf := bytes.NewBuffer(nil)
+					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 				}
-				_, err = buf.Write(appendContent)
-				if err != nil {
-					return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
-				}
-				logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
-				pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 			} else { // add append content to the file directly
 				data := CustomizedFileForIDL{
 					IDLPackageRenderInfo: &idlPackageRenderInfo,
@@ -576,6 +639,17 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 		default:
 			// do nothing
 			logs.Warnf("unknown update behavior, do nothing")
+		}
+	}
+
+	return nil
+}
+
+func writeBytes(buf *bytes.Buffer, bytes ...[]byte) error {
+	for _, b := range bytes {
+		_, err := buf.Write(b)
+		if err != nil {
+			return err
 		}
 	}
 

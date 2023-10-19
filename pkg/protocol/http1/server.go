@@ -48,26 +48,27 @@ const NextProtoTLS = suite.HTTP1
 
 var (
 	errHijacked        = errs.New(errs.ErrHijacked, errs.ErrorTypePublic, nil)
-	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePublic, nil)
+	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePrivate, nil)
 	errShortConnection = errs.New(errs.ErrShortConnection, errs.ErrorTypePublic, "server is going to close the connection")
 	errUnexpectedEOF   = errs.NewPublic(io.ErrUnexpectedEOF.Error() + " when reading request")
 )
 
 type Option struct {
-	StreamRequestBody            bool
-	GetOnly                      bool
-	DisablePreParseMultipartForm bool
-	DisableKeepalive             bool
-	NoDefaultServerHeader        bool
-	MaxRequestBodySize           int
-	IdleTimeout                  time.Duration
-	ReadTimeout                  time.Duration
-	ServerName                   []byte
-	TLS                          *tls.Config
-	HTMLRender                   render.HTMLRender
-	EnableTrace                  bool
-	ContinueHandler              func(header *protocol.RequestHeader) bool
-	HijackConnHandle             func(c network.Conn, h app.HijackHandler)
+	StreamRequestBody             bool
+	GetOnly                       bool
+	DisablePreParseMultipartForm  bool
+	DisableKeepalive              bool
+	NoDefaultServerHeader         bool
+	DisableHeaderNamesNormalizing bool
+	MaxRequestBodySize            int
+	IdleTimeout                   time.Duration
+	ReadTimeout                   time.Duration
+	ServerName                    []byte
+	TLS                           *tls.Config
+	HTMLRender                    render.HTMLRender
+	EnableTrace                   bool
+	ContinueHandler               func(header *protocol.RequestHeader) bool
+	HijackConnHandle              func(c network.Conn, h app.HijackHandler)
 }
 
 type Server struct {
@@ -179,6 +180,12 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				internalStats.Record(ti, stats.ReadHeaderFinish, err)
 			})
 		}
+
+		if s.DisableHeaderNamesNormalizing {
+			ctx.Request.Header.DisableNormalizing()
+			ctx.Response.Header.DisableNormalizing()
+		}
+
 		// Read Headers
 		if err = req.ReadHeader(&ctx.Request.Header, zr); err == nil {
 			if s.EnableTrace {
@@ -350,11 +357,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		if hijackHandler != nil {
-			if zr != nil {
-				zr.Release() //nolint:errcheck
-				zr = nil
-			}
-
 			// Hijacked conn process the timeout by itself
 			err = ctx.GetConn().SetReadTimeout(0)
 			if err != nil {

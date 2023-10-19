@@ -66,8 +66,6 @@ type RequestHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
 	disableNormalizing   bool
-	noHTTP11             bool
-	protocol             string
 	connectionClose      bool
 	noDefaultContentType bool
 
@@ -82,8 +80,10 @@ type RequestHeader struct {
 	requestURI  []byte
 	host        []byte
 	contentType []byte
-	userAgent   []byte
-	mulHeader   [][]byte
+
+	userAgent []byte
+	mulHeader [][]byte
+	protocol  string
 
 	h       []argsKV
 	bufKV   argsKV
@@ -111,7 +111,6 @@ type ResponseHeader struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
 	disableNormalizing   bool
-	noHTTP11             bool
 	connectionClose      bool
 	noDefaultContentType bool
 	noDefaultDate        bool
@@ -124,6 +123,7 @@ type ResponseHeader struct {
 	contentType []byte
 	server      []byte
 	mulHeader   [][]byte
+	protocol    string
 
 	h       []argsKV
 	bufKV   argsKV
@@ -173,8 +173,17 @@ func (h *ResponseHeader) PeekArgBytes(key []byte) []byte {
 	return peekArgBytes(h.h, key)
 }
 
+// Deprecated: Use ResponseHeader.SetProtocol(consts.HTTP11) instead
+//
+//	Now SetNoHTTP11(true) equal to SetProtocol(consts.HTTP10)
+//		SetNoHTTP11(false) equal to SetProtocol(consts.HTTP11)
 func (h *ResponseHeader) SetNoHTTP11(b bool) {
-	h.noHTTP11 = b
+	if b {
+		h.protocol = consts.HTTP10
+		return
+	}
+
+	h.protocol = consts.HTTP11
 }
 
 // Cookie fills cookie for the given cookie.Key.
@@ -196,7 +205,7 @@ func (h *ResponseHeader) FullCookie() []byte {
 
 // IsHTTP11 returns true if the response is HTTP/1.1.
 func (h *ResponseHeader) IsHTTP11() bool {
-	return !h.noHTTP11
+	return h.protocol == consts.HTTP11
 }
 
 // SetContentType sets Content-Type header value.
@@ -222,7 +231,6 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.Reset()
 
 	dst.disableNormalizing = h.disableNormalizing
-	dst.noHTTP11 = h.noHTTP11
 	dst.connectionClose = h.connectionClose
 	dst.noDefaultContentType = h.noDefaultContentType
 	dst.noDefaultDate = h.noDefaultDate
@@ -235,6 +243,8 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.server = append(dst.server[:0], h.server...)
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
+	dst.protocol = h.protocol
+	dst.headerLength = h.headerLength
 	h.Trailer().CopyTo(dst.Trailer())
 }
 
@@ -289,7 +299,7 @@ func (h *ResponseHeader) VisitAll(f func(key, value []byte)) {
 
 // IsHTTP11 returns true if the request is HTTP/1.1.
 func (h *RequestHeader) IsHTTP11() bool {
-	return !h.noHTTP11
+	return h.protocol == consts.HTTP11
 }
 
 func (h *RequestHeader) SetProtocol(p string) {
@@ -300,8 +310,17 @@ func (h *RequestHeader) GetProtocol() string {
 	return h.protocol
 }
 
+// Deprecated: Use RequestHeader.SetProtocol(consts.HTTP11) instead
+//
+//	Now SetNoHTTP11(true) equal to SetProtocol(consts.HTTP10)
+//		SetNoHTTP11(false) equal to SetProtocol(consts.HTTP11)
 func (h *RequestHeader) SetNoHTTP11(b bool) {
-	h.noHTTP11 = b
+	if b {
+		h.protocol = consts.HTTP10
+		return
+	}
+
+	h.protocol = consts.HTTP11
 }
 
 func (h *RequestHeader) InitBufValue(size int) {
@@ -486,7 +505,7 @@ func checkWriteHeaderCode(code int) {
 }
 
 func (h *ResponseHeader) ResetSkipNormalize() {
-	h.noHTTP11 = false
+	h.protocol = ""
 	h.connectionClose = false
 
 	h.statusCode = 0
@@ -1045,6 +1064,12 @@ func (h *RequestHeader) DelBytes(key []byte) {
 	h.del(h.bufKV.key)
 }
 
+// Del deletes header with the given key.
+func (h *RequestHeader) Del(key string) {
+	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	h.del(k)
+}
+
 func (h *RequestHeader) SetArgBytes(key, value []byte, noValue bool) {
 	h.h = setArgBytes(h.h, key, value, noValue)
 }
@@ -1075,7 +1100,6 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.Reset()
 
 	dst.disableNormalizing = h.disableNormalizing
-	dst.noHTTP11 = h.noHTTP11
 	dst.connectionClose = h.connectionClose
 	dst.noDefaultContentType = h.noDefaultContentType
 
@@ -1091,6 +1115,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
 	dst.cookiesCollected = h.cookiesCollected
 	dst.rawHeaders = append(dst.rawHeaders[:0], h.rawHeaders...)
+	dst.protocol = h.protocol
 }
 
 // Peek returns header value for the given key.
@@ -1395,7 +1420,6 @@ func (h *RequestHeader) SetCanonical(key, value []byte) {
 }
 
 func (h *RequestHeader) ResetSkipNormalize() {
-	h.noHTTP11 = false
 	h.connectionClose = false
 	h.protocol = ""
 	h.noDefaultContentType = false
@@ -1473,6 +1497,7 @@ func (h *RequestHeader) UserAgent() []byte {
 // Disable header names' normalization only if you know what are you doing.
 func (h *RequestHeader) DisableNormalizing() {
 	h.disableNormalizing = true
+	h.Trailer().DisableNormalizing()
 }
 
 func (h *RequestHeader) IsDisableNormalizing() bool {
@@ -1673,6 +1698,7 @@ func (h *RequestHeader) SetMethodBytes(method []byte) {
 // Disable header names' normalization only if you know what are you doing.
 func (h *ResponseHeader) DisableNormalizing() {
 	h.disableNormalizing = true
+	h.Trailer().DisableNormalizing()
 }
 
 // setSpecialHeader handles special headers and return true when a header is processed.
@@ -1802,4 +1828,12 @@ func (h *RequestHeader) Trailer() *Trailer {
 		h.trailer = new(Trailer)
 	}
 	return h.trailer
+}
+
+func (h *ResponseHeader) SetProtocol(p string) {
+	h.protocol = p
+}
+
+func (h *ResponseHeader) GetProtocol() string {
+	return h.protocol
 }

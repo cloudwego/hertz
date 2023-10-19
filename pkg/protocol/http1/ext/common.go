@@ -51,6 +51,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -117,12 +118,17 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 			if err == nil {
 				panic("BUG: io.Reader returned 0, nil")
 			}
-			if err == io.EOF {
-				if err = WriteChunk(w, buf[:0], true); err != nil {
-					break
-				}
-				err = nil
+
+			if !errors.Is(err, io.EOF) {
+				hlog.SystemLogger().Warnf("writing chunked response body encountered an error from the reader, "+
+					"this may cause the short of the content in response body, error: %s", err.Error())
 			}
+
+			if err = WriteChunk(w, buf[:0], true); err != nil {
+				break
+			}
+
+			err = nil
 			break
 		}
 		if err = WriteChunk(w, buf[:n], true); err != nil {
@@ -135,6 +141,9 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 }
 
 func WriteBodyFixedSize(w network.Writer, r io.Reader, size int64) error {
+	if size == 0 {
+		return nil
+	}
 	if size > consts.MaxSmallFileSize {
 		if err := w.Flush(); err != nil {
 			return err

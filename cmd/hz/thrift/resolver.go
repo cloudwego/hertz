@@ -282,6 +282,52 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret ResolvedSymbol, err 
 	return
 }
 
+func (resolver *Resolver) ResolveTypeName(typ *parser.Type) (string, error) {
+	if typ.GetIsTypedef() {
+		rt, err := resolver.ResolveIdentifier(typ.GetName())
+		if err != nil {
+			return "", err
+		}
+
+		return rt.Expression(), nil
+	}
+	switch typ.GetCategory() {
+	case parser.Category_Map:
+		keyType, err := resolver.ResolveTypeName(typ.GetKeyType())
+		if err != nil {
+			return "", err
+		}
+		if typ.GetKeyType().GetCategory().IsStruct() {
+			keyType = "*" + keyType
+		}
+		valueType, err := resolver.ResolveTypeName(typ.GetValueType())
+		if err != nil {
+			return "", err
+		}
+		if typ.GetValueType().GetCategory().IsStruct() {
+			valueType = "*" + valueType
+		}
+		return fmt.Sprintf("map[%s]%s", keyType, valueType), nil
+	case parser.Category_List, parser.Category_Set:
+		// list/set -> []element for thriftgo
+		// valueType refers the element type for list/set
+		elemType, err := resolver.ResolveTypeName(typ.GetValueType())
+		if err != nil {
+			return "", err
+		}
+		if typ.GetValueType().GetCategory().IsStruct() {
+			elemType = "*" + elemType
+		}
+		return fmt.Sprintf("[]%s", elemType), err
+	}
+	rt, err := resolver.ResolveIdentifier(typ.GetName())
+	if err != nil {
+		return "", err
+	}
+
+	return rt.Expression(), nil
+}
+
 func (resolver *Resolver) Get(name string) *Symbol {
 	s, ok := resolver.root[name]
 	if ok {
@@ -348,8 +394,8 @@ func (resolver *Resolver) LoadAll(ast *parser.Thrift) error {
 	return nil
 }
 
-func LoadBaseIdentifier() map[string]*Symbol {
-	ret := make(NameSpace, 13)
+func LoadBaseIdentifier() NameSpace {
+	ret := make(NameSpace, 16)
 
 	ret["true"] = &ConstTrue
 	ret["false"] = &ConstFalse
@@ -392,6 +438,18 @@ func LoadBaseIdentifier() map[string]*Symbol {
 	}
 	ret["binary"] = &Symbol{
 		Type:  model.TypeBinary,
+		Scope: &BaseThrift,
+	}
+	ret["list"] = &Symbol{
+		Type:  model.TypeBaseList,
+		Scope: &BaseThrift,
+	}
+	ret["set"] = &Symbol{
+		Type:  model.TypeBaseSet,
+		Scope: &BaseThrift,
+	}
+	ret["map"] = &Symbol{
+		Type:  model.TypeBaseMap,
 		Scope: &BaseThrift,
 	}
 	return ret

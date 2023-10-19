@@ -22,10 +22,6 @@ import (
 	"os"
 )
 
-const (
-	systemLogPrefix = "HERTZ: "
-)
-
 var (
 	// Provide default logger for users to use
 	logger FullLogger = &defaultLogger{

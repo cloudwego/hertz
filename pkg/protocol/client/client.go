@@ -43,7 +43,6 @@ package client
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -63,8 +62,6 @@ var (
 	errTooManyRedirects = errors.NewPublic("too many redirects detected when doing the request")
 
 	clientURLResponseChPool sync.Pool
-
-	errorChPool sync.Pool
 )
 
 type HostClient interface {
@@ -88,16 +85,6 @@ func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) b
 	}
 
 	if isIdempotent(req, resp, err) {
-		return true
-	}
-	// Retry non-idempotent requests if the server closes
-	// the connection before sending the response.
-	//
-	// This case is possible if the server closes the idle
-	// keep-alive connection on timeout.
-	//
-	// Apache and nginx usually do this.
-	if err == io.EOF {
 		return true
 	}
 
@@ -279,76 +266,20 @@ func getRedirectURL(baseURL string, location []byte) string {
 }
 
 func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration, c Doer) error {
-	deadline := time.Now().Add(timeout)
-	return DoDeadline(ctx, req, resp, deadline, c)
-}
-
-func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time, c Doer) error {
-	timeout := -time.Since(deadline)
 	if timeout <= 0 {
 		return errTimeout
 	}
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
+	return c.Do(ctx, req, resp)
+}
 
-	var ch chan error
-	chv := errorChPool.Get()
-	if chv == nil {
-		chv = make(chan error, 1)
+func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time, c Doer) error {
+	timeout := time.Until(deadline)
+	if timeout <= 0 {
+		return errTimeout
 	}
-	ch = chv.(chan error)
-
-	// Make req and resp copies, since on timeout they no longer
-	// may be accessed.
-	reqCopy := protocol.AcquireRequest()
-	req.CopyToSkipBody(reqCopy)
-	protocol.SwapRequestBody(req, reqCopy)
-	respCopy := protocol.AcquireResponse()
-	if resp != nil {
-		// Not calling resp.copyToSkipBody(respCopy) here to avoid
-		// unexpected messing with headers
-		respCopy.SkipBody = resp.SkipBody
-	}
-
-	// Note that the request continues execution on errTimeout until
-	// client-specific ReadTimeout exceeds. This helps limiting load
-	// on slow hosts by MaxConns* concurrent requests.
-	//
-	// Without this 'hack' the load on slow host could exceed MaxConns*
-	// concurrent requests, since timed out requests on client side
-	// usually continue execution on the host.
-
-	var mu sync.Mutex
-	var timedout bool
-
-	go func() {
-		errDo := c.Do(ctx, reqCopy, respCopy)
-		mu.Lock()
-		if !timedout {
-			if resp != nil {
-				respCopy.CopyToSkipBody(resp)
-				protocol.SwapResponseBody(resp, respCopy)
-			}
-			protocol.SwapRequestBody(reqCopy, req)
-			ch <- errDo
-		}
-		mu.Unlock()
-
-		protocol.ReleaseResponse(respCopy)
-		protocol.ReleaseRequest(reqCopy)
-	}()
-
-	tc := timer.AcquireTimer(timeout)
-	var err error
-	select {
-	case err = <-ch:
-	case <-tc.C:
-		mu.Lock()
-		timedout = true
-		err = errTimeout
-		mu.Unlock()
-	}
-	timer.ReleaseTimer(tc)
-
-	errorChPool.Put(chv)
-
-	return err
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
+	return c.Do(ctx, req, resp)
 }

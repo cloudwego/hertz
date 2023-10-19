@@ -29,14 +29,22 @@ import (
 )
 
 type HttpMethod struct {
-	Name            string
-	HTTPMethod      string
-	Comment         string
-	RequestTypeName string
-	ReturnTypeName  string
-	Path            string
-	Serializer      string
-	OutputDir       string
+	Name               string
+	HTTPMethod         string
+	Comment            string
+	RequestTypeName    string
+	RequestTypePackage string
+	RequestTypeRawName string
+	ReturnTypeName     string
+	ReturnTypePackage  string
+	ReturnTypeRawName  string
+	Path               string
+	Serializer         string
+	OutputDir          string
+	RefPackage         string // handler import dir
+	RefPackageAlias    string // handler import alias
+	ModelPackage       map[string]string
+	GenHandler         bool // Whether to generate one handler, when an idl interface corresponds to multiple http method
 	// Annotations     map[string]string
 	Models map[string]*model.Model
 }
@@ -71,20 +79,42 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 					return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
 				}
 
-				if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {
-					return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+				if m.GenHandler {
+					if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {
+						return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+					}
 				}
 			}
 		} else { // generate handler service
+			tmpHandlerDir := handlerDir
+			tmpHandlerPackage := handlerPackage
+			if len(s.ServiceGenDir) != 0 {
+				tmpHandlerDir = s.ServiceGenDir
+				tmpHandlerPackage = util.SubPackage(pkgGen.ProjPackage, tmpHandlerDir)
+			}
 			handler = Handler{
-				FilePath:    filepath.Join(handlerDir, util.ToSnakeCase(s.Name)+".go"),
-				PackageName: util.SplitPackage(handlerPackage, ""),
+				FilePath:    filepath.Join(tmpHandlerDir, util.ToSnakeCase(s.Name)+".go"),
+				PackageName: util.SplitPackage(tmpHandlerPackage, ""),
 				Methods:     s.Methods,
 				ProjPackage: pkgGen.ProjPackage,
 			}
 
+			for _, m := range s.Methods {
+				m.RefPackage = tmpHandlerPackage
+				m.RefPackageAlias = util.BaseName(tmpHandlerPackage, "")
+			}
+
 			if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
 				return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+			}
+
+			// Avoid generating duplicate handlers when IDL interface corresponds to multiple http methods
+			methods := handler.Methods
+			handler.Methods = []*HttpMethod{}
+			for _, m := range methods {
+				if m.GenHandler {
+					handler.Methods = append(handler.Methods, m)
+				}
 			}
 
 			if err := pkgGen.updateHandler(handler, handlerTplName, handler.FilePath, false); err != nil {
@@ -145,12 +175,18 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 }
 
 func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTpl, filePath string, noRepeat bool) error {
+	if pkgGen.tplsInfo[handlerTpl].Disable {
+		return nil
+	}
 	isExist, err := util.PathExist(filePath)
 	if err != nil {
 		return err
 	}
 	if !isExist {
 		return pkgGen.TemplateGenerator.Generate(handler, handlerTpl, filePath, noRepeat)
+	}
+	if pkgGen.HandlerByMethod { // method by handler, do not need to insert new content
+		return nil
 	}
 
 	file, err := ioutil.ReadFile(filePath)

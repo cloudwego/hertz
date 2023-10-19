@@ -51,6 +51,7 @@ func DeepEqual(t testing.TB, expected, actual interface{}) {
 }
 
 func Nil(t testing.TB, data interface{}) {
+	t.Helper()
 	if data == nil {
 		return
 	}
@@ -60,6 +61,7 @@ func Nil(t testing.TB, data interface{}) {
 }
 
 func NotNil(t testing.TB, data interface{}) {
+	t.Helper()
 	if data == nil {
 		return
 	}
@@ -84,10 +86,12 @@ func NotEqual(t testing.TB, expected, actual interface{}) {
 }
 
 func True(t testing.TB, obj interface{}) {
+	t.Helper()
 	DeepEqual(t, true, obj)
 }
 
 func False(t testing.TB, obj interface{}) {
+	t.Helper()
 	DeepEqual(t, false, obj)
 }
 

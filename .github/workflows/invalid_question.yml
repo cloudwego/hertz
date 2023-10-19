@@ -18,9 +18,9 @@ jobs:
         uses: actions/stale@v6
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: "This issue has been marked as invalid question, please give more information by following the `issue` template. The issue will be closed in 3 days if no further activity occurs."
+          stale-issue-message: "This issue has been marked as invalid question, please give more information by following the `issue` template. The issue will be closed in 1 days if no further activity occurs."
           stale-issue-label: "stale"
           days-before-stale: 0
-          days-before-close: 3
+          days-before-close: 1
           remove-stale-when-updated: true
           only-labels: "invalid issue"

@@ -36,10 +36,14 @@ type Router struct {
 }
 
 type RouterNode struct {
-	GroupName  string
-	MiddleWare string
+	GroupName         string // current group name(the parent middleware name), used to register route. example: {{.GroupName}}.{{HttpMethod}}
+	MiddleWare        string // current node middleware, used to be group name for children.
+	HandlerMiddleware string
+	GroupMiddleware   string
+	PathPrefix        string
 
 	Path     string
+	Parent   *RouterNode
 	Children childrenRouterInfo
 
 	Handler             string // {{HandlerPackage}}.{{HandlerName}}
@@ -57,9 +61,11 @@ type RegisterInfo struct {
 // NewRouterTree contains "/" as root node
 func NewRouterTree() *RouterNode {
 	return &RouterNode{
-		GroupName:  "root",
-		MiddleWare: "root",
-		Path:       "/",
+		GroupName:       "root",
+		MiddleWare:      "root",
+		GroupMiddleware: "root",
+		Path:            "/",
+		Parent:          nil,
 	}
 }
 
@@ -85,8 +91,15 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg
 	return nil
 }
 
-// DyeGroupName traverses the routing tree in depth and names the middleware for each node.
-func (routerNode *RouterNode) DyeGroupName() error {
+func (routerNode *RouterNode) RawHandlerName() string {
+	parts := strings.Split(routerNode.Handler, ".")
+	handlerName := parts[len(parts)-1]
+	return handlerName
+}
+
+// DyeGroupName traverses the routing tree in depth and names the handler/group middleware for each node.
+// If snakeStyleMiddleware is set to true, the name style of the middleware will use snake name style.
+func (routerNode *RouterNode) DyeGroupName(snakeStyleMiddleware bool) error {
 	groups := []string{"root"}
 
 	hook := func(layer int, node *RouterNode) error {
@@ -96,18 +109,56 @@ func (routerNode *RouterNode) DyeGroupName() error {
 			if len(pname) > 1 && pname[0] == '/' {
 				pname = pname[1:]
 			}
-			if len(node.Children) == 0 && node.Handler != "" {
-				handleName := strings.Split(node.Handler, ".")
-				pname = handleName[len(handleName)-1]
+
+			if node.Parent != nil {
+				node.PathPrefix = node.Parent.PathPrefix + "_" + util.ToGoFuncName(pname)
+			} else {
+				node.PathPrefix = "_" + util.ToGoFuncName(pname)
 			}
-			pname = util.ToVarName([]string{pname})
-			// The tolow operation is placed here, unifying the middleware raw name
-			pname = strings.ToLower(pname)
-			pname, err := util.GetMiddlewareUniqueName(pname)
-			if err != nil {
-				return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
+
+			handlerMiddlewareName := ""
+			isLeafNode := false
+			if len(node.Handler) != 0 {
+				handlerMiddlewareName = node.RawHandlerName()
+				// If it is a leaf node, then "group middleware name" and "handler middleware name" are the same
+				if len(node.Children) == 0 {
+					pname = handlerMiddlewareName
+					isLeafNode = true
+				}
+			}
+
+			pname = convertToMiddlewareName(pname)
+			handlerMiddlewareName = convertToMiddlewareName(handlerMiddlewareName)
+
+			if isLeafNode {
+				name, err := util.GetMiddlewareUniqueName(pname)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", name, err)
+				}
+				pname = name
+				handlerMiddlewareName = name
+			} else {
+				var err error
+				pname, err = util.GetMiddlewareUniqueName(pname)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", pname, err)
+				}
+				handlerMiddlewareName, err = util.GetMiddlewareUniqueName(handlerMiddlewareName)
+				if err != nil {
+					return fmt.Errorf("get unique name for middleware '%s' failed, err: %v", handlerMiddlewareName, err)
+				}
 			}
 			node.MiddleWare = "_" + pname
+			if len(node.Handler) != 0 {
+				node.HandlerMiddleware = "_" + handlerMiddlewareName
+				if snakeStyleMiddleware {
+					node.HandlerMiddleware = "_" + node.RawHandlerName()
+				}
+			}
+			node.GroupMiddleware = node.MiddleWare
+			if snakeStyleMiddleware {
+				node.GroupMiddleware = node.PathPrefix
+			}
 		}
 		if layer >= len(groups)-1 {
 			groups = append(groups, node.MiddleWare)
@@ -145,7 +196,8 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 	cur := routerNode
 	for i, p := range paths {
 		c := &RouterNode{
-			Path: "/" + p,
+			Path:   "/" + p,
+			Parent: cur,
 		}
 		if i == len(paths)-1 {
 			// generate handler by method
@@ -166,6 +218,8 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 				c.HandlerPackageAlias = pkgAlias
 				c.Handler = pkgAlias + "." + method.Name
 				c.HandlerPackage = handlerPkg
+				method.RefPackage = c.HandlerPackage
+				method.RefPackageAlias = c.HandlerPackageAlias
 			} else { // generate handler by service
 				c.Handler = handlerType + "." + method.Name
 			}
@@ -238,6 +292,9 @@ var (
 )
 
 func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) error {
+	if pkgGen.tplsInfo[registerTplName].Disable {
+		return nil
+	}
 	register := RegisterInfo{
 		PackageName: filepath.Base(rDir),
 		DepPkgAlias: strings.ReplaceAll(pkgName, "/", "_"),
@@ -285,7 +342,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 }
 
 func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode, handlerPackage, routerDir, routerPackage string) error {
-	err := root.DyeGroupName()
+	err := root.DyeGroupName(pkgGen.SnakeStyleMiddleware)
 	if err != nil {
 		return err
 	}
@@ -313,8 +370,10 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 	// store router info
 	pkg.RouterInfo = &router
 
-	if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
-		return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
+	if !pkgGen.tplsInfo[routerTplName].Disable {
+		if err := pkgGen.TemplateGenerator.Generate(router, routerTplName, router.FilePath, false); err != nil {
+			return fmt.Errorf("generate router %s failed, err: %v", router.FilePath, err.Error())
+		}
 	}
 	if err := pkgGen.updateMiddlewareReg(router, middlewareTplName, filepath.Join(routerDir, "middleware.go")); err != nil {
 		return fmt.Errorf("generate middleware %s failed, err: %v", filepath.Join(routerDir, "middleware.go"), err.Error())
@@ -327,6 +386,9 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 }
 
 func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, middlewareTpl, filePath string) error {
+	if pkgGen.tplsInfo[middlewareTpl].Disable {
+		return nil
+	}
 	isExist, err := util.PathExist(filePath)
 	if err != nil {
 		return err
@@ -334,10 +396,16 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	if !isExist {
 		return pkgGen.TemplateGenerator.Generate(router, middlewareTpl, filePath, false)
 	}
-	middlewareList := make([]string, 1)
+	var middlewareList []string
 
 	_ = router.(Router).Router.DFS(0, func(layer int, node *RouterNode) error {
-		middlewareList = append(middlewareList, node.MiddleWare)
+		// non-leaf node will generate group middleware
+		if node.Children.Len() > 0 && len(node.GroupMiddleware) > 0 {
+			middlewareList = append(middlewareList, node.GroupMiddleware)
+		}
+		if len(node.HandlerMiddleware) > 0 {
+			middlewareList = append(middlewareList, node.HandlerMiddleware)
+		}
 		return nil
 	})
 
@@ -347,7 +415,11 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	}
 
 	for _, mw := range middlewareList {
-		if bytes.Contains(file, []byte(mw+"Mw")) {
+		mwNamePattern := fmt.Sprintf(" %sMw", mw)
+		if pkgGen.SnakeStyleMiddleware {
+			mwNamePattern = fmt.Sprintf(" %s_mw", mw)
+		}
+		if bytes.Contains(file, []byte(mwNamePattern)) {
 			continue
 		}
 		middlewareSingleTpl := pkgGen.tpls[middlewareSingleTplName]
@@ -377,4 +449,11 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, middlewareTplName})
 
 	return nil
+}
+
+// convertToMiddlewareName converts a route path to a middleware name
+func convertToMiddlewareName(path string) string {
+	path = util.ToVarName([]string{path})
+	path = strings.ToLower(path)
+	return path
 }
