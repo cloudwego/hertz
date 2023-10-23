@@ -706,3 +706,32 @@ func TestTreeFindCaseInsensitivePath(t *testing.T) {
 		}
 	}
 }
+
+func TestTreeParamNotOptimize(t *testing.T) {
+	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	routes := [...]string{
+		"/:parama/start",
+		"/:paramb",
+	}
+	for _, route := range routes {
+		tree.addRoute(route, fakeHandler(route))
+	}
+	checkRequests(t, tree, testRequests{
+		{"/1", false, "/:paramb", param.Params{param.Param{Key: "paramb", Value: "1"}}},
+		{"/1/start", false, "/:parama/start", param.Params{param.Param{Key: "parama", Value: "1"}}},
+	})
+
+	// other sequence
+	tree = &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	routes = [...]string{
+		"/:paramb",
+		"/:parama/start",
+	}
+	for _, route := range routes {
+		tree.addRoute(route, fakeHandler(route))
+	}
+	checkRequests(t, tree, testRequests{
+		{"/1/start", false, "/:parama/start", param.Params{param.Param{Key: "parama", Value: "1"}}},
+		{"/1", false, "/:paramb", param.Params{param.Param{Key: "paramb", Value: "1"}}},
+	})
+}
