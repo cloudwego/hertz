@@ -178,8 +178,10 @@ func (arg *Argument) GetThriftgoOptions() (string, error) {
 		return "", err
 	}
 	arg.ThriftOptions = append(arg.ThriftOptions, "package_prefix="+prefix)
+	arg.ThriftOptions = append(arg.ThriftOptions, "enum_unmarshal")
 	if arg.JSONEnumStr {
-		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
+		// todo: 等 thriftgo 发版，设置一个最低版本限制，或者读取 thriftgo 的版本，来设置用 enum_marshal 还是 json_enum_as_text，这两个选项已经在thriftgo做了兼容处理
+		arg.ThriftOptions = append(arg.ThriftOptions, "enum_marshal")
 	}
 	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments,gen_json_tag=false"
 	return gas, nil
