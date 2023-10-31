@@ -1556,3 +1556,31 @@ func Benchmark_Binding(b *testing.B) {
 		}
 	}
 }
+
+// TestBind_BindProtobufWithoutContentLength for issue-983
+func TestBind_BindProtobufWithoutContentLength(t *testing.T) {
+	data := testdata.HertzReq{Name: "hertz"}
+	body, err := proto.Marshal(&data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetProtobufContentType().
+		SetBody(body)
+
+	req.Req.Header.Del("Content-Length")
+	result := testdata.HertzReq{}
+	err = DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "hertz", result.Name)
+
+	result = testdata.HertzReq{}
+	err = DefaultBinder().BindProtobuf(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "hertz", result.Name)
+}

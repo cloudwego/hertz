@@ -319,7 +319,7 @@ func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.
 
 // best effort binding
 func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error {
-	if req.Header.ContentLength() <= 0 {
+	if len(req.Body()) == 0 {
 		return nil
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
