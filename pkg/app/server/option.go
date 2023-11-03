@@ -382,3 +382,15 @@ func WithDisableHeaderNamesNormalizing(disable bool) config.Option {
 		o.DisableHeaderNamesNormalizing = disable
 	}}
 }
+
+func WithDisableDefaultDate(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.NoDefaultDate = disable
+	}}
+}
+
+func WithDisableDefaultContentType(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.NoDefaultContentType = disable
+	}}
+}
