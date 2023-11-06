@@ -369,11 +369,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			return
 		}
 
-		// general case
-		if s.EnableTrace {
-			traceCtl.DoFinish(cc, ctx, err)
-		}
-
 		if connectionClose {
 			return errShortConnection
 		}
@@ -381,6 +376,10 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// For now, only netpoll network mode has this feature.
 		if s.IdleTimeout == 0 {
 			return
+		}
+		// general case
+		if s.EnableTrace {
+			traceCtl.DoFinish(cc, ctx, err)
 		}
 
 		ctx.ResetWithoutConn()
