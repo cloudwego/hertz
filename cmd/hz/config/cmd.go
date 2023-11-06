@@ -173,6 +173,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 }
 
 func (arg *Argument) GetThriftgoOptions() (string, error) {
+	defaultOpt := "reserve_comments,gen_json_tag=false,"
 	prefix, err := arg.ModelPackagePrefix()
 	if err != nil {
 		return "", err
@@ -181,6 +182,6 @@ func (arg *Argument) GetThriftgoOptions() (string, error) {
 	if arg.JSONEnumStr {
 		arg.ThriftOptions = append(arg.ThriftOptions, "json_enum_as_text")
 	}
-	gas := "go:" + strings.Join(arg.ThriftOptions, ",") + ",reserve_comments,gen_json_tag=false"
+	gas := "go:" + defaultOpt + strings.Join(arg.ThriftOptions, ",")
 	return gas, nil
 }
