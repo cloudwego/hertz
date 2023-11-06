@@ -721,7 +721,7 @@ func TestResponseHeaderCopyTo(t *testing.T) {
 	assert.DeepEqual(t, hCopy.GetHeaderLength(), 100)
 }
 
-func TestResponseDateNoDefaultNotEmpty(t *testing.T) {
+func TestResponseHeaderDateEmpty(t *testing.T) {
 	t.Parallel()
 
 	var h ResponseHeader
@@ -731,7 +731,4 @@ func TestResponseDateNoDefaultNotEmpty(t *testing.T) {
 	if strings.Contains(headers, "\r\nDate: ") {
 		t.Fatalf("ResponseDateNoDefaultNotEmpty fail, response: \n%+v\noutcome: \n%q\n", h, headers) //nolint:govet
 	}
-}
-
-func TestResponseDateNoDefaultEmpty(t *testing.T) {
 }
