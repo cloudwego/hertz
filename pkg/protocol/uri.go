@@ -49,6 +49,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 // AcquireURI returns an empty URI instance from the pool.
@@ -373,6 +374,34 @@ func (u *URI) Parse(host, uri []byte) {
 	u.parse(host, uri, false)
 }
 
+// Maybe rawURL is of the form scheme:path.
+// (Scheme must be [a-zA-Z][a-zA-Z0-9+-.]*)
+// If so, return scheme, path; else return "", rawURL.
+func getScheme(rawURL []byte) (scheme, path []byte) {
+	for i := 0; i < len(rawURL); i++ {
+		c := rawURL[i]
+		switch {
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+		// do nothing
+		case '0' <= c && c <= '9' || c == '+' || c == '-' || c == '.':
+			if i == 0 {
+				return nil, rawURL
+			}
+		case c == ':':
+			if i == 0 {
+				hlog.Errorf("error happened when try to parse the rawURL(%s): missing protocol scheme", rawURL)
+				return nil, nil
+			}
+			return rawURL[:i], rawURL[i+1:]
+		default:
+			// we have encountered an invalid character,
+			// so there is no valid scheme
+			return nil, rawURL
+		}
+	}
+	return nil, rawURL
+}
+
 func (u *URI) parse(host, uri []byte, isTLS bool) {
 	u.Reset()
 
@@ -455,20 +484,14 @@ func stringContainsCTLByte(s []byte) bool {
 }
 
 func splitHostURI(host, uri []byte) ([]byte, []byte, []byte) {
-	n := bytes.Index(uri, bytestr.StrSlashSlash)
-	if n < 0 {
+	scheme, path := getScheme(uri)
+
+	if scheme == nil {
 		return bytestr.StrHTTP, host, uri
 	}
-	scheme := uri[:n]
-	if bytes.IndexByte(scheme, '/') >= 0 {
-		return bytestr.StrHTTP, host, uri
-	}
-	if len(scheme) > 0 && scheme[len(scheme)-1] == ':' {
-		scheme = scheme[:len(scheme)-1]
-	}
-	n += len(bytestr.StrSlashSlash)
-	uri = uri[n:]
-	n = bytes.IndexByte(uri, '/')
+
+	uri = path[len(bytestr.StrSlashSlash):]
+	n := bytes.IndexByte(uri, '/')
 	if n < 0 {
 		// A hack for bogus urls like foobar.com?a=b without
 		// slash after host.
