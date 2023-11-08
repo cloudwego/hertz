@@ -376,7 +376,7 @@ func (u *URI) Parse(host, uri []byte) {
 
 // Maybe rawURL is of the form scheme:path.
 // (Scheme must be [a-zA-Z][a-zA-Z0-9+-.]*)
-// If so, return scheme, path; else return "", rawURL.
+// If so, return scheme, path; else return nil, rawURL.
 func getScheme(rawURL []byte) (scheme, path []byte) {
 	for i := 0; i < len(rawURL); i++ {
 		c := rawURL[i]
@@ -609,6 +609,9 @@ func (u *URI) updateBytes(newURI, buf []byte) []byte {
 		schemeOriginal := b[:0]
 		if len(u.scheme) > 0 {
 			schemeOriginal = append([]byte(nil), u.scheme...)
+		}
+		if n == 0 {
+			newURI = bytes.Join([][]byte{u.scheme, bytestr.StrColon, newURI}, nil)
 		}
 		u.Parse(nil, newURI)
 		if len(schemeOriginal) > 0 && len(u.scheme) == 0 {
