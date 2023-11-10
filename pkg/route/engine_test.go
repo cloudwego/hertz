@@ -64,6 +64,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/suite"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -909,4 +910,167 @@ func TestEngineShutdown(t *testing.T) {
 	err = engine.Shutdown(ctx3)
 	assert.DeepEqual(t, errTestDeregsitry, err)
 	assert.DeepEqual(t, statusShutdown, atomic.LoadUint32(&engine.status))
+}
+
+type mockStreamer struct{}
+
+type mockProtocolServer struct{}
+
+
+func (s *mockStreamer) Serve(c context.Context, conn network.StreamConn) error {
+	return nil
+}
+
+func (s *mockProtocolServer) Serve(c context.Context, conn network.Conn) error {
+	return nil
+}
+
+type mockStreamConn struct {
+	version string
+}
+
+var _ network.StreamConn = &mockStreamConn{}
+
+func (m *mockStreamConn) GetRawConnection() interface{} {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) HandshakeComplete() context.Context {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) GetVersion() uint32 {
+	return network.Version1
+}
+
+func (m *mockStreamConn) CloseWithError(err network.ApplicationError, errMsg string) error {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) LocalAddr() net.Addr {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) RemoteAddr() net.Addr {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) Context() context.Context {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) AcceptStream(context.Context) (network.Stream, error) {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) AcceptUniStream(context.Context) (network.ReceiveStream, error) {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) OpenStream() (network.Stream, error) {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) OpenStreamSync(context.Context) (network.Stream, error) {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) OpenUniStream() (network.SendStream, error) {
+	panic("implement me")
+}
+
+func (m *mockStreamConn) OpenUniStreamSync(context.Context) (network.SendStream, error) {
+	panic("implement me")
+}
+
+func TestEngineServeStream(t *testing.T) {
+	engine := &Engine{
+		options: &config.Options{
+			ALPN: true,
+			TLS:  &tls.Config{},
+		},
+		protocolStreamServers: map[string]protocol.StreamServer{
+			suite.HTTP3: &mockStreamer{},
+		},
+	}
+
+	// Test ALPN path
+	conn := &mockStreamConn{version: suite.HTTP3}
+	err := engine.ServeStream(context.Background(), conn)
+	assert.Nil(t, err)
+
+	// Test default path
+	engine.options.ALPN = false
+	conn = &mockStreamConn{}
+	err = engine.ServeStream(context.Background(), conn)
+	assert.Nil(t, err)
+
+	// Test unsupported protocol
+	engine.protocolStreamServers = map[string]protocol.StreamServer{}
+	conn = &mockStreamConn{}
+	err = engine.ServeStream(context.Background(), conn)
+	assert.DeepEqual(t, errs.ErrNotSupportProtocol, err)
+}
+func TestEngineServe(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
+	engine.protocolServers[suite.HTTP2] = &mockProtocolServer{}
+
+	// test H2C path
+	ctx := context.Background()
+	conn := mock.NewConn("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+	engine.options.H2C = true
+	err := engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+
+	// test ALPN path
+	ctx = context.Background()
+	conn = mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	engine.options.H2C = false
+	engine.options.ALPN = true
+	engine.options.TLS = &tls.Config{}
+	err = engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+
+	// test HTTP1 path
+	engine.options.ALPN = false
+	err = engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+}
+
+func TestOndata(t *testing.T) {
+	ctx := context.Background()
+	engine := NewEngine(config.NewOptions(nil))
+
+	//test stream conn
+	streamConn := &mockStreamConn{version: suite.HTTP3}
+	engine.protocolStreamServers[suite.HTTP3] = &mockStreamer{}
+	err := engine.onData(ctx, streamConn)
+	assert.Nil(t, err)
+
+	//test conn
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
+	err = engine.onData(ctx, conn)
+	assert.Nil(t, err)
+}
+func TestAcquireHijackConn(t *testing.T) {
+	engine := &Engine{
+		NoHijackConnPool: false,
+	}
+	// test conn pool
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	hijackConn := engine.acquireHijackConn(conn)
+	assert.NotNil(t, hijackConn)
+	assert.NotNil(t, hijackConn.Conn)
+	assert.DeepEqual(t, engine, hijackConn.e)
+	assert.DeepEqual(t, conn, hijackConn.Conn)
+
+	// test no conn pool
+	engine.NoHijackConnPool = true
+	hijackConn = engine.acquireHijackConn(conn)
+	assert.NotNil(t, hijackConn)
+	assert.NotNil(t, hijackConn.Conn)
+	assert.DeepEqual(t, engine, hijackConn.e)
+	assert.DeepEqual(t, conn, hijackConn.Conn)
 }
