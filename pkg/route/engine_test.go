@@ -916,7 +916,6 @@ type mockStreamer struct{}
 
 type mockProtocolServer struct{}
 
-
 func (s *mockStreamer) Serve(c context.Context, conn network.StreamConn) error {
 	return nil
 }
