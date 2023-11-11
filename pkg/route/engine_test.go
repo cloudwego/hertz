@@ -880,7 +880,7 @@ func TestEngineShutdown(t *testing.T) {
 	err := engine.Shutdown(ctx1)
 	assert.DeepEqual(t, errStatusNotRunning, err)
 
-	// Test case 2: serve sucessfully running and shutdown
+	// Test case 2: serve successfully running and shutdown
 	engine = NewEngine(config.NewOptions(nil))
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
 	go func() {
