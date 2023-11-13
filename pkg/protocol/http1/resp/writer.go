@@ -17,23 +17,12 @@
 package resp
 
 import (
-	"runtime"
 	"sync"
 
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
-
-var chunkReaderPool sync.Pool
-
-func init() {
-	chunkReaderPool = sync.Pool{
-		New: func() interface{} {
-			return &chunkedBodyWriter{}
-		},
-	}
-}
 
 type chunkedBodyWriter struct {
 	sync.Once
@@ -70,14 +59,6 @@ func (c *chunkedBodyWriter) Flush() error {
 // Warning: do not call this method by yourself, unless you know what you are doing.
 func (c *chunkedBodyWriter) Finalize() error {
 	c.Do(func() {
-		// in case no actual data from user
-		if !c.wroteHeader {
-			c.r.Header.SetContentLength(-1)
-			if c.finalizeErr = WriteHeader(&c.r.Header, c.w); c.finalizeErr != nil {
-				return
-			}
-			c.wroteHeader = true
-		}
 		c.finalizeErr = ext.WriteChunk(c.w, nil, true)
 		if c.finalizeErr != nil {
 			return
@@ -87,19 +68,9 @@ func (c *chunkedBodyWriter) Finalize() error {
 	return c.finalizeErr
 }
 
-func (c *chunkedBodyWriter) release() {
-	c.r = nil
-	c.w = nil
-	c.finalizeErr = nil
-	c.wroteHeader = false
-	chunkReaderPool.Put(c)
-}
-
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {
-	extWriter := chunkReaderPool.Get().(*chunkedBodyWriter)
-	extWriter.r = r
-	extWriter.w = w
-	extWriter.Once = sync.Once{}
-	runtime.SetFinalizer(extWriter, (*chunkedBodyWriter).release)
-	return extWriter
+	return &chunkedBodyWriter{
+		r: r,
+		w: w,
+	}
 }
