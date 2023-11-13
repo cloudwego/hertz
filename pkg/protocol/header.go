@@ -950,6 +950,11 @@ func (h *ResponseHeader) SetNoDefaultContentType(b bool) {
 	h.noDefaultContentType = b
 }
 
+// SetNoDefaultDate set noDefaultDate value of ResponseHeader.
+func (h *ResponseHeader) SetNoDefaultDate(b bool) {
+	h.noDefaultDate = b
+}
+
 // SetServerBytes sets Server header value.
 func (h *ResponseHeader) SetServerBytes(server []byte) {
 	h.server = append(h.server[:0], server...)
