@@ -925,61 +925,14 @@ func (s *mockProtocolServer) Serve(c context.Context, conn network.Conn) error {
 }
 
 type mockStreamConn struct {
+	network.StreamConn
 	version string
 }
 
 var _ network.StreamConn = &mockStreamConn{}
 
-func (m *mockStreamConn) GetRawConnection() interface{} {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) HandshakeComplete() context.Context {
-	panic("implement me")
-}
-
 func (m *mockStreamConn) GetVersion() uint32 {
 	return network.Version1
-}
-
-func (m *mockStreamConn) CloseWithError(err network.ApplicationError, errMsg string) error {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) LocalAddr() net.Addr {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) RemoteAddr() net.Addr {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) Context() context.Context {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) AcceptStream(context.Context) (network.Stream, error) {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) AcceptUniStream(context.Context) (network.ReceiveStream, error) {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) OpenStream() (network.Stream, error) {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) OpenStreamSync(context.Context) (network.Stream, error) {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) OpenUniStream() (network.SendStream, error) {
-	panic("implement me")
-}
-
-func (m *mockStreamConn) OpenUniStreamSync(context.Context) (network.SendStream, error) {
-	panic("implement me")
 }
 
 func TestEngineServeStream(t *testing.T) {
