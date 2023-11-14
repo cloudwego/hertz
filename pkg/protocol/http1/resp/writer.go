@@ -59,6 +59,14 @@ func (c *chunkedBodyWriter) Flush() error {
 // Warning: do not call this method by yourself, unless you know what you are doing.
 func (c *chunkedBodyWriter) Finalize() error {
 	c.Do(func() {
+		// in case no actual data from user
+		if !c.wroteHeader {
+			c.r.Header.SetContentLength(-1)
+			if c.finalizeErr = WriteHeader(&c.r.Header, c.w); c.finalizeErr != nil {
+				return
+			}
+			c.wroteHeader = true
+		}
 		c.finalizeErr = ext.WriteChunk(c.w, nil, true)
 		if c.finalizeErr != nil {
 			return
@@ -70,7 +78,8 @@ func (c *chunkedBodyWriter) Finalize() error {
 
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {
 	return &chunkedBodyWriter{
-		r: r,
-		w: w,
+		r:    r,
+		w:    w,
+		Once: sync.Once{},
 	}
 }
