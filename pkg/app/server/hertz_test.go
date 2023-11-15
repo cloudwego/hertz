@@ -259,7 +259,7 @@ func TestNotAbsolutePath(t *testing.T) {
 	go engine.Run()
 	time.Sleep(200 * time.Microsecond)
 
-	s := "POST ?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
 
 	ctx := app.NewContext(0)
@@ -270,7 +270,7 @@ func TestNotAbsolutePath(t *testing.T) {
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.DeepEqual(t, ctx.Request.Body(), ctx.Response.Body())
 
-	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s = "POST a?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr = mock.NewZeroCopyReader(s)
 
 	ctx = app.NewContext(0)
@@ -291,7 +291,7 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	go engine.Run()
 	time.Sleep(200 * time.Microsecond)
 
-	s := "POST ?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
 
 	ctx := app.NewContext(0)
@@ -302,7 +302,7 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
 
-	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	s = "POST a?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr = mock.NewZeroCopyReader(s)
 
 	ctx = app.NewContext(0)
@@ -1065,4 +1065,30 @@ func TestValidateConfigAndBindConfig(t *testing.T) {
 	_, err := hc.Get("http://127.0.0.1:9876/bind?a=135")
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
+}
+
+func TestWithDisableDefaultDate(t *testing.T) {
+	h := New(
+		WithHostPorts("localhost:8321"),
+		WithDisableDefaultDate(true),
+	)
+	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	r, _ := hc.Get("http://127.0.0.1:8321") //nolint:errcheck
+	assert.DeepEqual(t, "", r.Header.Get("Date"))
+}
+
+func TestWithDisableDefaultContentType(t *testing.T) {
+	h := New(
+		WithHostPorts("localhost:8324"),
+		WithDisableDefaultContentType(true),
+	)
+	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+	hc := http.Client{Timeout: time.Second}
+	r, _ := hc.Get("http://127.0.0.1:8324") //nolint:errcheck
+	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
 }

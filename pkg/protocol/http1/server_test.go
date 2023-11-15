@@ -359,6 +359,52 @@ func TestExpect100ContinueHandler(t *testing.T) {
 	assert.DeepEqual(t, "", string(response.Body()))
 }
 
+type mockController struct {
+	FinishTimes int
+}
+
+func (m *mockController) Append(col tracer.Tracer) {}
+
+func (m *mockController) DoStart(ctx context.Context, c *app.RequestContext) context.Context {
+	return ctx
+}
+
+func (m *mockController) DoFinish(ctx context.Context, c *app.RequestContext, err error) {
+	m.FinishTimes++
+}
+
+func (m *mockController) HasTracer() bool { return true }
+
+func (m *mockController) reset() { m.FinishTimes = 0 }
+
+func TestTraceDoFinishTimes(t *testing.T) {
+	server := &Server{}
+	server.eventStackPool = pool
+	server.EnableTrace = true
+	reqCtx := &app.RequestContext{}
+	controller := &mockController{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			ti := traceinfo.NewTraceInfo()
+			ti.Stats().SetLevel(2)
+			reqCtx.SetTraceInfo(&mockTraceInfo{ti})
+			return reqCtx
+		}},
+		controller: controller,
+	}
+	// for disableKeepAlive case
+	server.DisableKeepalive = true
+	err := server.Serve(context.TODO(), mock.NewConn("GET /aaa HTTP/1.1\nHost: foobar.com\n\n"))
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	assert.DeepEqual(t, 1, controller.FinishTimes)
+	// for IdleTimeout==0 case
+	server.IdleTimeout = 0
+	controller.reset()
+	err = server.Serve(context.TODO(), mock.NewConn("GET /aaa HTTP/1.1\nHost: foobar.com\n\n"))
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
+	assert.DeepEqual(t, 1, controller.FinishTimes)
+}
+
 type mockCore struct {
 	ctxPool     *sync.Pool
 	controller  tracer.Controller

@@ -127,7 +127,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			}
 
 			hmethod, path := httpAnnos[0].method, httpAnnos[0].path
-			if len(path) != 1 || path[0] == "" {
+			if len(path) == 0 || path[0] == "" {
 				return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
 			}
 
@@ -198,18 +198,16 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			models.MergeMap(method.Models)
 			methods = append(methods, method)
 			for idx, anno := range httpAnnos {
-				if idx == 0 {
-					continue
+				for i := 0; i < len(anno.path); i++ {
+					if idx == 0 && i == 0 { // idx==0 && i==0 has been added above
+						continue
+					}
+					newMethod, err := newHTTPMethod(s, m, method, i, anno)
+					if err != nil {
+						return nil, err
+					}
+					methods = append(methods, newMethod)
 				}
-				tmp := *method
-				hmethod, path := anno.method, anno.path
-				if len(path) != 1 || path[0] == "" {
-					return nil, fmt.Errorf("invalid api.%s  for %s.%s: %s", hmethod, s.Name, m.Name, path)
-				}
-				tmp.HTTPMethod = hmethod
-				tmp.Path = path[0]
-				tmp.GenHandler = false
-				methods = append(methods, &tmp)
 			}
 			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
@@ -232,6 +230,18 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		out = append(out, service)
 	}
 	return out, nil
+}
+
+func newHTTPMethod(s *parser.Service, m *parser.Function, method *generator.HttpMethod, i int, anno httpAnnotation) (*generator.HttpMethod, error) {
+	newMethod := *method
+	hmethod, path := anno.method, anno.path
+	if path[i] == "" {
+		return nil, fmt.Errorf("invalid api.%s for %s.%s: %s", hmethod, s.Name, m.Name, path[i])
+	}
+	newMethod.HTTPMethod = hmethod
+	newMethod.Path = path[i]
+	newMethod.GenHandler = false
+	return &newMethod, nil
 }
 
 func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol) error {
