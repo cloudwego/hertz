@@ -866,6 +866,7 @@ var _ registry.Registry = &mockDeregsitryErr{}
 func (e mockDeregsitryErr) Register(*registry.Info) error {
 	return nil
 }
+
 func (e mockDeregsitryErr) Deregister(*registry.Info) error {
 	return errTestDeregsitry
 }
@@ -963,6 +964,7 @@ func TestEngineServeStream(t *testing.T) {
 	err = engine.ServeStream(context.Background(), conn)
 	assert.DeepEqual(t, errs.ErrNotSupportProtocol, err)
 }
+
 func TestEngineServe(t *testing.T) {
 	engine := NewEngine(config.NewOptions(nil))
 	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
@@ -994,18 +996,19 @@ func TestOndata(t *testing.T) {
 	ctx := context.Background()
 	engine := NewEngine(config.NewOptions(nil))
 
-	//test stream conn
+	// test stream conn
 	streamConn := &mockStreamConn{version: suite.HTTP3}
 	engine.protocolStreamServers[suite.HTTP3] = &mockStreamer{}
 	err := engine.onData(ctx, streamConn)
 	assert.Nil(t, err)
 
-	//test conn
+	// test conn
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
 	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
 	err = engine.onData(ctx, conn)
 	assert.Nil(t, err)
 }
+
 func TestAcquireHijackConn(t *testing.T) {
 	engine := &Engine{
 		NoHijackConnPool: false,
