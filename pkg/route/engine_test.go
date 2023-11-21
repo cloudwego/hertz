@@ -896,7 +896,7 @@ func TestEngineShutdown(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, statusClosed, atomic.LoadUint32(&engine.status))
 
-	// Test case 3: serve sucessfully running and shutdown with deregistry error
+	// Test case 3: serve successfully running and shutdown with deregistry error
 	engine = NewEngine(config.NewOptions(nil))
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
 	engine.options.Registry = &mockDeregsitryErr{}
