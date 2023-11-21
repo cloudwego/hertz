@@ -126,7 +126,7 @@ func TestTagGenerate(t *testing.T) {
 					tags := structTags{
 						{"protobuf", fieldProtobufTagValue(field)},
 					}
-					err = injectTagsToStructTags(field.Desc, &tags, true)
+					err = injectTagsToStructTags(field.Desc, &tags, true, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

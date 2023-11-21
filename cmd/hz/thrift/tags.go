@@ -205,21 +205,27 @@ func defaultBindingTags(f *parser.Field) []model.Tag {
 		val := getJsonValue(f, v[0])
 		out[0] = tag("json", val)
 	} else {
-		out[0] = jsonTag(f)
+		t := jsonTag(f)
+		t.IsDefault = true
+		out[0] = t
 	}
 	if v := getAnnotation(f.Annotations, AnnotationQuery); len(v) > 0 {
 		val := checkRequire(f, v[0])
 		out[1] = tag(BindingTags[AnnotationQuery], val)
 	} else {
 		val := checkRequire(f, checkSnakeName(f.Name))
-		out[1] = tag(BindingTags[AnnotationQuery], val)
+		t := tag(BindingTags[AnnotationQuery], val)
+		t.IsDefault = true
+		out[1] = t
 	}
 	if v := getAnnotation(f.Annotations, AnnotationForm); len(v) > 0 {
 		val := checkRequire(f, v[0])
 		out[2] = tag(BindingTags[AnnotationForm], val)
 	} else {
 		val := checkRequire(f, checkSnakeName(f.Name))
-		out[2] = tag(BindingTags[AnnotationForm], val)
+		t := tag(BindingTags[AnnotationForm], val)
+		t.IsDefault = true
+		out[2] = t
 	}
 	return out
 }
