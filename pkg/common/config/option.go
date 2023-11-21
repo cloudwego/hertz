@@ -58,6 +58,8 @@ type Options struct {
 	RemoveExtraSlash             bool
 	UnescapePathValues           bool
 	DisablePreParseMultipartForm bool
+	NoDefaultDate                bool
+	NoDefaultContentType         bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
 	DisablePrintRoute            bool
@@ -190,6 +192,12 @@ func NewOptions(opts []Option) *Options {
 		// The default is to automatically read request bodies of Expect 100 Continue requests
 		// like they are normal requests
 		DisablePreParseMultipartForm: false,
+
+		// When set to true, causes the default Content-Type header to be excluded from the response.
+		NoDefaultContentType: false,
+
+		// When set to true, causes the default date header to be excluded from the response.
+		NoDefaultDate: false,
 
 		// Routes info printing is not disabled by default
 		// Disabled when set to True

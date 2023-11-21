@@ -192,7 +192,7 @@ func renderImportTpl(tplInfo *Template, data interface{}) ([]string, error) {
 
 // renderAppendContent used to render append content for 'update' command
 func renderAppendContent(tplInfo *Template, renderInfo interface{}) (string, error) {
-	tpl, err := template.New(tplInfo.Path).Parse(tplInfo.UpdateBehavior.AppendTpl)
+	tpl, err := template.New(tplInfo.Path).Funcs(funcMap).Parse(tplInfo.UpdateBehavior.AppendTpl)
 	if err != nil {
 		return "", fmt.Errorf("parse append content template(%s) failed, err: %v", tplInfo.Path, err)
 	}

@@ -42,6 +42,7 @@
 package protocol
 
 import (
+	"bytes"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -467,4 +468,36 @@ func TestParseURI(t *testing.T) {
 	expectURI := "http://google.com/foo?bar=baz&baraz#qqqq"
 	uri := string(ParseURI(expectURI).FullURI())
 	assert.DeepEqual(t, expectURI, uri)
+}
+
+func TestSplitHostURI(t *testing.T) {
+	cases := []struct {
+		host, uri                      []byte
+		wantScheme, wantHost, wantPath []byte
+	}{
+		{
+			[]byte("example.com"), []byte("/foobar"),
+			[]byte("http"), []byte("example.com"), []byte("/foobar"),
+		},
+		{
+			[]byte("example2.com"), []byte("http://example2.com"),
+			[]byte("http"), []byte("example2.com"), []byte("/"),
+		},
+		{
+			[]byte("example2.com"), []byte("http://example3.com"),
+			[]byte("http"), []byte("example3.com"), []byte("/"),
+		},
+		{
+			[]byte("example3.com"), []byte("https://foobar.com?a=b"),
+			[]byte("https"), []byte("foobar.com"), []byte("?a=b"),
+		},
+	}
+
+	for _, c := range cases {
+		gotScheme, gotHost, gotPath := splitHostURI(c.host, c.uri)
+		if !bytes.Equal(gotScheme, c.wantScheme) || !bytes.Equal(gotHost, c.wantHost) || !bytes.Equal(gotPath, c.wantPath) {
+			t.Errorf("splitHostURI(%q, %q) == (%q, %q, %q), want (%q, %q, %q)",
+				c.host, c.uri, gotScheme, gotHost, gotPath, c.wantScheme, c.wantHost, c.wantPath)
+		}
+	}
 }

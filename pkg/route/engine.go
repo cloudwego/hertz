@@ -89,6 +89,8 @@ var (
 	default404Body = []byte("404 page not found")
 	default405Body = []byte("405 method not allowed")
 	default400Body = []byte("400 bad request")
+
+	requiredHostBody = []byte("missing required Host header")
 )
 
 type hijackConn struct {
@@ -721,6 +723,13 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	}
 
 	rPath := string(ctx.Request.URI().Path())
+
+	// align with https://datatracker.ietf.org/doc/html/rfc2616#section-5.2
+	if len(ctx.Request.Host()) == 0 && ctx.Request.Header.IsHTTP11() && bytesconv.B2s(ctx.Request.Method()) != consts.MethodConnect {
+		serveError(c, ctx, consts.StatusBadRequest, requiredHostBody)
+		return
+	}
+
 	httpMethod := bytesconv.B2s(ctx.Request.Header.Method())
 	unescape := false
 	if engine.options.UseRawPath {
@@ -1056,6 +1065,8 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		EnableTrace:                   engine.IsTraceEnable(),
 		HijackConnHandle:              engine.HijackConnHandle,
 		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
+		NoDefaultDate:                 engine.options.NoDefaultDate,
+		NoDefaultContentType:          engine.options.NoDefaultContentType,
 	}
 	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
 	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.

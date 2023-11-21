@@ -56,6 +56,8 @@ var (
 type Option struct {
 	StreamRequestBody             bool
 	GetOnly                       bool
+	NoDefaultDate                 bool
+	NoDefaultContentType          bool
 	DisablePreParseMultipartForm  bool
 	DisableKeepalive              bool
 	NoDefaultServerHeader         bool
@@ -180,6 +182,9 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				internalStats.Record(ti, stats.ReadHeaderFinish, err)
 			})
 		}
+
+		ctx.Response.Header.SetNoDefaultDate(s.NoDefaultDate)
+		ctx.Response.Header.SetNoDefaultContentType(s.NoDefaultContentType)
 
 		if s.DisableHeaderNamesNormalizing {
 			ctx.Request.Header.DisableNormalizing()
