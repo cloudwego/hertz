@@ -66,8 +66,8 @@ func checkSchemeWhenCharIsColon(i int, rawURL []byte) (scheme, path []byte) {
 	}
 
 	// case :\
-	if rawURL[i+1] == 92 {
-		return nil, rawURL
+	if i+1 < len(rawURL) && rawURL[i+1] == '\\' {
+		return nil, rawURL    
 	}
 
 	return rawURL[:i], rawURL[i+1:]
