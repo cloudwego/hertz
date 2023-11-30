@@ -197,10 +197,7 @@ func TestValidHeaderFieldValueTable(t *testing.T) {
 		ss := []byte{s}
 		expectedS := httpguts.ValidHeaderFieldValue(string(ss))
 		res := func() bool {
-			if ValidHeaderFieldValueTable[s] == 0 {
-				return false
-			}
-			return true
+			return ValidHeaderFieldValueTable[s] != 0
 		}()
 
 		assert.DeepEqual(t, expectedS, res)
