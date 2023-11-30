@@ -159,14 +159,36 @@ func main() {
 		return a
 	}()
 
+	validHeaderFieldValueTable := func() [256]byte {
+		// The implementation here is equal to httpguts.ValidHeaderFieldValue
+		var a [256]byte
+		for i := 0; i < 256; i++ {
+			a[i] = 1
+		}
+
+		for i := 0; i < ' '; i++ {
+			a[i] = 0
+		}
+
+		// del CTL
+		a[0x7f] = 0
+		// tab
+		a['\t'] = 1
+
+		return a
+	}()
+
 	w := new(bytes.Buffer)
 	w.WriteString(pre)
-	fmt.Fprintf(w, "const Hex2intTable = %q\n", hex2intTable)
-	fmt.Fprintf(w, "const ToLowerTable = %q\n", toLowerTable)
-	fmt.Fprintf(w, "const ToUpperTable = %q\n", toUpperTable)
-	fmt.Fprintf(w, "const QuotedArgShouldEscapeTable = %q\n", quotedArgShouldEscapeTable)
-	fmt.Fprintf(w, "const QuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
-	fmt.Fprintf(w, "const ValidCookieValueTable = %q\n", validCookieValueTable)
+	fmt.Fprintf(w, "const (\n")
+	fmt.Fprintf(w, "\tHex2intTable = %q\n", hex2intTable)
+	fmt.Fprintf(w, "\tToLowerTable = %q\n", toLowerTable)
+	fmt.Fprintf(w, "\tToUpperTable = %q\n", toUpperTable)
+	fmt.Fprintf(w, "\tQuotedArgShouldEscapeTable = %q\n", quotedArgShouldEscapeTable)
+	fmt.Fprintf(w, "\tQuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
+	fmt.Fprintf(w, "\tValidCookieValueTable = %q\n", validCookieValueTable)
+	fmt.Fprintf(w, "\tValidHeaderFieldValueTable = %q\n", validHeaderFieldValueTable)
+	fmt.Fprintf(w, ")\n")
 
 	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
 		log.Fatal(err)

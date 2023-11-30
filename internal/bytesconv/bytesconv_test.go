@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
+	"golang.org/x/net/http/httpguts"
 )
 
 func TestAppendDate(t *testing.T) {
@@ -181,5 +182,27 @@ func TestParseHTTPDate(t *testing.T) {
 			t.Fatalf("unexpected error: %v. t=%q", err, v.t)
 		}
 		assert.DeepEqual(t, t1, t2)
+	}
+}
+
+func TestValidHeaderFieldValueTable(t *testing.T) {
+	t.Parallel()
+
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+	for _, s := range allBytes {
+		ss := []byte{s}
+		expectedS := httpguts.ValidHeaderFieldValue(string(ss))
+		res := func() bool {
+			if ValidHeaderFieldValueTable[s] == 0 {
+				return false
+			}
+			return true
+		}()
+
+		assert.DeepEqual(t, expectedS, res)
 	}
 }
