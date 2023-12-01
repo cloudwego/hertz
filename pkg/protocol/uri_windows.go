@@ -44,6 +44,8 @@
 
 package protocol
 
+import "github.com/cloudwego/hertz/pkg/common/hlog"
+
 func addLeadingSlash(dst, src []byte) []byte {
 	// zero length and "C:/" case
 	isDisk := len(src) > 2 && src[1] == ':'
@@ -52,4 +54,21 @@ func addLeadingSlash(dst, src []byte) []byte {
 	}
 
 	return dst
+}
+
+// checkSchemeWhenCharIsColon check url begin with :
+// Scenarios that handle protocols like "http:"
+// Add the path to the win file, e.g. "E:\gopath", "E:\".
+func checkSchemeWhenCharIsColon(i int, rawURL []byte) (scheme, path []byte) {
+	if i == 0 {
+		hlog.Errorf("error happened when trying to parse the rawURL(%s): missing protocol scheme", rawURL)
+		return
+	}
+
+	// case :\
+	if i+1 < len(rawURL) && rawURL[i+1] == '\\' {
+		return nil, rawURL
+	}
+
+	return rawURL[:i], rawURL[i+1:]
 }
