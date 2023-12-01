@@ -45,7 +45,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
+	hjson "github.com/cloudwego/hertz/internal/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
@@ -58,10 +58,12 @@ func init() {
 	ResetJSONMarshal(hjson.Marshal)
 }
 
+// Deprecated:
 func ResetJSONMarshal(fn JSONMarshaler) {
 	jsonMarshalFunc = fn
 }
 
+// Deprecated:
 func ResetStdJSONMarshal() {
 	ResetJSONMarshal(json.Marshal)
 }

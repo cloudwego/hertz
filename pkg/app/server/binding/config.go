@@ -23,11 +23,13 @@ import (
 	"time"
 
 	exprValidator "github.com/bytedance/go-tagexpr/v2/validator"
+	hJson "github.com/cloudwego/hertz/internal/json"
 	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
-	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
+
+type JSONUnmarshaler func(data []byte, v interface{}) error
 
 // BindConfig contains options for default bind behavior.
 type BindConfig struct {
@@ -63,6 +65,8 @@ type BindConfig struct {
 	// The default is false.
 	// It is used for BindJSON().
 	EnableDecoderDisallowUnknownFields bool
+
+	JSONUnmarshalFunc JSONUnmarshaler
 	// TypeUnmarshalFuncs registers customized type unmarshaler.
 	// NOTE:
 	// time.Time is registered by default
@@ -78,6 +82,7 @@ func NewBindConfig() *BindConfig {
 		DisableStructFieldResolve:          false,
 		EnableDecoderUseNumber:             false,
 		EnableDecoderDisallowUnknownFields: false,
+		JSONUnmarshalFunc:                  hJson.Unmarshal,
 		TypeUnmarshalFuncs:                 make(map[reflect.Type]inDecoder.CustomizeDecodeFunc),
 		Validator:                          defaultValidate,
 	}
@@ -127,8 +132,8 @@ func (config *BindConfig) initTypeUnmarshal() {
 // NOTE:
 //
 //	UseThirdPartyJSONUnmarshaler will remain in effect once it has been called.
-func (config *BindConfig) UseThirdPartyJSONUnmarshaler(fn func(data []byte, v interface{}) error) {
-	hJson.Unmarshal = fn
+func (config *BindConfig) UseThirdPartyJSONUnmarshaler(fn JSONUnmarshaler) {
+	config.JSONUnmarshalFunc = fn
 }
 
 // UseStdJSONUnmarshaler uses encoding/json as json library
