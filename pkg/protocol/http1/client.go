@@ -539,7 +539,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	begin := req.Options().StartTime()
 
 	dialTimeout := rc.dialTimeout
-	if reqTimeout < dialTimeout || dialTimeout == 0 {
+	if (reqTimeout > 0 && reqTimeout < dialTimeout) || dialTimeout == 0 {
 		dialTimeout = reqTimeout
 	}
 	cc, inPool, err := c.acquireConn(dialTimeout)
