@@ -1515,6 +1515,24 @@ func Test_Issue964(t *testing.T) {
 	}
 }
 
+func TestBind_Issue1015(t *testing.T) {
+	type Req struct {
+		Parent   *Req  `json:"parent"`
+		Children []Req `json:"children"`
+	}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"parent":{}, "children":[{},{}]}`))
+
+	var result Req
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`

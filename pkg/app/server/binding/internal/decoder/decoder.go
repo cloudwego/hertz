@@ -80,7 +80,7 @@ func GetReqDecoder(rt reflect.Type, byTag string, config *DecodeConfig) (Decoder
 			continue
 		}
 
-		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag, config)
+		dec, needValidate2, err := getFieldDecoder(el, el.Field(i), i, []int{}, "", byTag, config)
 		if err != nil {
 			return nil, false, err
 		}
@@ -103,7 +103,7 @@ func GetReqDecoder(rt reflect.Type, byTag string, config *DecodeConfig) (Decoder
 	}, needValidate, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName, byTag string, config *DecodeConfig) ([]fieldDecoder, bool, error) {
+func getFieldDecoder(parentType reflect.Type, field reflect.StructField, index int, parentIdx []int, parentJSONName, byTag string, config *DecodeConfig) ([]fieldDecoder, bool, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -162,6 +162,11 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 			}
 		}
 
+		// prevent infinite recursion when struct field with the same name as a struct
+		if reflect.DeepEqual(getElemType(parentType), getElemType(el)) {
+			return decoders, needValidate, nil
+		}
+
 		for i := 0; i < el.NumField(); i++ {
 			if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
 				// ignore unexported field
@@ -172,7 +177,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 				idxes = append(idxes, parentIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag, config)
+			dec, needValidate2, err := getFieldDecoder(el, el.Field(i), i, idxes, newParentJSONName, byTag, config)
 			needValidate = needValidate || needValidate2
 			if err != nil {
 				return nil, false, err
