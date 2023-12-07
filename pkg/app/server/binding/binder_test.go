@@ -1515,6 +1515,40 @@ func Test_Issue964(t *testing.T) {
 	}
 }
 
+type reqSameType struct {
+	Parent   *reqSameType  `json:"parent"`
+	Children []reqSameType `json:"children"`
+	Foo1     reqSameType2  `json:"foo1"`
+	A        string        `json:"a"`
+}
+
+type reqSameType2 struct {
+	Foo1 *reqSameType `json:"foo1"`
+}
+
+func TestBind_Issue1015(t *testing.T) {
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"parent":{"parent":{}, "children":[{},{}], "foo1":{"foo1":{}}}, "children":[{},{}], "a":"asd"}`))
+
+	var result reqSameType
+
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.NotNil(t, result.Parent)
+	assert.NotNil(t, result.Parent.Parent)
+	assert.Nil(t, result.Parent.Parent.Parent)
+	assert.NotNil(t, result.Parent.Children)
+	assert.DeepEqual(t, 2, len(result.Parent.Children))
+	assert.NotNil(t, result.Parent.Foo1.Foo1)
+	assert.DeepEqual(t, "", result.Parent.A)
+	assert.DeepEqual(t, 2, len(result.Children))
+	assert.Nil(t, result.Foo1.Foo1)
+	assert.DeepEqual(t, "asd", result.A)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
