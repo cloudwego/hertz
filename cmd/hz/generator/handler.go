@@ -57,6 +57,13 @@ type Handler struct {
 	Methods     []*HttpMethod
 }
 
+type SingleHandler struct {
+	*HttpMethod
+	FilePath    string
+	PackageName string
+	ProjPackage string
+}
+
 type Client struct {
 	Handler
 	ServiceName string
@@ -234,13 +241,12 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		if handlerSingleTpl == nil {
 			return fmt.Errorf("tpl %s not found", handlerSingleTplName)
 		}
-		data := make(map[string]string, 5)
-		data["Comment"] = method.Comment
-		data["Name"] = method.Name
-		data["RequestTypeName"] = method.RequestTypeName
-		data["ReturnTypeName"] = method.ReturnTypeName
-		data["Serializer"] = method.Serializer
-		data["OutputDir"] = method.OutputDir
+		data := SingleHandler{
+			HttpMethod:  method,
+			FilePath:    handler.(Handler).FilePath,
+			PackageName: handler.(Handler).PackageName,
+			ProjPackage: handler.(Handler).ProjPackage,
+		}
 		handlerFunc := bytes.NewBuffer(nil)
 		err = handlerSingleTpl.Execute(handlerFunc, data)
 		if err != nil {

@@ -80,7 +80,7 @@ func GetReqDecoder(rt reflect.Type, byTag string, config *DecodeConfig) (Decoder
 			continue
 		}
 
-		dec, needValidate2, err := getFieldDecoder(el.Field(i), i, []int{}, "", byTag, config)
+		dec, needValidate2, err := getFieldDecoder(parentInfos{[]reflect.Type{el}, []int{}, ""}, el.Field(i), i, byTag, config)
 		if err != nil {
 			return nil, false, err
 		}
@@ -103,7 +103,13 @@ func GetReqDecoder(rt reflect.Type, byTag string, config *DecodeConfig) (Decoder
 	}, needValidate, nil
 }
 
-func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, parentJSONName string, byTag string, config *DecodeConfig) ([]fieldDecoder, bool, error) {
+type parentInfos struct {
+	Types    []reflect.Type
+	Indexes  []int
+	JSONName string
+}
+
+func getFieldDecoder(pInfo parentInfos, field reflect.StructField, index int, byTag string, config *DecodeConfig) ([]fieldDecoder, bool, error) {
 	for field.Type.Kind() == reflect.Ptr {
 		field.Type = field.Type.Elem()
 	}
@@ -116,7 +122,7 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// JSONName is like 'a.b.c' for 'required validate'
-	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, parentJSONName, config)
+	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, pInfo.JSONName, config)
 	if len(fieldTagInfos) == 0 && !config.DisableDefaultTag {
 		fieldTagInfos = getDefaultFieldTags(field)
 	}
@@ -126,19 +132,19 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 
 	// customized type decoder has the highest priority
 	if customizedFunc, exist := config.TypeUnmarshalFuncs[field.Type]; exist {
-		dec, err := getCustomizedFieldDecoder(field, index, fieldTagInfos, parentIdx, customizedFunc, config)
+		dec, err := getCustomizedFieldDecoder(field, index, fieldTagInfos, pInfo.Indexes, customizedFunc, config)
 		return dec, needValidate, err
 	}
 
 	// slice/array field decoder
 	if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Array {
-		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, parentIdx, config)
+		dec, err := getSliceFieldDecoder(field, index, fieldTagInfos, pInfo.Indexes, config)
 		return dec, needValidate, err
 	}
 
 	// map filed decoder
 	if field.Type.Kind() == reflect.Map {
-		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, parentIdx, config)
+		dec, err := getMapTypeTextDecoder(field, index, fieldTagInfos, pInfo.Indexes, config)
 		return dec, needValidate, err
 	}
 
@@ -149,11 +155,11 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 		// todo: more built-in common struct binding, ex. time...
 		switch el {
 		case reflect.TypeOf(multipart.FileHeader{}): // file binding
-			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, parentIdx, config)
+			dec, err := getMultipartFileDecoder(field, index, fieldTagInfos, pInfo.Indexes, config)
 			return dec, needValidate, err
 		}
 		if !config.DisableStructFieldResolve { // decode struct type separately
-			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, parentIdx, config)
+			structFieldDecoder, err := getStructTypeFieldDecoder(field, index, fieldTagInfos, pInfo.Indexes, config)
 			if err != nil {
 				return nil, needValidate, err
 			}
@@ -162,17 +168,26 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 			}
 		}
 
+		// prevent infinite recursion when struct field with the same name as a struct
+		if hasSameType(pInfo.Types, el) {
+			return decoders, needValidate, nil
+		}
+
+		pIdx := pInfo.Indexes
 		for i := 0; i < el.NumField(); i++ {
 			if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
 				// ignore unexported field
 				continue
 			}
 			var idxes []int
-			if len(parentIdx) > 0 {
-				idxes = append(idxes, parentIdx...)
+			if len(pInfo.Indexes) > 0 {
+				idxes = append(idxes, pIdx...)
 			}
 			idxes = append(idxes, index)
-			dec, needValidate2, err := getFieldDecoder(el.Field(i), i, idxes, newParentJSONName, byTag, config)
+			pInfo.Indexes = idxes
+			pInfo.Types = append(pInfo.Types, el)
+			pInfo.JSONName = newParentJSONName
+			dec, needValidate2, err := getFieldDecoder(pInfo, el.Field(i), i, byTag, config)
 			needValidate = needValidate || needValidate2
 			if err != nil {
 				return nil, false, err
@@ -186,6 +201,16 @@ func getFieldDecoder(field reflect.StructField, index int, parentIdx []int, pare
 	}
 
 	// base type decoder
-	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, parentIdx, config)
+	dec, err := getBaseTypeTextDecoder(field, index, fieldTagInfos, pInfo.Indexes, config)
 	return dec, needValidate, err
+}
+
+// hasSameType determine if the same type is present in the parent-child relationship
+func hasSameType(pts []reflect.Type, ft reflect.Type) bool {
+	for _, pt := range pts {
+		if reflect.DeepEqual(getElemType(pt), getElemType(ft)) {
+			return true
+		}
+	}
+	return false
 }
