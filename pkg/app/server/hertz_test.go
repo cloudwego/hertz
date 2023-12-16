@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -246,6 +247,56 @@ func TestServer_Run(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	_ = hertz.Shutdown(ctx)
+}
+
+func TestBigBodyBug(t *testing.T) {
+	runtime.GOMAXPROCS(3)
+	hertz := New(WithHostPorts("127.0.0.1:8888"))
+	hertz.GET("/test1", func(c context.Context, ctx *app.RequestContext) {
+		body := make([]byte, 1024*1024*9)
+		ctx.SetBodyString(string(body))
+	})
+	hertz.GET("/test2", func(c context.Context, ctx *app.RequestContext) {
+		body := make([]byte, 1024)
+		ctx.SetBodyString(string(body))
+	})
+	hertz.GET("/test3", func(c context.Context, ctx *app.RequestContext) {
+		body := make([]byte, 1024*2)
+		ctx.SetBodyString(string(body))
+	})
+	go hertz.Run()
+
+	go func() {
+		for i := 0; i < 2; i++ {
+			go func() {
+				for true {
+					http.Get("http://127.0.0.1:8888/test1")
+				}
+			}()
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 5; i++ {
+			go func() {
+				for true {
+					http.Get("http://127.0.0.1:8888/test2")
+				}
+			}()
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 5; i++ {
+			go func() {
+				for true {
+					http.Get("http://127.0.0.1:8888/test3")
+				}
+			}()
+		}
+	}()
+
+	<-make(chan struct{})
 }
 
 func TestNotAbsolutePath(t *testing.T) {
