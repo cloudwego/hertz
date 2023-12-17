@@ -328,6 +328,10 @@ func (ctx *RequestContext) GetIndex() int8 {
 	return ctx.index
 }
 
+func (ctx *RequestContext) SetIndex(index int8) {
+	ctx.index = index
+}
+
 type HandlerFunc func(c context.Context, ctx *RequestContext)
 
 // HandlersChain defines a HandlerFunc array.
@@ -335,11 +339,17 @@ type HandlersChain []HandlerFunc
 
 var handlerNames = make(map[uintptr]string)
 
+var handlerRWLock sync.RWMutex
+
 func SetHandlerName(handler HandlerFunc, name string) {
+	handlerRWLock.Lock()
+	defer handlerRWLock.Unlock()
 	handlerNames[getFuncAddr(handler)] = name
 }
 
 func GetHandlerName(handler HandlerFunc) string {
+	handlerRWLock.RLock()
+	defer handlerRWLock.RUnlock()
 	return handlerNames[getFuncAddr(handler)]
 }
 
