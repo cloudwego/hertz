@@ -1344,9 +1344,12 @@ func TestGetWriter(t *testing.T) {
 func TestIndex(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.ResetWithoutConn()
-	ctx.SetIndex(int8(1))
+	exc := int8(-1)
 	res := ctx.GetIndex()
-	exc := int8(1)
+	assert.DeepEqual(t, exc, res)
+	ctx.SetIndex(int8(1))
+	res = ctx.GetIndex()
+	exc = int8(1)
 	assert.DeepEqual(t, exc, res)
 }
 
