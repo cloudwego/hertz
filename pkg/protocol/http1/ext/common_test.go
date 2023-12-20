@@ -123,6 +123,23 @@ func TestReadRawHeaders(t *testing.T) {
 	assert.DeepEqual(t, s[:index], string(rawHeaders))
 }
 
+func BenchmarkReadRawHeaders(b *testing.B) {
+	s := "HTTP/1.1 200 OK\r\n" +
+		"EmptyValue1:\r\n" +
+		"Content-Type: foo/bar;\r\n\tnewline;\r\n another/newline\r\n" +
+		"Foo: Bar\r\n" +
+		"Multi-Line: one;\r\n two\r\n" +
+		"Values: v1;\r\n v2; v3;\r\n v4;\tv5\r\n" +
+		"Content-Length: 5\r\n\r\n" +
+		"HELLOaaa"
+
+	var dst []byte
+	for i := 0; i < b.N; i++ {
+		ReadRawHeaders(dst, []byte(s))
+		dst = dst[:0]
+	}
+}
+
 func TestBodyChunked(t *testing.T) {
 	var log bytes.Buffer
 	hlog.SetOutput(&log)
@@ -143,6 +160,21 @@ func TestBodyChunked(t *testing.T) {
 	assert.DeepEqual(t, body, string(rb))
 
 	assert.DeepEqual(t, 0, log.Len())
+}
+
+func BenchmarkWriteBodyChunked(b *testing.B) {
+	var log bytes.Buffer
+	hlog.SetOutput(&log)
+
+	body := "foobar baz aaa bbb ccc"
+	by := bytes.NewBufferString(body)
+
+	var w bytes.Buffer
+	for i := 0; i < b.N; i++ {
+		zw := netpoll.NewWriter(&w)
+		WriteBodyChunked(zw, by)
+		w.Reset()
+	}
 }
 
 func TestBrokenBodyChunked(t *testing.T) {
@@ -173,6 +205,20 @@ func TestBodyFixedSize(t *testing.T) {
 	rb, err := ReadBody(zr, len(body), 0, nil)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, body, rb)
+}
+
+func BenchmarkWriteBodyFixedSize(b *testing.B) {
+	body := mock.CreateFixedBody(10)
+	by := bytes.NewBuffer(body)
+
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		WriteBodyFixedSize(zw, by, int64(len(body)))
+		by.Reset()
+	}
 }
 
 func TestBodyFixedSizeQuickPath(t *testing.T) {

@@ -127,3 +127,25 @@ func TestRenderHTML(t *testing.T) {
 	assert.DeepEqual(t, []byte("text/html; charset=utf-8"), respDebug.Header.Peek("Content-Type"))
 	assert.DeepEqual(t, []byte("<html><h1>Main website</h1></html>"), respDebug.Body())
 }
+
+func BenchmarkRenderHTML(b *testing.B) {
+	resp := &protocol.Response{}
+
+	tmpl := template.Must(template.New("").
+		Delims("{[{", "}]}").
+		Funcs(template.FuncMap{}).
+		ParseFiles("../../../common/testdata/template/index.tmpl"))
+
+	r := &HTMLProduction{Template: tmpl}
+
+	html := r.Instance("index.tmpl", utils.H{
+		"title": "Main website",
+	})
+	html.WriteContentType(resp)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		html.Render(resp)
+	}
+}

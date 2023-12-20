@@ -101,3 +101,28 @@ func TestTimerReleaseTimer(t *testing.T) {
 		t.Fatalf("Expecting the timer is released.")
 	}
 }
+
+func BenchmarkAcquireTimer(b *testing.B) {
+	// run the AcquireTimer function b.N times
+	b.ResetTimer()
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		t := AcquireTimer(time.Second)
+		ReleaseTimer(t) // release the timer after acquiring it
+	}
+}
+
+func BenchmarkReleaseTimer(b *testing.B) {
+	// create a slice of timers to be released
+	timers := make([]*time.Timer, b.N)
+	for i := 0; i < b.N; i++ {
+		timers[i] = AcquireTimer(time.Second)
+	}
+
+	// run the ReleaseTimer function b.N times
+	b.ResetTimer() // reset the timer to exclude the time spent on acquiring timers
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		ReleaseTimer(timers[n])
+	}
+}

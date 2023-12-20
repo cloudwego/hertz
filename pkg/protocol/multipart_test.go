@@ -101,6 +101,32 @@ Content-Type: application/json
 	}
 }
 
+func BenchmarkWriteMultipartForm(b *testing.B) {
+	var w bytes.Buffer
+	s := strings.Replace(`--foo
+Content-Disposition: form-data; name="key"
+
+value
+--foo
+Content-Disposition: form-data; name="file"; filename="test.json"
+Content-Type: application/json
+
+{"foo": "bar"}
+--foo--
+`, "\n", "\r\n", -1)
+	mr := multipart.NewReader(strings.NewReader(s), "foo")
+	form, err := mr.ReadForm(1024)
+	assert.Nil(b, err)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			WriteMultipartForm(&w, form, s)
+		}
+	})
+}
+
 func TestParseMultipartForm(t *testing.T) {
 	t.Parallel()
 	s := strings.Replace(`--foo
@@ -136,6 +162,25 @@ value
 	// set size 0
 	err = ParseMultipartForm(strings.NewReader(s), &req1, 0, 0)
 	assert.NotNil(t, err)
+}
+
+func BenchmarkParseMultipartForm(b *testing.B) {
+	s := strings.Replace(`--foo
+Content-Disposition: form-data; name="key"
+
+value
+--foo--
+`, "\n", "\r\n", -1)
+	req1 := Request{}
+	req1.SetMultipartFormBoundary("foo")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			ParseMultipartForm(strings.NewReader(s), &req1, 1024, 1024)
+		}
+	})
 }
 
 func TestWriteMultipartFormFile(t *testing.T) {
@@ -223,6 +268,30 @@ func TestWriteMultipartFormFile(t *testing.T) {
 	assert.Nil(t, WriteMultipartFormFile(w, "empty_test", "test.data", bytes.NewBuffer(nil)))
 }
 
+func BenchmarkWriteMultipartFormFile(b *testing.B) {
+	bodyBuffer := &bytes.Buffer{}
+	w := multipart.NewWriter(bodyBuffer)
+
+	// read multipart.go to buf1
+	f1, err := os.Open("./multipart.go")
+	if err != nil {
+		b.Fatalf("open file %s error: %s", f1.Name(), err)
+	}
+	defer f1.Close()
+
+	multipartFile := File{
+		Name:      f1.Name(),
+		ParamName: "multipartCode",
+		Reader:    f1,
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		WriteMultipartFormFile(w, multipartFile.ParamName, f1.Name(), multipartFile.Reader)
+	}
+}
+
 func TestMarshalMultipartForm(t *testing.T) {
 	s := strings.Replace(`--foo
 Content-Disposition: form-data; name="key"
@@ -247,6 +316,31 @@ Content-Type: application/json
 	// set boundary invalid
 	_, err = MarshalMultipartForm(form, " ")
 	assert.NotNil(t, err)
+}
+
+func BenchmarkMarshalMultipartForm(b *testing.B) {
+	s := strings.Replace(`--foo
+Content-Disposition: form-data; name="key"
+
+value
+--foo
+Content-Disposition: form-data; name="file"; filename="test.json"
+Content-Type: application/json
+
+{"foo": "bar"}
+--foo--
+`, "\n", "\r\n", -1)
+	mr := multipart.NewReader(strings.NewReader(s), "foo")
+	form, err := mr.ReadForm(1024)
+	if err != nil {
+		b.Fatalf("unexpected error: %s", err)
+	}
+
+	b.ResetTimer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		MarshalMultipartForm(form, "foo")
+	}
 }
 
 func TestAddFile(t *testing.T) {

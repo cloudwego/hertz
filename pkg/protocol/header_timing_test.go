@@ -44,7 +44,11 @@ package protocol
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func BenchmarkHTTPHeaderGet(b *testing.B) {
@@ -102,5 +106,82 @@ func BenchmarkRefreshServerDate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		refreshServerDate()
+	}
+}
+
+func BenchmarkRequestHeaderCopyTo(b *testing.B) {
+	h := new(RequestHeader)
+	h.Add(consts.HeaderContentType, "aaa/bbb")
+	h.Add(consts.HeaderContentEncoding, "gzip")
+	h.Add(consts.HeaderConnection, "close")
+	h.Add(consts.HeaderContentLength, "1234")
+	h.Add(consts.HeaderServer, "aaaa")
+	h.Add(consts.HeaderSetCookie, "cccc")
+	reqHeader := new(RequestHeader)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.CopyTo(reqHeader)
+	}
+}
+
+func BenchmarkResponseHeaderCopyTo(b *testing.B) {
+	h := new(ResponseHeader)
+	h.Add(consts.HeaderContentType, "aaa/bbb")
+	h.Add(consts.HeaderContentEncoding, "gzip")
+	h.Add(consts.HeaderConnection, "close")
+	h.Add(consts.HeaderContentLength, "1234")
+	h.Add(consts.HeaderServer, "aaaa")
+	h.Add(consts.HeaderSetCookie, "cccc")
+	respHeader := new(ResponseHeader)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.CopyTo(respHeader)
+	}
+}
+
+func Benchmark_peekRawHeader(b *testing.B) {
+	s := "Expect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		peekRawHeader([]byte(s), []byte("Host"))
+	}
+}
+
+func BenchmarkResponseHeader_SetContentLength(b *testing.B) {
+	rh := new(ResponseHeader)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rh.SetContentLength(-1)
+		assert.True(b, strings.Contains(string(rh.Header()), "Transfer-Encoding: chunked"))
+		rh.SetContentLength(-2)
+		assert.True(b, strings.Contains(string(rh.Header()), "Transfer-Encoding: identity"))
+		rh.Reset()
+	}
+}
+
+func BenchmarkRequestHeaderVisitAll(b *testing.B) {
+	h := RequestHeader{}
+	h.Set("xxx", "yyy")
+	h.Set("xxx2", "yyy2")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.VisitAll(func(k, v []byte) {
+			key := string(k)
+			value := string(v)
+			if key != "Xxx" && key != "Xxx2" {
+				b.Fatalf("Unexpected %v. Expected %v", key, "xxx or yyy")
+			}
+			if key == "Xxx" && value != "yyy" {
+				b.Fatalf("Unexpected %v. Expected %v", value, "yyy")
+			}
+			if key == "Xxx2" && value != "yyy2" {
+				b.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
+			}
+		})
 	}
 }

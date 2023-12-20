@@ -96,6 +96,21 @@ func TestRequestContinueReadBody(t *testing.T) {
 	}
 }
 
+func BenchmarkRequest_ContinueReadBody(b *testing.B) {
+	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+
+	var r protocol.Request
+	err := Read(&r, zr)
+	assert.Nil(b, err)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ContinueReadBody(&r, zr, 0, true)
+	}
+}
+
 func TestRequestReadNoBody(t *testing.T) {
 	t.Parallel()
 
@@ -136,6 +151,19 @@ func TestRequestRead(t *testing.T) {
 	}
 }
 
+func BenchmarkRequest_Read(b *testing.B) {
+	var r protocol.Request
+
+	s := "POST / HTTP/1.1\r\n\r\n"
+	zr := mock.NewZeroCopyReader(s)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = Read(&r, zr)
+	}
+}
+
 func TestRequestReadNoBodyStreaming(t *testing.T) {
 	t.Parallel()
 
@@ -153,6 +181,21 @@ func TestRequestReadNoBodyStreaming(t *testing.T) {
 	headerStr := r.Header.String()
 	if strings.Contains(headerStr, "Content-Length: ") {
 		t.Fatalf("unexpected Content-Length")
+	}
+}
+
+func BenchmarkRequest_ContinueReadBodyStream(b *testing.B) {
+	var r protocol.Request
+	r.Header.SetContentLength(-2)
+	r.Header.SetMethod("GET")
+	s := ""
+	zr := mock.NewZeroCopyReader(s)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_ = ContinueReadBodyStream(&r, zr, 2048, true)
 	}
 }
 
@@ -408,6 +451,20 @@ func TestChunkedUnexpectedEOF(t *testing.T) {
 	_, err = bs.Read(byteSlice)
 	if err != io.ErrUnexpectedEOF {
 		assert.DeepEqual(t, io.ErrUnexpectedEOF, err)
+	}
+}
+
+func BenchmarkExtReadBody(b *testing.B) {
+	body := mock.CreateFixedBody(3 * 1024 * 1024)
+	expectedTrailer := map[string]string{"Foo": "chunked shit"}
+	chunkedBody := mock.CreateChunkedBody(body, expectedTrailer, true)
+
+	zr := mock.NewZeroCopyReader(string(chunkedBody))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ext.ReadBody(zr, -1, 0, nil)
 	}
 }
 

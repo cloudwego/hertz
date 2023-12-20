@@ -17,6 +17,7 @@
 package protocol
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -34,6 +35,16 @@ func TestTrailerAdd(t *testing.T) {
 	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value1"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value2"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Bar: value3"))
+}
+
+func BenchmarkTrailer_Add(b *testing.B) {
+	var tr Trailer
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr.Add("bar", "value3")
+	}
 }
 
 func TestHeaderTrailerSet(t *testing.T) {
@@ -89,6 +100,18 @@ func TestTrailerDel(t *testing.T) {
 	assert.True(t, strings.Contains(string(tr.Header()), "Bar: value3"))
 }
 
+func BenchmarkTrailer_Del(b *testing.B) {
+	var tr Trailer
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr.Add("foo", "value3")
+		tr.Del("foo")
+		tr.Reset()
+	}
+}
+
 func TestTrailerSet(t *testing.T) {
 	var tr Trailer
 	assert.Nil(t, tr.Set("foo", "value1"))
@@ -97,6 +120,16 @@ func TestTrailerSet(t *testing.T) {
 	assert.False(t, strings.Contains(string(tr.Header()), "Foo: value1"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value2"))
 	assert.True(t, strings.Contains(string(tr.Header()), "Bar: value3"))
+}
+
+func BenchmarkTrailer_Set(b *testing.B) {
+	var tr Trailer
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr.Set(fmt.Sprintf("foo%v", i), "value1")
+	}
 }
 
 func TestTrailerGet(t *testing.T) {
@@ -116,6 +149,17 @@ func TestTrailerUpdateArgBytes(t *testing.T) {
 	assert.True(t, strings.Contains(string(tr.Header()), "Foo: value1"))
 	assert.False(t, strings.Contains(string(tr.Header()), "Foo: value2"))
 	assert.False(t, strings.Contains(string(tr.Header()), "Bar: value3"))
+}
+
+func BenchmarkUpdateArgBytes(b *testing.B) {
+	var tr Trailer
+	tr.addArgBytes([]byte("Foo"), []byte("value0"), argsNoValue)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tr.UpdateArgBytes([]byte("Foo"), []byte("value1"))
+	}
 }
 
 func TestTrailerEmpty(t *testing.T) {

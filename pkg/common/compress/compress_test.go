@@ -102,6 +102,15 @@ func TestCompressAppendGzipBytesLevel(t *testing.T) {
 	}
 }
 
+func BenchmarkAppendGzipBytesLevel(b *testing.B) {
+	dst1 := []byte("")
+	src1 := []byte("hello")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		AppendGzipBytesLevel(dst1, src1, 5)
+	}
+}
+
 func TestCompressWriteGzipLevel(t *testing.T) {
 	// test default case for WriteGzipLevel
 	var w defaultByteWriter
@@ -119,6 +128,16 @@ func TestCompressWriteGzipLevel(t *testing.T) {
 	}
 }
 
+func BenchmarkCompressWriteGzipLevel(b *testing.B) {
+	var w defaultByteWriter
+	p := []byte("hello")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		WriteGzipLevel(&w, p, 5)
+		w.Reset()
+	}
+}
+
 type defaultByteWriter struct {
 	b []byte
 }
@@ -126,4 +145,8 @@ type defaultByteWriter struct {
 func (w *defaultByteWriter) Write(p []byte) (int, error) {
 	w.b = append(w.b, p...)
 	return len(p), nil
+}
+
+func (w *defaultByteWriter) Reset() {
+	w.b = w.b[:0]
 }

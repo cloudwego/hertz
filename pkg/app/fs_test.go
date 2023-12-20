@@ -86,6 +86,26 @@ func TestNewVHostPathRewriter(t *testing.T) {
 	}
 }
 
+func BenchmarkNewVHostPathRewriter(b *testing.B) {
+	var ctx RequestContext
+	var req protocol.Request
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req.Header.SetHost("foobar.com")
+		req.SetRequestURI("https://aaa.bbb.cc/one/two/three/four?asdf=dsf")
+		req.CopyTo(&ctx.Request)
+
+		f := NewVHostPathRewriter(2)
+		path := f(&ctx)
+
+		expectedPath := "/aaa.bbb.cc/three/four"
+		assert.DeepEqual(b, expectedPath, string(path))
+		ctx.Request.Reset()
+		req.Reset()
+	}
+}
+
 func TestNewVHostPathRewriterMaliciousHost(t *testing.T) {
 	var ctx RequestContext
 	var req protocol.Request
@@ -295,6 +315,48 @@ func TestServeFileCompressed(t *testing.T) {
 	}
 }
 
+func BenchmarkServeFileHead(b *testing.B) {
+	var ctx RequestContext
+	var req protocol.Request
+
+	req.Header.SetMethod(consts.MethodHead)
+	req.SetRequestURI("http://foobar.com/baz")
+	req.CopyTo(&ctx.Request)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ServeFile(&ctx, "fs.go")
+
+		var r protocol.Response
+		r.SkipBody = true
+		s := resp.GetHTTP1Response(&ctx.Response).String()
+		zr := mock.NewZeroCopyReader(s)
+		if err := resp.Read(&r, zr); err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+
+		ce := r.Header.ContentEncoding()
+		if len(ce) > 0 {
+			b.Fatalf("Unexpected 'Content-Encoding' %q", ce)
+		}
+
+		body := r.Body()
+		if len(body) > 0 {
+			b.Fatalf("unexpected response body %q. Expecting empty body", body)
+		}
+
+		expectedBody, err := getFileContents("/fs.go")
+		if err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+		contentLength := r.Header.ContentLength()
+		if contentLength != len(expectedBody) {
+			b.Fatalf("unexpected Content-Length: %d. expecting %d", contentLength, len(expectedBody))
+		}
+	}
+	b.ReportAllocs()
+}
+
 func TestServeFileUncompressed(t *testing.T) {
 	t.Parallel()
 
@@ -325,6 +387,42 @@ func TestServeFileUncompressed(t *testing.T) {
 	}
 	if !bytes.Equal(body, expectedBody) {
 		t.Fatalf("unexpected body %q. expecting %q", body, expectedBody)
+	}
+}
+
+func BenchmarkServeFileUncompressed(b *testing.B) {
+	var ctx RequestContext
+	var req protocol.Request
+
+	req.SetRequestURI("http://foobar.com/baz")
+	req.Header.Set(consts.HeaderAcceptEncoding, "gzip")
+	req.CopyTo(&ctx.Request)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ServeFileUncompressed(&ctx, "fs.go")
+
+		var r protocol.Response
+		s := resp.GetHTTP1Response(&ctx.Response).String()
+		zr := mock.NewZeroCopyReader(s)
+		if err := resp.Read(&r, zr); err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+
+		ce := r.Header.ContentEncoding()
+		if len(ce) > 0 {
+			b.Fatalf("Unexpected 'Content-Encoding' %q", ce)
+		}
+
+		body := r.Body()
+		expectedBody, err := getFileContents("/fs.go")
+		if err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+		if !bytes.Equal(body, expectedBody) {
+			b.Fatalf("unexpected body %q. expecting %q", body, expectedBody)
+		}
 	}
 }
 
@@ -459,6 +557,27 @@ func testParseByteRangeSuccess(t *testing.T, v string, contentLength, startPos, 
 	}
 	if endPos1 != endPos {
 		t.Fatalf("unexpected endPos=%d. Expectind %d. v=%q, contentLength=%d", endPos1, endPos, v, contentLength)
+	}
+}
+
+func BenchmarkParseByteRange(b *testing.B) {
+	f := func(b *testing.B, v string, contentLength, startPos, endPos int) {
+		startPos1, endPos1, err := ParseByteRange([]byte(v), contentLength)
+		if err != nil {
+			b.Fatalf("unexpected error: %s. v=%q, contentLength=%d", err, v, contentLength)
+		}
+		if startPos1 != startPos {
+			b.Fatalf("unexpected startPos=%d. Expecting %d. v=%q, contentLength=%d", startPos1, startPos, v, contentLength)
+		}
+		if endPos1 != endPos {
+			b.Fatalf("unexpected endPos=%d. Expectind %d. v=%q, contentLength=%d", endPos1, endPos, v, contentLength)
+		}
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f(b, "bytes=1234-6789", 6790, 1234, 6789)
 	}
 }
 

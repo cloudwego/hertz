@@ -49,6 +49,17 @@ func Test_ReferenceValue(t *testing.T) {
 	assert.DeepEqual(t, "f1", deFoo1PointerVal.Field(0).Interface().(string))
 }
 
+func BenchmarkReferenceValue(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		foo1 := foo2{F1: "f1"}
+		foo1Val := reflect.ValueOf(foo1)
+		decoder.ReferenceValue(foo1Val, 5)
+	}
+}
+
 func Test_GetNonNilReferenceValue(t *testing.T) {
 	foo1 := (****foo)(nil)
 	foo1Val := reflect.ValueOf(foo1)
@@ -86,5 +97,21 @@ func Test_GetFieldValue(t *testing.T) {
 	assert.DeepEqual(t, "**string", fooFieldVal.Type().String())
 	if !fooFieldVal.CanSet() {
 		t.Errorf("expect can set value, but not")
+	}
+}
+
+func BenchmarkGetFieldValue(b *testing.B) {
+	type bar struct {
+		B1 **fooq
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		bar1 := (***bar)(nil)
+		parentIdx := []int{0}
+
+		bar1Val := reflect.ValueOf(bar1)
+		decoder.GetFieldValue(bar1Val, parentIdx)
 	}
 }

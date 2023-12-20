@@ -121,6 +121,49 @@ func TestCloseIdleConnections(t *testing.T) {
 	}
 }
 
+func BenchmarkCloseIdleConnections(b *testing.B) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "unix-test-10000"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
+			if _, _, err := c.Get(context.Background(), nil, "http://google.com"); err != nil {
+				b.Fatal(err)
+			}
+			connsLen := func() int {
+				c.mLock.Lock()
+				defer c.mLock.Unlock()
+
+				if _, ok := c.m["google.com"]; !ok {
+					return 0
+				}
+				return c.m["google.com"].ConnectionCount()
+			}
+
+			if conns := connsLen(); conns > 1 {
+				b.Errorf("expected 1 conns got %d", conns)
+			}
+
+			c.CloseIdleConnections()
+
+			if conns := connsLen(); conns > 0 {
+				b.Errorf("expected 0 conns got %d", conns)
+			}
+		}
+	})
+}
+
 func TestClientInvalidURI(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +230,45 @@ func TestClientGetWithBody(t *testing.T) {
 	}
 	if len(res.Body()) == 0 {
 		t.Fatal("missing request body")
+	}
+}
+
+func BenchmarkClientGetWithBody(b *testing.B) {
+	opt := config.NewOptions([]config.Option{})
+	opt.Addr = "unix-test-10002"
+	opt.Network = "unix"
+	engine := route.NewEngine(opt)
+	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
+		body := ctx.Request.Body()
+		ctx.Write(body) //nolint:errcheck
+	})
+	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(time.Millisecond * 500)
+
+	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
+	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(res)
+	}()
+	req.Header.SetMethod(consts.MethodGet)
+	req.SetRequestURI("http://example.com")
+	req.SetBodyString("test")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := c.Do(context.Background(), req, res)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(res.Body()) == 0 {
+			b.Fatal("missing request body")
+		}
+		res.Reset()
 	}
 }
 

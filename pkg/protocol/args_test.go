@@ -61,6 +61,16 @@ func TestArgsDeleteAll(t *testing.T) {
 	}
 }
 
+func BenchmarkArgs_Add(b *testing.B) {
+	var a Args
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		a.Add("q1", "foo")
+	}
+}
+
 func TestArgsBytesOperation(t *testing.T) {
 	var a Args
 	a.Add("q1", "foo")
@@ -69,6 +79,19 @@ func TestArgsBytesOperation(t *testing.T) {
 	assert.DeepEqual(t, []byte("foo"), peekArgBytes(a.args, []byte("q1")))
 	setArgBytes(a.args, a.args[1].key, a.args[1].value, true)
 	assert.DeepEqual(t, []byte(""), peekArgBytes(a.args, []byte("q2")))
+}
+
+func BenchmarkArgs_setArgBytes(b *testing.B) {
+	var a Args
+	a.Add("q1", "foo")
+	a.Add("q2", "bar")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		setArgBytes(a.args, a.args[0].key, a.args[0].value, false)
+		setArgBytes(a.args, a.args[1].key, a.args[1].value, true)
+	}
 }
 
 func TestArgsPeekExists(t *testing.T) {
@@ -88,6 +111,20 @@ func TestArgsPeekExists(t *testing.T) {
 	v4, b4 := a.PeekExists("?")
 	assert.DeepEqual(t, "=", v4)
 	assert.True(t, b4)
+}
+
+func BenchmarkArgs_PeekExists(b *testing.B) {
+	var a Args
+	a.Add("q1", "foo")
+	a.Add("", "")
+	a.Add("?", "=")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.PeekExists("q1")
+		a.PeekExists("")
+		a.PeekExists("?")
+	}
 }
 
 func TestSetArg(t *testing.T) {
@@ -119,6 +156,21 @@ func TestArgsParseBytes(t *testing.T) {
 	assert.DeepEqual(t, &ta2, &a2)
 }
 
+func BenchmarkArgs_ParseBytes(b *testing.B) {
+	var ta1 Args
+	ta1.Add("q1", "foo")
+	ta1.Add("q1", "bar")
+	ta1.Add("q2", "123")
+	ta1.Add("q3", "")
+	var a1 Args
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a1.ParseBytes([]byte("q1=foo&q1=bar&q2=123&q3="))
+		a1.Reset()
+	}
+}
+
 func TestArgsVisitAll(t *testing.T) {
 	var a Args
 	var s []string
@@ -128,6 +180,17 @@ func TestArgsVisitAll(t *testing.T) {
 		s = append(s, string(key), string(value))
 	})
 	assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+}
+
+func BenchmarkArgs_VisitAll(b *testing.B) {
+	var a Args
+	a.Add("cloudwego", "hertz")
+	a.Add("hello", "world")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.VisitAll(func(key, value []byte) {})
+	}
 }
 
 func TestArgsPeekMulti(t *testing.T) {
@@ -151,4 +214,17 @@ func TestArgsPeekMulti(t *testing.T) {
 	vv = a.PeekAll("hello")
 	expectedVV = [][]byte{[]byte("world")}
 	assert.DeepEqual(t, expectedVV, vv)
+}
+
+func BenchmarkArgs_PeekAll(b *testing.B) {
+	var a Args
+	a.Add("cloudwego", "hertz")
+	a.Add("cloudwego", "kitex")
+	a.Add("cloudwego", "")
+	a.Add("hello", "world")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.PeekAll("cloudwego")
+	}
 }

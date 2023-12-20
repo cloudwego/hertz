@@ -55,3 +55,39 @@ func TestDiscovery(t *testing.T) {
 		_ = mw(checkMdw)(context.Background(), req, resp)
 	}
 }
+
+func BenchmarkDiscovery(b *testing.B) {
+	instances := []discovery.Instance{
+		discovery.NewInstance("tcp", "127.0.0.1:8888", 10, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8889", 10, nil),
+	}
+	r := &discovery.SynthesizedResolver{
+		TargetFunc: func(ctx context.Context, target *discovery.TargetInfo) string {
+			return target.Host
+		},
+		ResolveFunc: func(ctx context.Context, key string) (discovery.Result, error) {
+			return discovery.Result{CacheKey: "svc1", Instances: instances}, nil
+		},
+		NameFunc: func() string { return b.Name() },
+	}
+
+	midware := Discovery(r)
+	checkMdw := func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+		assert.Assert(b, string(req.Host()) == "127.0.0.1:8888" || string(req.Host()) == "127.0.0.1:8889")
+		return nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		req := protocol.AcquireRequest()
+		resp := protocol.AcquireResponse()
+
+		req.Options().Apply([]config.RequestOption{config.WithSD(true)})
+		req.SetRequestURI("http://service_name")
+		_ = midware(checkMdw)(context.Background(), req, resp)
+
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(resp)
+	}
+}

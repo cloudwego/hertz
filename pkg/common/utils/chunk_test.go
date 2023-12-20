@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"io"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -96,4 +97,106 @@ func TestChunkReadFalseCRLF(t *testing.T) {
 	zr := mock.NewZeroCopyReader(CRLF)
 	err := SkipCRLF(zr)
 	assert.DeepEqual(t, errBrokenChunk, err)
+}
+
+// mockReader is a mock implementation of network.Reader interface
+type mockReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *mockReader) Release() error {
+	r.pos = 0
+	r.data = r.data[:0]
+	return nil
+}
+
+func (r *mockReader) Len() int {
+	return len(r.data)
+}
+
+func (r *mockReader) ReadBinary(n int) (p []byte, err error) {
+	return
+}
+
+func (r *mockReader) Read(p []byte) (int, error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+func (r *mockReader) ReadByte() (byte, error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	b := r.data[r.pos]
+	r.pos++
+	return b, nil
+}
+
+func (r *mockReader) Peek(n int) ([]byte, error) {
+	if r.pos+n > len(r.data) {
+		return nil, io.EOF
+	}
+	return r.data[r.pos : r.pos+n], nil
+}
+
+func (r *mockReader) Skip(n int) error {
+	if r.pos+n > len(r.data) {
+		return io.EOF
+	}
+	r.pos += n
+	return nil
+}
+
+// BenchmarkParseChunkSize benchmarks the ParseChunkSize function with different inputs
+func BenchmarkParseChunkSize(b *testing.B) {
+	// create a slice of mock readers with different chunk sizes
+	readers := []*mockReader{
+		{data: []byte("1\r\n")},
+		{data: []byte("10\r\n")},
+		{data: []byte("100\r\n")},
+		{data: []byte("1000\r\n")},
+		{data: []byte("10000\r\n")},
+		{data: []byte("100000\r\n")},
+		{data: []byte("1000000\r\n")},
+	}
+
+	// run the ParseChunkSize function b.N times for each reader
+	for _, r := range readers {
+		b.Run(string(r.data), func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				ParseChunkSize(r)
+				r.pos = 0 // reset the reader position
+			}
+		})
+	}
+}
+
+// BenchmarkSkipCRLF benchmarks the SkipCRLF function with different inputs
+func BenchmarkSkipCRLF(b *testing.B) {
+	// create a slice of mock readers with different data
+	readers := []*mockReader{
+		{data: []byte("\r\n")},
+		{data: []byte("foo\r\n")},
+		{data: []byte("bar\r\n")},
+		{data: []byte("baz\r\n")},
+	}
+
+	// run the SkipCRLF function b.N times for each reader
+	for _, r := range readers {
+		b.Run(string(r.data), func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				SkipCRLF(r)
+				r.pos = 0 // reset the reader position
+			}
+		})
+	}
 }

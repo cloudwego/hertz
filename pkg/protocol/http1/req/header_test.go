@@ -82,6 +82,16 @@ func TestRequestHeader_Read(t *testing.T) {
 	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
 }
 
+func BenchmarkRequestHeaderRead(b *testing.B) {
+	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+	rh := protocol.RequestHeader{}
+	for i := 0; i < b.N; i++ {
+		ReadHeader(&rh, zr)
+		rh.Reset()
+	}
+}
+
 func TestRequestHeaderMultiLineValue(t *testing.T) {
 	s := "HTTP/1.1 200 OK\r\n" +
 		"EmptyValue1:\r\n" +

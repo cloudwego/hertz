@@ -236,13 +236,8 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		// OAuth Authorizations
 		{"/authorizations"},
 		{"/authorizations/:id"},
-		//{"/authorizations"},
-		//{"/authorizations/clients/:client_id"},
-		//{"/authorizations/:id"},
-		//{"/authorizations/:id"},
 		{"/applications/:client_id/tokens/:access_token"},
 		{"/applications/:client_id/tokens"},
-		//{"/applications/:client_id/tokens/:access_token"},
 
 		// Activity
 		{"/events"},
@@ -255,55 +250,33 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		{"/users/:user/events/public"},
 		{"/users/:user/events/orgs/:org"},
 		{"/feeds"},
-		//{"/notifications"},
 		{"/repos/:owner/:repo/notifications"},
 		{"/notifications"},
-		//{"/repos/:owner/:repo/notifications"},
 		{"/notifications/threads/:id"},
-		//{"/notifications/threads/:id"},
 		{"/notifications/threads/:id/subscription"},
-		//{"/notifications/threads/:id/subscription"},
-		//{"/notifications/threads/:id/subscription"},
 		{"/repos/:owner/:repo/stargazers"},
 		{"/users/:user/starred"},
 		{"/user/starred"},
 		{"/user/starred/:owner/:repo"},
-		//{"/user/starred/:owner/:repo"},
-		//{"/user/starred/:owner/:repo"},
 		{"/repos/:owner/:repo/subscribers"},
 		{"/users/:user/subscriptions"},
 		{"/user/subscriptions"},
 		{"/repos/:owner/:repo/subscription"},
-		//{"/repos/:owner/:repo/subscription"},
-		//{"/repos/:owner/:repo/subscription"},
 		{"/user/subscriptions/:owner/:repo"},
-		//{"PUT", "/user/subscriptions/:owner/:repo"},
-		//{"DELETE", "/user/subscriptions/:owner/:repo"},
 
 		// Gists
 		{"/users/:user/gists"},
 		{"/gists"},
-		//{"GET", "/gists/public"},
-		//{"GET", "/gists/starred"},
 		{"/gists/:id"},
-		//{"POST", "/gists"},
-		//{"PATCH", "/gists/:id"},
 		{"/gists/:id/star"},
-		//{"DELETE", "/gists/:id/star"},
-		//{"GET", "/gists/:id/star"},
 		{"/gists/:id/forks"},
-		//{"DELETE", "/gists/:id"},
 
 		// Git Data
 		{"/repos/:owner/:repo/git/blobs/:sha"},
 		{"/repos/:owner/:repo/git/blobs"},
 		{"/repos/:owner/:repo/git/commits/:sha"},
 		{"/repos/:owner/:repo/git/commits"},
-		//{"GET", "/repos/:owner/:repo/git/refs/*ref"},
 		{"/repos/:owner/:repo/git/refs"},
-		//{"POST", "/repos/:owner/:repo/git/refs"},
-		//{"PATCH", "/repos/:owner/:repo/git/refs/*ref"},
-		//{"DELETE", "/repos/:owner/:repo/git/refs/*ref"},
 		{"/repos/:owner/:repo/git/tags/:sha"},
 		{"/repos/:owner/:repo/git/tags"},
 		{"/repos/:owner/:repo/git/trees/:sha"},
@@ -314,35 +287,16 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		{"/orgs/:org/issues"},
 		{"/repos/:owner/:repo/issues"},
 		{"/repos/:owner/:repo/issues/:number"},
-		//{"POST", "/repos/:owner/:repo/issues"},
-		//{"PATCH", "/repos/:owner/:repo/issues/:number"},
 		{"/repos/:owner/:repo/assignees"},
 		{"/repos/:owner/:repo/assignees/:assignee"},
 		{"/repos/:owner/:repo/issues/:number/comments"},
-		//{"GET", "/repos/:owner/:repo/issues/comments"},
-		//{"GET", "/repos/:owner/:repo/issues/comments/:id"},
-		//{"POST", "/repos/:owner/:repo/issues/:number/comments"},
-		//{"PATCH", "/repos/:owner/:repo/issues/comments/:id"},
-		//{"DELETE", "/repos/:owner/:repo/issues/comments/:id"},
 		{"/repos/:owner/:repo/issues/:number/events"},
-		//{"GET", "/repos/:owner/:repo/issues/events"},
-		//{"GET", "/repos/:owner/:repo/issues/events/:id"},
 		{"/repos/:owner/:repo/labels"},
 		{"/repos/:owner/:repo/labels/:name"},
-		//{"POST", "/repos/:owner/:repo/labels"},
-		//{"PATCH", "/repos/:owner/:repo/labels/:name"},
-		//{"DELETE", "/repos/:owner/:repo/labels/:name"},
 		{"/repos/:owner/:repo/issues/:number/labels"},
-		//{"POST", "/repos/:owner/:repo/issues/:number/labels"},
-		//{"DELETE", "/repos/:owner/:repo/issues/:number/labels/:name"},
-		//{"PUT", "/repos/:owner/:repo/issues/:number/labels"},
-		//{"DELETE", "/repos/:owner/:repo/issues/:number/labels"},
 		{"/repos/:owner/:repo/milestones/:number/labels"},
 		{"/repos/:owner/:repo/milestones"},
 		{"/repos/:owner/:repo/milestones/:number"},
-		//{"POST", "/repos/:owner/:repo/milestones"},
-		//{"PATCH", "/repos/:owner/:repo/milestones/:number"},
-		//{"DELETE", "/repos/:owner/:repo/milestones/:number"},
 
 		// Miscellaneous
 		{"/emojis"},
@@ -357,100 +311,55 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		{"/users/:user/orgs"},
 		{"/user/orgs"},
 		{"/orgs/:org"},
-		//{"PATCH", "/orgs/:org"},
 		{"/orgs/:org/members"},
 		{"/orgs/:org/members/:user"},
-		//{"DELETE", "/orgs/:org/members/:user"},
 		{"/orgs/:org/public_members"},
 		{"/orgs/:org/public_members/:user"},
-		//{"PUT", "/orgs/:org/public_members/:user"},
-		//{"DELETE", "/orgs/:org/public_members/:user"},
 		{"/orgs/:org/teams"},
 		{"/teams/:id"},
-		//{"POST", "/orgs/:org/teams"},
-		//{"PATCH", "/teams/:id"},
-		//{"DELETE", "/teams/:id"},
 		{"/teams/:id/members"},
 		{"/teams/:id/members/:user"},
-		//{"PUT", "/teams/:id/members/:user"},
-		//{"DELETE", "/teams/:id/members/:user"},
 		{"/teams/:id/repos"},
 		{"/teams/:id/repos/:owner/:repo"},
-		//{"PUT", "/teams/:id/repos/:owner/:repo"},
-		//{"DELETE", "/teams/:id/repos/:owner/:repo"},
 		{"/user/teams"},
 
 		// Pull Requests
 		{"/repos/:owner/:repo/pulls"},
 		{"/repos/:owner/:repo/pulls/:number"},
-		//{"POST", "/repos/:owner/:repo/pulls"},
-		//{"PATCH", "/repos/:owner/:repo/pulls/:number"},
 		{"/repos/:owner/:repo/pulls/:number/commits"},
 		{"/repos/:owner/:repo/pulls/:number/files"},
 		{"/repos/:owner/:repo/pulls/:number/merge"},
-		//{"PUT", "/repos/:owner/:repo/pulls/:number/merge"},
 		{"/repos/:owner/:repo/pulls/:number/comments"},
-		//{"GET", "/repos/:owner/:repo/pulls/comments"},
-		//{"GET", "/repos/:owner/:repo/pulls/comments/:number"},
-		//{"PUT", "/repos/:owner/:repo/pulls/:number/comments"},
-		//{"PATCH", "/repos/:owner/:repo/pulls/comments/:number"},
-		//{"DELETE", "/repos/:owner/:repo/pulls/comments/:number"},
 
 		// Repositories
 		{"/user/repos"},
 		{"/users/:user/repos"},
 		{"/orgs/:org/repos"},
 		{"/repositories"},
-		//{"POST", "/user/repos"},
-		//{"POST", "/orgs/:org/repos"},
 		{"/repos/:owner/:repo"},
-		//{"PATCH", "/repos/:owner/:repo"},
 		{"/repos/:owner/:repo/contributors"},
 		{"/repos/:owner/:repo/languages"},
 		{"/repos/:owner/:repo/teams"},
 		{"/repos/:owner/:repo/tags"},
 		{"/repos/:owner/:repo/branches"},
 		{"/repos/:owner/:repo/branches/:branch"},
-		//{"DELETE", "/repos/:owner/:repo"},
 		{"/repos/:owner/:repo/collaborators"},
 		{"/repos/:owner/:repo/collaborators/:user"},
-		//{"PUT", "/repos/:owner/:repo/collaborators/:user"},
-		//{"DELETE", "/repos/:owner/:repo/collaborators/:user"},
 		{"/repos/:owner/:repo/comments"},
 		{"/repos/:owner/:repo/commits/:sha/comments"},
-		//{"POST", "/repos/:owner/:repo/commits/:sha/comments"},
 		{"/repos/:owner/:repo/comments/:id"},
-		//{"PATCH", "/repos/:owner/:repo/comments/:id"},
-		//{"DELETE", "/repos/:owner/:repo/comments/:id"},
 		{"/repos/:owner/:repo/commits"},
 		{"/repos/:owner/:repo/commits/:sha"},
 		{"/repos/:owner/:repo/readme"},
-		//{"GET", "/repos/:owner/:repo/contents/*path"},
-		//{"PUT", "/repos/:owner/:repo/contents/*path"},
-		//{"DELETE", "/repos/:owner/:repo/contents/*path"},
-		//{"GET", "/repos/:owner/:repo/:archive_format/:ref"},
 		{"/repos/:owner/:repo/keys"},
 		{"/repos/:owner/:repo/keys/:id"},
-		//{"POST", "/repos/:owner/:repo/keys"},
-		//{"PATCH", "/repos/:owner/:repo/keys/:id"},
-		//{"DELETE", "/repos/:owner/:repo/keys/:id"},
 		{"/repos/:owner/:repo/downloads"},
 		{"/repos/:owner/:repo/downloads/:id"},
-		//{"DELETE", "/repos/:owner/:repo/downloads/:id"},
 		{"/repos/:owner/:repo/forks"},
-		//{"POST", "/repos/:owner/:repo/forks"},
 		{"/repos/:owner/:repo/hooks"},
 		{"/repos/:owner/:repo/hooks/:id"},
-		//{"POST", "/repos/:owner/:repo/hooks"},
-		//{"PATCH", "/repos/:owner/:repo/hooks/:id"},
-		//{"POST", "/repos/:owner/:repo/hooks/:id/tests"},
-		//{"DELETE", "/repos/:owner/:repo/hooks/:id"},
-		//{"POST", "/repos/:owner/:repo/merges"},
 		{"/repos/:owner/:repo/releases"},
 		{"/repos/:owner/:repo/releases/:id"},
-		//{"POST", "/repos/:owner/:repo/releases"},
-		//{"PATCH", "/repos/:owner/:repo/releases/:id"},
-		//{"DELETE", "/repos/:owner/:repo/releases/:id"},
 		{"/repos/:owner/:repo/releases/:id/assets"},
 		{"/repos/:owner/:repo/stats/contributors"},
 		{"/repos/:owner/:repo/stats/commit_activity"},
@@ -458,7 +367,6 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		{"/repos/:owner/:repo/stats/participation"},
 		{"/repos/:owner/:repo/stats/punch_card"},
 		{"/repos/:owner/:repo/statuses/:ref"},
-		//{"POST", "/repos/:owner/:repo/statuses/:ref"},
 
 		// Search
 		{"/search/repositories"},
@@ -473,25 +381,17 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 		// Users
 		{"/users/:user"},
 		{"/user"},
-		//{"PATCH", "/user"},
 		{"/users"},
 		{"/user/emails"},
-		//{"POST", "/user/emails"},
-		//{"DELETE", "/user/emails"},
 		{"/users/:user/followers"},
 		{"/user/followers"},
 		{"/users/:user/following"},
 		{"/user/following"},
 		{"/user/following/:user"},
 		{"/users/:user/following/:target_user"},
-		//{"PUT", "/user/following/:user"},
-		//{"DELETE", "/user/following/:user"},
 		{"/users/:user/keys"},
 		{"/user/keys"},
 		{"/user/keys/:id"},
-		//{"POST", "/user/keys"},
-		//{"PATCH", "/user/keys/:id"},
-		//{"DELETE", "/user/keys/:id"},
 	}
 
 	for _, route := range static {
@@ -619,40 +519,62 @@ func BenchmarkTree_FindAnyFallback(b *testing.B) {
 }
 
 func BenchmarkRouteStatic(b *testing.B) {
-	r := NewEngine(config.NewOptions(nil))
+	cfg := []config.Option{
+		{
+			F: func(o *config.Options) {
+				o.DisablePrintRoute = true
+			},
+		},
+	}
+	r := NewEngine(config.NewOptions(cfg))
 	r.GET("/hi/foo", func(c context.Context, ctx *app.RequestContext) {})
 	ctx := r.NewContext()
 	req := protocol.NewRequest("GET", "/hi/foo", nil)
-	req.CopyTo(&ctx.Request)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		req.CopyTo(&ctx.Request)
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.Reset()
 	}
 }
 
 func BenchmarkRouteParam(b *testing.B) {
-	r := NewEngine(config.NewOptions(nil))
+	cfg := []config.Option{
+		{
+			F: func(o *config.Options) {
+				o.DisablePrintRoute = true
+			},
+		},
+	}
+	r := NewEngine(config.NewOptions(cfg))
 	r.GET("/hi/:user", func(c context.Context, ctx *app.RequestContext) {})
 	ctx := r.NewContext()
 	req := protocol.NewRequest("GET", "/hi/foo", nil)
-	req.CopyTo(&ctx.Request)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		req.CopyTo(&ctx.Request)
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.Reset()
 	}
 }
 
 func BenchmarkRouteAny(b *testing.B) {
-	r := NewEngine(config.NewOptions(nil))
+	cfg := []config.Option{
+		{
+			F: func(o *config.Options) {
+				o.DisablePrintRoute = true
+			},
+		},
+	}
+	r := NewEngine(config.NewOptions(cfg))
 	r.GET("/hi/*user", func(c context.Context, ctx *app.RequestContext) {})
 	ctx := r.NewContext()
 	req := protocol.NewRequest("GET", "/hi/foo/dy", nil)
 	req.CopyTo(&ctx.Request)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		req.CopyTo(&ctx.Request)
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.Reset()
 	}
 }

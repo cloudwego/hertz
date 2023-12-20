@@ -64,3 +64,17 @@ func TestNewChunkedBodyWriterNoData(t *testing.T) {
 	assert.True(t, strings.Contains(string(out), "Foo: Bar"))
 	assert.True(t, strings.Contains(string(out), "0"+string(bytestr.StrCRLF)+string(bytestr.StrCRLF)))
 }
+
+func BenchmarkNewChunkedBodyWriter(b *testing.B) {
+	response := protocol.AcquireResponse()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mockConn := mock.NewConn("")
+		w := NewChunkedBodyWriter(response, mockConn)
+		w.Write([]byte("hello"))
+		w.Finalize()
+		w.Flush()
+		mockConn.WriterRecorder().ReadBinary(mockConn.WriterRecorder().WroteLen())
+	}
+}

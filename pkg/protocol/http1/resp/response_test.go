@@ -687,6 +687,27 @@ func testSetResponseBodyStream(t *testing.T, body string) {
 	}
 }
 
+func BenchmarkResponseWrite(b *testing.B) {
+	body := string(mock.CreateFixedBody(100500))
+	var resp protocol.Response
+	bodySize := len(body)
+	resp.SetBodyStream(bytes.NewBufferString(body), bodySize)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var w bytes.Buffer
+		zw := netpoll.NewWriter(&w)
+		if err := Write(&resp, zw); err != nil {
+			b.Fatalf("unexpected error when writing response: %s. body=%q", err, body)
+		}
+		if err := zw.Flush(); err != nil {
+			b.Fatalf("unexpected error when flushing response: %s. body=%q", err, body)
+		}
+		resp.Reset()
+	}
+}
+
 func testSetResponseBodyStreamChunked(t *testing.T, body string, trailer map[string]string) {
 	var resp protocol.Response
 	if resp.IsBodyStream() {
@@ -821,8 +842,29 @@ func TestResponseReadBodyStreamBadTrailer(t *testing.T) {
 	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nproxy-connection: bar2\r\n\r\n")
 }
 
+func BenchmarkReadBodyStream(b *testing.B) {
+	resp := &protocol.Response{}
+	zr := mock.NewZeroCopyReader("HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\ncontent-type: bar\r\n\r\n")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ReadBodyStream(resp, zr, 0, nil)
+	}
+}
+
 func TestResponseString(t *testing.T) {
 	resp := protocol.Response{}
 	resp.Header.Set("Location", "foo\r\nSet-Cookie: SESSIONID=MaliciousValue\r\n")
 	assert.True(t, strings.Contains(GetHTTP1Response(&resp).String(), "Location: foo\r\nSet-Cookie: SESSIONID=MaliciousValue\r\n"))
+}
+
+func BenchmarkGetHTTP1Response_String(b *testing.B) {
+	resp := protocol.Response{}
+	resp.Header.Set("Location", "foo\r\nSet-Cookie: SESSIONID=MaliciousValue\r\n")
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = GetHTTP1Response(&resp).String()
+	}
 }
