@@ -17,6 +17,7 @@
 package bytesconv
 
 import (
+	"strings"
 	"testing"
 
 	"golang.org/x/net/http/httpguts"
@@ -48,6 +49,34 @@ func BenchmarkValidHeaderFiledValueTableHertz(b *testing.B) {
 			_ = func() bool {
 				return ValidHeaderFieldValueTable[s] != 0
 			}()
+		}
+	}
+}
+
+func BenchmarkNewlineToSpace(b *testing.B) {
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+	var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
+
+	for i := 0; i < b.N; i++ {
+		_ = headerNewlineToSpace.Replace(string(allBytes))
+	}
+
+}
+
+func BenchmarkNewlineToSpaceHertz01(b *testing.B) {
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+
+	for i := 0; i < b.N; i++ {
+		for i := 0; i < len(allBytes); i++ {
+			allBytes[i] = NewlineToSpaceTable[allBytes[i]]
 		}
 	}
 }

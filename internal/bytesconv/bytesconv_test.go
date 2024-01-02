@@ -18,6 +18,7 @@ package bytesconv
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,4 +203,23 @@ func TestValidHeaderFieldValueTable(t *testing.T) {
 
 		assert.DeepEqual(t, expectedS, res)
 	}
+}
+
+func TestNewlineToSpaceTable(t *testing.T) {
+	t.Parallel()
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+
+	var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
+
+	expectedS := headerNewlineToSpace.Replace(string(allBytes))
+
+	for i := 0; i < len(allBytes); i++ {
+		allBytes[i] = NewlineToSpaceTable[allBytes[i]]
+	}
+
+	assert.DeepEqual(t, expectedS, string(allBytes))
 }
