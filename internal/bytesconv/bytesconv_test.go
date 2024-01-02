@@ -225,3 +225,22 @@ func TestNewlineToSpaceTable(t *testing.T) {
 
 	assert.DeepEqual(t, expectedS, string(res))
 }
+
+func TestValidHeaderFieldNameTable(t *testing.T) {
+	t.Parallel()
+
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+	for _, s := range allBytes {
+		ss := []byte{s}
+		expectedS := httpguts.ValidHeaderFieldName(string(ss))
+		res := func() bool {
+			return ValidHeaderFieldNameTable[s] != 0
+		}()
+
+		assert.DeepEqual(t, expectedS, res)
+	}
+}
