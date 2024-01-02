@@ -178,6 +178,18 @@ func main() {
 		return a
 	}()
 
+	newlineToSpaceTable := func() [256]byte {
+		var a [256]byte
+		for i := 0; i < 256; i++ {
+			c := byte(i)
+			if c == '\r' || c == '\n' {
+				c = ' '
+			}
+			a[i] = c
+		}
+		return a
+	}()
+
 	w := new(bytes.Buffer)
 	w.WriteString(pre)
 	fmt.Fprintf(w, "const (\n")
@@ -188,6 +200,7 @@ func main() {
 	fmt.Fprintf(w, "\tQuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
 	fmt.Fprintf(w, "\tValidCookieValueTable = %q\n", validCookieValueTable)
 	fmt.Fprintf(w, "\tValidHeaderFieldValueTable = %q\n", validHeaderFieldValueTable)
+	fmt.Fprintf(w, "\tNewlineToSpaceTable = %q\n", newlineToSpaceTable)
 	fmt.Fprintf(w, ")\n")
 
 	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
