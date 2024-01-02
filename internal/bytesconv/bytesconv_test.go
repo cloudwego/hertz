@@ -213,7 +213,7 @@ func TestNewlineToSpaceTable(t *testing.T) {
 		allBytes = append(allBytes, byte(i))
 	}
 
-	var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
+	headerNewlineToSpace := strings.NewReplacer("\n", " ", "\r", " ")
 
 	expectedS := headerNewlineToSpace.Replace(string(allBytes))
 

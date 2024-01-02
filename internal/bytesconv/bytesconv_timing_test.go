@@ -59,12 +59,11 @@ func BenchmarkNewlineToSpace(b *testing.B) {
 	for i := 0; i < 256; i++ {
 		allBytes = append(allBytes, byte(i))
 	}
-	var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
+	headerNewlineToSpace := strings.NewReplacer("\n", " ", "\r", " ")
 
 	for i := 0; i < b.N; i++ {
 		_ = headerNewlineToSpace.Replace(string(allBytes))
 	}
-
 }
 
 func BenchmarkNewlineToSpaceHertz01(b *testing.B) {
