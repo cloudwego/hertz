@@ -1659,16 +1659,18 @@ func (h *ResponseHeader) GetAll(key string) []string {
 func appendHeaderLine(dst, key, value []byte) []byte {
 	dst = append(dst, key...)
 	dst = append(dst, bytestr.StrColonSpace...)
-	dst = append(dst, newlineToSpaceFilter(value)...)
+	dst = append(dst, newlineToSpace(value)...)
 	return append(dst, bytestr.StrCRLF...)
 }
 
-// newlineToSpaceFilter will replace the original byte slice.
-func newlineToSpaceFilter(val []byte) []byte {
-	for i := 0; i < len(val); i++ {
-		val[i] = bytesconv.NewlineToSpaceTable[val[i]]
+// newlineToSpace will return a copy of the original byte slice.
+func newlineToSpace(val []byte) []byte {
+	filteredVal := make([]byte, len(val))
+	copy(filteredVal, val)
+	for i := 0; i < len(filteredVal); i++ {
+		filteredVal[i] = bytesconv.NewlineToSpaceTable[filteredVal[i]]
 	}
-	return val
+	return filteredVal
 }
 
 func UpdateServerDate() {
