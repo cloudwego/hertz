@@ -1657,6 +1657,12 @@ func (h *ResponseHeader) GetAll(key string) []string {
 }
 
 func appendHeaderLine(dst, key, value []byte) []byte {
+	for _, k := range key {
+		// if header field contains invalid key, just skip it.
+		if bytesconv.ValidHeaderFieldNameTable[k] == 0 {
+			return dst
+		}
+	}
 	dst = append(dst, key...)
 	dst = append(dst, bytestr.StrColonSpace...)
 	dst = append(dst, newlineToSpace(value)...)
