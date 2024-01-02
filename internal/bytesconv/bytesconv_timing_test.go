@@ -74,8 +74,26 @@ func BenchmarkNewlineToSpaceHertz01(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
+		filteredVal := make([]byte, 0, len(allBytes))
 		for i := 0; i < len(allBytes); i++ {
-			allBytes[i] = NewlineToSpaceTable[allBytes[i]]
+			filteredVal = append(filteredVal, NewlineToSpaceTable[allBytes[i]])
+		}
+		_ = filteredVal
+	}
+}
+
+func BenchmarkNewlineToSpaceHertz02(b *testing.B) {
+	// Test all characters
+	allBytes := make([]byte, 0)
+	for i := 0; i < 256; i++ {
+		allBytes = append(allBytes, byte(i))
+	}
+
+	for i := 0; i < b.N; i++ {
+		filteredVal := make([]byte, len(allBytes))
+		copy(filteredVal, allBytes)
+		for ii := 0; ii < len(allBytes); ii++ {
+			filteredVal[ii] = NewlineToSpaceTable[filteredVal[ii]]
 		}
 	}
 }

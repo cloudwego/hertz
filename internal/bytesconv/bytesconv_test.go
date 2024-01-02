@@ -217,9 +217,11 @@ func TestNewlineToSpaceTable(t *testing.T) {
 
 	expectedS := headerNewlineToSpace.Replace(string(allBytes))
 
-	for i := 0; i < len(allBytes); i++ {
-		allBytes[i] = NewlineToSpaceTable[allBytes[i]]
+	res := make([]byte, len(allBytes))
+	copy(res, allBytes)
+	for i := 0; i < len(res); i++ {
+		res[i] = NewlineToSpaceTable[res[i]]
 	}
 
-	assert.DeepEqual(t, expectedS, string(allBytes))
+	assert.DeepEqual(t, expectedS, string(res))
 }
