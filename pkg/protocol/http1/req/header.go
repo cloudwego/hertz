@@ -172,7 +172,6 @@ func validHeaderFieldValue(val []byte) bool {
 		if bytesconv.ValidHeaderFieldValueTable[v] == 0 {
 			return false
 		}
-		continue
 	}
 	return true
 }
