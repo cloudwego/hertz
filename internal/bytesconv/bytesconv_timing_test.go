@@ -19,23 +19,23 @@ package bytesconv
 import (
 	"strings"
 	"testing"
-
-	"golang.org/x/net/http/httpguts"
 )
 
-func BenchmarkValidHeaderFiledValueTable(b *testing.B) {
-	// Test all characters
-	allBytes := make([]string, 0)
-	for i := 0; i < 256; i++ {
-		allBytes = append(allBytes, string([]byte{byte(i)}))
-	}
-
-	for i := 0; i < b.N; i++ {
-		for _, s := range allBytes {
-			_ = httpguts.ValidHeaderFieldValue(s)
-		}
-	}
-}
+// For test only, but it will import golang.org/x/net/http.
+// So comment out all this code. Keep this for the full context.
+//func BenchmarkValidHeaderFiledValueTable(b *testing.B) {
+//	// Test all characters
+//	allBytes := make([]string, 0)
+//	for i := 0; i < 256; i++ {
+//		allBytes = append(allBytes, string([]byte{byte(i)}))
+//	}
+//
+//	for i := 0; i < b.N; i++ {
+//		for _, s := range allBytes {
+//			_ = httpguts.ValidHeaderFieldValue(s)
+//		}
+//	}
+//}
 
 func BenchmarkValidHeaderFiledValueTableHertz(b *testing.B) {
 	// Test all characters
