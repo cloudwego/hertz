@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -165,6 +166,16 @@ func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	return len(buf) - len(bNext), nil
 }
 
+// validHeaderFieldValue is equal to httpguts.ValidHeaderFieldValue（shares the same context）
+func validHeaderFieldValue(val []byte) bool {
+	for _, v := range val {
+		if bytesconv.ValidHeaderFieldValueTable[v] == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	h.InitContentLengthWithValue(-2)
 
@@ -178,7 +189,13 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 			// See RFC 7230, Section 3.2.4.
 			if bytes.IndexByte(s.Key, ' ') != -1 || bytes.IndexByte(s.Key, '\t') != -1 {
 				err = fmt.Errorf("invalid header key %q", s.Key)
-				continue
+				return 0, err
+			}
+
+			// Check the invalid chars in header value
+			if !validHeaderFieldValue(s.Value) {
+				err = fmt.Errorf("invalid header value %q", s.Value)
+				return 0, err
 			}
 
 			switch s.Key[0] | 0x20 {
