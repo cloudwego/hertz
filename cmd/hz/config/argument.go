@@ -246,7 +246,7 @@ func (arg *Argument) checkPackage() error {
 		module, path, ok := util.SearchGoMod(arg.Cwd, false)
 		if ok { // go.mod exists in current path, check module name, don't generate go.mod
 			if module != arg.Gomod {
-				return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s), try to remove '-module' option in your command\n", arg.Gomod, module, path)
+				return fmt.Errorf("module name given by the '-module/mod' option ('%s') is not consist with the name defined in go.mod ('%s' from %s), try to remove '-module/mod' option in your command\n", arg.Gomod, module, path)
 			}
 		} else { // go.mod don't exist in current path, generate go.mod
 			arg.NeedGoMod = true
@@ -254,7 +254,7 @@ func (arg *Argument) checkPackage() error {
 	}
 
 	if len(arg.Gomod) == 0 {
-		return fmt.Errorf("can not get go module, please specify a module name with the '-module' flag")
+		return fmt.Errorf("can not get go module, please specify a module name with the '-module/mod' flag")
 	}
 
 	if len(arg.RawOptPkg) > 0 {
