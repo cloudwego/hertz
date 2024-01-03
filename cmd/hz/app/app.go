@@ -69,7 +69,7 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
-	if !args.NeedGoMod && args.IsNew() {
+	if !args.NeedGoMod && args.IdlType == meta.IdlThrift {
 		logs.Warn(meta.AddThriftReplace)
 	}
 

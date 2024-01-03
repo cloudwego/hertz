@@ -226,33 +226,35 @@ func (arg *Argument) checkPackage() error {
 	if len(arg.Gomod) == 0 { // not specified "go module"
 		// search go.mod recursively
 		module, path, ok := util.SearchGoMod(arg.Cwd, true)
-		if ok {
-			logs.Debugf("find module '%s' form '%s/go.mod'", module, path)
+		if ok { // find go.mod in upper level, use it as project module, don't generate go.mod
 			rel, err := filepath.Rel(path, arg.Cwd)
 			if err != nil {
 				return fmt.Errorf("can not get relative path, err :%v", err)
 			}
 			arg.Gomod = filepath.Join(module, rel)
+			logs.Debugf("find module '%s' from '%s/go.mod', so use it as module name", module, path)
 		}
-		if len(arg.Gomod) == 0 {
+		if len(arg.Gomod) == 0 { // don't find go.mod in upper level, use relative path as module name, generate go.mod
+			logs.Debugf("use gopath's relative path '%s' as the module name", arg.Gopkg)
+			// gopkg will be "" under non-gopath
 			arg.Gomod = arg.Gopkg
+			arg.NeedGoMod = true
 		}
 		arg.Gomod = util.PathToImport(arg.Gomod, "")
 	} else { // specified "go module"
 		// search go.mod in current path
 		module, path, ok := util.SearchGoMod(arg.Cwd, false)
-		if ok {
-			// go.mod exists in current path
+		if ok { // go.mod exists in current path, check module name, don't generate go.mod
 			if module != arg.Gomod {
-				return fmt.Errorf("module name given by the '-module' option ('%s') is not consist with the name defined in go.mod ('%s' from %s)\n", arg.Gomod, module, path)
+				return fmt.Errorf("module name given by the '-module/mod' option ('%s') is not consist with the name defined in go.mod ('%s' from %s), try to remove '-module/mod' option in your command\n", arg.Gomod, module, path)
 			}
-		} else {
+		} else { // go.mod don't exist in current path, generate go.mod
 			arg.NeedGoMod = true
 		}
 	}
 
 	if len(arg.Gomod) == 0 {
-		return fmt.Errorf("can not get go module, please specify a module name with the '-module' flag")
+		return fmt.Errorf("can not get go module, please specify a module name with the '-module/mod' flag")
 	}
 
 	if len(arg.RawOptPkg) > 0 {
