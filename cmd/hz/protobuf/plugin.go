@@ -509,23 +509,13 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 		}...)
 	}
 
-	err := injectTagsToStructTags(field.Desc, &tags, true)
+	err := injectTagsToStructTags(field.Desc, &tags, true, rmTags)
 	if err != nil {
 		return err
 	}
 
 	if m.isTracked {
 		tags = append(tags, gotrackTags...)
-	}
-
-	if len(rmTags) > 0 {
-		tmp := structTags{}
-		for _, tag := range tags {
-			if !rmTags.Exist(tag[0]) {
-				tmp = append(tmp, tag)
-			}
-		}
-		tags = tmp
 	}
 
 	name := field.GoName

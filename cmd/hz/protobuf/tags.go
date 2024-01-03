@@ -340,14 +340,18 @@ func defaultBindingStructTags(f protoreflect.FieldDescriptor) []model.Tag {
 		val := getStructJsonValue(f, v.(string))
 		out[0] = tag("json", val)
 	} else {
-		out[0] = reflectJsonTag(f)
+		t := reflectJsonTag(f)
+		t.IsDefault = true
+		out[0] = t
 	}
 	if v := checkFirstOption(api.E_Query, opts); v != nil {
 		val := checkStructRequire(f, v.(string))
 		out[1] = tag(BindingTags[api.E_Query], val)
 	} else {
 		val := checkStructRequire(f, checkSnakeName(string(f.Name())))
-		out[1] = tag(BindingTags[api.E_Query], val)
+		t := tag(BindingTags[api.E_Query], val)
+		t.IsDefault = true
+		out[1] = t
 	}
 	if v := checkFirstOption(api.E_Form, opts); v != nil {
 		val := checkStructRequire(f, v.(string))
@@ -355,16 +359,20 @@ func defaultBindingStructTags(f protoreflect.FieldDescriptor) []model.Tag {
 	} else {
 		if v := checkFirstOption(api.E_FormCompatible, opts); v != nil { // compatible form_compatible
 			val := checkStructRequire(f, v.(string))
-			out[2] = tag(BindingTags[api.E_Form], val)
+			t := tag(BindingTags[api.E_Form], val)
+			t.IsDefault = true
+			out[2] = t
 		} else {
 			val := checkStructRequire(f, checkSnakeName(string(f.Name())))
-			out[2] = tag(BindingTags[api.E_Form], val)
+			t := tag(BindingTags[api.E_Form], val)
+			t.IsDefault = true
+			out[2] = t
 		}
 	}
 	return out
 }
 
-func injectTagsToStructTags(f protoreflect.FieldDescriptor, out *structTags, needDefault bool) error {
+func injectTagsToStructTags(f protoreflect.FieldDescriptor, out *structTags, needDefault bool, rmTags RemoveTags) error {
 	as := f.Options()
 	// binding tags
 	tags := model.Tags(make([]model.Tag, 0, 6))
@@ -422,6 +430,11 @@ func injectTagsToStructTags(f protoreflect.FieldDescriptor, out *structTags, nee
 	} else if vv := checkFirstOption(api.E_NoneCompatible, as); vv != nil {
 		if strings.EqualFold(vv.(string), "true") {
 			disableTag = true
+		}
+	}
+	for _, t := range tags {
+		if t.IsDefault && rmTags.Exist(t.Key) {
+			tags.Remove(t.Key)
 		}
 	}
 	// protobuf tag as first
