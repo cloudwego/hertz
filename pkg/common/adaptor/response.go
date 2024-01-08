@@ -54,7 +54,7 @@ func (c *compatResponse) WriteHeader(statusCode int) {
 				}
 				if k == consts.HeaderSetCookie {
 					cookie := protocol.AcquireCookie()
-					cookie.Parse(vv)
+					_ = cookie.Parse(vv)
 					c.h.Header.SetCookie(cookie)
 					continue
 				}

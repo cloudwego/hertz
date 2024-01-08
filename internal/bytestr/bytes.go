@@ -97,6 +97,7 @@ var (
 	StrCookieSameSiteLax    = []byte("Lax")
 	StrCookieSameSiteStrict = []byte("Strict")
 	StrCookieSameSiteNone   = []byte("None")
+	StrCookiePartitioned    = []byte("Partitioned")
 
 	StrClose               = []byte("close")
 	StrGzip                = []byte("gzip")

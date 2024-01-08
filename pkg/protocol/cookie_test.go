@@ -42,6 +42,7 @@
 package protocol
 
 import (
+	"errors"
 	"math/rand"
 	"strings"
 	"testing"
@@ -67,6 +68,9 @@ func TestCookieAppendBytes(t *testing.T) {
 
 	c.SetExpire(CookieExpireDelete)
 	testCookieAppendBytes(t, c, "xxx", "yyy", "xxx=yyy; expires=Tue, 10 Nov 2009 23:00:00 GMT; domain=foobar.com; path=/a/b")
+
+	c.SetPartitioned(true)
+	testCookieAppendBytes(t, c, "xxx", "yyy", "xxx=yyy; expires=Tue, 10 Nov 2009 23:00:00 GMT; domain=foobar.com; path=/; secure; Partitioned")
 }
 
 func testCookieAppendBytes(t *testing.T, c *Cookie, key, value, expectedS string) {
@@ -254,6 +258,42 @@ func TestCookieSameSite(t *testing.T) {
 	s = c.String()
 	if strings.Contains(s, "SameSite") {
 		t.Fatalf("unexpected SameSite flag in cookie %q", s)
+	}
+}
+
+func TestCookiePartitioned(t *testing.T) {
+	t.Parallel()
+
+	var c Cookie
+
+	if err := c.Parse("__Host-name=value; Secure; Path=/; SameSite=None; Partitioned;"); err != nil {
+		t.Fatalf("unexpected error for valid paritionedd cookie: %s", err)
+	}
+	if !c.Partitioned() {
+		t.Fatalf("partitioned must be set")
+	}
+
+	if err := c.Parse("__Host-name=value; Path=/; SameSite=None; Partitioned;"); !errors.Is(err, errInvalidPartitionedCookie) {
+		t.Fatalf("invalid secure for partitioned cookie")
+	}
+
+	if err := c.Parse("__Host-name=value; Secure; SameSite=None; Partitioned;"); !errors.Is(err, errInvalidPartitionedCookie) {
+		t.Fatalf("invalid path for partitioned cookie")
+	}
+
+	if err := c.Parse("foo=bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	c.SetPartitioned(true)
+	s := c.String()
+	if !strings.Contains(s, "; Partitioned") {
+		t.Fatalf("missing Partitioned flag in cookie %q", s)
+	}
+	if !strings.Contains(s, "; secure") {
+		t.Fatalf("missing Secure flag in cookie %q", s)
+	}
+	if !strings.Contains(s, "; path=/") {
+		t.Fatalf("path is not top-level site in cookie %q", s)
 	}
 }
 
