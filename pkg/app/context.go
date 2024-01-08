@@ -328,6 +328,8 @@ func (ctx *RequestContext) GetIndex() int8 {
 	return ctx.index
 }
 
+// SetIndex reset the handler's execution index
+// Disclaimer: You can loop yourself to deal with this, use wisely.
 func (ctx *RequestContext) SetIndex(index int8) {
 	ctx.index = index
 }
@@ -337,20 +339,60 @@ type HandlerFunc func(c context.Context, ctx *RequestContext)
 // HandlersChain defines a HandlerFunc array.
 type HandlersChain []HandlerFunc
 
-var handlerNames = make(map[uintptr]string)
+type HandlerNameOperator interface {
+	SetHandlerName(handler HandlerFunc, name string)
+	GetHandlerName(handler HandlerFunc) string
+}
 
-var handlerRWLock sync.RWMutex
+func SetHandlerNameOperator(o HandlerNameOperator) {
+	inbuiltHandlerNameOperator = o
+}
+
+type inbuiltHandlerNameOperatorStruct struct {
+	handlerNames map[uintptr]string
+}
+
+func (o *inbuiltHandlerNameOperatorStruct) SetHandlerName(handler HandlerFunc, name string) {
+	o.handlerNames[getFuncAddr(handler)] = name
+}
+
+func (o *inbuiltHandlerNameOperatorStruct) GetHandlerName(handler HandlerFunc) string {
+	return o.handlerNames[getFuncAddr(handler)]
+}
+
+type concurrentHandlerNameOperatorStruct struct {
+	handlerNames map[uintptr]string
+	lock         sync.RWMutex
+}
+
+func (o *concurrentHandlerNameOperatorStruct) SetHandlerName(handler HandlerFunc, name string) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+	o.handlerNames[getFuncAddr(handler)] = name
+}
+
+func (o *concurrentHandlerNameOperatorStruct) GetHandlerName(handler HandlerFunc) string {
+	o.lock.RLock()
+	defer o.lock.RUnlock()
+	return o.handlerNames[getFuncAddr(handler)]
+}
+
+func SetConcurrentHandlerNameOperator() {
+	SetHandlerNameOperator(&concurrentHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+}
+
+func init() {
+	inbuiltHandlerNameOperator = &inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}}
+}
+
+var inbuiltHandlerNameOperator HandlerNameOperator
 
 func SetHandlerName(handler HandlerFunc, name string) {
-	handlerRWLock.Lock()
-	defer handlerRWLock.Unlock()
-	handlerNames[getFuncAddr(handler)] = name
+	inbuiltHandlerNameOperator.SetHandlerName(handler, name)
 }
 
 func GetHandlerName(handler HandlerFunc) string {
-	handlerRWLock.RLock()
-	defer handlerRWLock.RUnlock()
-	return handlerNames[getFuncAddr(handler)]
+	return inbuiltHandlerNameOperator.GetHandlerName(handler)
 }
 
 func getFuncAddr(v interface{}) uintptr {
