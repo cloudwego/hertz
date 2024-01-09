@@ -74,3 +74,15 @@ func Test_DefaultJSONMarshal(t *testing.T) {
 		t.Fatal("marshal struct is not equal to the string")
 	}
 }
+
+func BenchmarkDefaultJSONMarshal(b *testing.B) {
+	table := map[string]string{
+		"testA": "hello",
+		"B":     "world",
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = jsonMarshalFunc(table)
+	}
+}

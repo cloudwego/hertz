@@ -67,15 +67,34 @@ func (er errorReader) Read(p []byte) (int, error) {
 
 func TestMultiForm(t *testing.T) {
 	var r Request
-	// r.Header.Set()
 	_, err := r.MultipartForm()
-	fmt.Println(err)
+	assert.NotNil(t, err)
+}
+
+func BenchmarkMultipartForm(b *testing.B) {
+	var r Request
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		r.MultipartForm()
+	}
 }
 
 func TestRequestBodyWriterWrite(t *testing.T) {
 	w := requestBodyWriter{&Request{}}
 	w.Write([]byte("test"))
 	assert.DeepEqual(t, "test", string(w.r.body.B))
+}
+
+func Benchmark_RequestBodyWriterWrite(b *testing.B) {
+	w := requestBodyWriter{&Request{}}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		w.Write([]byte("test"))
+	}
 }
 
 func TestRequestScheme(t *testing.T) {
@@ -115,6 +134,19 @@ func TestRequestSwapBody(t *testing.T) {
 	assert.DeepEqual(t, "testA", string(body))
 	reqA.bodyStream.Read(body)
 	assert.DeepEqual(t, "testB", string(body))
+}
+
+func BenchmarkSwapRequestBody(b *testing.B) {
+	reqA := &Request{}
+	reqB := &Request{}
+	reqB.SetBodyRaw([]byte("testB"))
+	reqA.SetBodyRaw([]byte("testA"))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		SwapRequestBody(reqA, reqB)
+	}
 }
 
 func TestRequestKnownSizeStreamMultipartFormWithFile(t *testing.T) {

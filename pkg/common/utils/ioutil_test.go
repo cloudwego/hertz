@@ -95,7 +95,7 @@ func newTestReaderForm(r io.ReaderFrom) readerTest {
 
 func TestIoutilCopyBuffer(t *testing.T) {
 	var writeBuffer bytes.Buffer
-	str := string("hertz is very good!!!")
+	str := "hertz is very good!!!"
 	src := bytes.NewBufferString(str)
 	dst := network.NewWriter(&writeBuffer)
 	var buf []byte
@@ -123,6 +123,22 @@ func TestIoutilCopyBuffer(t *testing.T) {
 	assert.DeepEqual(t, written, limit)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(str[:limit]), writeBuffer.Bytes())
+}
+
+func BenchmarkCopyBuffer(b *testing.B) {
+	var buf []byte
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var writeBuffer bytes.Buffer
+		str := "hertz is very good!!!"
+		src := bytes.NewBufferString(str)
+		dst := network.NewWriter(&writeBuffer)
+
+		CopyBuffer(dst, src, buf)
+		buf = buf[:0]
+	}
 }
 
 func TestIoutilCopyBufferWithIoWriter(t *testing.T) {
@@ -232,6 +248,27 @@ func TestIoutilCopyZeroAlloc(t *testing.T) {
 	assert.DeepEqual(t, written, int64(0))
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte(""), writeBuffer.Bytes())
+}
+
+func BenchmarkCopyZeroAlloc(b *testing.B) {
+	var writeBuffer bytes.Buffer
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		str := "hertz is very good!!!"
+		src := bytes.NewBufferString(str)
+		dst := network.NewWriter(&writeBuffer)
+		srcLen := int64(src.Len())
+
+		written, err := CopyZeroAlloc(dst, src)
+		assert.DeepEqual(b, written, srcLen)
+		assert.DeepEqual(b, err, nil)
+		assert.DeepEqual(b, []byte(str), writeBuffer.Bytes())
+
+		writeBuffer.Reset()
+		dst.Flush()
+	}
 }
 
 func TestIoutilCopyBufferWithEmptyBuffer(t *testing.T) {

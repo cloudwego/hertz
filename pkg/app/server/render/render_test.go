@@ -93,6 +93,21 @@ func TestRenderJSON(t *testing.T) {
 	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 }
 
+func BenchmarkRenderJSON(b *testing.B) {
+	resp := &protocol.Response{}
+	data := map[string]interface{}{
+		"foo":  "bar",
+		"html": "<b>",
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		err := (JSONRender{data}).Render(resp)
+		assert.Nil(b, err)
+	}
+}
+
 func TestRenderJSONError(t *testing.T) {
 	resp := &protocol.Response{}
 	data := make(chan int)
@@ -120,6 +135,21 @@ func TestRenderPureJSON(t *testing.T) {
 	assert.DeepEqual(t, []byte(consts.MIMEApplicationJSONUTF8), resp.Header.Peek("Content-Type"))
 }
 
+func BenchmarkRenderPureJSON(b *testing.B) {
+	resp := &protocol.Response{}
+	data := map[string]interface{}{
+		"foo":  "bar",
+		"html": "<b>",
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := (PureJSON{data}).Render(resp)
+		assert.Nil(b, err)
+	}
+}
+
 func TestRenderPureJSONError(t *testing.T) {
 	resp := &protocol.Response{}
 	data := make(chan int)
@@ -141,6 +171,18 @@ func TestRenderProtobuf(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("\n\vHello World"), resp.Body())
 	assert.DeepEqual(t, []byte("application/x-protobuf"), resp.Header.Peek("Content-Type"))
+}
+
+func BenchmarkRenderProtobuf(b *testing.B) {
+	resp := &protocol.Response{}
+	data := proto.TestStruct{Body: []byte("Hello World")}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := (ProtoBuf{&data}).Render(resp)
+		assert.Nil(b, err)
+	}
 }
 
 func TestRenderProtobufError(t *testing.T) {
@@ -169,6 +211,17 @@ func TestRenderString(t *testing.T) {
 	assert.Nil(t, err)
 	assert.DeepEqual(t, []byte("hola manu 2"), resp.Body())
 	assert.DeepEqual(t, []byte(consts.MIMETextPlainUTF8), resp.Header.Peek("Content-Type"))
+}
+
+func BenchmarkRenderString(b *testing.B) {
+	resp := &protocol.Response{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := (String{Format: "hola %s %d", Data: []interface{}{"manu", 2}}).Render(resp)
+		assert.Nil(b, err)
+	}
 }
 
 func TestRenderStringLenZero(t *testing.T) {

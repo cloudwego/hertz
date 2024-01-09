@@ -78,6 +78,18 @@ func testCookieAppendBytes(t *testing.T, c *Cookie, key, value, expectedS string
 	}
 }
 
+func BenchmarkCookieAppendBytes(b *testing.B) {
+	c := &Cookie{}
+	c.SetKey("xxx")
+	c.SetValue("yyy")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		c.AppendBytes(nil)
+	}
+}
+
 func TestParseRequestCookies(t *testing.T) {
 	t.Parallel()
 
@@ -96,6 +108,16 @@ func testParseRequestCookies(t *testing.T, s, expectedS string) {
 	ss := string(appendRequestCookieBytes(nil, cookies))
 	if ss != expectedS {
 		t.Fatalf("Unexpected cookies after parsing: %q. Expecting %q. String to parse %q", ss, expectedS, s)
+	}
+}
+
+func BenchmarkParseRequestCookies(b *testing.B) {
+	s := "xxx=aa; bb=c; d; e=g"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		parseRequestCookies(nil, []byte(s))
 	}
 }
 
@@ -130,6 +152,22 @@ func testAppendRequestCookieBytes(t *testing.T, s, expectedS string) {
 	result = result[len(prefix):]
 	if result != expectedS {
 		t.Fatalf("Unexpected result %q. Expecting %q for cookie %q", result, expectedS, s)
+	}
+}
+
+func BenchmarkAppendRequestCookieBytes(b *testing.B) {
+	cookies := make([]argsKV, 0)
+	c := argsKV{
+		key:   []byte("fff"),
+		value: []byte("yyy"),
+	}
+	cookies = append(cookies, c)
+	prefix := []byte("foobar")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		appendRequestCookieBytes(prefix, cookies)
 	}
 }
 
@@ -339,6 +377,16 @@ func TestCookieParse(t *testing.T) {
 	testCookieParse(t, "foo=bar; max-age= 101 ; expires= Tue, 10 Nov 2009 23:00:00 GMT", "foo=bar; max-age=101")
 	testCookieParse(t, " xxx = yyy  ; path=/a/b;;;domain=foobar.com ; expires= Tue, 10 Nov 2009 23:00:00 GMT ; ;;",
 		"xxx=yyy; expires=Tue, 10 Nov 2009 23:00:00 GMT; domain=foobar.com; path=/a/b")
+}
+
+func BenchmarkCookie_Parse(b *testing.B) {
+	var c Cookie
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = c.Parse(" xxx = yyy  ; path=/a/b;;;domain=foobar.com ; expires= Tue, 10 Nov 2009 23:00:00 GMT ; ;;xxx=yyy; expires=Tue, 10 Nov 2009 23:00:00 GMT; domain=foobar.com; path=/a/b")
+	}
 }
 
 func Test_decodeCookieArg(t *testing.T) {

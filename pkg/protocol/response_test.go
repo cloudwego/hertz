@@ -92,6 +92,22 @@ func TestResponseBodyStreamMultipleBodyCalls(t *testing.T) {
 	}
 }
 
+func BenchmarkResponseBodyStreamMultipleBodyCalls(b *testing.B) {
+	var r Response
+	s := "foobar baz abc"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		r.SetBodyStream(bytes.NewBufferString(s), len(s))
+		body := r.Body()
+		if string(body) != s {
+			b.Fatalf("unexpected body %q. Expecting %q. iteration %d", body, s, i)
+		}
+		r.Reset()
+	}
+}
+
 func TestResponseBodyWriteToPlain(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +218,20 @@ func TestResponseBodyGunzip(t *testing.T) {
 	assert.DeepEqual(t, zipData, src1)
 }
 
+func BenchmarkResponse_BodyGunzip(b *testing.B) {
+	dst1 := []byte("")
+	src1 := []byte("hello")
+	res1 := compress.AppendGzipBytes(dst1, src1)
+	resp := Response{}
+	resp.SetBody(res1)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		resp.BodyGunzip()
+	}
+}
+
 func TestResponseSwapResponseBody(t *testing.T) {
 	t.Parallel()
 	resp1 := Response{}
@@ -220,6 +250,28 @@ func TestResponseSwapResponseBody(t *testing.T) {
 	assert.DeepEqual(t, resp1.BodyStream(), bytes.NewBufferString(str2))
 	assert.DeepEqual(t, resp2.body.B, []byte(str1))
 	assert.DeepEqual(t, resp2.BodyStream(), bytes.NewBufferString(str1))
+}
+
+func BenchmarkSwapResponseBody(b *testing.B) {
+	str1 := "resp1"
+	str2 := "resp2"
+
+	byteBuffer1 := &bytebufferpool.ByteBuffer{}
+	byteBuffer2 := &bytebufferpool.ByteBuffer{}
+	resp1 := Response{}
+	resp2 := Response{}
+
+	byteBuffer1.Set([]byte(str1))
+	resp1.ConstructBodyStream(byteBuffer1, bytes.NewBufferString(str1))
+
+	byteBuffer2.Set([]byte(str2))
+	resp2.ConstructBodyStream(byteBuffer2, bytes.NewBufferString(str2))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		SwapResponseBody(&resp1, &resp2)
+	}
 }
 
 func TestResponseAcquireResponse(t *testing.T) {
@@ -293,4 +345,21 @@ func TestResponse_HijackWriter(t *testing.T) {
 	assert.False(t, isFinal)
 	resp.GetHijackWriter().Finalize()
 	assert.True(t, isFinal)
+}
+
+func BenchmarkResponse_HijackWriter(b *testing.B) {
+	buf := new(bytes.Buffer)
+	isFinal := false
+	for i := 0; i < b.N; i++ {
+		resp := AcquireResponse()
+		resp.HijackWriter(&mock.ExtWriter{Buf: buf, IsFinal: &isFinal})
+		resp.AppendBody([]byte("hello"))
+		resp.GetHijackWriter().Flush()
+		resp.AppendBodyString(", world")
+		resp.GetHijackWriter().Flush()
+		resp.GetHijackWriter().Flush()
+		resp.GetHijackWriter().Finalize()
+		resp.Reset()
+		buf.Reset()
+	}
 }

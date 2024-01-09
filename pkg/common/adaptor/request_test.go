@@ -68,6 +68,37 @@ func TestCompatResponse_WriteHeader(t *testing.T) {
 	makeACall(t, http.MethodPost, testUrl2, testHeader, testBody, consts.StatusOK, []byte(testCookieValue))
 }
 
+func BenchmarkGetCompatRequest(b *testing.B) {
+	var req protocol.Request
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		req.SetMethod("GET")
+		req.SetRequestURI("127.0.0.1")
+		req.SetBody([]byte("foo.com"))
+
+		GetCompatRequest(&req)
+		req.Reset()
+	}
+}
+
+func BenchmarkGetCompatResponseWriter(b *testing.B) {
+	var resp protocol.Response
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		resp.SetBody([]byte("foo.com"))
+		resp.SetStatusCode(200)
+		resp.Header.Set("foo", "bzz")
+		GetCompatResponseWriter(&resp)
+
+		resp.Reset()
+	}
+}
+
 func makeACall(t *testing.T, method, url string, header http.Header, body string, expectStatusCode int, expectCookieValue []byte) {
 	client := http.Client{}
 	req, _ := http.NewRequest(method, url, strings.NewReader(body))

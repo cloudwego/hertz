@@ -81,6 +81,8 @@ func BenchmarkURIFullURI(b *testing.B) {
 func benchmarkURIParse(b *testing.B, host, uri string) {
 	strHost, strURI := []byte(host), []byte(uri)
 
+	b.ResetTimer()
+	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		var u URI
 		for pb.Next() {

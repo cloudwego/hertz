@@ -112,3 +112,27 @@ func testTestHeaderScannerError(t *testing.T, rawHeaders string, expectError err
 	assert.NotNil(t, hs.Err)
 	assert.True(t, errors.Is(hs.Err, expectError))
 }
+
+func BenchmarkHeaderScanner_Next(b *testing.B) {
+	firstLine := "HTTP/1.1 200 OK\r\n"
+	rawHeaders := "EmptyValue1:\r\n" +
+		"Content-Type: foo/bar;\r\n\tnewline;\r\n another/newline\r\n" +
+		"Foo: Bar\r\n" +
+		"Multi-Line: one;\r\n two\r\n" +
+		"Values: v1;\r\n v2; v3;\r\n v4;\tv5\r\n" +
+		"\r\n"
+
+	// compared with http response
+	response, err := http.ReadResponse(bufio.NewReader(strings.NewReader(firstLine+rawHeaders)), nil)
+	assert.Nil(b, err)
+	defer func() { response.Body.Close() }()
+
+	hs := &HeaderScanner{}
+	hs.B = []byte(rawHeaders)
+	hs.DisableNormalizing = false
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for hs.Next() {
+		}
+	}
+}

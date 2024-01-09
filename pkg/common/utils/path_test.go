@@ -89,6 +89,28 @@ func TestPathCleanPath(t *testing.T) {
 	assert.DeepEqual(t, expectedPath, cleanedPath)
 }
 
+func BenchmarkCleanPath(b *testing.B) {
+	inputs := []string{
+		"/path/to/some/directory",
+		"/path/../to/../some/directory",
+		"/a/b/c/../../d",
+		"/../a/b/c",
+		"/a/b/c/",
+		"",
+	}
+
+	for _, input := range inputs {
+		b.Run(input, func(b *testing.B) {
+			// Run the CleanPath function b.N times
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = CleanPath(input)
+			}
+		})
+	}
+}
+
 // The Function AddMissingPort can only add the missed port, don't consider the other error case.
 func TestPathAddMissingPort(t *testing.T) {
 	ipList := []string{"127.0.0.1", "111.111.1.1", "[0:0:0:0:0:ffff:192.1.56.10]", "[0:0:0:0:0:ffff:c0a8:101]", "www.foobar.com"}

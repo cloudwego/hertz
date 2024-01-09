@@ -86,6 +86,35 @@ func TestConvertNetworkWriter(t *testing.T) {
 	assert.DeepEqual(t, size1K*14+1, iw.WriteNum)
 }
 
+func BenchmarkMalloc1K(b *testing.B) {
+	iw := &mockIOWriter{}
+	w := NewWriter(iw)
+	nw, _ := w.(*networkWriter)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		buf, _ := nw.Malloc(size1K)
+		assert.DeepEqual(b, len(buf), size1K)
+	}
+}
+
+func BenchmarkWriteBinary1K(b *testing.B) {
+	iw := &mockIOWriter{}
+	w := NewWriter(iw)
+	nw, _ := w.(*networkWriter)
+
+	nw.Malloc(size1K * 6)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		b := make([]byte, size1K)
+		nw.WriteBinary(b)
+		nw.Flush()
+	}
+}
+
 type mockIOWriter struct {
 	WriteNum int
 }

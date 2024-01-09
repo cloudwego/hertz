@@ -43,6 +43,7 @@ package resp
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -178,4 +179,52 @@ func equalCookie(c1, c2 *protocol.Cookie) bool {
 		return false
 	}
 	return true
+}
+
+func BenchmarkSetCookie(b *testing.B) {
+	var h protocol.ResponseHeader
+	var c protocol.Cookie
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.SetKey("foobar")
+		c.SetValue("aaa")
+		c.SetDomain("foobar.com")
+
+		h.SetCookie(&c)
+		c.Reset()
+	}
+}
+
+func BenchmarkDelCookie(b *testing.B) {
+	var h protocol.ResponseHeader
+	var c protocol.Cookie
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		c.SetKey("foobar")
+		c.SetValue("aaa")
+		h.SetCookie(&c)
+
+		h.DelCookie("foobar")
+	}
+}
+
+func BenchmarkVisitAllCookie(b *testing.B) {
+	var h protocol.ResponseHeader
+	var c protocol.Cookie
+
+	for i := 0; i < b.N; i++ {
+		c.SetKey(fmt.Sprintf("foobar%v", i))
+		c.SetValue("aaa")
+		c.SetDomain("foobar.com")
+		h.SetCookie(&c)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		h.VisitAllCookie(func(k, v []byte) {})
+	}
 }
