@@ -1344,16 +1344,44 @@ func TestGetWriter(t *testing.T) {
 func TestIndex(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.ResetWithoutConn()
-	res := ctx.GetIndex()
 	exc := int8(-1)
+	res := ctx.GetIndex()
 	assert.DeepEqual(t, exc, res)
+	ctx.SetIndex(int8(1))
+	res = ctx.GetIndex()
+	exc = int8(1)
+	assert.DeepEqual(t, exc, res)
+}
+
+func TestConcurrentHandlerName(t *testing.T) {
+	SetConcurrentHandlerNameOperator()
+	defer SetHandlerNameOperator(&inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+	h := func(c context.Context, ctx *RequestContext) {}
+	SetHandlerName(h, "test1")
+	for i := 0; i < 50; i++ {
+		go func() {
+			name := GetHandlerName(h)
+			assert.DeepEqual(t, "test1", name)
+		}()
+	}
+
+	time.Sleep(time.Second)
+
+	go func() {
+		SetHandlerName(h, "test2")
+	}()
+
+	time.Sleep(time.Second)
+
+	name := GetHandlerName(h)
+	assert.DeepEqual(t, "test2", name)
 }
 
 func TestHandlerName(t *testing.T) {
 	h := func(c context.Context, ctx *RequestContext) {}
-	SetHandlerName(h, "test")
+	SetHandlerName(h, "test1")
 	name := GetHandlerName(h)
-	assert.DeepEqual(t, "test", name)
+	assert.DeepEqual(t, "test1", name)
 }
 
 func TestHijack(t *testing.T) {
@@ -1643,4 +1671,24 @@ func TestRequestContext_VisitAll(t *testing.T) {
 				}
 			})
 	})
+}
+
+func BenchmarkInbuiltHandlerNameOperator(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		fn := func(c context.Context, ctx *RequestContext) {
+		}
+		SetHandlerName(fn, fmt.Sprintf("%d", n))
+		GetHandlerName(fn)
+	}
+}
+
+func BenchmarkConcurrentHandlerNameOperator(b *testing.B) {
+	SetConcurrentHandlerNameOperator()
+	defer SetHandlerNameOperator(&inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+	for n := 0; n < b.N; n++ {
+		fn := func(c context.Context, ctx *RequestContext) {
+		}
+		SetHandlerName(fn, fmt.Sprintf("%d", n))
+		GetHandlerName(fn)
+	}
 }
