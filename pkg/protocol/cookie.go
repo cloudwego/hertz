@@ -75,8 +75,6 @@ var zeroTime time.Time
 var (
 	errNoCookies = errors.NewPublic("no cookies found")
 
-	errInvalidPartitionedCookie = errors.NewPublic("http: partitioned cookies must be set with Secure and Path=/")
-
 	// CookieExpireDelete may be set on Cookie.Expire for expiring the given cookie.
 	CookieExpireDelete = time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 
@@ -458,13 +456,6 @@ func (c *Cookie) ParseBytes(src []byte) error {
 				}
 			}
 		} // else empty or no match
-	}
-
-	if c.partitioned {
-		// Partitioned cookies must be set with Secure.
-		if !c.secure || !utils.CaseInsensitiveCompare(c.path, bytestr.StrSlash) {
-			return errInvalidPartitionedCookie
-		}
 	}
 
 	return nil
