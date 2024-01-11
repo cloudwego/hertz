@@ -542,7 +542,6 @@ func (c *Cookie) SetPartitioned(partitioned bool) {
 	c.partitioned = partitioned
 	if partitioned {
 		c.SetSecure(true)
-		c.SetPathBytes(bytestr.StrSlash)
 	}
 }
 
