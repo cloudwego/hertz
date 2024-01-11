@@ -537,7 +537,7 @@ func (c *Cookie) SetHTTPOnly(httpOnly bool) {
 	c.httpOnly = httpOnly
 }
 
-// SetPartitioned sets cookie as partitioned. Set Partitioned to true will also set Secure and Path to "/".
+// SetPartitioned sets cookie as partitioned. Setting Partitioned to true will also set Secure.
 func (c *Cookie) SetPartitioned(partitioned bool) {
 	c.partitioned = partitioned
 	if partitioned {
