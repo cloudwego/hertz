@@ -377,8 +377,9 @@ type Choice struct {
 type Tags []Tag
 
 type Tag struct {
-	Key   string
-	Value string
+	Key       string
+	Value     string
+	IsDefault bool // default tag
 }
 
 func (ts Tags) String() string {

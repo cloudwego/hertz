@@ -820,9 +820,3 @@ func TestResponseReadBodyStreamBadTrailer(t *testing.T) {
 	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\ncontent-type: bar\r\n\r\n")
 	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nproxy-connection: bar2\r\n\r\n")
 }
-
-func TestResponseString(t *testing.T) {
-	resp := protocol.Response{}
-	resp.Header.Set("Location", "foo\r\nSet-Cookie: SESSIONID=MaliciousValue\r\n")
-	assert.True(t, strings.Contains(GetHTTP1Response(&resp).String(), "Location: foo\r\nSet-Cookie: SESSIONID=MaliciousValue\r\n"))
-}

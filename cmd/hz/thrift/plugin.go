@@ -418,7 +418,11 @@ func getTagString(f *parser.Field, rmTags []string) (string, error) {
 	}
 
 	for _, rmTag := range rmTags {
-		field.Tags.Remove(rmTag)
+		for _, t := range field.Tags {
+			if t.IsDefault && strings.EqualFold(t.Key, rmTag) {
+				field.Tags.Remove(t.Key)
+			}
+		}
 	}
 
 	var tagString string

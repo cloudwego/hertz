@@ -69,7 +69,7 @@ func New(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
 	}
-	if !args.NeedGoMod && args.IsNew() {
+	if !args.NeedGoMod && args.IdlType == meta.IdlThrift {
 		logs.Warn(meta.AddThriftReplace)
 	}
 
@@ -184,7 +184,7 @@ func Init() *cli.App {
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
 	protoCamelJSONTag := cli.BoolFlag{Name: "pb_camel_json_tag", Usage: "Convert Name style for json tag to camel(Only works protobuf).", Destination: &globalArgs.ProtobufCamelJSONTag}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
-	rmTagFlag := cli.StringSliceFlag{Name: "rm_tag", Usage: "Remove the specified tag"}
+	rmTagFlag := cli.StringSliceFlag{Name: "rm_tag", Usage: "Remove the default tag(json/query/form). If the annotation tag is set explicitly, it will not be removed."}
 	customLayout := cli.StringFlag{Name: "customize_layout", Usage: "Specify the path for layout template.", Destination: &globalArgs.CustomizeLayout}
 	customLayoutData := cli.StringFlag{Name: "customize_layout_data_path", Usage: "Specify the path for layout template render data.", Destination: &globalArgs.CustomizeLayoutData}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
