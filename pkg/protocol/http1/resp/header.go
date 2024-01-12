@@ -85,7 +85,7 @@ func ReadHeader(h *protocol.ResponseHeader, r network.Reader) error {
 	}
 }
 
-// Write writes response header to w.
+// WriteHeader writes response header to w.
 func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
 	header := h.Header()
 	h.SetHeaderLength(len(header))

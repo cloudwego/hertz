@@ -178,6 +178,65 @@ func main() {
 		return a
 	}()
 
+	newlineToSpaceTable := func() [256]byte {
+		var a [256]byte
+		for i := 0; i < 256; i++ {
+			c := byte(i)
+			if c == '\r' || c == '\n' {
+				c = ' '
+			}
+			a[i] = c
+		}
+		return a
+	}()
+
+	validHeaderFieldNameTable := func() [256]byte {
+		// The implementation here is equal to httpguts ValidHeaderFieldName(string)
+		// see https://datatracker.ietf.org/doc/html/rfc7230#section-3.2
+		//
+		//  RFC 7230 says:
+		//   header-field   = field-name ":" OWS field-value OWS
+		//   field-name     = token
+		//   token          = 1*tchar
+		//   tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
+		//           "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+		var a [256]byte
+		for i := 0; i < 256; i++ {
+			a[i] = 0
+		}
+
+		a['!'] = 1
+		a['#'] = 1
+		a['$'] = 1
+		a['%'] = 1
+		a['&'] = 1
+		a['\''] = 1
+		a['*'] = 1
+		a['+'] = 1
+		a['-'] = 1
+		a['.'] = 1
+		a['^'] = 1
+		a['_'] = 1
+		a['`'] = 1
+		a['|'] = 1
+		a['~'] = 1
+
+		// ALPHA
+		for i := int('a'); i <= int('z'); i++ {
+			a[i] = 1
+		}
+		for i := int('A'); i <= int('Z'); i++ {
+			a[i] = 1
+		}
+
+		// DIGIT
+		for i := int('0'); i <= int('9'); i++ {
+			a[i] = 1
+		}
+
+		return a
+	}()
+
 	w := new(bytes.Buffer)
 	w.WriteString(pre)
 	fmt.Fprintf(w, "const (\n")
@@ -188,6 +247,8 @@ func main() {
 	fmt.Fprintf(w, "\tQuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
 	fmt.Fprintf(w, "\tValidCookieValueTable = %q\n", validCookieValueTable)
 	fmt.Fprintf(w, "\tValidHeaderFieldValueTable = %q\n", validHeaderFieldValueTable)
+	fmt.Fprintf(w, "\tNewlineToSpaceTable = %q\n", newlineToSpaceTable)
+	fmt.Fprintf(w, "\tValidHeaderFieldNameTable = %q\n", validHeaderFieldNameTable)
 	fmt.Fprintf(w, ")\n")
 
 	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
