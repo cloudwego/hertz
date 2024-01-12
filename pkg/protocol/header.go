@@ -1298,7 +1298,6 @@ func (h *RequestHeader) SetCookie(key, value string) {
 }
 
 // SetCookie sets the given response cookie.
-//
 // It is save re-using the cookie after the function returns.
 func (h *ResponseHeader) SetCookie(cookie *Cookie) {
 	h.cookies = setArgBytes(h.cookies, cookie.Key(), cookie.Cookie(), ArgsHasValue)

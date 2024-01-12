@@ -65,6 +65,8 @@ const (
 	CookieSameSiteStrictMode
 	// CookieSameSiteNoneMode sets the SameSite flag with the "None" parameter
 	// see https://tools.ietf.org/html/draft-west-cookie-incrementalism-00
+	// third-party cookies are phasing out, use Partitioned cookies instead
+	// see https://developers.google.com/privacy-sandbox/3pcd
 	CookieSameSiteNoneMode
 )
 
@@ -101,7 +103,10 @@ type Cookie struct {
 
 	httpOnly bool
 	secure   bool
-	sameSite CookieSameSite
+	// A partitioned third-party cookie is tied to the top-level site
+	// where it's initially set and cannot be accessed from elsewhere.
+	partitioned bool
+	sameSite    CookieSameSite
 
 	bufKV argsKV
 	buf   []byte
@@ -222,6 +227,12 @@ func (c *Cookie) AppendBytes(dst []byte) []byte {
 	case CookieSameSiteNoneMode:
 		dst = appendCookiePart(dst, bytestr.StrCookieSameSite, bytestr.StrCookieSameSiteNone)
 	}
+
+	if c.partitioned {
+		dst = append(dst, ';', ' ')
+		dst = append(dst, bytestr.StrCookiePartitioned...)
+	}
+
 	return dst
 }
 
@@ -337,6 +348,7 @@ func (c *Cookie) Reset() {
 	c.httpOnly = false
 	c.secure = false
 	c.sameSite = CookieSameSiteDisabled
+	c.partitioned = false
 }
 
 // Value returns cookie value.
@@ -438,9 +450,14 @@ func (c *Cookie) ParseBytes(src []byte) error {
 				} else if utils.CaseInsensitiveCompare(bytestr.StrCookieSameSite, kv.value) {
 					c.sameSite = CookieSameSiteDefaultMode
 				}
+			case 'p': // "partitioned"
+				if utils.CaseInsensitiveCompare(bytestr.StrCookiePartitioned, kv.value) {
+					c.partitioned = true
+				}
 			}
 		} // else empty or no match
 	}
+
 	return nil
 }
 
@@ -496,6 +513,11 @@ func (c *Cookie) SameSite() CookieSameSite {
 	return c.sameSite
 }
 
+// Partitioned returns if cookie is partitioned.
+func (c *Cookie) Partitioned() bool {
+	return c.partitioned
+}
+
 // SetSameSite sets the cookie's SameSite flag to the given value.
 // set value CookieSameSiteNoneMode will set Secure to true also to avoid browser rejection
 func (c *Cookie) SetSameSite(mode CookieSameSite) {
@@ -513,6 +535,14 @@ func (c *Cookie) HTTPOnly() bool {
 // SetHTTPOnly sets cookie's httpOnly flag to the given value.
 func (c *Cookie) SetHTTPOnly(httpOnly bool) {
 	c.httpOnly = httpOnly
+}
+
+// SetPartitioned sets cookie as partitioned. Setting Partitioned to true will also set Secure.
+func (c *Cookie) SetPartitioned(partitioned bool) {
+	c.partitioned = partitioned
+	if partitioned {
+		c.SetSecure(true)
+	}
 }
 
 // String returns cookie representation.
