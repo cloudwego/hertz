@@ -1217,15 +1217,17 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 //	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
 //
 //	For example:
-//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
+//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true, false)
 //	add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
-//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
 //	add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
 //	add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
 //	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
-func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+//	5. ctx.SetCookie("user", "name", 10, "/", "localhost",protocol.CookieSameSiteNoneMode, true, true, true) add
+//	response header Set-Cookie: user=name; max-age=10; domain=localhost; path=/; HttpOnly; secure; SameSite=None; Partitioned
+func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly, partitioned bool) {
 	if path == "" {
 		path = "/"
 	}
@@ -1239,6 +1241,7 @@ func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domai
 	cookie.SetSecure(secure)
 	cookie.SetHTTPOnly(httpOnly)
 	cookie.SetSameSite(sameSite)
+	cookie.SetPartitioned(partitioned)
 	ctx.Response.Header.SetCookie(cookie)
 }
 
