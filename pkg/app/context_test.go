@@ -220,6 +220,7 @@ func TestGet(t *testing.T) {
 func TestCopy(t *testing.T) {
 	t.Parallel()
 	ctx := NewContext(0)
+	ctx.fullPath = "full_path"
 	ctx.Request.Header.Add("header_a", "header_value_a")
 	ctx.Response.Header.Add("header_b", "header_value_b")
 	ctx.Params = param.Params{
@@ -241,6 +242,11 @@ func TestCopy(t *testing.T) {
 			str, _ := context.Params.Get("key_a")
 			if str != "value_a" {
 				t.Errorf("unexpected value: %#v, expected: %#v", str, "value_a")
+				return
+			}
+
+			if c.fullPath != "full_path" {
+				t.Errorf("unexpected value: %#v, expected: %#v", c.fullPath, "full_path")
 				return
 			}
 
