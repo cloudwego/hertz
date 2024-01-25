@@ -1218,17 +1218,19 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 //	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
 //
 //	For example:
-//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true, false)
+//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
 //	add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
-//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
+//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
 //	add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
+//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
 //	add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false, false)
+//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
 //	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
-//	5. ctx.SetCookie("user", "name", 10, "/", "localhost",protocol.CookieSameSiteNoneMode, true, true, true) add
-//	response header Set-Cookie: user=name; max-age=10; domain=localhost; path=/; HttpOnly; secure; SameSite=None; Partitioned
-func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly, partitioned bool) {
+func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, false)
+}
+
+func (ctx *RequestContext) setCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly, partitioned bool) {
 	if path == "" {
 		path = "/"
 	}
@@ -1244,6 +1246,16 @@ func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domai
 	cookie.SetSameSite(sameSite)
 	cookie.SetPartitioned(partitioned)
 	ctx.Response.Header.SetCookie(cookie)
+}
+
+// SetPartitionedCookie adds a partitioned cookie to the Response's headers.
+// Use protocol.CookieSameSiteNoneMode for cross-site cookies to work.
+//
+// Usage: ctx.SetPartitionedCookie("user", "name", 10, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+//
+// This adds the response header: Set-Cookie: user=name; Max-Age=10; Domain=localhost; Path=/; HttpOnly; Secure; SameSite=None; Partitioned
+func (ctx *RequestContext) SetPartitionedCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, true)
 }
 
 // UserAgent returns the value of the request user_agent.
