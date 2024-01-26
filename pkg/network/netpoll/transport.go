@@ -38,31 +38,34 @@ func init() {
 
 type transporter struct {
 	sync.RWMutex
-	network          string
-	addr             string
-	keepAliveTimeout time.Duration
-	readTimeout      time.Duration
-	writeTimeout     time.Duration
-	listener         net.Listener
-	eventLoop        netpoll.EventLoop
-	listenConfig     *net.ListenConfig
-	OnAccept         func(conn net.Conn) context.Context
-	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
+	senseClientDisconnection bool
+	network                  string
+	addr                     string
+	keepAliveTimeout         time.Duration
+	readTimeout              time.Duration
+	writeTimeout             time.Duration
+	listener                 net.Listener
+	eventLoop                netpoll.EventLoop
+	listenConfig             *net.ListenConfig
+	OnAccept                 func(conn net.Conn) context.Context
+	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
+	OnDisconnect             func(ctx context.Context, conn network.Conn)
 }
 
 // For transporter switch
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transporter{
-		network:          options.Network,
-		addr:             options.Addr,
-		keepAliveTimeout: options.KeepAliveTimeout,
-		readTimeout:      options.ReadTimeout,
-		writeTimeout:     options.WriteTimeout,
-		listener:         nil,
-		eventLoop:        nil,
-		listenConfig:     options.ListenConfig,
-		OnAccept:         options.OnAccept,
-		OnConnect:        options.OnConnect,
+		senseClientDisconnection: options.SenseClientDisconnection,
+		network:                  options.Network,
+		addr:                     options.Addr,
+		keepAliveTimeout:         options.KeepAliveTimeout,
+		readTimeout:              options.ReadTimeout,
+		writeTimeout:             options.WriteTimeout,
+		listener:                 nil,
+		eventLoop:                nil,
+		listenConfig:             options.ListenConfig,
+		OnAccept:                 options.OnAccept,
+		OnConnect:                options.OnConnect,
 	}
 }
 
@@ -95,9 +98,25 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 		}),
 	}
 
+	type cKey string
+	const ctxKey cKey = "ctxKey"
 	if t.OnConnect != nil {
 		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, conn netpoll.Connection) context.Context {
+			if t.senseClientDisconnection {
+				ctx, cancel := context.WithCancel(ctx)
+				t.OnConnect(ctx, newConn(conn))
+				return context.WithValue(ctx, ctxKey, cancel)
+			}
 			return t.OnConnect(ctx, newConn(conn))
+		}))
+	}
+
+	if t.senseClientDisconnection {
+		opts = append(opts, netpoll.WithOnDisconnect(func(ctx context.Context, connection netpoll.Connection) {
+			cancelFunc, _ := ctx.Value(ctxKey).(context.CancelFunc)
+			if cancelFunc != nil {
+				cancelFunc()
+			}
 		}))
 	}
 

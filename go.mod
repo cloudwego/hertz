@@ -14,3 +14,5 @@ require (
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 	google.golang.org/protobuf v1.27.1
 )
+
+replace github.com/cloudwego/netpoll v0.5.0 => github.com/joway/netpoll v0.0.4-0.20240122121337-a95f4a19673e
