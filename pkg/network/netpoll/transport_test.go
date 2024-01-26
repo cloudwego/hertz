@@ -21,6 +21,7 @@ package netpoll
 import (
 	"context"
 	"net"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -67,6 +68,50 @@ func TestTransport(t *testing.T) {
 		assert.Assert(t, atomic.LoadInt32(&onConnFlag) == 1)
 		assert.Assert(t, atomic.LoadInt32(&onAcceptFlag) == 1)
 		assert.Assert(t, atomic.LoadInt32(&onDataFlag) == 1)
+	})
+
+	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
+		var onConnFlag int32
+		var mu sync.Mutex
+		var ctxVal context.Context
+		transporter := NewTransporter(&config.Options{
+			Addr:    addr,
+			Network: nw,
+			OnConnect: func(ctx context.Context, conn network.Conn) context.Context {
+				atomic.StoreInt32(&onConnFlag, 1)
+				mu.Lock()
+				defer mu.Unlock()
+				ctxVal = ctx
+				return ctx
+			},
+			SenseClientDisconnection: true,
+		})
+
+		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+			return nil
+		})
+		defer transporter.Close()
+		time.Sleep(100 * time.Millisecond)
+
+		dial := NewDialer()
+		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
+		assert.Nil(t, err)
+		_, err = conn.Write([]byte("123"))
+		assert.Nil(t, err)
+		time.Sleep(100 * time.Millisecond)
+
+		assert.Assert(t, atomic.LoadInt32(&onConnFlag) == 1)
+
+		mu.Lock()
+		assert.Nil(t, ctxVal.Err())
+		mu.Unlock()
+
+		err = conn.Close()
+		assert.Nil(t, err)
+		time.Sleep(100 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		assert.DeepEqual(t, context.Canceled, ctxVal.Err())
 	})
 
 	t.Run("TestListenConfig", func(t *testing.T) {
