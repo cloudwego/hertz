@@ -1147,3 +1147,44 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	r, _ := hc.Get("http://127.0.0.1:8324") //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
 }
+
+type closeConnectionTransporter struct{}
+
+func (tr *closeConnectionTransporter) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	return resp, err
+}
+
+func TestWithSenseClientDisconnection(t *testing.T) {
+	var ctxVal context.Context
+	var mu sync.Mutex
+	h := New(
+		WithHostPorts("localhost:8327"),
+		WithSenseClientDisconnection(true),
+		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+			mu.Lock()
+			defer mu.Unlock()
+			ctxVal = ctx
+			return ctx
+		}))
+	go h.Spin()
+	time.Sleep(100 * time.Millisecond)
+
+	h.GET("/", func(c context.Context, ctx *app.RequestContext) {
+		ctx.Response.AppendBodyString("test")
+	})
+
+	hc := http.Client{
+		Timeout:   time.Second,
+		Transport: &closeConnectionTransporter{},
+	}
+	hc.Get("http://127.0.0.1:8327")
+	time.Sleep(100 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.DeepEqual(t, context.Canceled, ctxVal.Err())
+}
