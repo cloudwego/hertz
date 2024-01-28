@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"github.com/cloudwego/hertz/pkg/protocol"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,6 +27,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
