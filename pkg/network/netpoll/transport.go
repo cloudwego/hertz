@@ -98,20 +98,18 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 		}),
 	}
 
-	const ctxKey = "ctxKey"
 	if t.OnConnect != nil {
 		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, conn netpoll.Connection) context.Context {
-			if t.senseClientDisconnection {
-				ctx, cancel := context.WithCancel(ctx)
-				t.OnConnect(ctx, newConn(conn))
-				return context.WithValue(ctx, ctxKey, cancel)
-			}
 			return t.OnConnect(ctx, newConn(conn))
 		}))
 	}
 
+	const ctxKey = "ctxKey"
 	if t.senseClientDisconnection {
-		opts = append(opts, netpoll.WithOnDisconnect(func(ctx context.Context, connection netpoll.Connection) {
+		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, connection netpoll.Connection) context.Context {
+			ctx, cancel := context.WithCancel(ctx)
+			return context.WithValue(ctx, ctxKey, cancel)
+		}), netpoll.WithOnDisconnect(func(ctx context.Context, connection netpoll.Connection) {
 			cancelFunc, _ := ctx.Value(ctxKey).(context.CancelFunc)
 			if cancelFunc != nil {
 				cancelFunc()
