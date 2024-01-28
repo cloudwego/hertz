@@ -136,7 +136,7 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 				errChan <- err
 			}
 		}()
-		protocol.IsUseArgsReset = opt.DisableArgsReset
+		protocol.DisableArgsReset = opt.DisableArgsReset
 		return nil
 	})
 }

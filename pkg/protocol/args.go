@@ -55,8 +55,8 @@ const (
 )
 
 var (
-	nilByteSlice   []byte
-	IsUseArgsReset bool
+	nilByteSlice     []byte
+	DisableArgsReset bool
 )
 
 type argsScanner struct {
@@ -77,7 +77,7 @@ func (a *Args) Set(key, value string) {
 
 // Reset clears query args.
 func (a *Args) Reset() {
-	if IsUseArgsReset {
+	if !DisableArgsReset {
 		a.args = a.args[:0]
 	}
 }
