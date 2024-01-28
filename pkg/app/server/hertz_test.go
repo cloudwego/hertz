@@ -1109,17 +1109,15 @@ func TestWithSenseClientDisconnection(t *testing.T) {
 	h := New(
 		WithHostPorts("localhost:8327"),
 		WithSenseClientDisconnection(true),
-		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-			mu.Lock()
-			defer mu.Unlock()
-			ctxVal = ctx
-			return ctx
-		}))
+	)
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 
 	h.GET("/", func(c context.Context, ctx *app.RequestContext) {
 		ctx.Response.AppendBodyString("test")
+		mu.Lock()
+		defer mu.Unlock()
+		ctxVal = c
 	})
 
 	hc := http.Client{

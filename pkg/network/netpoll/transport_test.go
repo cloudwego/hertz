@@ -71,23 +71,20 @@ func TestTransport(t *testing.T) {
 	})
 
 	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
-		var onConnFlag int32
-		var mu sync.Mutex
+		var onReqFlag int32
 		var ctxVal context.Context
+		var mu sync.Mutex
 		transporter := NewTransporter(&config.Options{
-			Addr:    addr,
-			Network: nw,
-			OnConnect: func(ctx context.Context, conn network.Conn) context.Context {
-				atomic.StoreInt32(&onConnFlag, 1)
-				mu.Lock()
-				defer mu.Unlock()
-				ctxVal = ctx
-				return ctx
-			},
+			Addr:                     addr,
+			Network:                  nw,
 			SenseClientDisconnection: true,
 		})
 
 		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+			atomic.StoreInt32(&onReqFlag, 1)
+			mu.Lock()
+			defer mu.Unlock()
+			ctxVal = ctx
 			return nil
 		})
 		defer transporter.Close()
@@ -100,7 +97,7 @@ func TestTransport(t *testing.T) {
 		assert.Nil(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		assert.Assert(t, atomic.LoadInt32(&onConnFlag) == 1)
+		assert.Assert(t, atomic.LoadInt32(&onReqFlag) == 1)
 
 		mu.Lock()
 		assert.Nil(t, ctxVal.Err())
@@ -109,6 +106,7 @@ func TestTransport(t *testing.T) {
 		err = conn.Close()
 		assert.Nil(t, err)
 		time.Sleep(100 * time.Millisecond)
+
 		mu.Lock()
 		defer mu.Unlock()
 		assert.DeepEqual(t, context.Canceled, ctxVal.Err())
