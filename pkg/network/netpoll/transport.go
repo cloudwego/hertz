@@ -98,8 +98,7 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 		}),
 	}
 
-	type cKey string
-	const ctxKey cKey = "ctxKey"
+	const ctxKey = "ctxKey"
 	if t.OnConnect != nil {
 		opts = append(opts, netpoll.WithOnConnect(func(ctx context.Context, conn netpoll.Connection) context.Context {
 			if t.senseClientDisconnection {

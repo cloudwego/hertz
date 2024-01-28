@@ -336,11 +336,16 @@ func WithDisablePrintRoute(b bool) config.Option {
 // If we don't set it, it will default to false.
 // There are three issues to note when using this option:
 //  1. It only applies to netpoll.
-//  2. It needs to be used in conjunction with WithOnConnect,which will return a canceled context when peer closed.
+//  2. It needs to be used in conjunction with WithOnConnect,whose context will be canceled when peer closed.
 //     Examples:
+//     var ctxVal context.Context
+//     var mu sync.Mutex
 //     server.Default(
 //     server.WithSenseClientDisconnection(true),
 //     server.WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+//     mu.Lock()
+//     defer mu.Unlock()
+//     ctxVal = ctx // ctxVal will be canceled when SenseClientDisconnection is true
 //     return ctx
 //     }))
 //  3. The cost is high after opening, please choose carefully.
