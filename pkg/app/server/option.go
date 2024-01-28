@@ -383,14 +383,23 @@ func WithDisableHeaderNamesNormalizing(disable bool) config.Option {
 	}}
 }
 
+// WithDisableDefaultDate is used to set whether disable default Date.
 func WithDisableDefaultDate(disable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.NoDefaultDate = disable
 	}}
 }
 
+// WithDisableDefaultContentType is used to set whether disable default Content-Type.
 func WithDisableDefaultContentType(disable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.NoDefaultContentType = disable
+	}}
+}
+
+// WithDisableArgsReset is used to set whether disable protocol.Args Reset
+func WithDisableArgsReset(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisableArgsReset = disable
 	}}
 }

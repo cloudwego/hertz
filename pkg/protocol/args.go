@@ -54,7 +54,10 @@ const (
 	ArgsHasValue = false
 )
 
-var nilByteSlice = []byte{}
+var (
+	nilByteSlice   []byte
+	IsUseArgsReset bool
+)
 
 type argsScanner struct {
 	b []byte
@@ -74,7 +77,9 @@ func (a *Args) Set(key, value string) {
 
 // Reset clears query args.
 func (a *Args) Reset() {
-	a.args = a.args[:0]
+	if IsUseArgsReset {
+		a.args = a.args[:0]
+	}
 }
 
 // CopyTo copies all args to dst.

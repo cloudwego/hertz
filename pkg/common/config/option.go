@@ -60,6 +60,7 @@ type Options struct {
 	DisablePreParseMultipartForm bool
 	NoDefaultDate                bool
 	NoDefaultContentType         bool
+	DisableArgsReset             bool
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
 	DisablePrintRoute            bool
@@ -256,6 +257,8 @@ func NewOptions(opts []Option) *Options {
 
 		// Disabled header names' normalization, default false
 		DisableHeaderNamesNormalizing: false,
+
+		DisableArgsReset: false,
 	}
 	options.Apply(opts)
 	return options

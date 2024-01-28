@@ -27,6 +27,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -135,6 +136,7 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 				errChan <- err
 			}
 		}()
+		protocol.IsUseArgsReset = opt.DisableArgsReset
 		return nil
 	})
 }
