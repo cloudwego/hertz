@@ -348,7 +348,6 @@ func WithDisablePrintRoute(b bool) config.Option {
 //     ctxVal = ctx // ctxVal will be canceled when SenseClientDisconnection is true
 //     return ctx
 //     }))
-//  3. The cost is high after opening, please choose carefully.
 func WithSenseClientDisconnection(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.SenseClientDisconnection = b
