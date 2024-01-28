@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"github.com/cloudwego/hertz/pkg/protocol"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,7 +28,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -126,6 +126,7 @@ func waitSignal(errCh chan error) error {
 func (h *Hertz) initOnRunHooks(errChan chan error) {
 	// add register func to runHooks
 	opt := h.GetOptions()
+	protocol.DisableArgsReset = opt.DisableArgsReset
 	h.OnRun = append(h.OnRun, func(ctx context.Context) error {
 		go func() {
 			// delay register 1s
@@ -136,7 +137,6 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 				errChan <- err
 			}
 		}()
-		protocol.DisableArgsReset = opt.DisableArgsReset
 		return nil
 	})
 }
