@@ -30,7 +30,6 @@ var funcMap = func() template.FuncMap {
 		"ToSnakeCase":            util.ToSnakeCase,
 		"Split":                  strings.Split,
 		"Trim":                   strings.Trim,
-		"TrimSpace":              strings.TrimSpace,
 		"EqualFold":              strings.EqualFold,
 	}
 	for key, f := range sprig.TxtFuncMap() {
