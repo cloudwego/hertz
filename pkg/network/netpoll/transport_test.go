@@ -21,7 +21,6 @@ package netpoll
 import (
 	"context"
 	"net"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -72,8 +71,6 @@ func TestTransport(t *testing.T) {
 
 	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
 		var onReqFlag int32
-		var ctxVal context.Context
-		var mu sync.Mutex
 		transporter := NewTransporter(&config.Options{
 			Addr:                     addr,
 			Network:                  nw,
@@ -82,9 +79,8 @@ func TestTransport(t *testing.T) {
 
 		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
 			atomic.StoreInt32(&onReqFlag, 1)
-			mu.Lock()
-			defer mu.Unlock()
-			ctxVal = ctx
+			time.Sleep(100 * time.Millisecond)
+			assert.DeepEqual(t, context.Canceled, ctx.Err())
 			return nil
 		})
 		defer transporter.Close()
@@ -95,21 +91,11 @@ func TestTransport(t *testing.T) {
 		assert.Nil(t, err)
 		_, err = conn.Write([]byte("123"))
 		assert.Nil(t, err)
-		time.Sleep(100 * time.Millisecond)
-
-		assert.Assert(t, atomic.LoadInt32(&onReqFlag) == 1)
-
-		mu.Lock()
-		assert.Nil(t, ctxVal.Err())
-		mu.Unlock()
-
 		err = conn.Close()
 		assert.Nil(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		mu.Lock()
-		defer mu.Unlock()
-		assert.DeepEqual(t, context.Canceled, ctxVal.Err())
+		assert.Assert(t, atomic.LoadInt32(&onReqFlag) == 1)
 	})
 
 	t.Run("TestListenConfig", func(t *testing.T) {

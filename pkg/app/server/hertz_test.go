@@ -43,6 +43,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -1148,41 +1149,44 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
 }
 
-type closeConnectionTransporter struct{}
-
-func (tr *closeConnectionTransporter) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if resp != nil && resp.Body != nil {
-		resp.Body.Close()
-	}
-	return resp, err
-}
-
 func TestWithSenseClientDisconnection(t *testing.T) {
-	var ctxVal context.Context
-	var mu sync.Mutex
 	h := New(
 		WithHostPorts("localhost:8327"),
 		WithSenseClientDisconnection(true),
 	)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		defer wg.Done()
+		select {
+		case <-c.Done():
+			return
+		case <-time.After(time.Second):
+			t.Fatal("cancel context failed")
+		}
+	})
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 
-	h.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Response.AppendBodyString("test")
-		mu.Lock()
-		defer mu.Unlock()
-		ctxVal = c
-	})
-
+	dail := netpoll.NewDialer()
+	conn, err := dail.DialConnection("tcp", "127.0.0.1:8327", 0, nil)
+	assert.Nil(t, err)
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return conn, nil
+		},
+	}
 	hc := http.Client{
 		Timeout:   time.Second,
-		Transport: &closeConnectionTransporter{},
+		Transport: tr,
 	}
-	hc.Get("http://127.0.0.1:8327")
-	time.Sleep(100 * time.Millisecond)
 
-	mu.Lock()
-	defer mu.Unlock()
-	assert.DeepEqual(t, context.Canceled, ctxVal.Err())
+	go func() {
+		_, err := hc.Get("http://127.0.0.1:8327/test")
+		assert.NotNil(t, err)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	err = conn.Close()
+	assert.Nil(t, err)
+	wg.Wait()
 }
