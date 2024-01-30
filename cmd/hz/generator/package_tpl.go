@@ -588,6 +588,14 @@ func (r *request) addHeader(header, value string) *request {
 	return r
 }
 
+func (r *request) addHeaders(params map[string]string) *request {
+	for k, v := range params {
+		r.addHeader(k, v)
+	}
+	return r
+}
+
+
 func (r *request) setQueryParam(param string, value interface{}) *request {
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
@@ -923,7 +931,7 @@ func New{{.ServiceName}}Client(hostUrl string, ops ...Option) (Client, error) {
 
 {{range $_, $MethodInfo := .ClientMethods}}
 func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, req *{{$MethodInfo.RequestTypeName}}, reqOpt ...config.RequestOption) (resp *{{$MethodInfo.ReturnTypeName}}, rawResponse *protocol.Response, err error) {
-	httpResp := &{{$MethodInfo.ReturnTypeName}}{}	
+	httpResp := &{{$MethodInfo.ReturnTypeName}}{}
 	ret, err := s.client.r().
 		setContext(context).
 		setQueryParams(map[string]interface{}{
@@ -944,7 +952,7 @@ func (s *{{$.ServiceName}}Client) {{$MethodInfo.Name}}(context context.Context, 
 		{{$MethodInfo.BodyParamsCode}}
 		setRequestOption(reqOpt...).
 		setResult(httpResp).
-		execute("{{$MethodInfo.HTTPMethod}}", "{{$MethodInfo.Path}}")
+		execute("{{if EqualFold $MethodInfo.HTTPMethod "Any"}}POST{{else}}{{ $MethodInfo.HTTPMethod }}{{end}}", "{{$MethodInfo.Path}}")
 	if err != nil {
 		return nil, nil, err
 	}
