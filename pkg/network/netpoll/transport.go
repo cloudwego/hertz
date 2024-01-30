@@ -49,7 +49,6 @@ type transporter struct {
 	listenConfig             *net.ListenConfig
 	OnAccept                 func(conn net.Conn) context.Context
 	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
-	OnDisconnect             func(ctx context.Context, conn network.Conn)
 }
 
 // For transporter switch
