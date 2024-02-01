@@ -580,6 +580,74 @@ func TestBind_CustomizedTypeDecodeForPanic(t *testing.T) {
 	})
 }
 
+func TestBind_Required_CustomizedTypeDecode1(t *testing.T) {
+	type Foo struct {
+		F ***CustomizedDecode `query:"a,required"`
+	}
+
+	bindConfig := &BindConfig{}
+	err := bindConfig.RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+		q1 := req.URI().QueryArgs().Peek("a")
+		if len(q1) == 0 {
+			return reflect.Value{}, fmt.Errorf("can be nil")
+		}
+		val := CustomizedDecode{
+			A: string(q1),
+		}
+		return reflect.ValueOf(val), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binder := NewDefaultBinder(bindConfig)
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?b=2")
+	result := Foo{}
+	err = binder.Bind(req.Req, &result, nil)
+	if err == nil {
+		t.Fatal("expect an required error, but get nil")
+	}
+}
+
+// TestBind_Required_CustomizedTypeDecode2 is a test case for customized type decoder by json.
+// this case tells us that never only use json tag for customized type. There are two reasons:
+// 1. your customized decoder function will never be called.
+// 2. your customized type must meet json unmarshaler format or you will get an unmarshal error. Since it meet json unmarshaler format, you can use json tag directly.
+func TestBind_Required_CustomizedTypeDecode2(t *testing.T) {
+	type Foo struct {
+		S int              `json:"s"`
+		F CustomizedDecode `json:"f,required"`
+		D string           `json:"d"`
+		Q string           `query:"q"`
+	}
+
+	bindConfig := &BindConfig{}
+	err := bindConfig.RegTypeUnmarshal(reflect.TypeOf(CustomizedDecode{}), func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
+		t.Log("CustomizedDecode")
+		q1 := req.URI().QueryArgs().Peek("a")
+		if len(q1) == 0 {
+			return reflect.Value{}, fmt.Errorf("can be nil")
+		}
+		val := CustomizedDecode{
+			A: string(q1),
+		}
+		return reflect.ValueOf(val), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binder := NewDefaultBinder(bindConfig)
+
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com?q=dummy").SetJSONContentType().SetBody([]byte(`{"f":54, "d":"d", "s":1}`))
+	result := Foo{}
+	err = binder.Bind(req.Req, &result, nil)
+	if err == nil {
+		t.Fatal("expect an unUnmarshal error, but get nil")
+	}
+}
+
 func TestBind_JSON(t *testing.T) {
 	type Req struct {
 		J1 string    `json:"j1"`

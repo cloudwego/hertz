@@ -41,6 +41,7 @@
 package decoder
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -58,6 +59,7 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 	var text string
 	var exist bool
 	var defaultValue string
+	var err error
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			defaultValue = tagInfo.Default
@@ -66,8 +68,15 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
 		defaultValue = tagInfo.Default
 		if exist {
+			err = nil
 			break
 		}
+		if tagInfo.Required {
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+		}
+	}
+	if err != nil {
+		return err
 	}
 	if !exist {
 		return nil
