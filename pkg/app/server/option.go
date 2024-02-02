@@ -394,3 +394,9 @@ func WithDisableDefaultContentType(disable bool) config.Option {
 		o.NoDefaultContentType = disable
 	}}
 }
+
+func WithDisableRecycleArgs(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisableReuseArgs = disable
+	}}
+}

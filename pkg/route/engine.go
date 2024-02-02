@@ -1067,6 +1067,7 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
 		NoDefaultDate:                 engine.options.NoDefaultDate,
 		NoDefaultContentType:          engine.options.NoDefaultContentType,
+		DisableReuseArgs:              engine.options.DisableReuseArgs,
 	}
 	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
 	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.

@@ -62,6 +62,7 @@ type Option struct {
 	DisableKeepalive              bool
 	NoDefaultServerHeader         bool
 	DisableHeaderNamesNormalizing bool
+	DisableReuseArgs              bool
 	MaxRequestBodySize            int
 	IdleTimeout                   time.Duration
 	ReadTimeout                   time.Duration
@@ -190,6 +191,9 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			ctx.Request.Header.DisableNormalizing()
 			ctx.Response.Header.DisableNormalizing()
 		}
+
+		ctx.Request.PostArgs().SetReuseArgs(s.DisableReuseArgs)
+		ctx.Request.URI().QueryArgs().SetReuseArgs(s.DisableReuseArgs)
 
 		// Read Headers
 		if err = req.ReadHeader(&ctx.Request.Header, zr); err == nil {
