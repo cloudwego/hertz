@@ -141,6 +141,9 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	ctx.HTMLRender = s.HTMLRender
 	ctx.SetConn(conn)
 	ctx.Request.SetIsTLS(s.TLS != nil)
+	ctx.Request.PostArgs().SetDisableReuseArgs(s.DisableReuseArgs)
+	ctx.Request.URI().QueryArgs().SetDisableReuseArgs(s.DisableReuseArgs)
+
 	ctx.SetEnableTrace(s.EnableTrace)
 
 	if !s.NoDefaultServerHeader {
@@ -191,9 +194,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			ctx.Request.Header.DisableNormalizing()
 			ctx.Response.Header.DisableNormalizing()
 		}
-
-		ctx.Request.PostArgs().SetReuseArgs(s.DisableReuseArgs)
-		ctx.Request.URI().QueryArgs().SetReuseArgs(s.DisableReuseArgs)
 
 		// Read Headers
 		if err = req.ReadHeader(&ctx.Request.Header, zr); err == nil {
