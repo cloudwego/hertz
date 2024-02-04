@@ -124,7 +124,7 @@ func getFieldDecoder(pInfo parentInfos, field reflect.StructField, index int, by
 	// JSONName is like 'a.b.c' for 'required validate'
 	fieldTagInfos, newParentJSONName, needValidate := lookupFieldTags(field, pInfo.JSONName, config)
 	if len(fieldTagInfos) == 0 && !config.DisableDefaultTag {
-		fieldTagInfos = getDefaultFieldTags(field)
+		fieldTagInfos, newParentJSONName = getDefaultFieldTags(field, pInfo.JSONName)
 	}
 	if len(byTag) != 0 {
 		fieldTagInfos = getFieldTagInfoByTag(field, byTag)
