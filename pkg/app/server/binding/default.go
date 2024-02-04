@@ -67,6 +67,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 
 	exprValidator "github.com/bytedance/go-tagexpr/v2/validator"
@@ -175,9 +176,11 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 		return b.bindNonStruct(req, v)
 	}
 
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
+	if len(tag) == 0 {
+		err := b.preBindBody(req, v)
+		if err != nil {
+			return fmt.Errorf("bind body failed, err=%v", err)
+		}
 	}
 	cache := b.tagCache(tag)
 	cached, ok := cache.Load(typeID)
@@ -323,7 +326,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 		return nil
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
-	switch utils.FilterContentType(ct) {
+	switch strings.ToLower(utils.FilterContentType(ct)) {
 	case consts.MIMEApplicationJSON:
 		return hJson.Unmarshal(req.Body(), v)
 	case consts.MIMEPROTOBUF:
