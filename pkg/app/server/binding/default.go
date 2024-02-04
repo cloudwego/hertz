@@ -342,7 +342,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 
 func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err error) {
 	ct := bytesconv.B2s(req.Header.ContentType())
-	switch utils.FilterContentType(ct) {
+	switch strings.ToLower(utils.FilterContentType(ct)) {
 	case consts.MIMEApplicationJSON:
 		err = hJson.Unmarshal(req.Body(), v)
 	case consts.MIMEPROTOBUF:
