@@ -15,4 +15,4 @@ require (
 	google.golang.org/protobuf v1.27.1
 )
 
-replace github.com/cloudwego/netpoll v0.5.0 => github.com/joway/netpoll v0.0.4-0.20240122121337-a95f4a19673e
+replace github.com/cloudwego/netpoll v0.5.0 => github.com/joway/netpoll v0.0.4-0.20240207064408-7486eebf98df
