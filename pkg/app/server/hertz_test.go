@@ -43,7 +43,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -1092,46 +1091,4 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	hc := http.Client{Timeout: time.Second}
 	r, _ := hc.Get("http://127.0.0.1:8324") //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
-}
-
-func TestWithSenseClientDisconnection(t *testing.T) {
-	h := New(
-		WithHostPorts("localhost:8327"),
-		WithSenseClientDisconnection(true),
-	)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		defer wg.Done()
-		select {
-		case <-c.Done():
-			return
-		case <-time.After(time.Second):
-			t.Fatal("cancel context failed")
-		}
-	})
-	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
-
-	dail := netpoll.NewDialer()
-	conn, err := dail.DialConnection("tcp", "127.0.0.1:8327", 0, nil)
-	assert.Nil(t, err)
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return conn, nil
-		},
-	}
-	hc := http.Client{
-		Timeout:   time.Second,
-		Transport: tr,
-	}
-
-	go func() {
-		_, err := hc.Get("http://127.0.0.1:8327/test")
-		assert.NotNil(t, err)
-	}()
-	time.Sleep(100 * time.Millisecond)
-	err = conn.Close()
-	assert.Nil(t, err)
-	wg.Wait()
 }

@@ -332,22 +332,6 @@ func WithDisablePrintRoute(b bool) config.Option {
 	}}
 }
 
-// WithSenseClientDisconnection sets the ability to sense client disconnections.
-// If we don't set it, it will default to false.
-// There are two issues to note when using this option:
-// 1. Warning: It only applies to netpoll.
-// 2. After opening, the context.Context in the request will be cancelled.
-//
-//	Example:
-//	server.Default(
-//	server.WithSenseClientDisconnection(true),
-//	)
-func WithSenseClientDisconnection(b bool) config.Option {
-	return config.Option{F: func(o *config.Options) {
-		o.SenseClientDisconnection = b
-	}}
-}
-
 // WithOnAccept sets the callback function when a new connection is accepted but cannot
 // receive data in netpoll. In go net, it will be called before converting tls connection
 func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
@@ -408,5 +392,21 @@ func WithDisableDefaultDate(disable bool) config.Option {
 func WithDisableDefaultContentType(disable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.NoDefaultContentType = disable
+	}}
+}
+
+// WithSenseClientDisconnection sets the ability to sense client disconnections.
+// If we don't set it, it will default to false.
+// There are two issues to note when using this option:
+// 1. Warning: It only applies to netpoll.
+// 2. After opening, the context.Context in the request will be cancelled.
+//
+//	Example:
+//	server.Default(
+//	server.WithSenseClientDisconnection(true),
+//	)
+func WithSenseClientDisconnection(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.SenseClientDisconnection = b
 	}}
 }
