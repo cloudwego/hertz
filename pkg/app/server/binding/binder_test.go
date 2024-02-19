@@ -1617,6 +1617,48 @@ func TestBind_Issue1015(t *testing.T) {
 	assert.DeepEqual(t, "asd", result.A)
 }
 
+func TestBind_WithoutPreBindForTag(t *testing.T) {
+	type BaseQuery struct {
+		Action  string `query:"Action" binding:"required"`
+		Version string `query:"Version" binding:"required"`
+	}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetRequestURI("http://foobar.com/?Action=action&Version=version").
+		SetBody([]byte(``))
+
+	var result BaseQuery
+
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "action", result.Action)
+	assert.DeepEqual(t, "version", result.Version)
+}
+
+func TestBind_NormalizeContentType(t *testing.T) {
+	type BaseQuery struct {
+		Action  string `json:"action" binding:"required"`
+		Version string `json:"version" binding:"required"`
+	}
+
+	req := newMockRequest().
+		SetHeader("Content-Type", "ApplicAtion/json").
+		SetRequestURI("http://foobar.com/?Action=action&Version=version").
+		SetBody([]byte(`{"action":"action", "version":"version"}`))
+
+	var result BaseQuery
+
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "action", result.Action)
+	assert.DeepEqual(t, "version", result.Version)
+}
+
 func Benchmark_Binding(b *testing.B) {
 	type Req struct {
 		Version string `path:"v"`
