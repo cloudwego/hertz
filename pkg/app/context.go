@@ -1458,7 +1458,7 @@ func (ctx *RequestContext) BindByContentType(obj interface{}) error {
 		return ctx.BindQuery(obj)
 	}
 	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
-	switch ct {
+	switch strings.ToLower(ct) {
 	case consts.MIMEApplicationJSON:
 		return ctx.BindJSON(obj)
 	case consts.MIMEPROTOBUF:
