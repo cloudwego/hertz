@@ -795,6 +795,7 @@ func (ctx *RequestContext) Copy() *RequestContext {
 	paramCopy := make([]param.Param, len(cp.Params))
 	copy(paramCopy, cp.Params)
 	cp.Params = paramCopy
+	cp.fullPath = ctx.fullPath
 	cp.clientIPFunc = ctx.clientIPFunc
 	cp.formValueFunc = ctx.formValueFunc
 	cp.binder = ctx.binder
@@ -1457,7 +1458,7 @@ func (ctx *RequestContext) BindByContentType(obj interface{}) error {
 		return ctx.BindQuery(obj)
 	}
 	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
-	switch ct {
+	switch strings.ToLower(ct) {
 	case consts.MIMEApplicationJSON:
 		return ctx.BindJSON(obj)
 	case consts.MIMEPROTOBUF:

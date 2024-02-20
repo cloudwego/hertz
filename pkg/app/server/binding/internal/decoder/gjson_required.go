@@ -33,7 +33,7 @@ func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 		return true
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
-	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+	if !strings.EqualFold(utils.FilterContentType(ct), consts.MIMEApplicationJSON) {
 		return false
 	}
 	result := gjson.GetBytes(req.Body(), tagInfo.JSONName)
