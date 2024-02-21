@@ -56,10 +56,10 @@ type customizedFieldTextDecoder struct {
 }
 
 func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.Params, reqValue reflect.Value) error {
+	var err error
 	var text string
 	var exist bool
 	var defaultValue string
-	var err error
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			defaultValue = tagInfo.Default

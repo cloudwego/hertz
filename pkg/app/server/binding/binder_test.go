@@ -580,7 +580,7 @@ func TestBind_CustomizedTypeDecodeForPanic(t *testing.T) {
 	})
 }
 
-func TestBind_Required_CustomizedTypeDecode1(t *testing.T) {
+func TestBind_RequiredCustomizedTypeDecode1(t *testing.T) {
 	type Foo struct {
 		F ***CustomizedDecode `query:"a,required"`
 	}
@@ -610,11 +610,13 @@ func TestBind_Required_CustomizedTypeDecode1(t *testing.T) {
 	}
 }
 
-// TestBind_Required_CustomizedTypeDecode2 is a test case for customized type decoder by json.
-// this case tells us that never only use json tag for customized type. There are two reasons:
-// 1. your customized decoder function will never be called.
-// 2. your customized type must meet json unmarshaler format or you will get an unmarshal error. Since it meet json unmarshaler format, you can use json tag directly.
-func TestBind_Required_CustomizedTypeDecode2(t *testing.T) {
+/*
+ * TestBind_Required_CustomizedTypeDecode2 is a test case for customized type decoder by json.
+ * this case tells us that never only use json tag for customized type. There are two reasons:
+ * 1. your customized decoder function will never be called.
+ * 2. your customized type must meet json unmarshaler format or you will get an unmarshal error. Since it meet json unmarshaler format, you can use json tag directly.
+ */
+func TestBind_RequiredCustomizedTypeDecode2(t *testing.T) {
 	type Foo struct {
 		S int              `json:"s"`
 		F CustomizedDecode `json:"f,required"`
