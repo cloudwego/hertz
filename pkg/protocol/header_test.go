@@ -44,6 +44,7 @@ package protocol
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"testing"
@@ -202,22 +203,38 @@ func TestResponseHeaderGetAll(t *testing.T) {
 
 func TestRequestHeaderVisitAll(t *testing.T) {
 	h := RequestHeader{}
-	h.Set("xxx", "yyy")
-	h.Set("xxx2", "yyy2")
-	h.VisitAll(
-		func(k, v []byte) {
-			key := string(k)
-			value := string(v)
-			if key != "Xxx" && key != "Xxx2" {
-				t.Fatalf("Unexpected %v. Expected %v", key, "xxx or yyy")
-			}
-			if key == "Xxx" && value != "yyy" {
-				t.Fatalf("Unexpected %v. Expected %v", value, "yyy")
-			}
-			if key == "Xxx2" && value != "yyy2" {
-				t.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
-			}
-		})
+	h.SetHost("host")
+	h.SetContentLengthBytes([]byte("content-length"))
+	h.Set(consts.HeaderContentType, "content-type")
+	h.Set(consts.HeaderUserAgent, "user-agent")
+	err := h.Trailer().SetTrailers([]byte("foo, bar"))
+	if err != nil {
+		log.Fatalf("Set trailer err %v", err)
+	}
+	h.SetCookie("foo", "bar")
+	h.Set(consts.HeaderConnection, "close")
+	h.VisitAll(func(k, v []byte) {
+		key := string(k)
+		value := string(v)
+		switch key {
+		case consts.HeaderHost:
+			assert.DeepEqual(t, value, "host")
+		case consts.HeaderContentLength:
+			assert.DeepEqual(t, value, "content-length")
+		case consts.HeaderContentType:
+			assert.DeepEqual(t, value, "content-type")
+		case consts.HeaderUserAgent:
+			assert.DeepEqual(t, value, "user-agent")
+		case consts.HeaderTrailer:
+			assert.DeepEqual(t, value, "Foo, Bar")
+		case consts.HeaderCookie:
+			assert.DeepEqual(t, value, "foo=bar")
+		case consts.HeaderConnection:
+			assert.DeepEqual(t, value, "close")
+		default:
+			log.Fatalf("Unexpected key %v", key)
+		}
+	})
 }
 
 func TestRequestHeaderCookie(t *testing.T) {
