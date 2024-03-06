@@ -44,7 +44,6 @@ package protocol
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"testing"
@@ -103,7 +102,7 @@ func TestSetContentLengthBytes(t *testing.T) {
 }
 
 func TestInitContentLengthWithValue(t *testing.T) {
-	randomLen := rand.Intn(100)
+	randomLen := 100
 	h := RequestHeader{}
 	h.InitContentLengthWithValue(randomLen)
 	assert.DeepEqual(t, h.contentLength, randomLen)
