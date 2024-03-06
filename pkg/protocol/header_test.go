@@ -44,6 +44,7 @@ package protocol
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"testing"
@@ -69,18 +70,18 @@ func TestResponseHeaderSetHeaderLength(t *testing.T) {
 
 func TestSetNoHTTP11(t *testing.T) {
 	rh := ResponseHeader{}
-	rh.SetNoHTTP11(true)
+	rh.SetProtocol(consts.HTTP10)
 	assert.DeepEqual(t, consts.HTTP10, rh.protocol)
 
-	rh.SetNoHTTP11(false)
+	rh.SetProtocol(consts.HTTP11)
 	assert.DeepEqual(t, consts.HTTP11, rh.protocol)
 	assert.True(t, rh.IsHTTP11())
 
 	h := RequestHeader{}
-	h.SetNoHTTP11(true)
+	h.SetProtocol(consts.HTTP10)
 	assert.DeepEqual(t, consts.HTTP10, h.protocol)
 
-	h.SetNoHTTP11(false)
+	h.SetProtocol(consts.HTTP11)
 	assert.DeepEqual(t, consts.HTTP11, h.protocol)
 	assert.True(t, h.IsHTTP11())
 }
@@ -99,6 +100,17 @@ func TestSetContentLengthBytes(t *testing.T) {
 	rh := ResponseHeader{}
 	rh.SetContentLengthBytes([]byte("foo"))
 	assert.DeepEqual(t, rh.contentLengthBytes, []byte("foo"))
+}
+
+func TestInitContentLengthWithValue(t *testing.T) {
+	randomLen := rand.Intn(100)
+	h := RequestHeader{}
+	h.InitContentLengthWithValue(randomLen)
+	assert.DeepEqual(t, h.contentLength, randomLen)
+
+	rh := ResponseHeader{}
+	rh.InitContentLengthWithValue(randomLen)
+	assert.DeepEqual(t, rh.contentLength, randomLen)
 }
 
 func TestSetContentEncoding(t *testing.T) {
@@ -171,6 +183,24 @@ func TestResponseHeaderGet(t *testing.T) {
 	assert.DeepEqual(t, val, rightVal)
 }
 
+func TestRequestHeaderGetAll(t *testing.T) {
+	h := RequestHeader{}
+	h.Set("Foo-Bar", "foo")
+	h.Add("Foo-Bar", "bar")
+	h.Add("Foo-Bar", "foo-bar")
+	values := h.GetAll("Foo-Bar")
+	assert.DeepEqual(t, values, []string{"foo", "bar", "foo-bar"})
+}
+
+func TestResponseHeaderGetAll(t *testing.T) {
+	h := ResponseHeader{}
+	h.Set("Foo-Bar", "foo")
+	h.Add("Foo-Bar", "bar")
+	h.Add("Foo-Bar", "foo-bar")
+	values := h.GetAll("Foo-Bar")
+	assert.DeepEqual(t, values, []string{"foo", "bar", "foo-bar"})
+}
+
 func TestRequestHeaderVisitAll(t *testing.T) {
 	h := RequestHeader{}
 	h.Set("xxx", "yyy")
@@ -189,6 +219,13 @@ func TestRequestHeaderVisitAll(t *testing.T) {
 				t.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
 			}
 		})
+}
+
+func TestRequestHeaderCookie(t *testing.T) {
+	var h RequestHeader
+	h.SetCookie("foo", "bar")
+	cookie := h.Cookie("foo")
+	assert.DeepEqual(t, []byte("bar"), cookie)
 }
 
 func TestRequestHeaderCookies(t *testing.T) {
@@ -215,6 +252,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.Set(consts.HeaderServer, "aaabbb")
 	h.Set(consts.HeaderContentLength, "1123")
 	h.Set(consts.HeaderTrailer, "foo, bar")
+	h.Set(consts.HeaderUserAgent, "foo-bar")
 	h.SetHost("foobar")
 	h.SetCookie("foo", "bar")
 
@@ -226,6 +264,7 @@ func TestRequestHeaderDel(t *testing.T) {
 	h.del([]byte("Set-Cookie"))
 	h.del([]byte("Host"))
 	h.del([]byte(consts.HeaderTrailer))
+	h.del([]byte(consts.HeaderUserAgent))
 	h.DelCookie("foo")
 	h.Del("ccc")
 
@@ -266,6 +305,10 @@ func TestRequestHeaderDel(t *testing.T) {
 		t.Fatalf("non-zero value: %q", hv)
 	}
 	hv = h.Peek(consts.HeaderTrailer)
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
+	}
+	hv = h.Peek(consts.HeaderUserAgent)
 	if len(hv) > 0 {
 		t.Fatalf("non-zero value: %q", hv)
 	}
@@ -577,6 +620,16 @@ func TestRequestHeaderInitBufValue(t *testing.T) {
 func TestRequestHeaderDelAllCookies(t *testing.T) {
 	var h RequestHeader
 	h.SetCanonical([]byte(consts.HeaderSetCookie), []byte("foo2"))
+	h.DelAllCookies()
+	hv := h.FullCookie()
+	if len(hv) > 0 {
+		t.Fatalf("non-zero value: %q", hv)
+	}
+}
+
+func TestResponseHeaderDelAllCookies(t *testing.T) {
+	var h ResponseHeader
+	h.SetCanonical([]byte(consts.HeaderSetCookie), []byte("foo"))
 	h.DelAllCookies()
 	hv := h.FullCookie()
 	if len(hv) > 0 {
