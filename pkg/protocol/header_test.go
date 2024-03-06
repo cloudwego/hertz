@@ -44,7 +44,6 @@ package protocol
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"testing"
@@ -209,7 +208,7 @@ func TestRequestHeaderVisitAll(t *testing.T) {
 	h.Set(consts.HeaderUserAgent, "user-agent")
 	err := h.Trailer().SetTrailers([]byte("foo, bar"))
 	if err != nil {
-		log.Fatalf("Set trailer err %v", err)
+		t.Fatalf("Set trailer err %v", err)
 	}
 	h.SetCookie("foo", "bar")
 	h.Set(consts.HeaderConnection, "close")
@@ -232,7 +231,7 @@ func TestRequestHeaderVisitAll(t *testing.T) {
 		case consts.HeaderConnection:
 			assert.DeepEqual(t, value, "close")
 		default:
-			log.Fatalf("Unexpected key %v", key)
+			t.Fatalf("Unexpected key %v", key)
 		}
 	})
 }
