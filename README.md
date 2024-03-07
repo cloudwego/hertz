@@ -44,7 +44,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 ### Observability
   Contains instrumentation, logging, tracing, monitoring, OpenTelemetry integration. [more](https://www.cloudwego.io/docs/hertz/tutorials/observability/)
 ### Service Governance
-  Contains tracer monitor. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+  Contains service registration and discovery extensions, Sentinel integration. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
 ### Framework Extension
   Contains network library extensions. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### Reference

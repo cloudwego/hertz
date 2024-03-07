@@ -44,7 +44,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 ### 可观测性
   包含日志，链路追踪，埋点，监控，OpenTelemetry 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/observability/)
 ### 治理特性
-  包含服务注册与发现扩展，限流，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+  包含服务注册与发现扩展，Sentinel 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
 ### 框架扩展
   包含网络库扩展，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### 参考
