@@ -202,6 +202,8 @@ func TestResponseHeaderGetAll(t *testing.T) {
 
 func TestRequestHeaderVisitAll(t *testing.T) {
 	h := RequestHeader{}
+	h.Set("xxx", "yyy")
+	h.Set("xxx2", "yyy2")
 	h.SetHost("host")
 	h.SetContentLengthBytes([]byte("content-length"))
 	h.Set(consts.HeaderContentType, "content-type")
@@ -230,6 +232,10 @@ func TestRequestHeaderVisitAll(t *testing.T) {
 			assert.DeepEqual(t, value, "foo=bar")
 		case consts.HeaderConnection:
 			assert.DeepEqual(t, value, "close")
+		case "Xxx":
+			assert.DeepEqual(t, value, "yyy")
+		case "Xxx2":
+			assert.DeepEqual(t, value, "yyy2")
 		default:
 			t.Fatalf("Unexpected key %v", key)
 		}
