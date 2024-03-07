@@ -41,8 +41,10 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 ### 用户指南
 ### 基本特性
   包含通用中间件的介绍和使用，上下文选择，数据绑定，数据渲染，直连访问，日志，错误处理，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/basic-feature/)
+### 可观测性
+  包含日志，链路追踪，埋点，监控，OpenTelemetry 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/observability/)
 ### 治理特性
-  包含 trace monitor，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+  包含服务注册与发现扩展，Sentinel 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
 ### 框架扩展
   包含网络库扩展，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### 参考
@@ -51,10 +53,10 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
   常见问题排查，[详见文档](https://www.cloudwego.io/zh/docs/hertz/faq/)
 ## 框架性能
   性能测试只能提供相对参考，工业场景下，有诸多因素可以影响实际的性能表现
-  我们提供了 hertz-benchmark 项目用来长期追踪和比较 Hertz 与其他框架在不同情况下的性能数据以供参考
+  我们提供了 [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark) 项目用来长期追踪和比较 Hertz 与其他框架在不同情况下的性能数据以供参考
 ## 相关项目
 - [Netpoll](https://github.com/cloudwego/netpoll): 自研高性能网络库，Hertz 默认集成
-- [Hertz-Contrib](https://github.com/hertz-contrib): Hertz 扩展仓库，提供中间件、tracer 等能力
+- [hertz-Contrib](https://github.com/hertz-contrib): Hertz 扩展仓库，提供可观测、安全、流量治理、协议、HTTP 通用能力等扩展
 - [Example](https://github.com/cloudwego/hertz-examples): Hertz 使用例子
 ## 相关拓展
 
@@ -121,7 +123,7 @@ Hertz 基于[Apache License 2.0](https://github.com/cloudwego/hertz/blob/main/LI
 ## Landscapes
 
 <p align="center">
-<img src="https://landscape.cncf.io/images/left-logo.svg" width="150"/>&nbsp;&nbsp;<img src="https://landscape.cncf.io/images/right-logo.svg" width="200"/>
+<img src="https://landscape.cncf.io/images/cncf-landscape-horizontal-color.svg" width="150"/>&nbsp;&nbsp;<img src="https://www.cncf.io/wp-content/uploads/2023/04/cncf-main-site-logo.svg" width="200"/>
 <br/><br/>
 CloudWeGo 丰富了 <a href="https://landscape.cncf.io/">CNCF 云原生生态</a>。
 </p>
