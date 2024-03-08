@@ -102,14 +102,14 @@ func TestSetContentLengthBytes(t *testing.T) {
 }
 
 func TestInitContentLengthWithValue(t *testing.T) {
-	randomLen := 100
+	initLength := 100
 	h := RequestHeader{}
-	h.InitContentLengthWithValue(randomLen)
-	assert.DeepEqual(t, h.contentLength, randomLen)
+	h.InitContentLengthWithValue(initLength)
+	assert.DeepEqual(t, h.contentLength, initLength)
 
 	rh := ResponseHeader{}
-	rh.InitContentLengthWithValue(randomLen)
-	assert.DeepEqual(t, rh.contentLength, randomLen)
+	rh.InitContentLengthWithValue(initLength)
+	assert.DeepEqual(t, rh.contentLength, initLength)
 }
 
 func TestSetContentEncoding(t *testing.T) {
