@@ -45,7 +45,7 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
-	hJson "github.com/cloudwego/hertz/pkg/common/json"
+	hJson "github.com/cloudwego/hertz/internal/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
