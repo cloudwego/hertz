@@ -394,3 +394,19 @@ func WithDisableDefaultContentType(disable bool) config.Option {
 		o.NoDefaultContentType = disable
 	}}
 }
+
+// WithSenseClientDisconnection sets the ability to sense client disconnections.
+// If we don't set it, it will default to false.
+// There are two issues to note when using this option:
+// 1. Warning: It only applies to netpoll.
+// 2. After opening, the context.Context in the request will be cancelled.
+//
+//	Example:
+//	server.Default(
+//	server.WithSenseClientDisconnection(true),
+//	)
+func WithSenseClientDisconnection(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.SenseClientDisconnection = b
+	}}
+}
