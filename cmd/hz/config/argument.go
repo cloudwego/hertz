@@ -57,6 +57,7 @@ type Argument struct {
 	NeedGoMod   bool
 
 	JSONEnumStr          bool
+	QueryEnumAsInt       bool
 	UnsetOmitempty       bool
 	ProtobufCamelJSONTag bool
 	ProtocOptions        []string // options to pass through to protoc
