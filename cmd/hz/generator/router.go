@@ -321,7 +321,10 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		}
 
 		insertReg := register.DepPkgAlias + ".Register(r)\n"
-		if bytes.Contains(file, []byte(insertReg)) {
+
+		registerPattern := `(?m)^\s*` + register.DepPkgAlias + `\s*\.\s*Register\(r\)\s*$`
+		re := regexp.MustCompile(registerPattern)
+		if re.Match(file) {
 			return fmt.Errorf("the router(%s) has been registered", insertReg)
 		}
 
