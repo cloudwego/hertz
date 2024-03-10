@@ -1615,8 +1615,14 @@ func TestSetBinder(t *testing.T) {
 
 func TestRequestContext_SetCookie(t *testing.T) {
 	c := NewContext(0)
-	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteLaxMode, true, true)
-	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax", c.Response.Header.Get("Set-Cookie"))
+	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_SetPartitionedCookie(t *testing.T) {
+	c := NewContext(0)
+	c.SetPartitionedCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None; Partitioned", c.Response.Header.Get("Set-Cookie"))
 }
 
 func TestRequestContext_SetCookiePathEmpty(t *testing.T) {
