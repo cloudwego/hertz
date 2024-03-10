@@ -119,6 +119,7 @@ type Options struct {
 	//     * content-type -> Content-Type
 	//     * cONTENT-lenGTH -> Content-Length
 	DisableHeaderNamesNormalizing bool
+	DisableReuseArgs              bool
 }
 
 func (o *Options) Apply(opts []Option) {
@@ -256,6 +257,8 @@ func NewOptions(opts []Option) *Options {
 
 		// Disabled header names' normalization, default false
 		DisableHeaderNamesNormalizing: false,
+		// Disable recycling request arguments, default false
+		DisableReuseArgs: false,
 	}
 	options.Apply(opts)
 	return options

@@ -181,7 +181,7 @@ func (req *Request) Scheme() []byte {
 	return req.uri.Scheme()
 }
 
-// For keepalive connection reuse.
+// For keepalive connection disableReuse.
 // It is roughly the same as ResetSkipHeader, except that the connection related fields are removed:
 // - req.isTLS
 func (req *Request) resetSkipHeaderAndConn() {
