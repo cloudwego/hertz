@@ -37,7 +37,7 @@ const (
 	defaultAddr               = ":8888"
 	defaultNetwork            = "tcp"
 	defaultBasePath           = "/"
-	defaultMaxRequestBodySize = 4 * 1024 * 1024
+	defaultMaxRequestBodySize = 0
 	defaultWaitExitTimeout    = time.Second * 5
 	defaultReadBufferSize     = 4 * 1024
 )

@@ -634,7 +634,7 @@ func (ctx *RequestContext) FileAttachment(filepath, filename string) {
 
 // SetBodyString sets response body to the given value.
 func (ctx *RequestContext) SetBodyString(body string) {
-	ctx.Response.SetBodyString(body)
+	ctx.Response.SetBodyString(body, string(ctx.URI().RequestURI()))
 }
 
 // SetContentTypeBytes sets response Content-Type.
