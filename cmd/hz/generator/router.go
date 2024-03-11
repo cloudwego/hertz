@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
@@ -229,6 +230,7 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 			cur.Children = make([]*RouterNode, 0, 1)
 		}
 		cur.Children = append(cur.Children, c)
+		sort.Sort(cur.Children)
 		cur = c
 	}
 }
@@ -270,15 +272,27 @@ func (c childrenRouterInfo) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (c childrenRouterInfo) Less(i, j int) bool {
-	ci := c[i].Path
-	if len(c[i].Children) != 0 {
-		ci = ci[1:]
+	// remove non-litter char
+	// eg. /a -> a
+	//     /:a -> a
+	ci := removeNonLetterPrefix(c[i].Path)
+	cj := removeNonLetterPrefix(c[j].Path)
+
+	// if ci == cj, use HTTP mothod for sort, preventing sorting inconsistencies
+	if ci == cj {
+		return c[i].HttpMethod < c[j].HttpMethod
 	}
-	cj := c[j].Path
-	if len(c[j].Children) != 0 {
-		cj = cj[1:]
-	}
+
 	return ci < cj
+}
+
+func removeNonLetterPrefix(str string) string {
+	for i, char := range str {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			return str[i:]
+		}
+	}
+	return str
 }
 
 // Swap swaps the elements with indexes i and j.
