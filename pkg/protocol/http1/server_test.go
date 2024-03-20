@@ -70,6 +70,7 @@ func TestTraceEventCompleted(t *testing.T) {
 	assert.False(t, traceInfo.Stats().GetEvent(stats.WriteStart).IsNil())
 	assert.False(t, traceInfo.Stats().GetEvent(stats.WriteFinish).IsNil())
 	assert.False(t, traceInfo.Stats().GetEvent(stats.HTTPFinish).IsNil())
+	assert.Nil(t, traceInfo.Stats().Error())
 }
 
 func TestTraceEventReadHeaderError(t *testing.T) {

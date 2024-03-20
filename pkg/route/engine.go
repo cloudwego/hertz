@@ -726,6 +726,7 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 
 	// align with https://datatracker.ietf.org/doc/html/rfc2616#section-5.2
 	if len(ctx.Request.Host()) == 0 && ctx.Request.Header.IsHTTP11() && bytesconv.B2s(ctx.Request.Method()) != consts.MethodConnect {
+		ctx.SetHandlers(engine.Handlers)
 		serveError(c, ctx, consts.StatusBadRequest, requiredHostBody)
 		return
 	}
@@ -743,6 +744,7 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 
 	// Follow RFC7230#section-5.3
 	if rPath == "" || rPath[0] != '/' {
+		ctx.SetHandlers(engine.Handlers)
 		serveError(c, ctx, consts.StatusBadRequest, default400Body)
 		return
 	}
