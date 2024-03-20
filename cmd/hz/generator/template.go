@@ -40,6 +40,8 @@ const (
 	Skip   = "skip"
 	Cover  = "cover"
 	Append = "append"
+	Before = "before"
+	After  = "after"
 )
 
 type Template struct {

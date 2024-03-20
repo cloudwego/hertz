@@ -378,7 +378,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					if tplInfo.UpdateBehavior.AppendDirection == "before" {
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
 						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
 					} else {
 						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
@@ -559,7 +559,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					if tplInfo.UpdateBehavior.AppendDirection == "before" {
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
 						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
 					} else {
 						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
@@ -625,7 +625,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					if tplInfo.UpdateBehavior.AppendDirection == "before" {
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
 						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
 					} else {
 						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
