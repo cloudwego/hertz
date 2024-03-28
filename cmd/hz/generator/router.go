@@ -327,7 +327,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 
 		subIndexReg := regRegisterV3.FindSubmatchIndex(file)
 		if len(subIndexReg) != 2 || subIndexReg[0] < 1 {
-			return fmt.Errorf("wrong format %s: insert-point '%s' not found", string(file), insertPointPatternNew)
+			return fmt.Errorf("wrong format %s: insert-point '%s' not found", string(file), insertPointNew)
 		}
 
 		bufReg := bytes.NewBuffer(nil)
