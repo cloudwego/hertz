@@ -22,10 +22,10 @@ import (
 )
 
 func TestMatchInsertPointPatternNew(t *testing.T) {
-	regRegisterV3 = regexp.MustCompile(insertPointPatternNew)
-	
+	reg := regexp.MustCompile(insertPointPatternNew)
+
 	ValidPatternFunc := func(s string) bool {
-		subIndexReg := regRegisterV3.FindSubmatchIndex([]byte(s))
+		subIndexReg := reg.FindSubmatchIndex([]byte(s))
 		if len(subIndexReg) != 2 || subIndexReg[0] < 1 {
 			return false
 		}
