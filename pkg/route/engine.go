@@ -54,6 +54,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/cloudwego/hertz/pkg/route/param"
+
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
@@ -721,7 +723,6 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}
-
 	rPath := string(ctx.Request.URI().Path())
 
 	// align with https://datatracker.ietf.org/doc/html/rfc2616#section-5.2
@@ -768,6 +769,10 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 		if httpMethod != consts.MethodConnect && rPath != "/" {
 			if value.tsr && engine.options.RedirectTrailingSlash {
 				redirectTrailingSlash(ctx)
+				return
+			}
+			if value.tsr && engine.options.FixTrailingSlash {
+				directTrailingSlash(c, ctx, t[i], paramsPointer, unescape)
 				return
 			}
 			if engine.options.RedirectFixedPath && redirectFixedPath(ctx, t[i].root, engine.options.RedirectFixedPath) {
@@ -821,6 +826,27 @@ func trailingSlashURL(ts string) string {
 		tmpURI = ts[:length-1]
 	}
 	return tmpURI
+}
+
+func directTrailingSlash(c context.Context, ctx *app.RequestContext, r *router, paramsPointer *param.Params, unescape bool) {
+	p := bytesconv.B2s(ctx.Request.URI().Path())
+	if prefix := utils.CleanPath(bytesconv.B2s(ctx.Request.Header.Peek("X-Forwarded-Prefix"))); prefix != "." {
+		p = prefix + "/" + p
+	}
+
+	tmpURI := trailingSlashURL(p)
+
+	query := ctx.Request.URI().QueryString()
+	if len(query) > 0 {
+		tmpURI = tmpURI + "?" + bytesconv.B2s(query)
+	}
+	tmpURI = "/" + strings.TrimLeft(tmpURI, "/")
+	v := r.find(tmpURI, paramsPointer, unescape)
+	if v.handlers != nil {
+		ctx.SetHandlers(v.handlers)
+		ctx.SetFullPath(v.fullPath)
+		ctx.Next(c)
+	}
 }
 
 func redirectTrailingSlash(c *app.RequestContext) {

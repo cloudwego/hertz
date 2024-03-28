@@ -48,6 +48,7 @@ type Options struct {
 	WriteTimeout                 time.Duration
 	IdleTimeout                  time.Duration
 	RedirectTrailingSlash        bool
+	FixTrailingSlash             bool
 	MaxRequestBodySize           int
 	MaxKeepBodySize              int
 	GetOnly                      bool
