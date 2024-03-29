@@ -46,8 +46,7 @@ func TestMatchInsertPointPatternNew(t *testing.T) {
 package router
 
 import (
-	admin "export-go/biz/router/admin"
-	export "export-go/biz/router/export"
+	admin "demo/biz/router/admin"
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
@@ -61,8 +60,7 @@ func GeneratedRegister(r *server.Hertz) {
 package router
 
 import (
-	admin "export-go/biz/router/admin"
-	export "export-go/biz/router/export"
+	admin "demo/biz/router/admin"
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
@@ -76,8 +74,7 @@ func GeneratedRegister(r *server.Hertz) {
 package router
 
 import (
-	admin "export-go/biz/router/admin"
-	export "export-go/biz/router/export"
+	admin "demo/biz/router/admin"
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
