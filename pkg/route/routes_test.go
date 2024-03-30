@@ -228,6 +228,58 @@ func TestRouteNotOK3(t *testing.T) {
 	testRouteNotOK3(consts.MethodTrace, t)
 }
 
+func TestRouteFixTrailingSlash(t *testing.T) {
+	router := NewEngine(config.NewOptions(nil))
+	router.options.RedirectFixedPath = false
+	router.options.RedirectTrailingSlash = false
+	router.options.FixTrailingSlash = true
+	router.GET("/path", func(c context.Context, ctx *app.RequestContext) {})
+	router.GET("/path2/", func(c context.Context, ctx *app.RequestContext) {})
+	router.POST("/path3", func(c context.Context, ctx *app.RequestContext) {})
+	router.PUT("/path4/", func(c context.Context, ctx *app.RequestContext) {})
+
+	w := performRequest(router, consts.MethodGet, "/path/")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodGet, "/path2")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodPost, "/path3/")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodPut, "/path4")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodGet, "/path")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodGet, "/path2/")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodPost, "/path3")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodPut, "/path4/")
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodGet, "/path2", header{Key: "X-Forwarded-Prefix", Value: "/api"})
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	w = performRequest(router, consts.MethodGet, "/path2/", header{Key: "X-Forwarded-Prefix", Value: "/api/"})
+	assert.DeepEqual(t, consts.StatusOK, w.Code)
+
+	router.options.FixTrailingSlash = false
+
+	w = performRequest(router, consts.MethodGet, "/path/")
+	assert.DeepEqual(t, consts.StatusNotFound, w.Code)
+	w = performRequest(router, consts.MethodGet, "/path2")
+	assert.DeepEqual(t, consts.StatusNotFound, w.Code)
+	w = performRequest(router, consts.MethodPost, "/path3/")
+	assert.DeepEqual(t, consts.StatusNotFound, w.Code)
+	w = performRequest(router, consts.MethodPut, "/path4")
+	assert.DeepEqual(t, consts.StatusNotFound, w.Code)
+}
+
 func TestRouteRedirectTrailingSlash(t *testing.T) {
 	router := NewEngine(config.NewOptions(nil))
 	router.options.RedirectFixedPath = false
