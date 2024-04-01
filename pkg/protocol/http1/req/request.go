@@ -171,7 +171,7 @@ func write(req *protocol.Request, w network.Writer, usingProxy bool) error {
 			return errRequestHostRequired
 		}
 
-		if len(req.Header.Host()) == 0 {
+		if len(req.Header.Host()) == 0 || req.UseURIHost {
 			req.Header.SetHostBytes(host)
 		}
 

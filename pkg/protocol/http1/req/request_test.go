@@ -1487,3 +1487,50 @@ func testRequestBodyStreamWithTrailer(t *testing.T, body []byte, disableNormaliz
 		}
 	}
 }
+
+func TestURIHostPriority(t *testing.T) {
+	t.Parallel()
+
+	// normal case
+	var req protocol.Request
+	req.Header.SetHost("foobar.com")
+	req.SetRequestURI("http://foobarhost.com")
+	req.ParseURI()
+	var w bytes.Buffer
+	zw := netpoll.NewWriter(&w)
+	if err := Write(&req, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var req1 protocol.Request
+	zr := mock.NewZeroCopyReader(w.String())
+	if err := Read(&req1, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	assert.DeepEqual(t, "foobar.com", string(req1.Host()))
+
+	// uri higher priority case
+	var reqURIHighPriority protocol.Request
+	reqURIHighPriority.Header.SetHost("foobar.com")
+	reqURIHighPriority.SetRequestURI("http://foobarhost.com")
+	reqURIHighPriority.ParseURI()
+	reqURIHighPriority.UseURIHost = true
+	var bw bytes.Buffer
+	zw = netpoll.NewWriter(&bw)
+	if err := Write(&reqURIHighPriority, zw); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var req1URIHighPriority protocol.Request
+	zr = mock.NewZeroCopyReader(bw.String())
+	if err := Read(&req1URIHighPriority, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	assert.DeepEqual(t, "foobarhost.com", string(req1URIHighPriority.Host()))
+}
