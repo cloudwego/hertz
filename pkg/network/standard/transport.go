@@ -21,11 +21,17 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
+)
+
+const (
+	transportAlive    int32 = 0
+	transportShutdown int32 = 1
 )
 
 type transport struct {
@@ -36,6 +42,7 @@ type transport struct {
 	// and/or multi-KB headers (for example, BIG cookies).
 	//
 	// Default buffer size is used if not set.
+	isCallShutDown   int32
 	readBufferSize   int
 	network          string
 	addr             string
@@ -68,8 +75,11 @@ func (t *transport) serve() (err error) {
 		conn, err := t.ln.Accept()
 		var c network.Conn
 		if err != nil {
-			hlog.SystemLogger().Errorf("Error=%s", err.Error())
-			return err
+			if !t.IsCallShutdown() {
+				hlog.SystemLogger().Errorf("Error=%s", err.Error())
+				return err
+			}
+			return nil
 		}
 
 		if t.OnAccept != nil {
@@ -100,7 +110,12 @@ func (t *transport) Close() error {
 	return t.Shutdown(ctx)
 }
 
+func (t *transport) IsCallShutdown() bool {
+	return atomic.LoadInt32(&t.isCallShutDown) == transportShutdown
+}
+
 func (t *transport) Shutdown(ctx context.Context) error {
+	atomic.StoreInt32(&t.isCallShutDown, transportShutdown)
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
