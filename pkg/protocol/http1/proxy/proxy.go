@@ -81,13 +81,11 @@ func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfi
 			defer close(didReadResponse)
 
 			err = reqI.Write(connectReq, conn)
-
 			if err != nil {
 				return
 			}
 
 			err = conn.Flush()
-
 			if err != nil {
 				return
 			}
