@@ -259,7 +259,7 @@ func getInsertImportContent(tplInfo *Template, renderInfo interface{}, fileConte
 				}
 				imptSlice = append(imptSlice, [2]string{"", impt[1 : len(impt)-1]})
 			} else { // 3. alias "import"
-				idx := strings.Index(impt, "\n")
+				idx := strings.Index(impt, "\"")
 				if idx == -1 {
 					return nil, fmt.Errorf("error import format for file: %s", tplInfo.Path)
 				}
