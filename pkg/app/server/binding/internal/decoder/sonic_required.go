@@ -60,3 +60,12 @@ func stringSliceForInterface(s string) (ret []interface{}) {
 	}
 	return
 }
+
+func keyExist(req *protocol.Request, tagInfo TagInfo) bool {
+	ct := bytesconv.B2s(req.Header.ContentType())
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+		return false
+	}
+	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
+	return node.Exists()
+}

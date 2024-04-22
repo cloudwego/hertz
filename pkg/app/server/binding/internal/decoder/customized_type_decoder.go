@@ -60,7 +60,12 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
-			defaultValue = tagInfo.Default
+			if tagInfo.Key == jsonTag {
+				defaultValue = tagInfo.Default
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
+					defaultValue = ""
+				}
+			}
 			continue
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
@@ -73,7 +78,7 @@ func (d *customizedFieldTextDecoder) Decode(req *protocol.Request, params param.
 		return nil
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
-		text = defaultValue
+		text = toDefaultValue(d.fieldType, defaultValue)
 	}
 
 	v, err := d.decodeFunc(req, params, text)
