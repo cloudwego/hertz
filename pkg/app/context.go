@@ -236,7 +236,7 @@ type RequestContext struct {
 
 	binder    binding.Binder
 	validator binding.StructValidator
-	exiled bool
+	exiled    bool
 }
 
 func (ctx *RequestContext) Exile() {
