@@ -239,6 +239,8 @@ type RequestContext struct {
 	exiled    bool
 }
 
+// Exile marks this RequestContext as not to be recycled.
+// Experimental features: Use with caution, it may have a slight impact on performance.
 func (ctx *RequestContext) Exile() {
 	ctx.exiled = true
 }
