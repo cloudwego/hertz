@@ -84,7 +84,7 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg
 	if paths[0] == "" {
 		paths = paths[1:]
 	}
-	parent, last := routerNode.FindNearest(paths, method.HTTPMethod)
+	parent, last := routerNode.FindNearest(paths, method.HTTPMethod, sortRouter)
 	if last == len(paths) {
 		return fmt.Errorf("path '%s' has been registered", method.Path)
 	}
@@ -246,18 +246,21 @@ func getHttpMethod(method string) string {
 	return strings.ToUpper(method)
 }
 
-func (routerNode *RouterNode) FindNearest(paths []string, method string) (*RouterNode, int) {
+func (routerNode *RouterNode) FindNearest(paths []string, method string, sortRouter bool) (*RouterNode, int) {
 	ns := len(paths)
 	cur := routerNode
 	i := 0
 	path := paths[i]
 	for j := 0; j < len(cur.Children); j++ {
 		c := cur.Children[j]
-		tmpMethod := ""
-		if i == ns { // group do not have http method
+		tmpMethod := "" // group do not have http method
+		if i == ns {    // only i==ns, the path is http method node
 			tmpMethod = method
 		}
-		if ("/"+path) == c.Path && strings.EqualFold(c.HttpMethod, tmpMethod) {
+		if ("/" + path) == c.Path {
+			if sortRouter && strings.EqualFold(c.HttpMethod, tmpMethod) {
+				continue
+			}
 			i++
 			if i == ns {
 				return cur, i - 1
