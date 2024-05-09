@@ -258,7 +258,7 @@ func (routerNode *RouterNode) FindNearest(paths []string, method string, sortRou
 			tmpMethod = method
 		}
 		if ("/" + path) == c.Path {
-			if sortRouter && strings.EqualFold(c.HttpMethod, tmpMethod) {
+			if sortRouter && !strings.EqualFold(c.HttpMethod, tmpMethod) {
 				continue
 			}
 			i++
