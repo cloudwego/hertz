@@ -236,6 +236,17 @@ type RequestContext struct {
 
 	binder    binding.Binder
 	validator binding.StructValidator
+	exiled    bool
+}
+
+// Exile marks this RequestContext as not to be recycled.
+// Experimental features: Use with caution, it may have a slight impact on performance.
+func (ctx *RequestContext) Exile() {
+	ctx.exiled = true
+}
+
+func (ctx *RequestContext) IsExiled() bool {
+	return ctx.exiled
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
