@@ -72,6 +72,7 @@ type Argument struct {
 	ForceNew             bool
 	SnakeStyleMiddleware bool
 	EnableExtends        bool
+	SortRouter           bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string

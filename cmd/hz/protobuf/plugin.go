@@ -621,6 +621,7 @@ func (plugin *Plugin) genHttpPackage(ast *descriptorpb.FileDescriptorProto, deps
 		BaseDomain:           args.BaseDomain,
 		QueryEnumAsInt:       args.QueryEnumAsInt,
 		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
+		SortRouter:           args.SortRouter,
 	}
 
 	if args.ModelBackend != "" {

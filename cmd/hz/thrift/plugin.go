@@ -152,6 +152,7 @@ func (plugin *Plugin) Run() int {
 		BaseDomain:           args.BaseDomain,
 		QueryEnumAsInt:       args.QueryEnumAsInt,
 		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
+		SortRouter:           args.SortRouter,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)

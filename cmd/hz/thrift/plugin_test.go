@@ -79,12 +79,21 @@ func TestRun(t *testing.T) {
 		HandlerDir: handlerDir,
 		RouterDir:  routerDir,
 		ModelDir:   modelDir,
+		UseDir:     args.Use,
 		ClientDir:  clientDir,
 		TemplateGenerator: generator.TemplateGenerator{
 			OutputDir: args.OutDir,
+			Excludes:  args.Excludes,
 		},
-		ProjPackage: pkg,
-		Options:     options,
+		ProjPackage:          pkg,
+		Options:              options,
+		HandlerByMethod:      args.HandlerByMethod,
+		CmdType:              args.CmdType,
+		ForceClientDir:       args.ForceClientDir,
+		BaseDomain:           args.BaseDomain,
+		QueryEnumAsInt:       args.QueryEnumAsInt,
+		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
+		SortRouter:           args.SortRouter,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)
