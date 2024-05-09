@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/go-tagexpr/v2 v2.9.2
 	github.com/bytedance/gopkg v0.0.0-20220413063733-65bf48ffb3a7
 	github.com/bytedance/mockey v1.2.1
-	github.com/bytedance/sonic v1.8.1
+	github.com/bytedance/sonic v1.10.0
 	github.com/cloudwego/netpoll v0.5.0
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/tidwall/gjson v1.14.4
