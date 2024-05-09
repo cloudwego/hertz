@@ -41,8 +41,10 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
   The Hertz-Examples repository provides code out of the box. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/example/)
 ### Basic Features
   Contains introduction and use of general middleware, context selection, data binding, data rendering, direct access, logging, error handling. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/basic-feature/)
+### Observability
+  Contains instrumentation, logging, tracing, monitoring, OpenTelemetry integration. [more](https://www.cloudwego.io/docs/hertz/tutorials/observability/)
 ### Service Governance
-  Contains tracer monitor. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+  Contains service registration and discovery extensions, Sentinel integration. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
 ### Framework Extension
   Contains network library extensions. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### Reference
@@ -51,10 +53,10 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
   Frequently Asked Questions. [more](https://www.cloudwego.io/zh/docs/hertz/faq/)
 ## Performance
   Performance testing can only provide a relative reference. In production, there are many factors that can affect actual performance.
-  We provide the hertz-benchmark project to track and compare the performance of Hertz and other frameworks in different situations for reference.
+  We provide the [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark) project to track and compare the performance of Hertz and other frameworks in different situations for reference.
 ## Related Projects
 - [Netpoll](https://github.com/cloudwego/netpoll): A high-performance network library. Hertz integrated by default.
-- [Hertz-Contrib](https://github.com/hertz-contrib): A partial extension library of Hertz, which users can integrate into Hertz through options according to their needs.
+- [Hertz-contrib](https://github.com/hertz-contrib): A partial extension library of Hertz, which users can integrate into Hertz through options according to their needs.
 - [Example](https://github.com/cloudwego/hertz-examples): Use examples of Hertz.
 ## Extensions
 
@@ -120,7 +122,7 @@ Thank you for your contribution to Hertz!
 ## Landscapes
 
 <p align="center">
-<img src="https://landscape.cncf.io/images/left-logo.svg" width="150"/>&nbsp;&nbsp;<img src="https://landscape.cncf.io/images/right-logo.svg" width="200"/>
+<img src="https://landscape.cncf.io/images/cncf-landscape-horizontal-color.svg" width="150"/>&nbsp;&nbsp;<img src="https://www.cncf.io/wp-content/uploads/2023/04/cncf-main-site-logo.svg" width="200"/>
 <br/><br/>
 CloudWeGo enriches the <a href="https://landscape.cncf.io/">CNCF CLOUD NATIVE Landscape</a>.
 </p>

@@ -35,7 +35,7 @@ func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 		return true
 	}
 	ct := bytesconv.B2s(req.Header.ContentType())
-	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+	if !strings.EqualFold(utils.FilterContentType(ct), consts.MIMEApplicationJSON) {
 		return false
 	}
 	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
@@ -59,4 +59,13 @@ func stringSliceForInterface(s string) (ret []interface{}) {
 		ret = append(ret, val)
 	}
 	return
+}
+
+func keyExist(req *protocol.Request, tagInfo TagInfo) bool {
+	ct := bytesconv.B2s(req.Header.ContentType())
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+		return false
+	}
+	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
+	return node.Exists()
 }

@@ -417,10 +417,11 @@ func TestBind_ZeroValueBind(t *testing.T) {
 
 func TestBind_DefaultValueBind(t *testing.T) {
 	var s struct {
-		A int      `default:"15"`
-		B float64  `query:"b" default:"17"`
-		C []int    `default:"15"`
-		D []string `default:"qwe"`
+		A int       `default:"15"`
+		B float64   `query:"b" default:"17"`
+		C []int     `default:"[15]"`
+		D []string  `default:"['qwe','asd']"`
+		F [2]string `default:"['qwe','asd','zxc']"`
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
@@ -432,7 +433,23 @@ func TestBind_DefaultValueBind(t *testing.T) {
 	assert.DeepEqual(t, 15, s.A)
 	assert.DeepEqual(t, float64(17), s.B)
 	assert.DeepEqual(t, 15, s.C[0])
+	assert.DeepEqual(t, 2, len(s.D))
 	assert.DeepEqual(t, "qwe", s.D[0])
+	assert.DeepEqual(t, "asd", s.D[1])
+	assert.DeepEqual(t, 2, len(s.F))
+	assert.DeepEqual(t, "qwe", s.F[0])
+	assert.DeepEqual(t, "asd", s.F[1])
+
+	var s2 struct {
+		F [2]string `default:"['qwe']"`
+	}
+	err = DefaultBinder().Bind(req.Req, &s2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 2, len(s2.F))
+	assert.DeepEqual(t, "qwe", s2.F[0])
+	assert.DeepEqual(t, "", s2.F[1])
 
 	var d struct {
 		D [2]string `default:"qwe"`
@@ -1547,6 +1564,74 @@ func TestBind_Issue1015(t *testing.T) {
 	assert.DeepEqual(t, 2, len(result.Children))
 	assert.Nil(t, result.Foo1.Foo1)
 	assert.DeepEqual(t, "asd", result.A)
+}
+
+func TestBind_JSONWithDefault(t *testing.T) {
+	type Req struct {
+		J1 string `json:"j1" default:"j1default"`
+	}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"j1":"j1"}`))
+	var result Req
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "j1", result.J1)
+
+	result = Req{}
+	req = newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"j2":"j2"}`))
+	err = DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "j1default", result.J1)
+}
+
+func TestBind_WithoutPreBindForTag(t *testing.T) {
+	type BaseQuery struct {
+		Action  string `query:"Action" binding:"required"`
+		Version string `query:"Version" binding:"required"`
+	}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetRequestURI("http://foobar.com/?Action=action&Version=version").
+		SetBody([]byte(``))
+
+	var result BaseQuery
+
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "action", result.Action)
+	assert.DeepEqual(t, "version", result.Version)
+}
+
+func TestBind_NormalizeContentType(t *testing.T) {
+	type BaseQuery struct {
+		Action  string `json:"action" binding:"required"`
+		Version string `json:"version" binding:"required"`
+	}
+
+	req := newMockRequest().
+		SetHeader("Content-Type", "ApplicAtion/json").
+		SetRequestURI("http://foobar.com/?Action=action&Version=version").
+		SetBody([]byte(`{"action":"action", "version":"version"}`))
+
+	var result BaseQuery
+
+	err := DefaultBinder().BindQuery(req.Req, &result)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "action", result.Action)
+	assert.DeepEqual(t, "version", result.Version)
 }
 
 func Benchmark_Binding(b *testing.B) {

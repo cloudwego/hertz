@@ -196,7 +196,10 @@ func formatAsDate(t time.Time) string {
 }
 
 // copied from router
-var default400Body = []byte("400 bad request")
+var (
+	default400Body   = []byte("400 bad request")
+	requiredHostBody = []byte("missing required Host header")
+)
 
 func TestServer_Use(t *testing.T) {
 	router := New()
@@ -284,6 +287,13 @@ func TestNotAbsolutePath(t *testing.T) {
 
 func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine := New(WithHostPorts("127.0.0.1:9991"), WithUseRawPath(true))
+	const (
+		MiddlewareKey   = "middleware_key"
+		MiddlewareValue = "middleware_value"
+	)
+	engine.Use(func(c context.Context, ctx *app.RequestContext) {
+		ctx.Response.Header.Set(MiddlewareKey, MiddlewareValue)
+	})
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 	})
 	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
@@ -301,6 +311,8 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine.ServeHTTP(context.Background(), ctx)
 	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
+	gh := ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
 
 	s = "POST a?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr = mock.NewZeroCopyReader(s)
@@ -312,6 +324,49 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine.ServeHTTP(context.Background(), ctx)
 	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
+	gh = ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
+}
+
+func TestNotValidHost(t *testing.T) {
+	engine := New(WithHostPorts("127.0.0.1:9992"))
+	const (
+		MiddlewareKey   = "middleware_key"
+		MiddlewareValue = "middleware_value"
+	)
+	engine.Use(func(c context.Context, ctx *app.RequestContext) {
+		ctx.Response.Header.Set(MiddlewareKey, MiddlewareValue)
+	})
+	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
+	})
+	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
+	})
+
+	s := "POST ?a=b HTTP/1.1\r\nHost: \r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+
+	ctx := app.NewContext(0)
+	if err := req.Read(&ctx.Request, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	engine.ServeHTTP(context.Background(), ctx)
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
+	assert.DeepEqual(t, requiredHostBody, ctx.Response.Body())
+	gh := ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
+
+	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr = mock.NewZeroCopyReader(s)
+
+	ctx = app.NewContext(0)
+	if err := req.Read(&ctx.Request, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	engine.ServeHTTP(context.Background(), ctx)
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
+	assert.DeepEqual(t, requiredHostBody, ctx.Response.Body())
+	gh = ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
 }
 
 func TestWithBasePath(t *testing.T) {
