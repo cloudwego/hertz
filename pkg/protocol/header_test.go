@@ -809,10 +809,10 @@ func TestResponseHeaderDateEmpty(t *testing.T) {
 
 func TestSetTrailerWithROString(t *testing.T) {
 	h := &RequestHeader{}
-	h.Set(consts.HeaderTrailer, "foo,bar,hertz")
+	h.Add(consts.HeaderTrailer, "foo,bar,hertz")
 	assert.DeepEqual(t, "Foo, Bar, Hertz", h.Get(consts.HeaderTrailer))
 
 	h1 := &ResponseHeader{}
-	h1.Set(consts.HeaderTrailer, "foo,bar,hertz")
+	h1.Add(consts.HeaderTrailer, "foo,bar,hertz")
 	assert.DeepEqual(t, "Foo, Bar, Hertz", h1.Get(consts.HeaderTrailer))
 }
