@@ -69,6 +69,7 @@ type HttpPackageGenerator struct {
 	NeedModel            bool
 	HandlerByMethod      bool // generate handler files with method dimension
 	SnakeStyleMiddleware bool // use snake name style for middleware
+	SortRouter           bool
 
 	loadedBackend   Backend
 	curModel        *model.Model
