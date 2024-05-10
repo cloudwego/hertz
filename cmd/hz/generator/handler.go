@@ -161,7 +161,7 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 			}
 			handler.Imports[mm.PackageName] = mm
 		}
-		err := root.Update(m, handler.PackageName, singleHandlerPackage)
+		err := root.Update(m, handler.PackageName, singleHandlerPackage, pkgGen.SortRouter)
 		if err != nil {
 			return err
 		}

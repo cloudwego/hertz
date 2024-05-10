@@ -87,7 +87,7 @@ func lookupFieldTags(field reflect.StructField, parentJSONName string, config *D
 			tagValue = field.Name
 		}
 		skip := false
-		jsonName := ""
+		jsonName := parentJSONName + "." + field.Name
 		if tag == jsonTag {
 			jsonName = parentJSONName + "." + tagValue
 		}
@@ -120,7 +120,7 @@ func lookupFieldTags(field reflect.StructField, parentJSONName string, config *D
 	return tagInfos, newParentJSONName, needValidate
 }
 
-func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
+func getDefaultFieldTags(field reflect.StructField, parentJSONName string) (tagInfos []TagInfo, newParentJSONName string) {
 	defaultVal := ""
 	if val, ok := field.Tag.Lookup(defaultTag); ok {
 		defaultVal = val
@@ -128,8 +128,10 @@ func getDefaultFieldTags(field reflect.StructField) (tagInfos []TagInfo) {
 
 	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, fileNameTag}
 	for _, tag := range tags {
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name, Default: defaultVal})
+		jsonName := strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name, Default: defaultVal, JSONName: jsonName})
 	}
+	newParentJSONName = strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
 
 	return
 }

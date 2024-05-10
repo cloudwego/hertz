@@ -20,10 +20,13 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
@@ -73,7 +76,7 @@ func (routerNode *RouterNode) Sort() {
 	sort.Sort(routerNode.Children)
 }
 
-func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg string) error {
+func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg string, sortRouter bool) error {
 	if method.Path == "" {
 		return fmt.Errorf("empty path for method '%s'", method.Name)
 	}
@@ -81,12 +84,12 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg
 	if paths[0] == "" {
 		paths = paths[1:]
 	}
-	parent, last := routerNode.FindNearest(paths)
+	parent, last := routerNode.FindNearest(paths, method.HTTPMethod, sortRouter)
 	if last == len(paths) {
 		return fmt.Errorf("path '%s' has been registered", method.Path)
 	}
 	name := util.ToVarName(paths[:last])
-	parent.Insert(name, method, handlerType, paths[last:], handlerPkg)
+	parent.Insert(name, method, handlerType, paths[last:], handlerPkg, sortRouter)
 	parent.Sort()
 	return nil
 }
@@ -192,7 +195,7 @@ func (routerNode *RouterNode) DFS(i int, hook func(layer int, node *RouterNode) 
 
 var handlerPkgMap map[string]string
 
-func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerType string, paths []string, handlerPkg string) {
+func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerType string, paths []string, handlerPkg string, sortRouter bool) {
 	cur := routerNode
 	for i, p := range paths {
 		c := &RouterNode{
@@ -229,6 +232,9 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 			cur.Children = make([]*RouterNode, 0, 1)
 		}
 		cur.Children = append(cur.Children, c)
+		if sortRouter {
+			sort.Sort(cur.Children)
+		}
 		cur = c
 	}
 }
@@ -240,14 +246,21 @@ func getHttpMethod(method string) string {
 	return strings.ToUpper(method)
 }
 
-func (routerNode *RouterNode) FindNearest(paths []string) (*RouterNode, int) {
+func (routerNode *RouterNode) FindNearest(paths []string, method string, sortRouter bool) (*RouterNode, int) {
 	ns := len(paths)
 	cur := routerNode
 	i := 0
 	path := paths[i]
 	for j := 0; j < len(cur.Children); j++ {
 		c := cur.Children[j]
+		tmpMethod := "" // group do not have http method
+		if i == ns {    // only i==ns, the path is http method node
+			tmpMethod = method
+		}
 		if ("/" + path) == c.Path {
+			if sortRouter && !strings.EqualFold(c.HttpMethod, tmpMethod) {
+				continue
+			}
 			i++
 			if i == ns {
 				return cur, i - 1
@@ -270,15 +283,33 @@ func (c childrenRouterInfo) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (c childrenRouterInfo) Less(i, j int) bool {
-	ci := c[i].Path
-	if len(c[i].Children) != 0 {
-		ci = ci[1:]
+	if c[i].HttpMethod == "" && c[j].HttpMethod != "" {
+		return false
 	}
-	cj := c[j].Path
-	if len(c[j].Children) != 0 {
-		cj = cj[1:]
+	if c[i].HttpMethod != "" && c[j].HttpMethod == "" {
+		return true
 	}
+	// remove non-litter char
+	// eg. /a -> a
+	//     /:a -> a
+	ci := removeNonLetterPrefix(c[i].Path)
+	cj := removeNonLetterPrefix(c[j].Path)
+
+	// if ci == cj, use HTTP mothod for sort, preventing sorting inconsistencies
+	if ci == cj {
+		return c[i].HttpMethod < c[j].HttpMethod
+	}
+
 	return ci < cj
+}
+
+func removeNonLetterPrefix(str string) string {
+	for i, char := range str {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			return str[i:]
+		}
+	}
+	return str
 }
 
 // Swap swaps the elements with indexes i and j.
@@ -341,6 +372,29 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	return nil
 }
 
+func appendMw(mws []string, mw string) ([]string, string) {
+	for i := 0; true; i++ {
+		if i == math.MaxInt {
+			break
+		}
+		if !stringsIncludes(mws, mw) {
+			mws = append(mws, mw)
+			break
+		}
+		mw += strconv.Itoa(i)
+	}
+	return mws, mw
+}
+
+func stringsIncludes(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
 func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode, handlerPackage, routerDir, routerPackage string) error {
 	err := root.DyeGroupName(pkgGen.SnakeStyleMiddleware)
 	if err != nil {
@@ -365,6 +419,31 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 		}
 		root.DFS(0, hook)
 		router.HandlerPackages = handlerMap
+	}
+
+	if pkgGen.SnakeStyleMiddleware { // unique middleware name for SnakeStyleMiddleware
+		mws := []string{}
+		hook := func(layer int, node *RouterNode) error {
+			if len(node.Children) == 0 {
+				return nil
+			}
+			groupMwName := node.GroupMiddleware
+			handlerMwName := node.HandlerMiddleware
+			if len(groupMwName) != 0 {
+				mws, groupMwName = appendMw(mws, groupMwName)
+			}
+			if len(handlerMwName) != 0 {
+				mws, handlerMwName = appendMw(mws, handlerMwName)
+			}
+			if groupMwName != node.GroupMiddleware {
+				node.GroupMiddleware = groupMwName
+			}
+			if handlerMwName != node.HandlerMiddleware {
+				node.HandlerMiddleware = handlerMwName
+			}
+			return nil
+		}
+		root.DFS(0, hook)
 	}
 
 	// store router info

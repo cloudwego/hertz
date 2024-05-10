@@ -114,9 +114,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	defer func() {
 		if s.EnableTrace {
-			if shouldRecordInTraceError(err) {
-				ctx.GetTraceInfo().Stats().SetError(err)
-			}
 			// in case of error, we need to trigger all events
 			if eventsToTrigger != nil {
 				for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
@@ -124,8 +121,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				}
 				s.eventStackPool.Put(eventsToTrigger)
 			}
-
-			traceCtl.DoFinish(cc, ctx, err)
+			if shouldRecordInTraceError(err) {
+				traceCtl.DoFinish(cc, ctx, err)
+			} else {
+				traceCtl.DoFinish(cc, ctx, nil)
+			}
 		}
 
 		// Hijack may release and close the connection already
@@ -133,6 +133,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			zr.Release() //nolint:errcheck
 			zr = nil
 		}
+
+		if ctx.IsExiled() {
+			return
+		}
+
 		ctx.Reset()
 		s.Core.GetCtxPool().Put(ctx)
 	}()
@@ -384,7 +389,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 		// general case
 		if s.EnableTrace {
-			traceCtl.DoFinish(cc, ctx, err)
+			if shouldRecordInTraceError(err) {
+				traceCtl.DoFinish(cc, ctx, err)
+			} else {
+				traceCtl.DoFinish(cc, ctx, nil)
+			}
 		}
 
 		ctx.ResetWithoutConn()
