@@ -402,7 +402,7 @@ func TestNotEnoughBodySize(t *testing.T) {
 }
 
 func TestEnoughBodySize(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8892"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8894"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
@@ -411,7 +411,8 @@ func TestEnoughBodySize(t *testing.T) {
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, _ := http.Post("http://127.0.0.1:8892/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post("http://127.0.0.1:8842/test", "application/x-www-form-urlencoded", body)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
