@@ -411,7 +411,7 @@ func TestEnoughBodySize(t *testing.T) {
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, err := http.Post("http://127.0.0.1:8842/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post("http://127.0.0.1:8894/test", "application/x-www-form-urlencoded", body)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
