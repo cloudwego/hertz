@@ -63,7 +63,7 @@ type HttpPackageGenerator struct {
 	IdlClientDir   string // client dir for "client" command
 	ForceClientDir string // client dir without namespace for "client" command
 	BaseDomain     string // request domain for "client" command
-	QueryEnumAsInt bool // client code use number for query parameter
+	QueryEnumAsInt bool   // client code use number for query parameter
 	ServiceGenDir  string
 
 	NeedModel            bool
