@@ -63,8 +63,13 @@ type argsScanner struct {
 type Args struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
-	args []argsKV
-	buf  []byte
+	args         []argsKV
+	buf          []byte
+	disableReuse bool
+}
+
+func (a *Args) SetDisableReuseArgs(b bool) {
+	a.disableReuse = b
 }
 
 // Set sets 'key=value' argument.
@@ -74,6 +79,9 @@ func (a *Args) Set(key, value string) {
 
 // Reset clears query args.
 func (a *Args) Reset() {
+	if a.disableReuse {
+		a.args = []argsKV{}
+	}
 	a.args = a.args[:0]
 }
 
