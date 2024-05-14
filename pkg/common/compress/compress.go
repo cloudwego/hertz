@@ -48,6 +48,9 @@ import (
 	"io"
 	"sync"
 
+	"github.com/intel/fastgo"
+	igzip "github.com/intel/fastgo/compress/gzip"
+
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/stackless"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -56,7 +59,10 @@ import (
 
 const CompressDefaultCompression = 6 // flate.DefaultCompression
 
-var gzipReaderPool sync.Pool
+var (
+	readerPool     sync.Pool
+	gzipReaderPool sync.Pool
+)
 
 var (
 	stacklessGzipWriterPoolMap = newCompressWriterPoolMap()
@@ -73,6 +79,13 @@ func newCompressWriterPoolMap() []*sync.Pool {
 		m = append(m, &sync.Pool{})
 	}
 	return m
+}
+
+type Writer = stackless.Writer
+
+type Reader interface {
+	Reset(io.Reader) error
+	io.ReadCloser
 }
 
 type compressCtx struct {
@@ -101,13 +114,13 @@ func (w *byteSliceWriter) Write(p []byte) (int, error) {
 // bytes written to w.
 func WriteGunzip(w io.Writer, p []byte) (int, error) {
 	r := &byteSliceReader{p}
-	zr, err := AcquireGzipReader(r)
+	zr, err := acquireGzipReader(r)
 	if err != nil {
 		return 0, err
 	}
 	zw := network.NewWriter(w)
 	n, err := utils.CopyZeroAlloc(zw, zr)
-	ReleaseGzipReader(zr)
+	releaseGzipReader(zr)
 	nn := int(n)
 	if int64(nn) != n {
 		return 0, fmt.Errorf("too much data gunzipped: %d", n)
@@ -126,6 +139,27 @@ func (r *byteSliceReader) Read(p []byte) (int, error) {
 	n := copy(p, r.b)
 	r.b = r.b[n:]
 	return n, nil
+}
+
+func acquireGzipReader(r io.Reader) (Reader, error) {
+	v := readerPool.Get()
+	if v == nil {
+		if fastgo.Optimized() {
+			return igzip.NewReader(r)
+		}
+
+		return gzip.NewReader(r)
+	}
+	zr := v.(Reader)
+	if err := zr.Reset(r); err != nil {
+		return nil, err
+	}
+	return zr, nil
+}
+
+func releaseGzipReader(zr Reader) {
+	zr.Close()
+	readerPool.Put(zr)
 }
 
 func AcquireGzipReader(r io.Reader) (*gzip.Reader, error) {
@@ -180,25 +214,31 @@ func nonblockingWriteGzip(ctxv interface{}) {
 	releaseRealGzipWriter(zw, ctx.level)
 }
 
-func releaseRealGzipWriter(zw *gzip.Writer, level int) {
+func releaseRealGzipWriter(zw Writer, level int) {
 	zw.Close()
 	nLevel := normalizeCompressLevel(level)
 	p := realGzipWriterPoolMap[nLevel]
 	p.Put(zw)
 }
 
-func acquireRealGzipWriter(w io.Writer, level int) *gzip.Writer {
+func acquireRealGzipWriter(w io.Writer, level int) Writer {
 	nLevel := normalizeCompressLevel(level)
 	p := realGzipWriterPoolMap[nLevel]
 	v := p.Get()
 	if v == nil {
-		zw, err := gzip.NewWriterLevel(w, level)
+		var zw Writer
+		var err error
+		if fastgo.Optimized() && level <= 2 {
+			zw, err = igzip.NewWriterLevel(w, level)
+		} else {
+			zw, err = gzip.NewWriterLevel(w, level)
+		}
 		if err != nil {
 			panic(fmt.Sprintf("BUG: unexpected error from gzip.NewWriterLevel(%d): %s", level, err))
 		}
 		return zw
 	}
-	zw := v.(*gzip.Writer)
+	zw := v.(Writer)
 	zw.Reset(w)
 	return zw
 }

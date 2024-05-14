@@ -29,6 +29,10 @@ github.com/henrylee2cn/ameda v1.4.10 h1:JdvI2Ekq7tapdPsuhrc4CaFiqw6QXFvZIULWJgQy
 github.com/henrylee2cn/ameda v1.4.10/go.mod h1:liZulR8DgHxdK+MEwvZIylGnmcjzQ6N6f2PlWe7nEO4=
 github.com/henrylee2cn/goutil v0.0.0-20210127050712-89660552f6f8 h1:yE9ULgp02BhYIrO6sdV/FPe0xQM6fNHkVQW2IAymfM0=
 github.com/henrylee2cn/goutil v0.0.0-20210127050712-89660552f6f8/go.mod h1:Nhe/DM3671a5udlv2AdV2ni/MZzgfv2qrPL5nIi3EGQ=
+github.com/intel/fastgo v0.0.0-20240326175205-0352400733f3 h1:eEsgV+WoiMJxGG2N9eAxI84oTNLthoy89ALRqKvyWcU=
+github.com/intel/fastgo v0.0.0-20240326175205-0352400733f3/go.mod h1:pIC/1aq2eXDAGL94kqGpKGdYgexgzArnqiixeDyiCg0=
+github.com/intel/fastgo v1.0.0 h1:Nk/mUrJthg0tKXVC9CK6ssza8FBIHRHDl9DfjHWzd5U=
+github.com/intel/fastgo v1.0.0/go.mod h1:pIC/1aq2eXDAGL94kqGpKGdYgexgzArnqiixeDyiCg0=
 github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7C0MuV77Wo=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/klauspost/cpuid/v2 v2.0.9 h1:lgaqFMSdTdQYdZ04uHyN2d/eKdOMyi2YLSvlQIBFYa4=
