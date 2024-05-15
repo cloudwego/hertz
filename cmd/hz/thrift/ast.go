@@ -281,7 +281,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 
 		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
 			hasAnnotation = true
-			path := checkSnakeName(anno[0])
+			path := anno[0]
 			if isStringFieldType {
 				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", path, field.GoName().String())
 			} else {
@@ -291,7 +291,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 
 		if anno := getAnnotation(field.Annotations, AnnotationHeader); len(anno) > 0 {
 			hasAnnotation = true
-			header := checkSnakeName(anno[0])
+			header := anno[0]
 			if isStringFieldType {
 				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", header, field.GoName().String())
 			} else {
@@ -317,7 +317,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 
 		if anno := getAnnotation(field.Annotations, AnnotationFileName); len(anno) > 0 {
 			hasAnnotation = true
-			fileName := checkSnakeName(anno[0])
+			fileName := anno[0]
 			hasFormAnnotation = true
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
 		}
