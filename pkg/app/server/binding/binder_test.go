@@ -466,10 +466,14 @@ func TestBind_RequiredBind(t *testing.T) {
 		A int `query:"a,required"`
 	}
 	req := newMockRequest().
+		SetRequestURI("http://foobar.com")
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
+
+	req = newMockRequest().
 		SetRequestURI("http://foobar.com").
 		SetHeader("A", "1")
-
-	err := DefaultBinder().Bind(req.Req, &s, nil)
+	err = DefaultBinder().Bind(req.Req, &s, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
