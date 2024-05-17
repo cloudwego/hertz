@@ -908,6 +908,7 @@ func TestBind_JSONRequiredField(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected an error, but get nil")
 	}
+	assert.DeepEqual(t, "'c' field is a 'required' parameter, but the request body does not have this parameter 'n.n2.c'", err.Error())
 	assert.DeepEqual(t, 1, result.N.A)
 	assert.DeepEqual(t, 2, result.N.B)
 	assert.DeepEqual(t, 0, result.N.N2.C)
@@ -1496,6 +1497,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
 
 	type TestValidate struct {
 		B int `query:"b" vd:"$>100"`
