@@ -36,11 +36,13 @@ func init() {
 	netpoll.SetLoggerOutput(io.Discard)
 }
 
-type ctxCancelKey struct{}
+type ctxCancelKeyStruct struct{}
+
+var ctxCancelKey = ctxCancelKeyStruct{}
 
 func cancelContext(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
-	ctx = context.WithValue(ctx, ctxCancelKey{}, cancel)
+	ctx = context.WithValue(ctx, ctxCancelKey, cancel)
 	return ctx
 }
 
@@ -117,7 +119,7 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 
 	if t.senseClientDisconnection {
 		opts = append(opts, netpoll.WithOnDisconnect(func(ctx context.Context, connection netpoll.Connection) {
-			cancelFunc, ok := ctx.Value(ctxCancelKey{}).(context.CancelFunc)
+			cancelFunc, ok := ctx.Value(ctxCancelKey).(context.CancelFunc)
 			if cancelFunc != nil && ok {
 				cancelFunc()
 			}
