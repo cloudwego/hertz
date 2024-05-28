@@ -6,7 +6,7 @@ jobs:
   compat-test:
     strategy:
       matrix:
-        version: ["1.16", "1.17"]
+        version: ["1.16", "1.17", "1.18"]
     runs-on: [self-hosted, X64]
     steps:
       - uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
   lint-and-ut:
     strategy:
       matrix:
-        version: ["1.18", "1.19", "1.20"]
+        version: ["1.19", "1.20", "1.21"]
     runs-on: [self-hosted, X64]
     steps:
       - uses: actions/checkout@v3
@@ -48,7 +48,7 @@ jobs:
   ut-windows:
     strategy:
       matrix:
-        version: ["1.18", "1.19", "1.20"]
+        version: ["1.19", "1.20", "1.21"]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
@@ -64,7 +64,7 @@ jobs:
   hz-test-unix:
     strategy:
       matrix:
-        version: [ '1.20' ]
+        version: [ "1.21" ]
     runs-on: [ self-hosted, X64 ]
     steps:
       - uses: actions/checkout@v3
@@ -93,7 +93,7 @@ jobs:
   hz-test-windows:
     strategy:
       matrix:
-        version: [ '1.20']
+        version: [ "1.21" ]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3

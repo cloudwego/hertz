@@ -218,28 +218,28 @@ func Test_getServerName(t *testing.T) {
 }
 
 func TestServer_Run(t *testing.T) {
-	hertz := New(WithHostPorts("127.0.0.1:8888"))
+	hertz := New(WithHostPorts("127.0.0.1:8899"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
 	hertz.POST("/redirect", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8888/test"))
+		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8899/test"))
 	})
 	go hertz.Run()
 	time.Sleep(100 * time.Microsecond)
-	resp, err := http.Get("http://127.0.0.1:8888/test")
+	resp, err := http.Get("http://127.0.0.1:8899/test")
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 5)
 	resp.Body.Read(b)
 	assert.DeepEqual(t, "/test", string(b))
 
-	resp, err = http.Get("http://127.0.0.1:8888/foo")
+	resp, err = http.Get("http://127.0.0.1:8899/foo")
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode)
 
-	resp, err = http.Post("http://127.0.0.1:8888/redirect", "", nil)
+	resp, err = http.Post("http://127.0.0.1:8899/redirect", "", nil)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b = make([]byte, 5)
@@ -402,7 +402,7 @@ func TestNotEnoughBodySize(t *testing.T) {
 }
 
 func TestEnoughBodySize(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8892"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8894"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
@@ -411,7 +411,8 @@ func TestEnoughBodySize(t *testing.T) {
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, _ := http.Post("http://127.0.0.1:8892/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post("http://127.0.0.1:8894/test", "application/x-www-form-urlencoded", body)
+	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
