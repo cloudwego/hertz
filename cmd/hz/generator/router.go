@@ -225,6 +225,11 @@ func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerTyp
 				method.RefPackageAlias = c.HandlerPackageAlias
 			} else { // generate handler by service
 				c.Handler = handlerType + "." + method.Name
+				if len(method.RefPackage) != 0 {
+					c.Handler = method.RefPackageAlias + "." + method.Name
+					c.HandlerPackageAlias = method.RefPackageAlias
+					c.HandlerPackage = method.RefPackage
+				}
 			}
 			c.HttpMethod = getHttpMethod(method.HTTPMethod)
 		}
@@ -409,15 +414,15 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 		Router: root,
 	}
 
-	if pkgGen.HandlerByMethod {
-		handlerMap := make(map[string]string, 1)
-		hook := func(layer int, node *RouterNode) error {
-			if len(node.HandlerPackage) != 0 {
-				handlerMap[node.HandlerPackageAlias] = node.HandlerPackage
-			}
-			return nil
+	handlerMap := make(map[string]string)
+	hook := func(layer int, node *RouterNode) error {
+		if len(node.HandlerPackage) != 0 {
+			handlerMap[node.HandlerPackageAlias] = node.HandlerPackage
 		}
-		root.DFS(0, hook)
+		return nil
+	}
+	root.DFS(0, hook)
+	if len(handlerMap) != 0 {
 		router.HandlerPackages = handlerMap
 	}
 
