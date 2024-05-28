@@ -46,6 +46,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/intel/fastgo"
@@ -56,6 +58,14 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 )
+
+var fastgoEnable bool
+
+func init() {
+	if fastgo.Optimized() {
+		fastgoEnable, _ = strconv.ParseBool(os.Getenv("HERTZ_EXP_FASTGO_ENABLE"))
+	}
+}
 
 const CompressDefaultCompression = 6 // flate.DefaultCompression
 
@@ -144,7 +154,7 @@ func (r *byteSliceReader) Read(p []byte) (int, error) {
 func acquireGzipReader(r io.Reader) (Reader, error) {
 	v := readerPool.Get()
 	if v == nil {
-		if fastgo.Optimized() {
+		if fastgoEnable {
 			return igzip.NewReader(r)
 		}
 
@@ -228,7 +238,7 @@ func acquireRealGzipWriter(w io.Writer, level int) Writer {
 	if v == nil {
 		var zw Writer
 		var err error
-		if fastgo.Optimized() && level <= 2 {
+		if fastgoEnable && level <= 2 {
 			zw, err = igzip.NewWriterLevel(w, level)
 		} else {
 			zw, err = gzip.NewWriterLevel(w, level)
