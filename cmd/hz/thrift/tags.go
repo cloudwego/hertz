@@ -58,6 +58,8 @@ const (
 	ApiPath       = "api.path"
 	ApiSerializer = "api.serializer"
 	ApiGenPath    = "api.handler_path"
+
+	BizServiceFile = "biz.service_file"
 )
 
 const (
@@ -140,6 +142,19 @@ func getAnnotation(input parser.Annotations, target string) []string {
 	}
 
 	return []string{}
+}
+
+func getAnnotationV2(input parser.Annotations, target, defaultRes string) string {
+	if len(input) == 0 {
+		return defaultRes
+	}
+	for _, anno := range input {
+		if strings.ToLower(anno.Key) == target {
+			return anno.Values[0]
+		}
+	}
+
+	return defaultRes
 }
 
 type httpAnnotation struct {

@@ -68,6 +68,7 @@ type HttpPackageGenerator struct {
 
 	NeedModel            bool
 	HandlerByMethod      bool // generate handler files with method dimension
+	GenBizService        bool
 	SnakeStyleMiddleware bool // use snake name style for middleware
 	SortRouter           bool
 
@@ -183,8 +184,18 @@ func (pkgGen *HttpPackageGenerator) Generate(pkg *HttpPackage) error {
 	handlerPackage := util.SubPackage(pkgGen.ProjPackage, handlerDir)
 	routerDir := util.SubDir(pkgGen.RouterDir, pkg.Package)
 	routerPackage := util.SubPackage(pkgGen.ProjPackage, routerDir)
-
 	root := NewRouterTree()
+
+	//if pkgGen.GenBizService {
+	//	if err := pkgGen.genBizService(pkg, root); err != nil {
+	//		return err
+	//	}
+	//}
+
+	if err := pkgGen.genBizService(pkg, root); err != nil {
+		return err
+	}
+
 	if err := pkgGen.genHandler(pkg, handlerDir, handlerPackage, root); err != nil {
 		return err
 	}

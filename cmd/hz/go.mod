@@ -7,6 +7,7 @@ require (
 	github.com/cloudwego/thriftgo v0.1.7
 	github.com/hashicorp/go-version v1.5.0
 	github.com/jhump/protoreflect v1.12.0
+	github.com/json-iterator/go v1.1.12
 	github.com/urfave/cli/v2 v2.23.0
 	golang.org/x/tools v0.4.0
 	google.golang.org/protobuf v1.28.0

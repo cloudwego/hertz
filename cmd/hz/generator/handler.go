@@ -19,7 +19,9 @@ package generator
 import (
 	"bytes"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"io/ioutil"
+	os_path "path"
 	"path/filepath"
 	"strings"
 
@@ -47,6 +49,9 @@ type HttpMethod struct {
 	GenHandler         bool // Whether to generate one handler, when an idl interface corresponds to multiple http method
 	// Annotations     map[string]string
 	Models map[string]*model.Model
+
+	BizServicePath    string
+	BizServiceImports [2]string
 }
 
 type Handler struct {
@@ -270,6 +275,92 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 	return nil
 }
 
+func (pkgGen *HttpPackageGenerator) updateBizService(bizService interface{}, serviceTpl, filePath string, noRepeat bool) error {
+	if pkgGen.tplsInfo[serviceTpl].Disable {
+		return nil
+	}
+	isExist, err := util.PathExist(filePath)
+	if err != nil {
+		return err
+	}
+	if !isExist {
+		return pkgGen.TemplateGenerator.Generate(bizService, serviceTpl, filePath, noRepeat)
+	}
+
+	file, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	// insert new model imports
+	for alias, model := range bizService.(Handler).Imports {
+		if bytes.Contains(file, []byte(model.Package)) {
+			continue
+		}
+		file, err = util.AddImportForContent(file, alias, model.Package)
+		if err != nil {
+			return err
+		}
+	}
+	// insert customized imports
+	if tplInfo, exist := pkgGen.TemplateGenerator.tplsInfo[serviceTpl]; exist {
+		if len(tplInfo.UpdateBehavior.ImportTpl) != 0 {
+			imptSlice, err := getInsertImportContent(tplInfo, bizService, file)
+			if err != nil {
+				return err
+			}
+			for _, impt := range imptSlice {
+				if bytes.Contains(file, []byte(impt[1])) {
+					continue
+				}
+				file, err = util.AddImportForContent(file, impt[0], impt[1])
+				if err != nil {
+					logs.Warnf("can not add import(%s) for file(%s), err: %v\n", impt[1], filePath, err)
+				}
+			}
+		}
+	}
+
+	// insert new handler
+	for _, method := range bizService.(Handler).Methods {
+		if bytes.Contains(file, []byte(fmt.Sprintf("func %s(", method.Name))) {
+			continue
+		}
+
+		// Generate additional handlers using templates
+		handlerSingleTpl := pkgGen.tpls[bizServiceSingleTplName]
+		if handlerSingleTpl == nil {
+			return fmt.Errorf("tpl %s not found", bizServiceSingleTplName)
+		}
+		data := SingleHandler{
+			HttpMethod:  method,
+			FilePath:    bizService.(Handler).FilePath,
+			PackageName: bizService.(Handler).PackageName,
+			ProjPackage: bizService.(Handler).ProjPackage,
+		}
+		bizServiceFunc := bytes.NewBuffer(nil)
+		err = handlerSingleTpl.Execute(bizServiceFunc, data)
+		if err != nil {
+			return fmt.Errorf("execute template \"%s\" failed, %v", bizServiceSingleTplName, err)
+		}
+
+		buf := bytes.NewBuffer(nil)
+		_, err = buf.Write(file)
+		if err != nil {
+			return fmt.Errorf("write handlerSingle \"%s\" failed, %v", method.Name, err)
+		}
+		_, err = buf.Write(bizServiceFunc.Bytes())
+		if err != nil {
+			return fmt.Errorf("write handlerSingle \"%s\" failed, %v", method.Name, err)
+		}
+		file = buf.Bytes()
+	}
+
+	pkgGen.files = append(pkgGen.files, File{filePath, string(file), noRepeat, ""})
+
+	return nil
+}
+
 func (pkgGen *HttpPackageGenerator) updateClient(client interface{}, clientTpl, filePath string, noRepeat bool) error {
 	isExist, err := util.PathExist(filePath)
 	if err != nil {
@@ -280,6 +371,89 @@ func (pkgGen *HttpPackageGenerator) updateClient(client interface{}, clientTpl, 
 	}
 	logs.Infof("Client file:%s has been generated, so don't update it", filePath)
 
+	return nil
+}
+
+func (pkgGen *HttpPackageGenerator) genBizService(pkg *HttpPackage, root *RouterNode) error {
+	for _, s := range pkg.Services {
+		var handler Handler
+		if pkgGen.HandlerByMethod { // generate handler by method
+
+		} else { // generate handler service
+
+			bizServiceMap := make(map[string][]*HttpMethod)
+			for _, m := range s.Methods {
+				if bizServiceMap[m.BizServicePath] == nil {
+					bizServiceMap[m.BizServicePath] = make([]*HttpMethod, 0)
+				}
+				newHttpMethod := &HttpMethod{}
+				json, _ := jsoniter.Marshal(m)
+				_ = jsoniter.Unmarshal(json, newHttpMethod)
+				bizServiceMap[m.BizServicePath] = append(bizServiceMap[m.BizServicePath], newHttpMethod)
+			}
+
+			for bizServicePath, methodsList := range bizServiceMap {
+				tmpHandlerDir := bizServicePath
+				tmpHandlerPackage := os_path.Base(os_path.Dir(bizServicePath))
+
+				handler = Handler{
+					FilePath:    tmpHandlerDir,
+					PackageName: util.SplitPackage(tmpHandlerPackage, ""),
+					Methods:     methodsList,
+					ProjPackage: pkgGen.ProjPackage,
+					Imports:     make(map[string]*model.Model, len(handler.Methods)),
+				}
+
+				//for _, m := range methodsList {
+				//	m.RefPackage = tmpHandlerPackage
+				//	m.RefPackageAlias = util.BaseName(tmpHandlerPackage, "")
+				//}
+
+				for _, m := range methodsList {
+					// Iterate over the request and return parameters of the method to get import path.
+					for key, mm := range m.Models {
+						if v, ok := handler.Imports[mm.PackageName]; ok && v.Package != mm.Package {
+							handler.Imports[key] = mm
+							continue
+						}
+						handler.Imports[mm.PackageName] = mm
+					}
+				}
+
+				//if err := pkgGen.processHandler(&handler, root, "", "", false); err != nil {
+				//	return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+				//}
+
+				// Avoid generating duplicate handlers when IDL interface corresponds to multiple http methods
+				methods := handler.Methods
+				handler.Methods = []*HttpMethod{}
+				for _, m := range methods {
+					if m.GenHandler {
+						handler.Methods = append(handler.Methods, m)
+					}
+				}
+
+				if err := pkgGen.updateBizService(handler, bizServiceTplName, handler.FilePath, false); err != nil {
+					return fmt.Errorf("generate handler %s failed, err: %v", handler.FilePath, err.Error())
+				}
+			}
+
+		}
+
+		if len(pkgGen.ClientDir) != 0 {
+			clientDir := util.SubDir(pkgGen.ClientDir, pkg.Package)
+			clientPackage := util.SubPackage(pkgGen.ProjPackage, clientDir)
+			client := Client{}
+			client.Handler = handler
+			client.ServiceName = s.Name
+			client.PackageName = util.SplitPackage(clientPackage, "")
+			client.FilePath = filepath.Join(clientDir, util.ToSnakeCase(s.Name)+".go")
+			if err := pkgGen.updateClient(client, clientTplName, client.FilePath, false); err != nil {
+				return fmt.Errorf("generate client %s failed, err: %v", client.FilePath, err.Error())
+			}
+		}
+
+	}
 	return nil
 }
 

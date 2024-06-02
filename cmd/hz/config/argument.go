@@ -78,6 +78,8 @@ type Argument struct {
 	CustomizeLayoutData string
 	CustomizePackage    string
 	ModelBackend        string
+
+	GenBizService bool
 }
 
 func NewArgument() *Argument {

@@ -18,6 +18,7 @@ package thrift
 
 import (
 	"fmt"
+	os_path "path"
 	"sort"
 	"strings"
 
@@ -104,6 +105,9 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 		if len(servicePathAnno) > 0 {
 			servicePath = servicePathAnno[0]
 		}
+
+		bizServiceImportAs := map[string]string{}
+
 		for _, m := range ms {
 			rs := getAnnotations(m.Annotations, HttpMethodAnnotations)
 			if len(rs) == 0 {
@@ -187,6 +191,20 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				GenHandler:         true,
 				// Annotations:     m.Annotations,
 			}
+
+			bizServicePath := getAnnotationV2(m.Annotations, BizServiceFile, "biz/service/default_service.go")
+
+			alias := os_path.Base(os_path.Dir(bizServicePath))
+
+			index := 0
+			for bPath := bizServiceImportAs[alias]; len(bPath) != 0 && bizServicePath != bPath; {
+				index++
+				alias = fmt.Sprintf("%s%d", alias, index)
+			}
+			bizServiceImportAs[alias] = bizServicePath
+			method.BizServiceImports = [2]string{alias, os_path.Dir(bizServicePath)}
+			method.BizServicePath = bizServicePath
+
 			refs := resolver.ExportReferred(false, true)
 			method.Models = make(map[string]*model.Model, len(refs))
 			for _, ref := range refs {

@@ -28,6 +28,9 @@ var (
 	hertzClientTplName      = "hertz_client.go" // underlying client for client command
 	idlClientName           = "idl_client.go"   // client of service for quick call
 
+	bizServiceTplName       = "biz_service.go"
+	bizServiceSingleTplName = "biz_service_single.go"
+
 	insertPointNew        = "//INSERT_POINT: DO NOT DELETE THIS LINE!"
 	insertPointPatternNew = `//INSERT_POINT\: DO NOT DELETE THIS LINE\!`
 )
@@ -43,6 +46,8 @@ var templateNameSet = map[string]string{
 	clientTplName:           clientTplName,
 	hertzClientTplName:      hertzClientTplName,
 	idlClientName:           idlClientName,
+	bizServiceTplName:       bizServiceTplName,
+	bizServiceSingleTplName: bizServiceSingleTplName,
 }
 
 func IsDefaultPackageTpl(name string) bool {

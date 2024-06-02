@@ -400,6 +400,11 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 	if err != nil {
 		return err
 	}
+
+	if !pkgGen.HandlerByMethod && len(pkg.Services) > 0 && len(pkg.Services[0].ServiceGenDir) != 0 {
+		handlerPackage = util.SubPackage(pkgGen.ProjPackage, pkg.Services[0].ServiceGenDir)
+	}
+
 	router := Router{
 		FilePath:    filepath.Join(routerDir, util.BaseNameAndTrim(pkg.IdlName)+".go"),
 		PackageName: filepath.Base(routerDir),
