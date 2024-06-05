@@ -29,11 +29,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
-const (
-	transportAlive    int32 = 0
-	transportShutdown int32 = 1
-)
-
 type transport struct {
 	// Per-connection buffer size for requests' reading.
 	// This also limits the maximum header size.
@@ -42,7 +37,7 @@ type transport struct {
 	// and/or multi-KB headers (for example, BIG cookies).
 	//
 	// Default buffer size is used if not set.
-	isCallShutDown   int32
+	isShutDown       atomic.Bool
 	readBufferSize   int
 	network          string
 	addr             string
@@ -75,7 +70,7 @@ func (t *transport) serve() (err error) {
 		conn, err := t.ln.Accept()
 		var c network.Conn
 		if err != nil {
-			if !t.IsCallShutdown() {
+			if !t.isCallShutdown() {
 				hlog.SystemLogger().Errorf("Error=%s", err.Error())
 				return err
 			}
@@ -110,12 +105,12 @@ func (t *transport) Close() error {
 	return t.Shutdown(ctx)
 }
 
-func (t *transport) IsCallShutdown() bool {
-	return atomic.LoadInt32(&t.isCallShutDown) == transportShutdown
+func (t *transport) isCallShutdown() bool {
+	return t.isShutDown.Load()
 }
 
 func (t *transport) Shutdown(ctx context.Context) error {
-	atomic.StoreInt32(&t.isCallShutDown, transportShutdown)
+	t.isShutDown.Store(true)
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
