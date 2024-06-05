@@ -324,7 +324,6 @@ type Option struct {
 
 type Options struct {
 	hostUrl               string
-	enumAsInt             bool
 	doer                  client.Doer
 	header                http.Header
 	requestBodyBind       bindRequestBodyFunc
@@ -376,13 +375,6 @@ func WithResponseResultDecider(decider ResponseResultDecider) Option {
 	}}
 }
 
-// WithQueryEnumAsInt is used to set enum as int for query parameters
-func WithQueryEnumAsInt(enable bool) Option {
-	return Option{func(op *Options) {
-		op.enumAsInt = enable
-	}}
-}
-
 func withHostUrl(HostUrl string) Option {
 	return Option{func(op *Options) {
 		op.hostUrl = HostUrl
@@ -392,7 +384,6 @@ func withHostUrl(HostUrl string) Option {
 // underlying client
 type cli struct {
 	hostUrl               string
-	enumAsInt             bool
 	doer                  client.Doer
 	header                http.Header
 	bindRequestBody       bindRequestBodyFunc
@@ -428,7 +419,6 @@ func newClient(opts *Options) (*cli, error) {
 
 	c := &cli{
 		hostUrl:               opts.hostUrl,
-		enumAsInt:             opts.enumAsInt,
 		doer:                  opts.doer,
 		header:                opts.header,
 		bindRequestBody:       opts.requestBodyBind,
@@ -505,12 +495,13 @@ func (c *cli) execute(req *request) (*response, error) {
 // r get request
 func (c *cli) r() *request {
 	return &request{
-		queryParam: url.Values{},
-		header:     http.Header{},
-		pathParam:  map[string]string{},
-		formParam:  map[string]string{},
-		fileParam:  map[string]string{},
-		client:     c,
+		queryParam:     url.Values{},
+		header:         http.Header{},
+		pathParam:      map[string]string{},
+		formParam:      map[string]string{},
+		fileParam:      map[string]string{},
+		client:         c,
+		queryEnumAsInt: {{.Config.QueryEnumAsInt}},
 	}
 }
 
@@ -556,6 +547,7 @@ type request struct {
 	client         *cli
 	url            string
 	method         string
+	queryEnumAsInt bool
 	queryParam     url.Values
 	header         http.Header
 	pathParam      map[string]string
@@ -601,10 +593,14 @@ func (r *request) setQueryParam(param string, value interface{}) *request {
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
 		for index := 0; index < v.Len(); index++ {
-			r.queryParam.Add(param, fmt.Sprint(v.Index(index).Interface()))
+			if r.queryEnumAsInt && (v.Index(index).Kind() == reflect.Int32 || v.Index(index).Kind() == reflect.Int64) {
+				r.queryParam.Add(param, fmt.Sprintf("%d", v.Index(index).Interface()))
+			} else {
+				r.queryParam.Add(param, fmt.Sprint(v.Index(index).Interface()))
+			}
 		}
 	case reflect.Int32, reflect.Int64:
-		if r.client.enumAsInt {
+		if r.queryEnumAsInt {
 			r.queryParam.Add(param, fmt.Sprintf("%d", v.Interface()))
 		} else {
 			r.queryParam.Add(param, fmt.Sprint(v))
