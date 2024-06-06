@@ -198,7 +198,7 @@ func (plugin *Plugin) Response(resp *pluginpb.CodeGeneratorResponse) error {
 }
 
 func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Argument) error {
-	plugin.fixGoPackage(req, plugin.PkgMap)
+	plugin.fixGoPackage(req, plugin.PkgMap, args.TrimGoPackage)
 
 	// new plugin
 	opts := protogen.Options{}
@@ -291,12 +291,16 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 }
 
 // fixGoPackage will update go_package to store all the model files in ${model_dir}
-func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap map[string]string) {
+func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap map[string]string, trimGoPackage string) {
 	gopkg := plugin.Package
 	for _, f := range req.ProtoFile {
 		if strings.HasPrefix(f.GetPackage(), "google.protobuf") {
 			continue
 		}
+		if len(trimGoPackage) != 0 && strings.HasPrefix(f.GetOptions().GetGoPackage(), trimGoPackage) {
+			*f.Options.GoPackage = strings.TrimPrefix(*f.Options.GoPackage, trimGoPackage)
+		}
+
 		opt := getGoPackage(f, pkgMap)
 		if !strings.Contains(opt, gopkg) {
 			if strings.HasPrefix(opt, "/") {
