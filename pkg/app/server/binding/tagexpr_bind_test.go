@@ -121,7 +121,7 @@ func TestGetBody(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'E' field is a 'required' parameter, but the request body does not have this parameter 'X.e'")
+	assert.DeepEqual(t, err.Error(), "'e' field is a 'required' parameter, but the request body does not have this parameter 'X.e'")
 }
 
 func TestQueryNum(t *testing.T) {
@@ -431,7 +431,7 @@ func TestJSON(t *testing.T) {
 	if err == nil {
 		t.Error("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'Y' field is a 'required' parameter, but the request body does not have this parameter 'y'")
+	assert.DeepEqual(t, err.Error(), "'y' field is a 'required' parameter, but the request body does not have this parameter 'y'")
 	assert.DeepEqual(t, []string{"a1", "a2"}, (**recv.X).A)
 	assert.DeepEqual(t, int32(21), (**recv.X).B)
 	assert.DeepEqual(t, &[]uint16{31, 32}, (**recv.X).C)
@@ -753,7 +753,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
 	err = DefaultBinder().Bind(req.Req, recv, nil)
-	assert.DeepEqual(t, err.Error(), "'C' field is a 'required' parameter, but the request body does not have this parameter 'X.c'")
+	assert.DeepEqual(t, err.Error(), "'c' field is a 'required' parameter, but the request body does not have this parameter 'X.c'")
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
 	assert.DeepEqual(t, "y1", recv.Y)

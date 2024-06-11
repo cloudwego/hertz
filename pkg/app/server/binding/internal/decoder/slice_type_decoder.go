@@ -70,7 +70,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 				}
 				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) { //
 					defaultValue = ""
@@ -88,7 +88,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {

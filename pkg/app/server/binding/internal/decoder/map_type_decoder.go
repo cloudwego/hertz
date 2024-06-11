@@ -67,7 +67,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 				}
 				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
 					defaultValue = ""
@@ -82,7 +82,7 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {
