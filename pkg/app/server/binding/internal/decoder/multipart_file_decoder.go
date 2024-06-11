@@ -53,7 +53,7 @@ func (d *fileTypeDecoder) Decode(req *protocol.Request, params param.Params, req
 	}
 	file, err := req.FormFile(fileName)
 	if err != nil {
-		hlog.Warnf("can not get file '%s' form request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
+		hlog.SystemLogger().Warnf("can not get file '%s' form request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
 		return nil
 	}
 	if field.Kind() == reflect.Ptr {
@@ -107,12 +107,12 @@ func (d *fileTypeDecoder) fileSliceDecode(req *protocol.Request, params param.Pa
 	}
 	multipartForm, err := req.MultipartForm()
 	if err != nil {
-		hlog.Warnf("can not get MultipartForm from request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
+		hlog.SystemLogger().Warnf("can not get MultipartForm from request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
 		return nil
 	}
 	files, exist := multipartForm.File[fileName]
 	if !exist {
-		hlog.Warnf("the file '%s' is not existed in request, so skip '%s' field binding", fileName, d.fieldName)
+		hlog.SystemLogger().Warnf("the file '%s' is not existed in request, so skip '%s' field binding", fileName, d.fieldName)
 		return nil
 	}
 
