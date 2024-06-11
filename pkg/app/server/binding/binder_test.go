@@ -692,6 +692,31 @@ func TestBind_FileBind(t *testing.T) {
 	assert.DeepEqual(t, fileName, (**s.D).N.Filename)
 }
 
+func TestBind_FileBindWithNoFile(t *testing.T) {
+	var s struct {
+		A *multipart.FileHeader `file_name:"a"`
+		B *multipart.FileHeader `form:"b"`
+		C *multipart.FileHeader
+	}
+	fileName := "binder_test.go"
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetFile("a", fileName).
+		SetFile("b", fileName)
+	// to parse multipart files
+	req2 := req2.GetHTTP1Request(req.Req)
+	_ = req2.String()
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	assert.DeepEqual(t, fileName, s.A.Filename)
+	assert.DeepEqual(t, fileName, s.B.Filename)
+	if s.C != nil {
+		t.Fatalf("expected a nil for s.C")
+	}
+}
+
 func TestBind_FileSliceBind(t *testing.T) {
 	type Nest struct {
 		N *[]*multipart.FileHeader `form:"b"`
