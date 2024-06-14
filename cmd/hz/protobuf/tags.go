@@ -437,8 +437,7 @@ func injectTagsToStructTags(f protoreflect.FieldDescriptor, out *structTags, nee
 			tags.Remove(t.Key)
 		}
 	}
-	// protobuf tag as first
-	sort.Sort(tags[1:])
+	sort.Sort(tags)
 	for _, t := range tags {
 		if disableTag {
 			*out = append(*out, [2]string{t.Key, "-"})
