@@ -150,7 +150,7 @@ func TestSetConnectionClose(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.NotFound()
-	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "404 Page not found" {
+	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "Not Found" {
 		t.Fatalf("unexpected status code or body")
 	}
 }
