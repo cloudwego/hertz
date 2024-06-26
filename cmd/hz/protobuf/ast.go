@@ -353,6 +353,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 			val := checkSnakeName(fileAnnos.(string))
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 		}
+		if proto.HasExtension(f.Desc.Options(), api.E_Cookie) {
+			hasAnnotation = true
+			// cookie do nothing
+		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(string(f.Desc.Name())), f.GoName)
 		}

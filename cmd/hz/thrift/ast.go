@@ -321,6 +321,10 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 			hasFormAnnotation = true
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", fileName, field.GoName().String())
 		}
+		if anno := getAnnotation(field.Annotations, AnnotationCookie); len(anno) > 0 {
+			hasAnnotation = true
+			// cookie do nothing
+		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(field.GetName()), field.GoName().String())
 		}
