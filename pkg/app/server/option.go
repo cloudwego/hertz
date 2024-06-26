@@ -82,6 +82,22 @@ func WithRedirectTrailingSlash(b bool) config.Option {
 	}}
 }
 
+// WithFixTrailingSlash sets fixTrailingSlash.
+//
+// If enabled, the router tries to fix the current request path, if no
+// handle is registered for it.
+// For example if /foo is requested but a route only exists for /foo/, the
+// client requests /foo/ without redirecting for all request methods.
+// This option conflicts with RedirectTrailingSlash
+func WithFixTrailingSlash(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.FixTrailingSlash = b
+		if b {
+			o.RedirectTrailingSlash = !b
+		}
+	}}
+}
+
 // WithRedirectFixedPath sets redirectFixedPath.
 //
 // If enabled, the router tries to fix the current request path, if no
