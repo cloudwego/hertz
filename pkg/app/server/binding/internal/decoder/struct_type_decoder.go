@@ -21,8 +21,8 @@ import (
 	"reflect"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	hjson "github.com/cloudwego/hertz/internal/json"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	hjson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
