@@ -109,6 +109,9 @@ type Request struct {
 	multipartFiles  []*File
 	multipartFields []*MultipartField
 
+	// UseURIHost uses URI host as host header. Ignore origin host header
+	UseURIHost bool
+
 	// Request level options, service discovery options etc.
 	options *config.RequestOptions
 }
@@ -190,6 +193,7 @@ func (req *Request) resetSkipHeaderAndConn() {
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+	req.UseURIHost = false
 }
 
 func (req *Request) ResetSkipHeader() {
