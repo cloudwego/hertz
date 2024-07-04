@@ -329,7 +329,9 @@ func (plugin *Plugin) fixModelPathAndPackage(pkg string) (impt, path string) {
 		impt = util.PathToImport(plugin.ModelDir, "") + impt
 	}
 	path = util.ImportToPath(impt, "")
-	impt = plugin.Package + "/" + impt
+	// bugfix: impt may have "/" suffix
+	//impt = plugin.Package + "/" + impt
+	impt = filepath.Join(plugin.Package, impt)
 	if util.IsWindows() {
 		impt = util.PathToImport(impt, "")
 	}
