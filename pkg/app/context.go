@@ -819,7 +819,9 @@ func (ctx *RequestContext) Copy() *RequestContext {
 func (ctx *RequestContext) Next(c context.Context) {
 	ctx.index++
 	for ctx.index < int8(len(ctx.handlers)) {
+		tempParams := ctx.Params
 		ctx.handlers[ctx.index](c, ctx)
+		ctx.Params = tempParams
 		ctx.index++
 	}
 }
