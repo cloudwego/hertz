@@ -204,7 +204,7 @@ type RequestContext struct {
 	Errors errors.ErrorChain
 
 	Params      param.Params
-	paramsCount uint16
+	paramsCount int
 	handlers    HandlersChain
 	fullPath    string
 	index       int8
@@ -299,7 +299,7 @@ func (ctx *RequestContext) SetEnableTrace(enable bool) {
 // Set the Request filed before use it for handlers
 func NewContext(maxParams uint16) *RequestContext {
 	v := make(param.Params, 0, maxParams)
-	ctx := &RequestContext{Params: v, index: -1, paramsCount: maxParams}
+	ctx := &RequestContext{Params: v, index: -1, paramsCount: int(maxParams)}
 	return ctx
 }
 
@@ -848,7 +848,7 @@ func (ctx *RequestContext) HandlerName() string {
 
 func (ctx *RequestContext) ResetWithoutConn() {
 	// if ctx.Params is re-assigned by user in HandlerFunc and the capacity changed we need to realloc
-	if cap(ctx.Params) != int(ctx.paramsCount) {
+	if cap(ctx.Params) < ctx.paramsCount {
 		ctx.Params = make(param.Params, ctx.paramsCount)
 	}
 	ctx.Params = ctx.Params[0:0]
