@@ -203,11 +203,12 @@ type RequestContext struct {
 	// Errors is a list of errors attached to all the handlers/middlewares who used this context.
 	Errors errors.ErrorChain
 
-	Params     param.Params
-	handlers   HandlersChain
-	fullPath   string
-	index      int8
-	HTMLRender render.HTMLRender
+	Params      param.Params
+	paramsCount uint16
+	handlers    HandlersChain
+	fullPath    string
+	index       int8
+	HTMLRender  render.HTMLRender
 
 	// This mutex protect Keys map.
 	mu sync.RWMutex
@@ -298,7 +299,7 @@ func (ctx *RequestContext) SetEnableTrace(enable bool) {
 // Set the Request filed before use it for handlers
 func NewContext(maxParams uint16) *RequestContext {
 	v := make(param.Params, 0, maxParams)
-	ctx := &RequestContext{Params: v, index: -1}
+	ctx := &RequestContext{Params: v, index: -1, paramsCount: maxParams}
 	return ctx
 }
 
@@ -819,9 +820,7 @@ func (ctx *RequestContext) Copy() *RequestContext {
 func (ctx *RequestContext) Next(c context.Context) {
 	ctx.index++
 	for ctx.index < int8(len(ctx.handlers)) {
-		tempParams := ctx.Params
 		ctx.handlers[ctx.index](c, ctx)
-		ctx.Params = tempParams
 		ctx.index++
 	}
 }
@@ -848,6 +847,10 @@ func (ctx *RequestContext) HandlerName() string {
 }
 
 func (ctx *RequestContext) ResetWithoutConn() {
+	// if ctx.Params is re-assigned by user in HandlerFunc and the capacity changed we need to realloc
+	if cap(ctx.Params) != int(ctx.paramsCount) {
+		ctx.Params = make(param.Params, ctx.paramsCount)
+	}
 	ctx.Params = ctx.Params[0:0]
 	ctx.Errors = ctx.Errors[0:0]
 	ctx.handlers = nil
