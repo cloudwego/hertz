@@ -846,11 +846,11 @@ func (ctx *RequestContext) HandlerName() string {
 	return utils.NameOfFunction(ctx.handlers.Last())
 }
 
+func (ctx *RequestContext) GetParamsCount() int {
+	return ctx.paramsCount
+}
+
 func (ctx *RequestContext) ResetWithoutConn() {
-	// if ctx.Params is re-assigned by user in HandlerFunc and the capacity changed we need to realloc
-	if cap(ctx.Params) < ctx.paramsCount {
-		ctx.Params = make(param.Params, ctx.paramsCount)
-	}
 	ctx.Params = ctx.Params[0:0]
 	ctx.Errors = ctx.Errors[0:0]
 	ctx.handlers = nil
