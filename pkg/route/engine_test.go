@@ -1032,7 +1032,6 @@ func TestAcquireHijackConn(t *testing.T) {
 
 func TestHandleParamsReassignInHandleFunc(t *testing.T) {
 	e := NewEngine(config.NewOptions(nil))
-	ctx := app.NewContext(3)
 	routes := []string{
 		"/:a/:b/:c",
 	}
@@ -1052,6 +1051,7 @@ func TestHandleParamsReassignInHandleFunc(t *testing.T) {
 		"/alksjdlakjd/ooo/askda",
 		"/alksjdlakjd/ooo/askda",
 	}
+	ctx := e.ctxPool.Get().(*app.RequestContext)
 	for _, tr := range testRoutes {
 		r := protocol.NewRequest(http.MethodGet, tr, nil)
 		r.CopyTo(&ctx.Request)
