@@ -1032,3 +1032,20 @@ func TestAcquireHijackConn(t *testing.T) {
 	assert.DeepEqual(t, engine, hijackConn.e)
 	assert.DeepEqual(t, conn, hijackConn.Conn)
 }
+
+func TestMarkAsRunning(t *testing.T) {
+	// case 1: normal
+	engine := NewEngine(config.NewOptions(nil))
+	engine.Init()
+	err := engine.MarkAsRunning()
+	assert.DeepEqual(t, err, nil)
+	assert.DeepEqual(t, statusRunning, atomic.LoadUint32(&engine.status))
+
+	// case 2: status is not initialized
+	engine = NewEngine(config.NewOptions(nil))
+	engine.Init()
+	atomic.StoreUint32(&engine.status, statusRunning)
+	err = engine.MarkAsRunning()
+	assert.DeepEqual(t, err, errAlreadyRunning)
+	assert.DeepEqual(t, statusRunning, atomic.LoadUint32(&engine.status))
+}
