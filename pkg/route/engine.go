@@ -295,9 +295,6 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	if atomic.LoadUint32(&engine.status) != statusRunning {
 		return errStatusNotRunning
 	}
-	if !atomic.CompareAndSwapUint32(&engine.status, statusRunning, statusShutdown) {
-		return
-	}
 
 	ch := make(chan struct{})
 	// trigger hooks if any
