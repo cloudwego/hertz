@@ -203,12 +203,11 @@ type RequestContext struct {
 	// Errors is a list of errors attached to all the handlers/middlewares who used this context.
 	Errors errors.ErrorChain
 
-	Params      param.Params
-	paramsCount int
-	handlers    HandlersChain
-	fullPath    string
-	index       int8
-	HTMLRender  render.HTMLRender
+	Params     param.Params
+	handlers   HandlersChain
+	fullPath   string
+	index      int8
+	HTMLRender render.HTMLRender
 
 	// This mutex protect Keys map.
 	mu sync.RWMutex
@@ -299,7 +298,7 @@ func (ctx *RequestContext) SetEnableTrace(enable bool) {
 // Set the Request filed before use it for handlers
 func NewContext(maxParams uint16) *RequestContext {
 	v := make(param.Params, 0, maxParams)
-	ctx := &RequestContext{Params: v, index: -1, paramsCount: int(maxParams)}
+	ctx := &RequestContext{Params: v, index: -1}
 	return ctx
 }
 
@@ -844,10 +843,6 @@ func (ctx *RequestContext) SetHandlers(hc HandlersChain) {
 // For example if the handler is "handleGetUsers()", this function will return "main.handleGetUsers".
 func (ctx *RequestContext) HandlerName() string {
 	return utils.NameOfFunction(ctx.handlers.Last())
-}
-
-func (ctx *RequestContext) GetParamsCount() int {
-	return ctx.paramsCount
 }
 
 func (ctx *RequestContext) ResetWithoutConn() {
