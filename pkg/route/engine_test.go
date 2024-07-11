@@ -94,6 +94,9 @@ func TestNew_Engine_WithTransporter(t *testing.T) {
 func TestGetTransporterName(t *testing.T) {
 	name := getTransporterName(&fakeTransporter{})
 	assert.DeepEqual(t, "route", name)
+
+	name = getTransporterName(nil)
+	assert.DeepEqual(t, "unknown", name)
 }
 
 func TestEngineUnescape(t *testing.T) {
