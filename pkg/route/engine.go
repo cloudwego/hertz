@@ -753,7 +753,7 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	// if ctx.Params is re-assigned by user in HandlerFunc and the capacity changed we need to realloc
 	paramsCnt := int(engine.maxParams)
 	if cap(ctx.Params) < paramsCnt {
-		ctx.Params = make(param.Params, paramsCnt)
+		ctx.Params = make(param.Params, 0, paramsCnt)
 	}
 
 	// Find root of the tree for the given HTTP method
