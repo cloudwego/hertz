@@ -290,6 +290,16 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	return nil
 }
 
+func gopkgIncluded(opt string, gopkg string) bool {
+	if strings.HasPrefix(opt, gopkg) {
+		return true
+	} else if strings.HasPrefix(opt, "/"+gopkg) {
+		return true
+	} else {
+		return false
+	}
+}
+
 // fixGoPackage will update go_package to store all the model files in ${model_dir}
 func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap map[string]string, trimGoPackage string) {
 	gopkg := plugin.Package
@@ -302,7 +312,7 @@ func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap ma
 		}
 
 		opt := getGoPackage(f, pkgMap)
-		if !strings.Contains(opt, gopkg) {
+		if !gopkgIncluded(opt, gopkg) {
 			if strings.HasPrefix(opt, "/") {
 				opt = gopkg + opt
 			} else {
