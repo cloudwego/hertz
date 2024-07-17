@@ -1029,3 +1029,33 @@ func TestAcquireHijackConn(t *testing.T) {
 	assert.DeepEqual(t, engine, hijackConn.e)
 	assert.DeepEqual(t, conn, hijackConn.Conn)
 }
+
+func TestHandleParamsReassignInHandleFunc(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	routes := []string{
+		"/:a/:b/:c",
+	}
+	for _, r := range routes {
+		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
+			ctx.Params = make([]param.Param, 1)
+			ctx.String(consts.StatusOK, "")
+		})
+	}
+	testRoutes := []string{
+		"/aaa/bbb/ccc",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+	}
+	ctx := e.ctxPool.Get().(*app.RequestContext)
+	for _, tr := range testRoutes {
+		r := protocol.NewRequest(http.MethodGet, tr, nil)
+		r.CopyTo(&ctx.Request)
+		e.ServeHTTP(context.Background(), ctx)
+		ctx.ResetWithoutConn()
+	}
+}

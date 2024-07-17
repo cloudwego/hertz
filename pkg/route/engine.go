@@ -75,6 +75,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/factory"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 const unknownTransporterName = "unknown"
@@ -747,6 +748,12 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 		ctx.SetHandlers(engine.Handlers)
 		serveError(c, ctx, consts.StatusBadRequest, default400Body)
 		return
+	}
+
+	// if Params is re-assigned in HandlerFunc and the capacity is not enough we need to realloc
+	maxParams := int(engine.maxParams)
+	if cap(ctx.Params) < maxParams {
+		ctx.Params = make(param.Params, 0, maxParams)
 	}
 
 	// Find root of the tree for the given HTTP method
