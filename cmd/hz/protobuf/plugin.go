@@ -300,9 +300,21 @@ func gopkgIncluded(opt string, gopkg string) bool {
 	}
 }
 
+func (plugin *Plugin) processOpt(opt string) string {
+	gopkg := plugin.Package
+	if !gopkgIncluded(opt, gopkg) {
+		if strings.HasPrefix(opt, "/") {
+			opt = gopkg + opt
+		} else {
+			opt = gopkg + "/" + opt
+		}
+	}
+	impt, _ := plugin.fixModelPathAndPackage(opt)
+	return impt
+}
+
 // fixGoPackage will update go_package to store all the model files in ${model_dir}
 func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap map[string]string, trimGoPackage string) {
-	gopkg := plugin.Package
 	for _, f := range req.ProtoFile {
 		if strings.HasPrefix(f.GetPackage(), "google.protobuf") {
 			continue
@@ -310,17 +322,8 @@ func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap ma
 		if len(trimGoPackage) != 0 && strings.HasPrefix(f.GetOptions().GetGoPackage(), trimGoPackage) {
 			*f.Options.GoPackage = strings.TrimPrefix(*f.Options.GoPackage, trimGoPackage)
 		}
-
 		opt := getGoPackage(f, pkgMap)
-		if !gopkgIncluded(opt, gopkg) {
-			if strings.HasPrefix(opt, "/") {
-				opt = gopkg + opt
-			} else {
-				opt = gopkg + "/" + opt
-			}
-		}
-		impt, _ := plugin.fixModelPathAndPackage(opt)
-		*f.Options.GoPackage = impt
+		*f.Options.GoPackage = plugin.processOpt(opt)
 	}
 }
 

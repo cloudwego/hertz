@@ -47,6 +47,24 @@ func TestPlugin_Handle(t *testing.T) {
 	plu.recvWarningLogger()
 }
 
+func TestProcessOpt(t *testing.T) {
+	plu := &Plugin{}
+	plu.Package = "hello"
+	plu.ModelDir = meta.ModelDir
+	tests := [][]string{
+		{"a/b/c", "hello/biz/model/a/b/c"},
+		{"a/hello/c", "hello/biz/model/a/hello/c"},
+		{"biz/model/a/b/c", "hello/biz/model/a/b/c"},
+		{"hello/a/b/c", "hello/biz/model/a/b/c"},
+		{"hello/biz/model/a/hello/c", "hello/biz/model/a/hello/c"},
+	}
+	for _, test := range tests {
+		if result := plu.processOpt(test[0]); result != test[1] {
+			t.Fatalf("want go package: %s, but get: %s", test[1], result)
+		}
+	}
+}
+
 func TestFixModelPathAndPackage(t *testing.T) {
 	plu := &Plugin{}
 	plu.Package = "cloudwego/hertz"
