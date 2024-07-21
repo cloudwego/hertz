@@ -64,8 +64,8 @@ jobs:
   hz-test-unix:
     strategy:
       matrix:
-        version: [ '1.20' ]
-    runs-on: [ self-hosted, X64 ]
+        version: ["1.20"]
+    runs-on: [self-hosted, X64]
     steps:
       - uses: actions/checkout@v3
 
@@ -89,11 +89,10 @@ jobs:
           cd cmd/hz
           sh test_hz_unix.sh
 
-
   hz-test-windows:
     strategy:
       matrix:
-        version: [ '1.20']
+        version: ["1.20"]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
