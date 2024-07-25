@@ -191,6 +191,7 @@ func Init() *cli.App {
 	customLayoutData := cli.StringFlag{Name: "customize_layout_data_path", Usage: "Specify the path for layout template render data.", Destination: &globalArgs.CustomizeLayoutData}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
+	trimGoPackage := cli.StringFlag{Name: "trim_gopackage", Aliases: []string{"trim_pkg"}, Usage: "Trim the prefix of go_package for protobuf.", Destination: &globalArgs.TrimGoPackage}
 
 	// app
 	app := cli.NewApp()
@@ -225,6 +226,7 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
+				&trimGoPackage,
 				&noRecurseFlag,
 				&forceNewFlag,
 				&enableExtendsFlag,
@@ -261,6 +263,7 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
+				&trimGoPackage,
 				&noRecurseFlag,
 				&enableExtendsFlag,
 				&sortRouterFlag,
@@ -291,6 +294,7 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
+				&trimGoPackage,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -318,6 +322,7 @@ func Init() *cli.App {
 				&protoOptionsFlag,
 				&noRecurseFlag,
 				&enableExtendsFlag,
+				&trimGoPackage,
 
 				&jsonEnumStrFlag,
 				&queryEnumIntFlag,
