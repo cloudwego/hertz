@@ -65,7 +65,7 @@ import (
 )
 
 var (
-	errMissingFile = errors.NewPublic("http: no such file")
+	ErrMissingFile = errors.NewPublic("http: no such file")
 
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
@@ -313,7 +313,7 @@ func (req *Request) FormFile(name string) (*multipart.FileHeader, error) {
 	}
 	fhh := mf.File[name]
 	if fhh == nil {
-		return nil, errMissingFile
+		return nil, ErrMissingFile
 	}
 	return fhh[0], nil
 }
