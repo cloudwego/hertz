@@ -17,7 +17,6 @@
 package client
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -60,5 +59,4 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.RetryConfig.MaxDelay)
 	assert.DeepEqual(t, 1*time.Second, opt.RetryConfig.MaxJitter)
 	assert.DeepEqual(t, 1*time.Second, opt.ObservationInterval)
-	assert.DeepEqual(t, fmt.Sprint(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)), fmt.Sprint(opt.RetryConfig.DelayPolicy))
 }

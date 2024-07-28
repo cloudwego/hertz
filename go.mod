@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/bytedance/go-tagexpr/v2 v2.9.2
 	github.com/bytedance/gopkg v0.0.0-20240507064146-197ded923ae3
-	github.com/bytedance/mockey v1.2.1
+	github.com/bytedance/mockey v1.2.10
 	github.com/bytedance/sonic v1.11.9
 	github.com/cloudwego/netpoll v0.6.2
 	github.com/fsnotify/fsnotify v1.5.4
