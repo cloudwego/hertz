@@ -70,6 +70,7 @@ type HttpPackageGenerator struct {
 	HandlerByMethod      bool // generate handler files with method dimension
 	SnakeStyleMiddleware bool // use snake name style for middleware
 	SortRouter           bool
+	ForceUpdateClient    bool // force update 'hertz_client.go'
 
 	loadedBackend   Backend
 	curModel        *model.Model

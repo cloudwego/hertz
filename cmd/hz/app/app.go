@@ -178,6 +178,7 @@ func Init() *cli.App {
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
+	forceUpdateClientFlag := cli.BoolFlag{Name: "force_client", Usage: "Force update 'hertz_client.go'", Destination: &globalArgs.ForceUpdateClient}
 	enableExtendsFlag := cli.BoolFlag{Name: "enable_extends", Usage: "Parse 'extends' for thrift IDL", Destination: &globalArgs.EnableExtends}
 	sortRouterFlag := cli.BoolFlag{Name: "sort_router", Usage: "Sort router register code, to avoid code difference", Destination: &globalArgs.SortRouter}
 
@@ -316,6 +317,7 @@ func Init() *cli.App {
 				&clientDirFlag,
 				&useFlag,
 				&forceClientDirFlag,
+				&forceUpdateClientFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
