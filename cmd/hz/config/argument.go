@@ -71,6 +71,7 @@ type Argument struct {
 	NoRecurse            bool
 	HandlerByMethod      bool
 	ForceNew             bool
+	ForceUpdateClient    bool
 	SnakeStyleMiddleware bool
 	EnableExtends        bool
 	SortRouter           bool
