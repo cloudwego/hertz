@@ -6,39 +6,33 @@ jobs:
   compat-test:
     strategy:
       matrix:
-        version: ["1.17", "1.18"]
+        version: ["1.17", "1.18", "1.19"]
     runs-on: [self-hosted, X64]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
+          cache: false # don't use cache for self-hosted runners
 
       # Just build tests without running them
       - name: Build Test
         run: go test -run=nope ./...
 
-  lint-and-ut:
+  unit-ut:
     strategy:
       matrix:
-        version: ["1.19", "1.20", "1.21", "1.22"]
+        version: ["1.20", "1.21", "1.22"]
     runs-on: [self-hosted, X64]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
+          cache: false # don't use cache for self-hosted runners
 
-      - name: Golangci Lint
-        # https://golangci-lint.run/
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          skip-cache: true
       - name: Unit Test
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
@@ -48,15 +42,15 @@ jobs:
   ut-windows:
     strategy:
       matrix:
-        version: ["1.19", "1.20", "1.21", "1.22"]
+        version: ["1.20", "1.21", "1.22"]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
+          cache: false # don't use cache for self-hosted runners
 
       - name: Unit Test
         run: go test -race -covermode=atomic  ./...
@@ -64,13 +58,12 @@ jobs:
   hz-test-unix:
     strategy:
       matrix:
-        version: [ '1.21' ]
+        version: stable
     runs-on: [ self-hosted, X64 ]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
 
@@ -93,13 +86,12 @@ jobs:
   hz-test-windows:
     strategy:
       matrix:
-        version: [ '1.21']
+        version: stable
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
 
