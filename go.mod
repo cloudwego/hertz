@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/go-tagexpr/v2 v2.9.2
 	github.com/bytedance/gopkg v0.1.0
 	github.com/bytedance/mockey v1.2.10
-	github.com/bytedance/sonic v1.11.9
+	github.com/bytedance/sonic v1.12.0
 	github.com/cloudwego/netpoll v0.6.2
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/tidwall/gjson v1.14.4
@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/bytedance/sonic/loader v0.1.1 // indirect
+	github.com/bytedance/sonic/loader v0.2.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
