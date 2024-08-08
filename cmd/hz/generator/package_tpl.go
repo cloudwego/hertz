@@ -29,7 +29,7 @@ var (
 	idlClientName           = "idl_client.go"   // client of service for quick call
 
 	insertPointNew        = "//INSERT_POINT: DO NOT DELETE THIS LINE!"
-	insertPointPatternNew = `//INSERT_POINT\: DO NOT DELETE THIS LINE\!`
+	insertPointPatternNew = `//\s?INSERT_POINT\: DO NOT DELETE THIS LINE\!`
 )
 
 var templateNameSet = map[string]string{
