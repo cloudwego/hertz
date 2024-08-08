@@ -20,7 +20,7 @@ jobs:
       - name: Build Test
         run: go test -run=nope ./...
 
-  unit-ut:
+  unit-test:
     strategy:
       matrix:
         version: ["1.20", "1.21", "1.22"]
@@ -56,16 +56,14 @@ jobs:
         run: go test -race -covermode=atomic  ./...
 
   hz-test-unix:
-    strategy:
-      matrix:
-        version: stable
     runs-on: [ self-hosted, X64 ]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.version }}
+          go-version: stable
+          cache: false # don't use cache for self-hosted runners
 
       - name: Setup Environment
         run: |
@@ -84,16 +82,13 @@ jobs:
 
 
   hz-test-windows:
-    strategy:
-      matrix:
-        version: stable
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.version }}
+          go-version: stable
 
       - name: Get changed files
         id: changed-files
