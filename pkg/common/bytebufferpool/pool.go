@@ -45,6 +45,8 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+
+	"github.com/bytedance/gopkg/lang/mcache"
 )
 
 const (
@@ -54,7 +56,7 @@ const (
 	minSize = 1 << minBitSize
 	maxSize = 1 << (minBitSize + steps - 1)
 
-	calibrateCallsThreshold = 42000
+	calibrateCallsThreshold = 10 // Just for test
 	maxPercentile           = 0.95
 )
 
@@ -94,6 +96,16 @@ func (p *Pool) Get() *ByteBuffer {
 	return &ByteBuffer{
 		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
 	}
+}
+
+func (p *Pool) GetWithSize(size int) *ByteBuffer {
+	return &ByteBuffer{
+		B: mcache.Malloc(size)[:0],
+	}
+}
+
+func (p *Pool) PutWithByte(b []byte) {
+	mcache.Free(b)
 }
 
 // Put returns byte buffer to the pool.
