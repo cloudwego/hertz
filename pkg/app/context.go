@@ -1366,6 +1366,13 @@ func (ctx *RequestContext) PostForm(key string) string {
 	return value
 }
 
+// PostFormArray returns the specified key from a POST urlencoded form or multipart form
+// when it exists, otherwise it returns an empty array `([])`.
+func (ctx *RequestContext) PostFormArray(key string) []string {
+	value, _ := ctx.GetPostForm(key)
+	return strings.Split(value, ",")
+}
+
 // DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns the specified defaultValue string.
 //
