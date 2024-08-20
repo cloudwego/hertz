@@ -2307,7 +2307,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = ":10037"
+	opt.Addr = "127.0.0.1:10037"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 
