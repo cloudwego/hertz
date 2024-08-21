@@ -408,15 +408,20 @@ func TestClientReadTimeout(t *testing.T) {
 	opt.Addr = "localhost:10008"
 	engine := route.NewEngine(opt)
 
+	mut := &sync.Mutex{}
+
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
+		mut.Lock()
 		if timeout {
+			mut.Unlock()
 			time.Sleep(time.Minute)
 		} else {
 			timeout = true
+			mut.Unlock()
 		}
 	})
 	go engine.Run()
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Second * 1)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -453,6 +458,7 @@ func TestClientReadTimeout(t *testing.T) {
 		req.SetConnectionClose()
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
+			assert.NotNil(t, err)
 			if !strings.Contains(err.Error(), "timeout") {
 				t.Errorf("expected ErrTimeout got %#v", err)
 			}
