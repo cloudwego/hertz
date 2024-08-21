@@ -227,7 +227,7 @@ func TestServer_Run(t *testing.T) {
 		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8899/test"))
 	})
 	go hertz.Run()
-	time.Sleep(100 * time.Microsecond)
+	time.Sleep(1 * time.Second)
 	resp, err := http.Get("http://127.0.0.1:8899/test")
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
