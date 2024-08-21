@@ -100,6 +100,7 @@ func (s Server) putRequestContext(ctx *app.RequestContext) {
 	if disabaleRequestContextPool {
 		return
 	}
+	ctx.Reset()
 	s.Core.GetCtxPool().Put(ctx)
 }
 
