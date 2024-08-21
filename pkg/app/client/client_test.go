@@ -406,22 +406,16 @@ func TestClientReadTimeout(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	timeout := false
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "localhost:10008"
+	opt.Addr = "localhost:10024"
 	engine := route.NewEngine(opt)
 
-	mut := &sync.Mutex{}
-
-	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
-		mut.Lock()
-		if timeout {
-			mut.Unlock()
-			time.Sleep(time.Minute)
-		} else {
-			timeout = true
-			mut.Unlock()
-		}
+	engine.GET("/normal", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "ok")
+	})
+	engine.GET("/timeout", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(time.Second * 60)
+		ctx.String(consts.StatusOK, "ok")
 	})
 	go engine.Run()
 	defer func() {
@@ -441,7 +435,7 @@ func TestClientReadTimeout(t *testing.T) {
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
-	req.SetRequestURI("http://" + opt.Addr)
+	req.SetRequestURI("http://" + opt.Addr + "/normal")
 	req.Header.SetMethod(consts.MethodGet)
 
 	// Setting Connection: Close will make the connection be returned to the pool.
@@ -459,14 +453,17 @@ func TestClientReadTimeout(t *testing.T) {
 		req := protocol.AcquireRequest()
 		res := protocol.AcquireResponse()
 
-		req.SetRequestURI("http://" + opt.Addr)
+		req.SetRequestURI("http://" + opt.Addr + "/timeout")
 		req.Header.SetMethod(consts.MethodGet)
 		req.SetConnectionClose()
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
-			assert.NotNil(t, err)
-			if !strings.Contains(err.Error(), "timeout") {
-				t.Errorf("expected ErrTimeout got %#v", err)
+			if err == nil {
+				t.Error("expected ErrTimeout got nil")
+			} else {
+				if !strings.Contains(err.Error(), "timeout") {
+					t.Errorf("expected ErrTimeout got %#v", err)
+				}
 			}
 		}
 
