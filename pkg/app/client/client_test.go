@@ -92,7 +92,12 @@ func TestCloseIdleConnections(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
@@ -136,7 +141,12 @@ func TestClientInvalidURI(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -170,7 +180,12 @@ func TestClientGetWithBody(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -205,7 +220,12 @@ func TestClientPostBodyStream(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	cStream, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)), WithResponseBodyStream(true))
 	args := &protocol.Args{}
@@ -246,7 +266,12 @@ func TestClientURLAuth(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	for up, expected := range cases {
@@ -278,7 +303,12 @@ func TestClientNilResp(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
@@ -304,7 +334,12 @@ func TestClientParseConn(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -346,7 +381,12 @@ func TestClientPostArgs(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
@@ -497,7 +537,12 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req := protocol.AcquireRequest()
@@ -531,7 +576,12 @@ func TestClientSetUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	userAgent := "I'm not hertz"
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithName(userAgent))
@@ -562,7 +612,12 @@ func TestClientNoUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDialTimeout(1*time.Second), WithNoDefaultUserAgentHeader(true))
 
 	req := protocol.AcquireRequest()
@@ -643,7 +698,12 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	// make sure that the client sends all the request headers and body.
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
@@ -688,7 +748,12 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDisablePathNormalizing(true))
 
 	urlWithEncodedPath := "http://example.com/encoded/Y%2BY%2FY%3D/stuff"
@@ -818,7 +883,12 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -887,7 +957,12 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -932,7 +1007,12 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	dialsCount := make(map[string]int)
 	c := &http1.HostClient{
@@ -1093,7 +1173,12 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -1162,7 +1247,12 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	for {
+		time.Sleep(1 * time.Second)
+		if engine.IsRunning() {
+			break
+		}
+	}
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
