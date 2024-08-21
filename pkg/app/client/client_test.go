@@ -451,11 +451,11 @@ func TestClientReadTimeout(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	engine.GET("/normal", func(c context.Context, ctx *app.RequestContext) {
-		ctx.String(consts.StatusOK, "ok")
+		ctx.String(201, "ok")
 	})
 	engine.GET("/timeout", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(time.Second * 60)
-		ctx.String(consts.StatusOK, "timeout ok")
+		ctx.String(202, "timeout ok")
 	})
 	go engine.Run()
 	defer func() {
@@ -499,7 +499,7 @@ func TestClientReadTimeout(t *testing.T) {
 
 		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
 			if err == nil {
-				t.Errorf("expected ErrTimeout got nil, read resp body: %s", string(res.Body()))
+				t.Errorf("expected ErrTimeout got nil, req url: %s, read resp body: %s, status: %d", string(req.URI().FullURI()), string(res.Body()), res.StatusCode())
 			} else {
 				if !strings.Contains(err.Error(), "timeout") {
 					t.Errorf("expected ErrTimeout got %#v", err)
