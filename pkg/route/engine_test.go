@@ -888,7 +888,7 @@ func TestEngineShutdown(t *testing.T) {
 		engine.Run()
 	}()
 	// wait for engine to start
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel2()
@@ -904,7 +904,7 @@ func TestEngineShutdown(t *testing.T) {
 		engine.Run()
 	}()
 	// wait for engine to start
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	ctx3, cancel3 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel3()

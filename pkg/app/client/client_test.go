@@ -301,6 +301,9 @@ func TestClientParseConn(t *testing.T) {
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 	time.Sleep(time.Millisecond * 500)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
@@ -421,6 +424,9 @@ func TestClientReadTimeout(t *testing.T) {
 		}
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 	time.Sleep(time.Second * 1)
 
 	c := &http1.HostClient{
@@ -996,7 +1002,7 @@ func TestClientFollowRedirects(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Second * 2)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -1221,7 +1227,10 @@ func TestNewClient(t *testing.T) {
 		ctx.SetBodyString("pong")
 	})
 	go engine.Run()
-	time.Sleep(time.Millisecond * 500)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	client, err := NewClient(WithDialTimeout(2 * time.Second))
 	if err != nil {
@@ -1246,7 +1255,10 @@ func TestUseShortConnection(t *testing.T) {
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(time.Millisecond * 500)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	c, _ := NewClient(WithKeepAlive(false))
 	var wg sync.WaitGroup
@@ -1290,8 +1302,11 @@ func TestPostWithFormData(t *testing.T) {
 		ctx.Data(consts.StatusOK, "text/plain; charset=utf-8", []byte(ans))
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1341,8 +1356,11 @@ func TestPostWithMultipartField(t *testing.T) {
 		t.Log(req.GetHTTP1Request(&ctx.Request).String())
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1384,8 +1402,11 @@ func TestSetFiles(t *testing.T) {
 		ctx.String(consts.StatusOK, fmt.Sprintf("%d files uploaded!", len(files)+2))
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1432,8 +1453,11 @@ func TestSetMultipartFields(t *testing.T) {
 		ctx.String(consts.StatusOK, fmt.Sprintf("%d files uploaded!", 2))
 	})
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	client, _ := NewClient(WithDialTimeout(50 * time.Millisecond))
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1484,7 +1508,10 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 		c.String(consts.StatusOK, part1+part2)
 	})
 	go engine.Run()
-	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -1534,7 +1561,10 @@ func TestWithBasicAuth(t *testing.T) {
 		}
 	})
 	go engine.Run()
-	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1902,7 +1932,10 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		c.String(consts.StatusOK, part1+part2)
 	})
 	go engine.Run()
-	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -1972,7 +2005,10 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 		c.String(consts.StatusOK, part1)
 	})
 	go engine.Run()
-	time.Sleep(100 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 
@@ -2282,7 +2318,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(1 * time.Second)
 
 	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
@@ -2316,8 +2352,11 @@ func TestClientState(t *testing.T) {
 	opt.Addr = "127.0.0.1:10037"
 	engine := route.NewEngine(opt)
 	go engine.Run()
+	defer func() {
+		engine.Close()
+	}()
 
-	time.Sleep(time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	state := int32(0)
 	client, _ := NewClient(
@@ -2357,14 +2396,16 @@ func TestClientRetryErr(t *testing.T) {
 			ctx.SetStatusCode(200)
 		})
 		go engine.Run()
-		time.Sleep(100 * time.Millisecond)
+		defer func() {
+			engine.Close()
+		}()
+		time.Sleep(1 * time.Second)
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
 		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10136/ping")
 		assert.Nil(t, err)
 		l.Lock()
 		assert.DeepEqual(t, 1, retryNum)
 		l.Unlock()
-		engine.Close()
 	})
 
 	t.Run("502", func(t *testing.T) {
@@ -2380,7 +2421,10 @@ func TestClientRetryErr(t *testing.T) {
 			ctx.SetStatusCode(502)
 		})
 		go engine.Run()
-		time.Sleep(100 * time.Millisecond)
+		defer func() {
+			engine.Close()
+		}()
+		time.Sleep(1 * time.Second)
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
 		c.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 			return resp.StatusCode() == 502
@@ -2390,6 +2434,5 @@ func TestClientRetryErr(t *testing.T) {
 		l.Lock()
 		assert.DeepEqual(t, 3, retryNum)
 		l.Unlock()
-		engine.Close()
 	})
 }
