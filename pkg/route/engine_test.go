@@ -875,14 +875,16 @@ func TestEngineShutdown(t *testing.T) {
 	defaultTransporter = standard.NewTransporter
 	mockCtxCallback := func(ctx context.Context) {}
 	// Test case 1: serve not running error
-	engine := NewEngine(config.NewOptions(nil))
+	opt := config.NewOptions(nil)
+	opt.Addr = "127.0.0.1:10027"
+	engine := NewEngine(opt)
 	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel1()
 	err := engine.Shutdown(ctx1)
 	assert.DeepEqual(t, errStatusNotRunning, err)
 
 	// Test case 2: serve successfully running and shutdown
-	engine = NewEngine(config.NewOptions(nil))
+	engine = NewEngine(opt)
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
 	go func() {
 		engine.Run()
@@ -897,7 +899,7 @@ func TestEngineShutdown(t *testing.T) {
 	assert.DeepEqual(t, statusClosed, atomic.LoadUint32(&engine.status))
 
 	// Test case 3: serve successfully running and shutdown with deregistry error
-	engine = NewEngine(config.NewOptions(nil))
+	engine = NewEngine(opt)
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
 	engine.options.Registry = &mockDeregsitryErr{}
 	go func() {
