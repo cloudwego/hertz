@@ -1417,18 +1417,14 @@ func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 //
 // For example, during a PATCH request to update the item's tags:
 //
-//	    tags=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
+//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
 //		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
 //	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
 func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
-	//if v, exists := ctx.PostArgs().PeekExists(key); exists {
-	//	return strings.Split(v, ","), exists
-	//}
 	vs := ctx.PostArgs().PeekAll(key)
-	// [][]byte -> []string
 	values := make([]string, len(vs))
 	for i, v := range vs {
-		values[i] = bytesconv.B2s(v)
+		values[i] = string(v)
 	}
 	if len(values) == 0 {
 		return ctx.multipartFormValueArray(key)
