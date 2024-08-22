@@ -694,6 +694,17 @@ func (ctx *RequestContext) multipartFormValue(key string) (string, bool) {
 	return "", false
 }
 
+func (ctx *RequestContext) multipartFormValueArray(key string) ([]string, bool) {
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		vv := mf.Value[key]
+		if len(vv) > 0 {
+			return vv, true
+		}
+	}
+	return nil, false
+}
+
 func (ctx *RequestContext) RequestBodyStream() io.Reader {
 	return ctx.Request.BodyStream()
 }
@@ -1369,8 +1380,8 @@ func (ctx *RequestContext) PostForm(key string) string {
 // PostFormArray returns the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns an empty array `([])`.
 func (ctx *RequestContext) PostFormArray(key string) []string {
-	value, _ := ctx.GetPostForm(key)
-	return strings.Split(value, ",")
+	values, _ := ctx.GetPostFormArray(key)
+	return values
 }
 
 // DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
@@ -1398,6 +1409,32 @@ func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 		return v, exists
 	}
 	return ctx.multipartFormValue(key)
+}
+
+// GetPostFormArray is like PostFormArray(key). It returns the specified key from a POST urlencoded
+// form or multipart form when it exists `([]string, true)` (even when the value is an empty string),
+// otherwise it returns ([]string(nil), false).
+//
+// For example, during a PATCH request to update the item's tags:
+//
+//	    tags=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
+//		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
+//	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
+func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
+	//if v, exists := ctx.PostArgs().PeekExists(key); exists {
+	//	return strings.Split(v, ","), exists
+	//}
+	vs := ctx.PostArgs().PeekAll(key)
+	// [][]byte -> []string
+	values := make([]string, len(vs))
+	for i, v := range vs {
+		values[i] = bytesconv.B2s(v)
+	}
+	if len(values) == 0 {
+		return ctx.multipartFormValueArray(key)
+	} else {
+		return values, true
+	}
 }
 
 // bodyAllowedForStatus is a copy of http.bodyAllowedForStatus non-exported function.
