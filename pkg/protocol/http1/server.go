@@ -32,6 +32,7 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -40,6 +41,12 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
+
+func init() {
+	if b, err := utils.GetBoolFromEnv("HERTZ_DISABLE_REQUEST_CONTEXT_POOL"); err == nil {
+		disabaleRequestContextPool = b
+	}
+}
 
 // NextProtoTLS is the NPN/ALPN protocol negotiated during
 // HTTP/1.1's TLS setup.
@@ -51,6 +58,8 @@ var (
 	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePrivate, nil)
 	errShortConnection = errs.New(errs.ErrShortConnection, errs.ErrorTypePublic, "server is going to close the connection")
 	errUnexpectedEOF   = errs.NewPublic(io.ErrUnexpectedEOF.Error() + " when reading request")
+
+	disabaleRequestContextPool = false
 )
 
 type Option struct {
@@ -80,6 +89,21 @@ type Server struct {
 	eventStackPool *sync.Pool
 }
 
+func (s Server) getRequestContext() *app.RequestContext {
+	if disabaleRequestContextPool {
+		return &app.RequestContext{}
+	}
+	return s.Core.GetCtxPool().Get().(*app.RequestContext)
+}
+
+func (s Server) putRequestContext(ctx *app.RequestContext) {
+	if disabaleRequestContextPool {
+		return
+	}
+	ctx.Reset()
+	s.Core.GetCtxPool().Put(ctx)
+}
+
 func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	var (
 		zr network.Reader
@@ -97,8 +121,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// 1. Get a request context
 		// 2. Prepare it
 		// 3. Process it
-		// 4. Reset and recycle
-		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
+		// 4. Reset and recycle(in pooled mode)
+		ctx = s.getRequestContext()
 
 		traceCtl        = s.Core.GetTracer()
 		eventsToTrigger *eventStack
@@ -138,8 +162,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			return
 		}
 
-		ctx.Reset()
-		s.Core.GetCtxPool().Put(ctx)
+		s.putRequestContext(ctx)
 	}()
 
 	ctx.HTMLRender = s.HTMLRender

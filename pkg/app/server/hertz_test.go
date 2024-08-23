@@ -158,7 +158,10 @@ func TestLoadHTMLGlob(t *testing.T) {
 		})
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	resp, _ := http.Get("http://127.0.0.1:8893/index")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
@@ -182,7 +185,10 @@ func TestLoadHTMLFiles(t *testing.T) {
 		})
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	resp, _ := http.Get("http://127.0.0.1:8891/raw")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
@@ -227,7 +233,7 @@ func TestServer_Run(t *testing.T) {
 		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8899/test"))
 	})
 	go hertz.Run()
-	time.Sleep(100 * time.Microsecond)
+	time.Sleep(1 * time.Second)
 	resp, err := http.Get("http://127.0.0.1:8899/test")
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
@@ -260,7 +266,10 @@ func TestNotAbsolutePath(t *testing.T) {
 		ctx.Write(ctx.Request.Body())
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -299,7 +308,10 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -374,7 +386,10 @@ func TestWithBasePath(t *testing.T) {
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(500 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
@@ -389,7 +404,10 @@ func TestNotEnoughBodySize(t *testing.T) {
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
@@ -406,7 +424,10 @@ func TestEnoughBodySize(t *testing.T) {
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	time.Sleep(1 * time.Second)
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
