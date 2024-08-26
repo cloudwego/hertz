@@ -216,7 +216,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				if err != nil {
 					return nil, err
 				}
-				err = parseAnnotationToClient(clientMethod, m.Arguments[0].GetType(), rt)
+				err = parseAnnotationToClient(clientMethod, m.Arguments[0].GetType(), rt, args.EnableClientOptional)
 				if err != nil {
 					return nil, err
 				}
@@ -244,7 +244,7 @@ func newHTTPMethod(s *parser.Service, m *parser.Function, method *generator.Http
 	return &newMethod, nil
 }
 
-func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol) error {
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol, enableOptional bool) error {
 	if p == nil {
 		return fmt.Errorf("get type failed for parse annotatoon to client")
 	}
@@ -270,13 +270,21 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 	for _, field := range st.Fields() {
 		hasAnnotation := false
 		isStringFieldType := false
+		isOptional := false
 		if field.GetType().String() == "string" {
 			isStringFieldType = true
+		}
+		if field.GetRequiredness() == parser.FieldType_Optional {
+			isOptional = true
 		}
 		if anno := getAnnotation(field.Annotations, AnnotationQuery); len(anno) > 0 {
 			hasAnnotation = true
 			query := checkSnakeName(anno[0])
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", query, field.GoName().String())
+			if isOptional && enableOptional {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: func() interface{} {\n\t\t\t\tif req.IsSet%s() {\n\t\t\t\t\treturn req.Get%s()\n\t\t\t\t} else {\n\t\t\t\t\treturn nil\n\t\t\t\t}}(),\n", query, field.GoName().String(), field.GoName().String())
+			} else {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", query, field.GoName().String())
+			}
 		}
 
 		if anno := getAnnotation(field.Annotations, AnnotationPath); len(anno) > 0 {
@@ -326,7 +334,11 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Typ
 			// cookie do nothing
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
-			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(field.GetName()), field.GoName().String())
+			if isOptional && enableOptional {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: func() interface{} {\n\t\t\t\tif req.IsSet%s() {\n\t\t\t\t\treturn req.Get%s()\n\t\t\t\t} else {\n\t\t\t\t\treturn nil\n\t\t\t\t}}(),\n", checkSnakeName(field.GetName()), field.GoName().String(), field.GoName().String())
+			} else {
+				clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(field.GetName()), field.GoName().String())
+			}
 		}
 	}
 	clientMethod.BodyParamsCode = meta.SetBodyParam

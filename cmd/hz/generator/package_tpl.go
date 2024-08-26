@@ -589,6 +589,9 @@ func (r *request) addHeaders(params map[string]string) *request {
 
 
 func (r *request) setQueryParam(param string, value interface{}) *request {
+	if value == nil {
+		return r
+	}
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
