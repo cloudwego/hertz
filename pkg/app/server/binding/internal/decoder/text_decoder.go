@@ -87,7 +87,7 @@ func SelectTextDecoder(rt reflect.Type) (TextDecoder, error) {
 		return &interfaceDecoder{}, nil
 	}
 
-	return nil, fmt.Errorf("unsupported type " + rt.String())
+	return nil, fmt.Errorf("unsupported type %s", rt.String())
 }
 
 type boolDecoder struct{}
