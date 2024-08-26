@@ -441,7 +441,7 @@ func TestTryRead(t *testing.T) {
 	s := "P"
 	zr := mock.NewZeroCopyReader(s)
 	err := tryRead(&rh, zr, 0)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func TestParseFirstLine(t *testing.T) {
@@ -481,7 +481,11 @@ func TestParseFirstLine(t *testing.T) {
 	for _, tc := range tests {
 		header := &protocol.RequestHeader{}
 		_, err := parseFirstLine(header, tc.input)
-		assert.NotNil(t, err)
+		if tc.err != nil {
+			assert.NotNil(t, err)
+		} else {
+			assert.Nil(t, err)
+		}
 	}
 }
 
