@@ -62,7 +62,7 @@ func Nil(t testing.TB, data interface{}) {
 
 func NotNil(t testing.TB, data interface{}) {
 	t.Helper()
-	if data == nil {
+	if data != nil {
 		return
 	}
 
