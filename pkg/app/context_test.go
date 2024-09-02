@@ -542,7 +542,9 @@ func TestContextRenderFileFromFS(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 	assert.DeepEqual(t, "/some/path", string(ctx.Request.URI().Path()))
 }
 
@@ -559,7 +561,9 @@ func TestContextRenderFile(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 }
 
 func TestContextRenderAttachment(t *testing.T) {
