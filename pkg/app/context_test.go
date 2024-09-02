@@ -367,6 +367,40 @@ hello=world`)
 	}
 }
 
+func TestPostFormArray(t *testing.T) {
+	t.Parallel()
+
+	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Length: 521
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+red
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+green
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+blue
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+
+	ctx = makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Content-Length: 26
+
+tag=red&tag=green&tag=blue
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+}
+
 func TestDefaultPostForm(t *testing.T) {
 	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
 Host: localhost:10000
@@ -928,6 +962,14 @@ func TestGetPostForm(t *testing.T) {
 	v, exists := c.GetPostForm("b")
 	assert.DeepEqual(t, "", v)
 	assert.DeepEqual(t, true, exists)
+}
+
+func TestGetPostFormArray(t *testing.T) {
+	c := NewContext(0)
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
+	c.Request.SetBodyString("a=1&b=2&b=3")
+	v, _ := c.GetPostFormArray("b")
+	assert.DeepEqual(t, []string{"2", "3"}, v)
 }
 
 func TestRemoteAddr(t *testing.T) {
