@@ -1399,7 +1399,7 @@ func (ctx *RequestContext) PostForm(key string) string {
 	return value
 }
 
-// PostFormArray returns the specified key from a POST urlencoded form or multipart form
+// PostFormArray returns an array of the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns an empty array `([])`.
 func (ctx *RequestContext) PostFormArray(key string) []string {
 	values, _ := ctx.GetPostFormArray(key)
@@ -1446,9 +1446,9 @@ func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 //
 // For example, during a PATCH request to update the item's tags:
 //
-//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
-//		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
-//	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
+//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tag") // set tag to ["tag1", "tag2", "tag3"]
+//		   tag=                  -->  (nil, true) := GetPostFormArray("tag") // set tags to nil
+//	                            -->  (nil, false) := GetPostFormArray("tag") // do nothing with tags
 func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
 	vs := ctx.PostArgs().PeekAll(key)
 	values := make([]string, len(vs))
