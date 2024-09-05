@@ -401,6 +401,38 @@ tag=red&tag=green&tag=blue
 	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
 }
 
+func TestPostFormMap(t *testing.T) {
+	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Length: 521
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="object[name]"
+
+liteyuki
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="object[id]"
+
+200216
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="object[age]"
+
+18
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--
+`)
+	assert.DeepEqual(t, map[string]string{"name": "liteyuki", "id": "200216", "age": "18"}, ctx.PostFormMap("object"))
+
+	ctx = makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Content-Length: 54
+
+object[name]=liteyuki&object[id]=200216&object[age]=18
+`)
+	assert.DeepEqual(t, map[string]string{"name": "liteyuki", "id": "200216", "age": "18"}, ctx.PostFormMap("object"))
+}
+
 func TestDefaultPostForm(t *testing.T) {
 	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
 Host: localhost:10000
@@ -974,6 +1006,14 @@ func TestGetPostFormArray(t *testing.T) {
 	c.Request.SetBodyString("a=1&b=2&b=3")
 	v, _ := c.GetPostFormArray("b")
 	assert.DeepEqual(t, []string{"2", "3"}, v)
+}
+
+func TestGetPostFormMap(t *testing.T) {
+	c := NewContext(0)
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
+	c.Request.SetBodyString("attr[name]=lts&attr[id]=114514&attr[age]=24&key=1919810")
+	v, _ := c.GetPostFormMap("attr")
+	assert.DeepEqual(t, map[string]string{"name": "lts", "id": "114514", "age": "24"}, v)
 }
 
 func TestRemoteAddr(t *testing.T) {
