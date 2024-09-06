@@ -349,11 +349,6 @@ func (engine *Engine) Run() (err error) {
 		return err
 	}
 
-	if err = engine.MarkAsRunning(); err != nil {
-		return err
-	}
-	defer atomic.StoreUint32(&engine.status, statusClosed)
-
 	// trigger hooks if any
 	ctx := context.Background()
 	for i := range engine.OnRun {
@@ -361,6 +356,11 @@ func (engine *Engine) Run() (err error) {
 			return err
 		}
 	}
+
+	if err = engine.MarkAsRunning(); err != nil {
+		return err
+	}
+	defer atomic.StoreUint32(&engine.status, statusClosed)
 
 	return engine.listenAndServe()
 }
