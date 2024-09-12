@@ -17,23 +17,12 @@
 package resp
 
 import (
-	"runtime"
 	"sync"
 
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
-
-var chunkReaderPool sync.Pool
-
-func init() {
-	chunkReaderPool = sync.Pool{
-		New: func() interface{} {
-			return &chunkedBodyWriter{}
-		},
-	}
-}
 
 type chunkedBodyWriter struct {
 	sync.Once
@@ -87,19 +76,10 @@ func (c *chunkedBodyWriter) Finalize() error {
 	return c.finalizeErr
 }
 
-func (c *chunkedBodyWriter) release() {
-	c.r = nil
-	c.w = nil
-	c.finalizeErr = nil
-	c.wroteHeader = false
-	chunkReaderPool.Put(c)
-}
-
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {
-	extWriter := chunkReaderPool.Get().(*chunkedBodyWriter)
-	extWriter.r = r
-	extWriter.w = w
-	extWriter.Once = sync.Once{}
-	runtime.SetFinalizer(extWriter, (*chunkedBodyWriter).release)
-	return extWriter
+	return &chunkedBodyWriter{
+		r:    r,
+		w:    w,
+		Once: sync.Once{},
+	}
 }
