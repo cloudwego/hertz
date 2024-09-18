@@ -216,5 +216,31 @@ BinaryName={{.ServiceName}}
 echo "$CURDIR/bin/${BinaryName}"
 exec $CURDIR/bin/${BinaryName}`,
 		},
+		{
+			Path: "Dockerfile",
+			Body: `FROM golang:latest
+WORKDIR /app
+COPY . .
+RUN go mod tidy
+RUN sh build.sh
+EXPOSE 8888
+CMD ["./output/bootstrap.sh"]
+`,
+		},
+		{
+			Path: "docker-compose.yml",
+			Body: `version: '3'
+
+services:
+  docker_hertz:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8080"
+    environment:
+      - ENV=production
+    restart: always`,
+		},
 	},
 }

@@ -19,7 +19,7 @@ package meta
 import "runtime"
 
 // Version hz version
-const Version = "v0.9.1"
+const Version = "v0.9.1-docker"
 
 const DefaultServiceName = "hertz_service"
 
