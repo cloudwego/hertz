@@ -47,8 +47,8 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 )
 
 const (
@@ -251,7 +251,7 @@ func main() {
 	fmt.Fprintf(w, "\tValidHeaderFieldNameTable = %q\n", validHeaderFieldNameTable)
 	fmt.Fprintf(w, ")\n")
 
-	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
+	if err := os.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
 		log.Fatal(err)
 	}
 }

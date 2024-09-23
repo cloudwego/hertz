@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"reflect"
@@ -462,7 +462,7 @@ tailfoobar`
 	if err := req.Read(&ctx.Request, mr); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	tail, err := ioutil.ReadAll(mr)
+	tail, err := io.ReadAll(mr)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -988,7 +988,7 @@ func TestRequestBodyStream(t *testing.T) {
 	s := "testRequestBodyStream"
 	mr := bytes.NewBufferString(s)
 	c.Request.SetBodyStream(mr, -1)
-	data, err := ioutil.ReadAll(c.RequestBodyStream())
+	data, err := io.ReadAll(c.RequestBodyStream())
 	assert.Nil(t, err)
 	assert.DeepEqual(t, "testRequestBodyStream", string(data))
 }

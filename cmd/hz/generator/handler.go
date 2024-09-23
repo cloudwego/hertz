@@ -19,7 +19,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -196,7 +196,7 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 		return nil
 	}
 
-	file, err := ioutil.ReadFile(filePath)
+	file, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}

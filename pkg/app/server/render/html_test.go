@@ -18,7 +18,6 @@ package render
 
 import (
 	"html/template"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func TestHTMLDebug_StartChecker_timer(t *testing.T) {
 }
 
 func TestHTMLDebug_StartChecker_fs_watcher(t *testing.T) {
-	f, _ := ioutil.TempFile("./", "test.tmpl")
+	f, _ := os.CreateTemp("./", "test.tmpl")
 	defer func() {
 		f.Close()
 		os.Remove(f.Name())
