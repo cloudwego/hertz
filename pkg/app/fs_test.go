@@ -185,7 +185,7 @@ func TestServeFileSmallNoReadFrom(t *testing.T) {
 
 	teststr := "hello, world!"
 
-	tempdir, err := os.TempDir("", "httpexpect")
+	tempdir, err := os.MkdirTemp("", "httpexpect")
 	if err != nil {
 		t.Fatal(err)
 	}
