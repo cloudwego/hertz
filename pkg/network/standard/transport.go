@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -36,6 +37,7 @@ type transport struct {
 	// and/or multi-KB headers (for example, BIG cookies).
 	//
 	// Default buffer size is used if not set.
+	isShutDown       atomic.Bool
 	readBufferSize   int
 	network          string
 	addr             string
@@ -68,8 +70,11 @@ func (t *transport) serve() (err error) {
 		conn, err := t.ln.Accept()
 		var c network.Conn
 		if err != nil {
-			hlog.SystemLogger().Errorf("Error=%s", err.Error())
-			return err
+			if !t.isCallShutdown() {
+				hlog.SystemLogger().Errorf("Error=%s", err.Error())
+				return err
+			}
+			return nil
 		}
 
 		if t.OnAccept != nil {
@@ -100,7 +105,12 @@ func (t *transport) Close() error {
 	return t.Shutdown(ctx)
 }
 
+func (t *transport) isCallShutdown() bool {
+	return t.isShutDown.Load()
+}
+
 func (t *transport) Shutdown(ctx context.Context) error {
+	t.isShutDown.Store(true)
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
