@@ -218,6 +218,46 @@ func TestDefaultWriter(t *testing.T) {
 	assert.DeepEqual(t, "hello, hertz", string(response.Body()))
 }
 
+func TestServerDisableReqCtxPool(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			reqCtx.Set("POOL_KEY", "in pool")
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			if ctx.GetString("POOL_KEY") != "in pool" {
+				t.Fatal("reqCtx is not in pool")
+			}
+		},
+		isRunning: true,
+	}
+	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.Nil(t, err)
+	disabaleRequestContextPool = true
+	defer func() {
+		// reset global variable
+		disabaleRequestContextPool = false
+	}()
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			reqCtx.Set("POOL_KEY", "in pool")
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			if len(ctx.GetString("POOL_KEY")) != 0 {
+				t.Fatal("must not get pool key")
+			}
+		},
+		isRunning: true,
+	}
+	defaultConn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err = server.Serve(context.TODO(), defaultConn)
+	assert.Nil(t, err)
+}
+
 func TestHijackResponseWriter(t *testing.T) {
 	server := &Server{}
 	reqCtx := &app.RequestContext{}

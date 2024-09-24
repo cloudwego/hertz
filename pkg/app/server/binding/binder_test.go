@@ -466,10 +466,14 @@ func TestBind_RequiredBind(t *testing.T) {
 		A int `query:"a,required"`
 	}
 	req := newMockRequest().
+		SetRequestURI("http://foobar.com")
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
+
+	req = newMockRequest().
 		SetRequestURI("http://foobar.com").
 		SetHeader("A", "1")
-
-	err := DefaultBinder().Bind(req.Req, &s, nil)
+	err = DefaultBinder().Bind(req.Req, &s, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -688,6 +692,31 @@ func TestBind_FileBind(t *testing.T) {
 	assert.DeepEqual(t, fileName, (**s.D).N.Filename)
 }
 
+func TestBind_FileBindWithNoFile(t *testing.T) {
+	var s struct {
+		A *multipart.FileHeader `file_name:"a"`
+		B *multipart.FileHeader `form:"b"`
+		C *multipart.FileHeader
+	}
+	fileName := "binder_test.go"
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetFile("a", fileName).
+		SetFile("b", fileName)
+	// to parse multipart files
+	req2 := req2.GetHTTP1Request(req.Req)
+	_ = req2.String()
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	assert.DeepEqual(t, fileName, s.A.Filename)
+	assert.DeepEqual(t, fileName, s.B.Filename)
+	if s.C != nil {
+		t.Fatalf("expected a nil for s.C")
+	}
+}
+
 func TestBind_FileSliceBind(t *testing.T) {
 	type Nest struct {
 		N *[]*multipart.FileHeader `form:"b"`
@@ -904,6 +933,7 @@ func TestBind_JSONRequiredField(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected an error, but get nil")
 	}
+	assert.DeepEqual(t, "'c' field is a 'required' parameter, but the request body does not have this parameter 'n.n2.c'", err.Error())
 	assert.DeepEqual(t, 1, result.N.A)
 	assert.DeepEqual(t, 2, result.N.B)
 	assert.DeepEqual(t, 0, result.N.N2.C)
@@ -1492,6 +1522,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
 
 	type TestValidate struct {
 		B int `query:"b" vd:"$>100"`

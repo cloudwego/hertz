@@ -806,3 +806,13 @@ func TestResponseHeaderDateEmpty(t *testing.T) {
 		t.Fatalf("ResponseDateNoDefaultNotEmpty fail, response: \n%+v\noutcome: \n%q\n", h, headers) //nolint:govet
 	}
 }
+
+func TestSetTrailerWithROString(t *testing.T) {
+	h := &RequestHeader{}
+	h.Add(consts.HeaderTrailer, "foo,bar,hertz")
+	assert.DeepEqual(t, "Foo, Bar, Hertz", h.Get(consts.HeaderTrailer))
+
+	h1 := &ResponseHeader{}
+	h1.Add(consts.HeaderTrailer, "foo,bar,hertz")
+	assert.DeepEqual(t, "Foo, Bar, Hertz", h1.Get(consts.HeaderTrailer))
+}

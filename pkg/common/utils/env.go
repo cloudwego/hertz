@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 CloudWeGo Authors
+ * Copyright 2024 CloudWeGo Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,23 @@
  * limitations under the License.
  */
 
-package hertz
+package utils
 
-// Name and Version info of this framework, used for statistics and debug
-const (
-	Name    = "Hertz"
-	Version = "v0.9.3"
+import (
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/cloudwego/hertz/pkg/common/errors"
 )
+
+// Get bool from env
+func GetBoolFromEnv(key string) (bool, error) {
+	value, isExist := os.LookupEnv(key)
+	if !isExist {
+		return false, errors.NewPublic("env not exist")
+	}
+
+	value = strings.TrimSpace(value)
+	return strconv.ParseBool(value)
+}

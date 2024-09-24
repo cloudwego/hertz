@@ -312,7 +312,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Path) {
 			hasAnnotation = true
 			pathAnnos := proto.GetExtension(f.Desc.Options(), api.E_Path)
-			val := checkSnakeName(pathAnnos.(string))
+			val := pathAnnos.(string)
 			if isStringFieldType {
 				clientMethod.PathParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -323,7 +323,7 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if proto.HasExtension(f.Desc.Options(), api.E_Header) {
 			hasAnnotation = true
 			headerAnnos := proto.GetExtension(f.Desc.Options(), api.E_Header)
-			val := checkSnakeName(headerAnnos.(string))
+			val := headerAnnos.(string)
 			if isStringFieldType {
 				clientMethod.HeaderParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
 			} else {
@@ -350,8 +350,12 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 		if fileAnnos := getCompatibleAnnotation(f.Desc.Options(), api.E_FileName, api.E_FileNameCompatible); fileAnnos != nil {
 			hasAnnotation = true
 			hasFormAnnotation = true
-			val := checkSnakeName(fileAnnos.(string))
+			val := fileAnnos.(string)
 			clientMethod.FormFileCode += fmt.Sprintf("%q: req.Get%s(),\n", val, f.GoName)
+		}
+		if proto.HasExtension(f.Desc.Options(), api.E_Cookie) {
+			hasAnnotation = true
+			// cookie do nothing
 		}
 		if !hasAnnotation && strings.EqualFold(clientMethod.HTTPMethod, "get") {
 			clientMethod.QueryParamsCode += fmt.Sprintf("%q: req.Get%s(),\n", checkSnakeName(string(f.Desc.Name())), f.GoName)

@@ -97,7 +97,7 @@ func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, han
 			tmpHandlerPackage := handlerPackage
 			if len(s.ServiceGenDir) != 0 {
 				tmpHandlerDir = s.ServiceGenDir
-				tmpHandlerPackage = util.SubPackage(pkgGen.ProjPackage, tmpHandlerDir)
+				tmpHandlerPackage = util.SubPackage(pkgGen.ProjPackage, strings.TrimPrefix(tmpHandlerDir, "/"))
 			}
 			handler = Handler{
 				FilePath:    filepath.Join(tmpHandlerDir, util.ToSnakeCase(s.Name)+".go"),
@@ -161,7 +161,7 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 			}
 			handler.Imports[mm.PackageName] = mm
 		}
-		err := root.Update(m, handler.PackageName, singleHandlerPackage)
+		err := root.Update(m, handler.PackageName, singleHandlerPackage, pkgGen.SortRouter)
 		if err != nil {
 			return err
 		}

@@ -188,6 +188,7 @@ func WithMaxRequestBodySize(bs int) config.Option {
 // WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
+// Note: If memory pressure is high, try setting the value to 0.
 func WithMaxKeepBodySize(bs int) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.MaxKeepBodySize = bs
@@ -392,5 +393,21 @@ func WithDisableDefaultDate(disable bool) config.Option {
 func WithDisableDefaultContentType(disable bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.NoDefaultContentType = disable
+	}}
+}
+
+// WithSenseClientDisconnection sets the ability to sense client disconnections.
+// If we don't set it, it will default to false.
+// There are two issues to note when using this option:
+// 1. Warning: It only applies to netpoll.
+// 2. After opening, the context.Context in the request will be cancelled.
+//
+//	Example:
+//	server.Default(
+//	server.WithSenseClientDisconnection(true),
+//	)
+func WithSenseClientDisconnection(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.SenseClientDisconnection = b
 	}}
 }

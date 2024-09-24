@@ -48,15 +48,15 @@ func TestTagGenerate(t *testing.T) {
 		},
 		{
 			Annotation:   "form",
-			GeneratedTag: "protobuf:\"bytes,4,opt,name=FormTag\" json:\"FormTag,omitempty\" form:\"form\"",
+			GeneratedTag: "protobuf:\"bytes,4,opt,name=FormTag\" form:\"form\" json:\"FormTag,omitempty\"",
 		},
 		{
 			Annotation:   "cookie",
-			GeneratedTag: "protobuf:\"bytes,5,opt,name=CookieTag\" json:\"CookieTag,omitempty\" cookie:\"cookie\"",
+			GeneratedTag: "protobuf:\"bytes,5,opt,name=CookieTag\" cookie:\"cookie\" json:\"CookieTag,omitempty\"",
 		},
 		{
 			Annotation:   "header",
-			GeneratedTag: "protobuf:\"bytes,6,opt,name=HeaderTag\" json:\"HeaderTag,omitempty\" header:\"header\"",
+			GeneratedTag: "protobuf:\"bytes,6,opt,name=HeaderTag\" header:\"header\" json:\"HeaderTag,omitempty\"",
 		},
 		{
 			Annotation:   "body",
@@ -64,15 +64,15 @@ func TestTagGenerate(t *testing.T) {
 		},
 		{
 			Annotation:   "go.tag",
-			GeneratedTag: "bytes,8,opt,name=GoTag\" json:\"json\" form:\"form\" goTag:\"tag\" header:\"header\" query:\"query\"",
+			GeneratedTag: "bytes,8,opt,name=GoTag\" form:\"form\" goTag:\"tag\" header:\"header\" json:\"json\" query:\"query\"",
 		},
 		{
 			Annotation:   "vd",
-			GeneratedTag: "bytes,9,opt,name=VdTag\" json:\"VdTag,omitempty\" form:\"VdTag\" query:\"VdTag\" vd:\"$!='?'\"",
+			GeneratedTag: "bytes,9,opt,name=VdTag\" form:\"VdTag\" json:\"VdTag,omitempty\" query:\"VdTag\" vd:\"$!='?'\"",
 		},
 		{
 			Annotation:   "non",
-			GeneratedTag: "bytes,10,opt,name=DefaultTag\" json:\"DefaultTag,omitempty\" form:\"DefaultTag\" query:\"DefaultTag\"",
+			GeneratedTag: "bytes,10,opt,name=DefaultTag\" form:\"DefaultTag\" json:\"DefaultTag,omitempty\" query:\"DefaultTag\"",
 		},
 		{
 			Annotation:   "query required",
@@ -92,11 +92,11 @@ func TestTagGenerate(t *testing.T) {
 		},
 		{
 			Annotation:   "go.tag required",
-			GeneratedTag: "protobuf:\"bytes,15,req,name=ReqGoTag\" query:\"ReqGoTag,required\" form:\"ReqGoTag,required\" json:\"json\"",
+			GeneratedTag: "protobuf:\"bytes,15,req,name=ReqGoTag\" form:\"ReqGoTag,required\" json:\"json\" query:\"ReqGoTag,required\"",
 		},
 		{
 			Annotation:   "go.tag optional",
-			GeneratedTag: "bytes,16,opt,name=OptGoTag\" query:\"OptGoTag\" form:\"OptGoTag\" json:\"json\"",
+			GeneratedTag: "bytes,16,opt,name=OptGoTag\" form:\"OptGoTag\" json:\"json\" query:\"OptGoTag\"",
 		},
 		{
 			Annotation:   "go tag cover query",

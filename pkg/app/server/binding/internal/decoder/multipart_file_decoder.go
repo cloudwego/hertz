@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -52,7 +53,8 @@ func (d *fileTypeDecoder) Decode(req *protocol.Request, params param.Params, req
 	}
 	file, err := req.FormFile(fileName)
 	if err != nil {
-		return fmt.Errorf("can not get file '%s', err: %v", fileName, err)
+		hlog.SystemLogger().Warnf("can not get file '%s' form request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
+		return nil
 	}
 	if field.Kind() == reflect.Ptr {
 		t := field.Type()
@@ -105,11 +107,13 @@ func (d *fileTypeDecoder) fileSliceDecode(req *protocol.Request, params param.Pa
 	}
 	multipartForm, err := req.MultipartForm()
 	if err != nil {
-		return fmt.Errorf("can not get multipartForm info, err: %v", err)
+		hlog.SystemLogger().Warnf("can not get MultipartForm from request, reason: %v, so skip '%s' field binding", fileName, err, d.fieldName)
+		return nil
 	}
 	files, exist := multipartForm.File[fileName]
 	if !exist {
-		return fmt.Errorf("the file '%s' is not existed", fileName)
+		hlog.SystemLogger().Warnf("the file '%s' is not existed in request, so skip '%s' field binding", fileName, d.fieldName)
+		return nil
 	}
 
 	if field.Kind() == reflect.Array {

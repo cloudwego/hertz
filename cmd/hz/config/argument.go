@@ -41,12 +41,13 @@ type Argument struct {
 	BaseDomain     string // request domain
 	ForceClientDir string // client dir (not use namespace as a subpath)
 
-	IdlType   string   // idl type
-	IdlPaths  []string // master idl path
-	RawOptPkg []string // user-specified package import path
-	OptPkgMap map[string]string
-	Includes  []string
-	PkgPrefix string
+	IdlType       string   // idl type
+	IdlPaths      []string // master idl path
+	RawOptPkg     []string // user-specified package import path
+	OptPkgMap     map[string]string
+	Includes      []string
+	PkgPrefix     string
+	TrimGoPackage string // trim go_package for protobuf, avoid to generate multiple directory
 
 	Gopath      string // $GOPATH
 	Gosrc       string // $GOPATH/src
@@ -70,8 +71,10 @@ type Argument struct {
 	NoRecurse            bool
 	HandlerByMethod      bool
 	ForceNew             bool
+	ForceUpdateClient    bool
 	SnakeStyleMiddleware bool
 	EnableExtends        bool
+	SortRouter           bool
 
 	CustomizeLayout     string
 	CustomizeLayoutData string

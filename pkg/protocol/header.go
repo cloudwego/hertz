@@ -1766,6 +1766,8 @@ func (h *ResponseHeader) setSpecialHeader(key, value []byte) bool {
 			// Transfer-Encoding is managed automatically.
 			return true
 		} else if utils.CaseInsensitiveCompare(bytestr.StrTrailer, key) {
+			// copy value to avoid panic
+			value = append(h.bufKV.value[:0], value...)
 			h.Trailer().SetTrailers(value)
 			return true
 		}

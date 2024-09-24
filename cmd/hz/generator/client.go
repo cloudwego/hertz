@@ -71,7 +71,7 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			BaseDomain:    baseDomain,
 			Config:        ClientConfig{QueryEnumAsInt: pkgGen.QueryEnumAsInt},
 		}
-		if !isExist {
+		if !isExist || pkgGen.ForceUpdateClient {
 			err := pkgGen.TemplateGenerator.Generate(client, hertzClientTplName, hertzClientPath, false)
 			if err != nil {
 				return err

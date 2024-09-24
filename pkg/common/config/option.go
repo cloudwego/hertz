@@ -63,6 +63,7 @@ type Options struct {
 	StreamRequestBody            bool
 	NoDefaultServerHeader        bool
 	DisablePrintRoute            bool
+	SenseClientDisconnection     bool
 	Network                      string
 	Addr                         string
 	BasePath                     string
@@ -203,6 +204,9 @@ func NewOptions(opts []Option) *Options {
 		// Disabled when set to True
 		DisablePrintRoute: false,
 
+		// The ability to sense client disconnection is disabled by default
+		SenseClientDisconnection: false,
+
 		// "tcp", "udp", "unix"(unix domain socket)
 		Network: defaultNetwork,
 
@@ -216,9 +220,9 @@ func NewOptions(opts []Option) *Options {
 		// an error will be returned
 		MaxRequestBodySize: defaultMaxRequestBodySize,
 
-		// max reserved body buffer size when reset Request & Request
-		// If the body size exceeds this value, then the buffer won't be put to
-		// sync.Pool to prevent OOM
+		// max reserved body buffer size when reset Request & Response
+		// If the body size exceeds this value, then the buffer will be put to
+		// sync.Pool instead of hold by Request/Response directly.
 		MaxKeepBodySize: defaultMaxRequestBodySize,
 
 		// only accept GET request
