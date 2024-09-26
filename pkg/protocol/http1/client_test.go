@@ -185,7 +185,7 @@ func testContinueReadResponseBodyStream(t *testing.T, header, body string, maxBo
 		t.Fatalf("error when reading request body stream: %s", err)
 	}
 	fRead := firstRead
-	streamRead := make([]byte, fRead)
+	streamRead := make([]byte, 0, fRead)
 	sR, _ := r.BodyStream().Read(streamRead)
 
 	if sR != firstRead {
