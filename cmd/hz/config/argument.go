@@ -76,6 +76,9 @@ type Argument struct {
 	EnableExtends        bool
 	SortRouter           bool
 
+	// client flag
+	EnableClientOptional bool
+
 	CustomizeLayout     string
 	CustomizeLayoutData string
 	CustomizePackage    string
