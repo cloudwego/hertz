@@ -56,6 +56,7 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 	out := make([]*generator.Service, 0, len(ss))
 	var models model.Models
 	extendServices := getExtendServices(ast)
+	isCompatibleName := isCompatibleName(args)
 	for _, s := range ss {
 		// if the service is extended, it is not processed
 		if extendServices.exist(s.Name) && args.EnableExtends {
@@ -152,6 +153,9 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 					reqPackage = names[0]
 				}
 			}
+			if isCompatibleName && hasCompatibleNameCondition(reqRawName) {
+				reqName = reqName + "_"
+			}
 			var respName, respRawName, respPackage string
 			if !m.Oneway {
 				var err error
@@ -169,6 +173,9 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 					respRawName = names[1]
 					respPackage = names[0]
 				}
+			}
+			if isCompatibleName && hasCompatibleNameCondition(respRawName) {
+				respName = respName + "_"
 			}
 
 			sr, _ := util.GetFirstKV(getAnnotations(m.Annotations, SerializerTags))
@@ -242,6 +249,24 @@ func newHTTPMethod(s *parser.Service, m *parser.Function, method *generator.Http
 	newMethod.Path = path[i]
 	newMethod.GenHandler = false
 	return &newMethod, nil
+}
+
+func isCompatibleName(args *config.Argument) bool {
+	for _, t := range args.ThriftOptions {
+		if strings.EqualFold(t, "compatible_names=true") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasCompatibleNameCondition(name string) bool {
+	if strings.HasPrefix(name, "New") || strings.HasSuffix(name, "Args") || strings.HasSuffix(name, "Result") {
+		return true
+	}
+
+	return false
 }
 
 func parseAnnotationToClient(clientMethod *generator.ClientMethod, p *parser.Type, symbol ResolvedSymbol) error {
