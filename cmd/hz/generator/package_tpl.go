@@ -312,8 +312,8 @@ var (
 	jsonContentType = "application/json; charset=utf-8"
 	formContentType = "multipart/form-data"
 
-	jsonCheck = regexp.MustCompile(` + "`(?i:(application|text)/(json|.*\\+json|json\\-.*)(; |$))`)\n" +
-	`xmlCheck  = regexp.MustCompile(` + "`(?i:(application|text)/(xml|.*\\+xml)(; |$))`)\n" +
+	jsonCheck = regexp.MustCompile(` + "`(?i:(application|text)/(json|.*\\+json|json\\-.*)(;\\s*|$))`)\n" +
+	`xmlCheck  = regexp.MustCompile(` + "`(?i:(application|text)/(xml|.*\\+xml)(;\\s*|$))`)\n" +
 	`
 )
 
