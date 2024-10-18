@@ -18,6 +18,7 @@ package thrift
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -124,6 +125,9 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 				handlerOutDir = genPaths[0]
 			} else if len(genPaths) > 0 {
 				return nil, fmt.Errorf("too many 'api.handler_path' for %s", m.Name)
+			}
+			if !util.IsValidPackageName(filepath.Base(handlerOutDir)) {
+				handlerOutDir = ""
 			}
 
 			hmethod, path := httpAnnos[0].method, httpAnnos[0].path
