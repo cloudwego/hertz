@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -52,6 +53,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -293,4 +295,21 @@ func TestResponse_HijackWriter(t *testing.T) {
 	assert.False(t, isFinal)
 	resp.GetHijackWriter().Finalize()
 	assert.True(t, isFinal)
+}
+
+type HijackerFunc func() (network.Conn, error)
+
+func (h HijackerFunc) Read(_ []byte) (int, error)    { return 0, errors.New("not implemented") }
+func (h HijackerFunc) Hijack() (network.Conn, error) { return h() }
+
+func TestResponse_Hijack(t *testing.T) {
+	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
+	_, err := resp.Hijack()
+	assert.NotNil(t, err)
+
+	resp.SetBodyStream(HijackerFunc(func() (network.Conn, error) { return nil, nil }), -1)
+	_, err = resp.Hijack()
+	assert.Nil(t, err)
 }
