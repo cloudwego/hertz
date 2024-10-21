@@ -57,6 +57,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -82,9 +83,58 @@ import (
 
 var errTooManyRedirects = errors.New("too many redirects detected when doing the request")
 
+func assertNil(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+var unixsockPath string
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "tests-*")
+	assertNil(err)
+	unixsockPath = dir
+	defer os.RemoveAll(dir)
+
+	m.Run()
+}
+
+var nextUnixSockID = int32(10000)
+
+func nextUnixSock() string {
+	n := atomic.AddInt32(&nextUnixSockID, 1)
+	return filepath.Join(unixsockPath, strconv.Itoa(int(n))+".sock")
+}
+
+func waitEngineRunning(e *route.Engine) {
+	for i := 0; i < 100; i++ {
+		if e.IsRunning() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	opts := e.GetOptions()
+	network, addr := opts.Network, opts.Addr
+	if network == "" {
+		network = "tcp"
+	}
+	for i := 0; i < 100; i++ {
+		conn, err := net.Dial(network, addr)
+		if err != nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		conn.Close()
+		return
+	}
+
+	panic("not running")
+}
+
 func TestCloseIdleConnections(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10000"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -92,12 +142,7 @@ func TestCloseIdleConnections(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
@@ -124,13 +169,21 @@ func TestCloseIdleConnections(t *testing.T) {
 	if conns := connsLen(); conns > 0 {
 		t.Errorf("expected 0 conns got %d", conns)
 	}
+
+	c.mClean()
+
+	func() {
+		c.mLock.Lock()
+		defer c.mLock.Unlock()
+		if len(c.m) != 0 {
+			t.Errorf("expected 0 conns got %d", len(c.m))
+		}
+	}()
 }
 
 func TestClientInvalidURI(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10001"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	requests := int64(0)
 	engine := route.NewEngine(opt)
@@ -141,12 +194,7 @@ func TestClientInvalidURI(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -166,10 +214,8 @@ func TestClientInvalidURI(t *testing.T) {
 }
 
 func TestClientGetWithBody(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10002"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -180,12 +226,7 @@ func TestClientGetWithBody(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -206,10 +247,8 @@ func TestClientGetWithBody(t *testing.T) {
 }
 
 func TestClientPostBodyStream(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10102"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
@@ -220,12 +259,7 @@ func TestClientPostBodyStream(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	cStream, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)), WithResponseBodyStream(true))
 	args := &protocol.Args{}
@@ -244,8 +278,6 @@ func TestClientPostBodyStream(t *testing.T) {
 }
 
 func TestClientURLAuth(t *testing.T) {
-	t.Parallel()
-
 	cases := map[string]string{
 		"foo:bar@": "Basic Zm9vOmJhcg==",
 		"foo:@":    "Basic Zm9vOg==",
@@ -256,7 +288,7 @@ func TestClientURLAuth(t *testing.T) {
 	ch := make(chan string, 1)
 
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10003"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 	engine.GET("/foo/bar", func(c context.Context, ctx *app.RequestContext) {
@@ -266,12 +298,7 @@ func TestClientURLAuth(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	for up, expected := range cases {
@@ -293,7 +320,7 @@ func TestClientURLAuth(t *testing.T) {
 
 func TestClientNilResp(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10004"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -303,12 +330,7 @@ func TestClientNilResp(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 
@@ -324,7 +346,6 @@ func TestClientNilResp(t *testing.T) {
 }
 
 func TestClientParseConn(t *testing.T) {
-	t.Parallel()
 	opt := config.NewOptions([]config.Option{})
 	opt.Addr = "127.0.0.1:10005"
 	engine := route.NewEngine(opt)
@@ -334,12 +355,7 @@ func TestClientParseConn(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -365,9 +381,8 @@ func TestClientParseConn(t *testing.T) {
 }
 
 func TestClientPostArgs(t *testing.T) {
-	t.Parallel()
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10006"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
@@ -381,12 +396,8 @@ func TestClientPostArgs(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
+
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
 	defer func() {
@@ -408,10 +419,8 @@ func TestClientPostArgs(t *testing.T) {
 }
 
 func TestClientHeaderCase(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10007"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -428,7 +437,7 @@ func TestClientHeaderCase(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Second)
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDisableHeaderNamesNormalizing(true))
 	code, body, err := c.Get(context.Background(), nil, "http://example.com")
@@ -442,32 +451,32 @@ func TestClientHeaderCase(t *testing.T) {
 }
 
 func TestClientReadTimeout(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode")
-	}
-
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "localhost:10024"
+	opt.Addr = nextUnixSock()
+	opt.Network = "unix"
 	engine := route.NewEngine(opt)
+
+	readtimeout := 50 * time.Millisecond
+	sleeptime := 75 * time.Millisecond // must > readtimeout
 
 	engine.GET("/normal", func(c context.Context, ctx *app.RequestContext) {
 		ctx.String(201, "ok")
 	})
 	engine.GET("/timeout", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 60)
+		time.Sleep(sleeptime)
 		ctx.String(202, "timeout ok")
 	})
 	go engine.Run()
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Second * 1)
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
-			ReadTimeout: time.Second * 4,
+			ReadTimeout: readtimeout,
 			RetryConfig: &retry.Config{MaxAttemptTimes: 1},
-			Dialer:      standard.NewDialer(),
+			Dialer:      newMockDialerWithCustomFunc(opt.Network, opt.Addr, readtimeout, nil),
 		},
 		Addr: opt.Addr,
 	}
@@ -475,7 +484,7 @@ func TestClientReadTimeout(t *testing.T) {
 	req := protocol.AcquireRequest()
 	res := protocol.AcquireResponse()
 
-	req.SetRequestURI("http://" + opt.Addr + "/normal")
+	req.SetRequestURI("http://example.com/normal")
 	req.Header.SetMethod(consts.MethodGet)
 
 	// Setting Connection: Close will make the connection be returned to the pool.
@@ -485,48 +494,36 @@ func TestClientReadTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	protocol.ReleaseRequest(req)
-	protocol.ReleaseResponse(res)
+	req.Reset()
+	req.SetRequestURI("http://example.com/timeout")
+	req.Header.SetMethod(consts.MethodGet)
+	req.SetConnectionClose()
+	res.Reset()
 
-	done := make(chan struct{})
-	go func() {
-		req := protocol.AcquireRequest()
-		res := protocol.AcquireResponse()
-
-		req.SetRequestURI("http://" + opt.Addr + "/timeout")
-		req.Header.SetMethod(consts.MethodGet)
-		req.SetConnectionClose()
-
-		if err := c.Do(context.Background(), req, res); !errors.Is(err, errs.ErrTimeout) {
-			if err == nil {
-				t.Errorf("expected ErrTimeout got nil, req url: %s, read resp body: %s, status: %d", string(req.URI().FullURI()), string(res.Body()), res.StatusCode())
-			} else {
-				if !strings.Contains(err.Error(), "timeout") {
-					t.Errorf("expected ErrTimeout got %#v", err)
-				}
+	t0 := time.Now()
+	err := c.Do(context.Background(), req, res)
+	t1 := time.Now()
+	if !errors.Is(err, errs.ErrTimeout) {
+		if err == nil {
+			t.Errorf("expected ErrTimeout got nil, req url: %s, read resp body: %s, status: %d", string(req.URI().FullURI()), string(res.Body()), res.StatusCode())
+		} else {
+			if !strings.Contains(err.Error(), "timeout") {
+				t.Errorf("expected ErrTimeout got %#v", err)
 			}
 		}
-
-		protocol.ReleaseRequest(req)
-		protocol.ReleaseResponse(res)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// It is abnormal when waiting time exceeds the value of readTimeout times the number of retries.
-		// Give it extra 2 seconds just to be sure.
-	case <-time.After(c.ReadTimeout*time.Duration(c.RetryConfig.MaxAttemptTimes) + time.Second*2):
-		t.Fatal("Client.ReadTimeout didn't work")
+	}
+	protocol.ReleaseRequest(req)
+	protocol.ReleaseResponse(res)
+	if d := t1.Sub(t0) - readtimeout; d > readtimeout/2 {
+		t.Errorf("timeout more than expected: %v", d)
+	} else {
+		t.Log("latency", d)
 	}
 }
 
 func TestClientDefaultUserAgent(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10009"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -537,12 +534,7 @@ func TestClientDefaultUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req := protocol.AcquireRequest()
@@ -561,11 +553,8 @@ func TestClientDefaultUserAgent(t *testing.T) {
 }
 
 func TestClientSetUserAgent(t *testing.T) {
-	t.Parallel()
-
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10010"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -576,12 +565,7 @@ func TestClientSetUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	userAgent := "I'm not hertz"
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithName(userAgent))
@@ -601,7 +585,7 @@ func TestClientSetUserAgent(t *testing.T) {
 
 func TestClientNoUserAgent(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "unix-test-10011"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -612,12 +596,8 @@ func TestClientNoUserAgent(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
+
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDialTimeout(1*time.Second), WithNoDefaultUserAgentHeader(true))
 
 	req := protocol.AcquireRequest()
@@ -635,8 +615,6 @@ func TestClientNoUserAgent(t *testing.T) {
 }
 
 func TestClientDoWithCustomHeaders(t *testing.T) {
-	t.Parallel()
-
 	ch := make(chan error)
 	uri := "/foo/bar/baz?a=b&cd=12"
 	headers := map[string]string{
@@ -647,8 +625,7 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 	}
 	body := "request body"
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10012"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -698,12 +675,7 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	// make sure that the client sends all the request headers and body.
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
@@ -731,10 +703,8 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 }
 
 func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
-	t.Parallel()
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10013"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -748,12 +718,8 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
+
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, time.Second, nil)), WithDisablePathNormalizing(true))
 
 	urlWithEncodedPath := "http://example.com/encoded/Y%2BY%2FY%3D/stuff"
@@ -773,14 +739,11 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 }
 
 func TestHostClientPendingRequests(t *testing.T) {
-	t.Parallel()
-
 	const concurrency = 10
 	doneCh := make(chan struct{})
 	readyCh := make(chan struct{}, concurrency)
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10014"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -792,7 +755,7 @@ func TestHostClientPendingRequests(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Second)
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -867,8 +830,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 		wg             sync.WaitGroup
 	)
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10015"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -883,12 +845,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -912,7 +869,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 			for {
 				if err := c.DoDeadline(context.Background(), req, resp, time.Now().Add(timeout)); err != nil {
 					if err.Error() == errs.ErrNoFreeConns.Error() {
-						time.Sleep(time.Millisecond * 500)
+						time.Sleep(10 * time.Millisecond)
 						continue
 					}
 					t.Errorf("unexpected error: %s", err)
@@ -938,12 +895,9 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 }
 
 func TestHostClientMaxConnDuration(t *testing.T) {
-	t.Parallel()
-
 	connectionCloseCount := uint32(0)
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10016"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -957,12 +911,7 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -992,10 +941,8 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 }
 
 func TestHostClientMultipleAddrs(t *testing.T) {
-	t.Parallel()
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10017"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -1007,12 +954,7 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	dialsCount := make(map[string]int)
 	c := &http1.HostClient{
@@ -1048,10 +990,8 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 }
 
 func TestClientFollowRedirects(t *testing.T) {
-	t.Parallel()
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10018"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -1079,7 +1019,7 @@ func TestClientFollowRedirects(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(time.Second * 2)
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -1157,8 +1097,7 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 		wg             sync.WaitGroup
 	)
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10019"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -1173,12 +1112,7 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -1231,8 +1165,7 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 		wg             sync.WaitGroup
 	)
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10020"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -1247,12 +1180,7 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	for {
-		time.Sleep(1 * time.Second)
-		if engine.IsRunning() {
-			break
-		}
-	}
+	waitEngineRunning(engine)
 
 	c := &http1.HostClient{
 		ClientOptions: &http1.ClientOptions{
@@ -1317,7 +1245,7 @@ func TestNewClient(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	client, err := NewClient(WithDialTimeout(2 * time.Second))
 	if err != nil {
@@ -1345,7 +1273,7 @@ func TestUseShortConnection(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithKeepAlive(false))
 	var wg sync.WaitGroup
@@ -1392,8 +1320,8 @@ func TestPostWithFormData(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	waitEngineRunning(engine)
 
-	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1446,8 +1374,8 @@ func TestPostWithMultipartField(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	waitEngineRunning(engine)
 
-	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1492,8 +1420,8 @@ func TestSetFiles(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	waitEngineRunning(engine)
 
-	time.Sleep(1 * time.Second)
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1543,8 +1471,8 @@ func TestSetMultipartFields(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	waitEngineRunning(engine)
 
-	time.Sleep(1 * time.Second)
 	client, _ := NewClient(WithDialTimeout(50 * time.Millisecond))
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -1598,7 +1526,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -1651,7 +1579,8 @@ func TestWithBasicAuth(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	client, _ := NewClient()
 	req := protocol.AcquireRequest()
 	rsp := protocol.AcquireResponse()
@@ -2022,7 +1951,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -2095,7 +2024,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	client, _ := NewClient(WithResponseBodyStream(true))
 
@@ -2150,7 +2079,6 @@ func (m *mockDialer) DialConnection(network, address string, timeout time.Durati
 }
 
 func TestClientRetry(t *testing.T) {
-	t.Parallel()
 	client, err := NewClient(
 		// Default dial function performs different in different os. So unit the performance of dial function.
 		WithDialFunc(func(addr string) (network.Conn, error) {
@@ -2368,14 +2296,11 @@ func TestClientDialerName(t *testing.T) {
 }
 
 func TestClientDoWithDialFunc(t *testing.T) {
-	t.Parallel()
-
 	ch := make(chan error, 1)
 	uri := "/foo/bar/baz"
 	body := "request body"
 	opt := config.NewOptions([]config.Option{})
-
-	opt.Addr = "unix-test-10021"
+	opt.Addr = nextUnixSock()
 	opt.Network = "unix"
 	engine := route.NewEngine(opt)
 
@@ -2405,7 +2330,7 @@ func TestClientDoWithDialFunc(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	c, _ := NewClient(WithDialFunc(func(addr string) (network.Conn, error) {
 		return dialer.DialConnection(opt.Network, opt.Addr, time.Second, nil)
@@ -2442,11 +2367,13 @@ func TestClientState(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
+	waitEngineRunning(engine)
 
-	time.Sleep(1 * time.Second)
-
+	var wg sync.WaitGroup
+	wg.Add(2)
 	state := int32(0)
 	client, _ := NewClient(
+		WithMaxIdleConnDuration(75*time.Millisecond),
 		WithConnStateObserve(func(hcs config.HostClientState) {
 			switch atomic.LoadInt32(&state) {
 			case int32(0):
@@ -2454,19 +2381,18 @@ func TestClientState(t *testing.T) {
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
 				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
+				wg.Done()
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
 				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
-				return
-			case int32(2):
-				t.Fatal("It shouldn't go to here")
+				wg.Done()
 			}
-		}, time.Second*9))
-
+		}, 50*time.Millisecond))
 	client.Get(context.Background(), nil, "http://127.0.0.1:10037")
-	time.Sleep(time.Second * 22)
+	wg.Wait()
+	assert.DeepEqual(t, int32(2), atomic.LoadInt32(&state))
 }
 
 func TestClientRetryErr(t *testing.T) {
@@ -2486,7 +2412,8 @@ func TestClientRetryErr(t *testing.T) {
 		defer func() {
 			engine.Close()
 		}()
-		time.Sleep(1 * time.Second)
+		waitEngineRunning(engine)
+
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
 		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10136/ping")
 		assert.Nil(t, err)
@@ -2511,7 +2438,8 @@ func TestClientRetryErr(t *testing.T) {
 		defer func() {
 			engine.Close()
 		}()
-		time.Sleep(1 * time.Second)
+		waitEngineRunning(engine)
+
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
 		c.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 			return resp.StatusCode() == 502
