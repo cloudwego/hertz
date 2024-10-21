@@ -49,6 +49,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -309,6 +310,64 @@ func TestDoNonNilReqResp1(t *testing.T) {
 	retry, err := c.doNonNilReqResp(req, resp)
 	assert.True(t, retry)
 	assert.NotNil(t, err)
+}
+
+func TestConnUpgrade(t *testing.T) {
+	ln, _ := net.Listen("tcp", "localhost:0")
+	defer ln.Close()
+	svr := http.Server{}
+	svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "webserver doesn't support hijacking", http.StatusInternalServerError)
+			return
+		}
+		conn, rw, err := hj.Hijack()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer conn.Close()
+		_, err = rw.WriteString("HTTP/1.1 101 Switching Protocols\nConnection: Upgrade\n\n")
+		assert.Nil(t, err)
+		assert.Nil(t, rw.Flush())
+		b := make([]byte, 100)
+		for { // echo with "echo:" prefix
+			n, err := rw.Read(b)
+			if err != nil {
+				return
+			}
+			_, err = rw.Write([]byte("echo:" + string(b[:n])))
+			if err != nil {
+				return
+			}
+			_ = rw.Flush()
+		}
+	})
+	go svr.Serve(ln)
+
+	c := &HostClient{
+		Addr:          ln.Addr().String(),
+		ClientOptions: &ClientOptions{},
+	}
+	req := protocol.AcquireRequest()
+	req.SetRequestURI("http://" + ln.Addr().String() + "/")
+	resp := protocol.AcquireResponse()
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.False(t, retry)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 101)
+
+	s := resp.BodyStream()
+	assert.NotNil(t, s)
+	conn, err := resp.Hijack()
+	assert.Nil(t, err)
+
+	b := make([]byte, 100)
+	_, _ = conn.Write(append(b[:0], "hello"...))
+	n, err := s.Read(b) // same as conn.Read
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(b[:n]), "echo:hello")
 }
 
 func TestWriteTimeoutPriority(t *testing.T) {
