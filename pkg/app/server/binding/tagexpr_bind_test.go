@@ -38,7 +38,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -798,7 +797,7 @@ func newRequest(u string, header http.Header, cookies []*http.Cookie, bodyReader
 	method := "GET"
 	var body []byte
 	if bodyReader != nil {
-		body, _ = ioutil.ReadAll(bodyReader)
+		body, _ = io.ReadAll(bodyReader)
 		method = "POST"
 	}
 	if u == "" {
