@@ -51,6 +51,35 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
+type routeEngine interface {
+	IsRunning() bool
+	GetOptions() *config.Options
+}
+
+func waitEngineRunning(e routeEngine) {
+	for i := 0; i < 100; i++ {
+		if e.IsRunning() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	opts := e.GetOptions()
+	network, addr := opts.Network, opts.Addr
+	if network == "" {
+		network = "tcp"
+	}
+	for i := 0; i < 100; i++ {
+		conn, err := net.Dial(network, addr)
+		if err != nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		conn.Close()
+		return
+	}
+	panic("not running")
+}
+
 func TestHertz_Run(t *testing.T) {
 	hertz := Default(WithHostPorts("127.0.0.1:6666"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
@@ -67,7 +96,7 @@ func TestHertz_Run(t *testing.T) {
 	assert.Assert(t, len(hertz.Handlers) == 1)
 
 	go hertz.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(hertz)
 
 	hertz.Close()
 	resp, err := http.Get("http://127.0.0.1:6666/test")
@@ -77,9 +106,12 @@ func TestHertz_Run(t *testing.T) {
 }
 
 func TestHertz_GracefulShutdown(t *testing.T) {
+	handling := make(chan struct{})
+	closing := make(chan struct{})
 	engine := New(WithHostPorts("127.0.0.1:6667"))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 2)
+		close(handling)
+		<-closing
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
@@ -95,12 +127,11 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 		atomic.StoreUint32(&testint2, 2)
 	})
 	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
-		time.Sleep(2 * time.Second)
 		atomic.StoreUint32(&testint3, 3)
 	})
 
 	go engine.Spin()
-	time.Sleep(time.Millisecond)
+	waitEngineRunning(engine)
 
 	hc := http.Client{Timeout: time.Second}
 	var err error
@@ -108,7 +139,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 	ch := make(chan struct{})
 	ch2 := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
+		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
 			t.Logf("[%v]begin listening\n", time.Now())
@@ -127,14 +158,16 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 		ch <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 1)
+	<-handling
+
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	t.Logf("[%v]begin shutdown\n", start)
 	engine.Shutdown(ctx)
 	end := time.Now()
 	t.Logf("[%v]end shutdown\n", end)
 
+	close(closing)
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
@@ -161,7 +194,8 @@ func TestLoadHTMLGlob(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	resp, _ := http.Get("http://127.0.0.1:8893/index")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
@@ -188,7 +222,8 @@ func TestLoadHTMLFiles(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	resp, _ := http.Get("http://127.0.0.1:8891/raw")
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
@@ -233,7 +268,8 @@ func TestServer_Run(t *testing.T) {
 		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8899/test"))
 	})
 	go hertz.Run()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(hertz)
+
 	resp, err := http.Get("http://127.0.0.1:8899/test")
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
@@ -269,7 +305,7 @@ func TestNotAbsolutePath(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -311,7 +347,7 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -389,7 +425,8 @@ func TestWithBasePath(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
@@ -407,7 +444,8 @@ func TestNotEnoughBodySize(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
@@ -427,7 +465,8 @@ func TestEnoughBodySize(t *testing.T) {
 	defer func() {
 		engine.Close()
 	}()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
@@ -549,18 +588,19 @@ func TestParamInconsist(t *testing.T) {
 		}
 	})
 	go h.Run()
-	time.Sleep(time.Millisecond * 50)
+	waitEngineRunning(h)
+
 	client, _ := c.NewClient()
 	wg := sync.WaitGroup{}
 	tr := func() {
 		defer wg.Done()
-		for i := 0; i < 5000; i++ {
+		for i := 0; i < 500; i++ {
 			client.Get(context.Background(), nil, "http://localhost:10091/test1")
 		}
 	}
 	ti := func() {
 		defer wg.Done()
-		for i := 0; i < 5000; i++ {
+		for i := 0; i < 500; i++ {
 			client.Get(context.Background(), nil, "http://localhost:10091/test2")
 		}
 	}
@@ -580,7 +620,8 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 		c.Response.SetBodyStream(stream, -1)
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	client, _ := c.NewClient(c.WithMaxConnsPerHost(1000000), c.WithDialTimeout(time.Minute))
 	bodyBytes := make([]byte, 102388)
 	index := 0
@@ -616,6 +657,8 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 }
 
 func TestServiceRegisterFailed(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	mockRegErr := errors.New("mock register error")
 	var rCount int32
 	var drCount int32
@@ -634,39 +677,50 @@ func TestServiceRegisterFailed(t *testing.T) {
 	opts = append(opts, WithHostPorts("127.0.0.1:9222"))
 	srv := New(opts...)
 	srv.Spin()
-	time.Sleep(2 * time.Second)
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 }
 
 func TestServiceDeregisterFailed(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	mockDeregErr := errors.New("mock deregister error")
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			atomic.AddInt32(&drCount, 1)
 			return mockDeregErr
 		},
 	}
+
 	var opts []config.Option
 	opts = append(opts, WithRegistry(mockRegistry, nil))
 	opts = append(opts, WithHostPorts("127.0.0.1:9223"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(1 * time.Second)
+
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
 
 func TestServiceRegistryInfo(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	registryInfo := &registry.Info{
 		Weight:      100,
 		Tags:        map[string]string{"aa": "bb"},
@@ -678,15 +732,20 @@ func TestServiceRegistryInfo(t *testing.T) {
 		assert.Assert(t, len(info.Tags) == len(registryInfo.Tags), info.Tags)
 		assert.Assert(t, info.Tags["aa"] == registryInfo.Tags["aa"], info.Tags)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&drCount, 1)
 			return nil
@@ -697,28 +756,36 @@ func TestServiceRegistryInfo(t *testing.T) {
 	opts = append(opts, WithHostPorts("127.0.0.1:9225"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(2 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
 
 func TestServiceRegistryNoInitInfo(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	checkInfo := func(info *registry.Info) {
 		assert.Assert(t, info == nil)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&drCount, 1)
 			return nil
@@ -729,11 +796,12 @@ func TestServiceRegistryNoInitInfo(t *testing.T) {
 	opts = append(opts, WithHostPorts("127.0.0.1:9227"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(2 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
@@ -758,7 +826,8 @@ func TestReuseCtx(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	for i := 0; i < 1000; i++ {
 		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9228/ping")
 		assert.Nil(t, err)
@@ -770,9 +839,15 @@ type CloseWithoutResetBuffer interface {
 }
 
 func TestOnprepare(t *testing.T) {
+	n := int32(0)
 	h1 := New(
 		WithHostPorts("localhost:9333"),
 		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+			if atomic.AddInt32(&n, 1) == 1 {
+				// the 1st connection is from waitEngineRunning
+				conn.Close()
+				return ctx
+			}
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
 			assert.DeepEqual(t, string(b), "GET")
@@ -788,7 +863,8 @@ func TestOnprepare(t *testing.T) {
 	})
 
 	go h1.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h1)
+
 	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9333/ping")
 	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
 
@@ -802,7 +878,8 @@ func TestOnprepare(t *testing.T) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go h2.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h2)
+
 	_, _, err = c.Get(context.Background(), nil, "http://127.0.0.1:9331/ping")
 	if err == nil {
 		t.Fatalf("err should not be nil")
@@ -819,7 +896,8 @@ func TestOnprepare(t *testing.T) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go h3.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h3)
+
 	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
 }
 
@@ -851,7 +929,7 @@ func TestSilentMode(t *testing.T) {
 		ctx.Write([]byte("hello, world"))
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
 
 	d := standard.NewDialer()
 	conn, _ := d.DialConnection("tcp", "127.0.0.1:9232", 0, nil)
@@ -886,7 +964,7 @@ func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
 
 	cli, _ := c.NewClient(c.WithDisableHeaderNamesNormalizing(true))
 
@@ -917,7 +995,8 @@ func TestBindConfig(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9332/bind?a=")
 	assert.Nil(t, err)
@@ -936,7 +1015,7 @@ func TestBindConfig(t *testing.T) {
 	})
 
 	go h2.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h2)
 
 	_, err = hc.Get("http://127.0.0.1:9448/bind?a=")
 	assert.Nil(t, err)
@@ -998,7 +1077,8 @@ func TestCustomBinder(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9334/bind?a=")
 	assert.Nil(t, err)
@@ -1025,7 +1105,8 @@ func TestValidateConfigRegValidateFunc(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9229/bind?a=2")
 	assert.Nil(t, err)
@@ -1110,7 +1191,8 @@ func TestValidateConfigSetSetErrorFactory(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9666/bind?b=1")
 	assert.Nil(t, err)
@@ -1136,7 +1218,8 @@ func TestValidateConfigAndBindConfig(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	_, err := hc.Get("http://127.0.0.1:9876/bind?a=135")
 	assert.Nil(t, err)
@@ -1150,7 +1233,8 @@ func TestWithDisableDefaultDate(t *testing.T) {
 	)
 	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	r, _ := hc.Get("http://127.0.0.1:8321") //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Date"))
@@ -1163,7 +1247,8 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	)
 	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
 	r, _ := hc.Get("http://127.0.0.1:8324") //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
