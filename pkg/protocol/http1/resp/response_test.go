@@ -780,6 +780,10 @@ func TestResponseReadBodyStream(t *testing.T) {
 	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nTrailer: Foo\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\nfoo: bar\r\n\r\n",
 		consts.StatusMultipleChoices, -1, "bar", "56789", map[string]string{"Foo": "bar"}, consts.HTTP11)
 
+	bodyWithLongLength := strings.Repeat("1", 8*1024+1)
+	testResponseReadBodyStreamSuccess(t, resp, "HTTP/1.1 200 OK\r\nContent-Length: 8193\r\nContent-Type: foo/bar\r\n\r\n"+bodyWithLongLength,
+		consts.StatusOK, 8193, "foo/bar", bodyWithLongLength, nil, consts.HTTP11)
+
 	// response with trailer disableNormalizing
 	resp.Header.DisableNormalizing()
 	resp.Header.Trailer().DisableNormalizing()
