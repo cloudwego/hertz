@@ -9,6 +9,7 @@ require (
 	github.com/bytedance/sonic v1.12.0
 	github.com/cloudwego/netpoll v0.6.4
 	github.com/fsnotify/fsnotify v1.5.4
+	github.com/intel/fastgo v1.0.1
 	github.com/tidwall/gjson v1.14.4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.24.0
