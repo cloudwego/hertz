@@ -30,6 +30,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -44,6 +45,7 @@ import (
 
 func init() {
 	if b, err := utils.GetBoolFromEnv("HERTZ_DISABLE_REQUEST_CONTEXT_POOL"); err == nil {
+		hlog.Infof("HERTZ_DISABLE_REQUEST_CONTEXT_POOL env is set to %t", b)
 		disabaleRequestContextPool = b
 	}
 }
