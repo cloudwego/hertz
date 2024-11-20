@@ -1,3 +1,17 @@
+// Copyright 2019 Bytedance Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package validator_test
 
 import (
@@ -5,28 +19,40 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	vd "github.com/bytedance/go-tagexpr/v2/validator"
+	vd "github.com/cloudwego/hertz/internal/tagexpr/validator"
 )
+
+func assertEqualError(t *testing.T, err error, s string) {
+	t.Helper()
+	if err.Error() != s {
+		t.Fatal("not equal", err, s)
+	}
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestNil(t *testing.T) {
 	type F struct {
-		f struct {
-			g int `vd:"$%3==1"`
+		F struct {
+			G int `vd:"$%3==1"`
 		}
 	}
-	assert.EqualError(t, vd.Validate((*F)(nil)), "unsupport data: nil")
+	assertEqualError(t, vd.Validate((*F)(nil)), "unsupported data: nil")
 }
 
 func TestAll(t *testing.T) {
 	type T struct {
-		a string `vd:"email($)"`
-		f struct {
-			g int `vd:"$%3==1"`
+		A string `vd:"email($)"`
+		F struct {
+			G int `vd:"$%3==1"`
 		}
 	}
-	assert.EqualError(t, vd.Validate(new(T), true), "email format is incorrect\tinvalid parameter: f.g")
+	assertEqualError(t, vd.Validate(new(T), true), "email format is incorrect\tinvalid parameter: F.G")
 }
 
 func TestIssue1(t *testing.T) {
@@ -54,7 +80,7 @@ func TestIssue1(t *testing.T) {
 	type BatchCreateEmailTaskRequest struct {
 		InfoList []*EmailTaskInfo
 	}
-	var invalid = "invalid email"
+	invalid := "invalid email"
 	req := &BatchCreateEmailTaskRequest{
 		InfoList: []*EmailTaskInfo{
 			{
@@ -68,7 +94,7 @@ func TestIssue1(t *testing.T) {
 			},
 		},
 	}
-	assert.EqualError(t, vd.Validate(req, false), "email format is incorrect")
+	assertEqualError(t, vd.Validate(req, false), "email format is incorrect")
 }
 
 func TestIssue2(t *testing.T) {
@@ -82,7 +108,7 @@ func TestIssue2(t *testing.T) {
 		},
 	}
 	v := vd.New("vd")
-	assert.NoError(t, v.Validate(A))
+	assertNoError(t, v.Validate(A))
 }
 
 func TestIssue3(t *testing.T) {
@@ -101,7 +127,7 @@ func TestIssue3(t *testing.T) {
 		},
 	}
 	v := vd.New("vd")
-	assert.NoError(t, v.Validate(a))
+	assertNoError(t, v.Validate(a))
 }
 
 func TestIssue4(t *testing.T) {
@@ -118,23 +144,23 @@ func TestIssue4(t *testing.T) {
 	v := vd.New("vd")
 
 	a := &A{}
-	assert.NoError(t, v.Validate(a))
+	assertNoError(t, v.Validate(a))
 
 	a = &A{F1: new(C)}
-	assert.EqualError(t, v.Validate(a), "index is nil")
+	assertEqualError(t, v.Validate(a), "index is nil")
 
-	a = &A{F2: map[string]*C{"x": &C{Index: new(int32)}}}
-	assert.EqualError(t, v.Validate(a), "invalid parameter: F2{v for k=x}.Index2")
+	a = &A{F2: map[string]*C{"x": {Index: new(int32)}}}
+	assertEqualError(t, v.Validate(a), "invalid parameter: F2{v for k=x}.Index2")
 
 	a = &A{F3: []*C{{Index: new(int32)}}}
-	assert.EqualError(t, v.Validate(a), "invalid parameter: F3[0].Index2")
+	assertEqualError(t, v.Validate(a), "invalid parameter: F3[0].Index2")
 
 	type B struct {
 		F1 *C `vd:"$!=nil"`
 		F2 *C
 	}
 	b := &B{}
-	assert.EqualError(t, v.Validate(b), "invalid parameter: F1")
+	assertEqualError(t, v.Validate(b), "invalid parameter: F1")
 
 	type D struct {
 		F1 *C
@@ -146,12 +172,11 @@ func TestIssue4(t *testing.T) {
 	}
 	b.F1 = new(C)
 	e := &E{D: []*D{nil}}
-	assert.NoError(t, v.Validate(e))
+	assertNoError(t, v.Validate(e))
 }
 
 func TestIssue5(t *testing.T) {
-	type SubSheet struct {
-	}
+	type SubSheet struct{}
 	type CopySheet struct {
 		Source      *SubSheet `json:"source" vd:"$!=nil"`
 		Destination *SubSheet `json:"destination" vd:"$!=nil"`
@@ -165,11 +190,15 @@ func TestIssue5(t *testing.T) {
 	b := `{"requests": [{}]}`
 	var data BatchUpdateSheetRequestArg
 	err := json.Unmarshal([]byte(b), &data)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(data.Requests))
-	assert.Nil(t, data.Requests[0].CopySheet)
+	assertNoError(t, err)
+	if len(data.Requests) != 1 {
+		t.Fatal(len(data.Requests))
+	}
+	if data.Requests[0].CopySheet != nil {
+		t.Fatal(data.Requests[0].CopySheet)
+	}
 	v := vd.New("vd")
-	assert.NoError(t, v.Validate(&data))
+	assertNoError(t, v.Validate(&data))
 }
 
 func TestIn(t *testing.T) {
@@ -183,44 +212,44 @@ func TestIn(t *testing.T) {
 	v := vd.New("vd")
 	data := &T{}
 	err := v.Validate(data)
-	assert.EqualError(t, err, "invalid parameter: A")
+	assertEqualError(t, err, "invalid parameter: A")
 	data.A = "b"
 	err = v.Validate(data)
-	assert.EqualError(t, err, "invalid parameter: B")
+	assertEqualError(t, err, "invalid parameter: B")
 	data.B = 2
 	err = v.Validate(data)
-	assert.NoError(t, err)
+	assertNoError(t, err)
 
 	type T2 struct {
 		C string `vd:"in($)"`
 	}
 	data2 := &T2{}
 	err = v.Validate(data2)
-	assert.EqualError(t, err, "invalid parameter: C")
+	assertEqualError(t, err, "invalid parameter: C")
 
 	type T3 struct {
 		C string `vd:"in($,1)"`
 	}
 	data3 := &T3{}
 	err = v.Validate(data3)
-	assert.EqualError(t, err, "invalid parameter: C")
+	assertEqualError(t, err, "invalid parameter: C")
 }
 
 type (
 	Issue23A struct {
-		b *Issue23B
-		v int64 `vd:"$==0"`
+		B *Issue23B
+		V int64 `vd:"$==0"`
 	}
 	Issue23B struct {
-		a *Issue23A
-		v int64 `vd:"$==0"`
+		A *Issue23A
+		V int64 `vd:"$==0"`
 	}
 )
 
 func TestIssue23(t *testing.T) {
-	var data = &Issue23B{a: &Issue23A{b: new(Issue23B)}}
+	data := &Issue23B{A: &Issue23A{B: new(Issue23B)}}
 	err := vd.Validate(data, true)
-	assert.NoError(t, err)
+	assertNoError(t, err)
 }
 
 func TestIssue24(t *testing.T) {
@@ -251,9 +280,9 @@ func TestIssue24(t *testing.T) {
 	type SubmitDoctorImportRequest struct {
 		SubmitDoctorImport []*SubmitDoctorImportItem `form:"submit_doctor_import,required" json:"submit_doctor_import,required"`
 	}
-	var data = &SubmitDoctorImportRequest{SubmitDoctorImport: []*SubmitDoctorImportItem{{}}}
+	data := &SubmitDoctorImportRequest{SubmitDoctorImport: []*SubmitDoctorImportItem{{}}}
 	err := vd.Validate(data, true)
-	assert.EqualError(t, err, "invalid parameter: SubmitDoctorImport[0].Idcard\tinvalid parameter: SubmitDoctorImport[0].PracCertNo\temail format is incorrect\tthe phone number supplied is not a number")
+	assertEqualError(t, err, "invalid parameter: SubmitDoctorImport[0].Idcard\tinvalid parameter: SubmitDoctorImport[0].PracCertNo\temail format is incorrect\tthe phone number supplied is not a number")
 }
 
 func TestStructSliceMap(t *testing.T) {
@@ -276,7 +305,7 @@ func TestStructSliceMap(t *testing.T) {
 		C: map[string][]map[string]F{"z": {{"zz": *f}}},
 	}
 	err := vd.Validate(s, true)
-	assert.EqualError(t, err, "invalid parameter: A{v for k=x}.f.g\tinvalid parameter: B[0]{v for k=y}.f.g\tinvalid parameter: C{v for k=z}[0]{v for k=zz}.f.g")
+	assertEqualError(t, err, "invalid parameter: A{v for k=x}.f.g\tinvalid parameter: B[0]{v for k=y}.f.g\tinvalid parameter: C{v for k=z}[0]{v for k=zz}.f.g")
 }
 
 func TestIssue30(t *testing.T) {
@@ -287,27 +316,27 @@ func TestIssue30(t *testing.T) {
 	vd.RegFunc("gt", func(args ...interface{}) error {
 		return errors.New("force error")
 	})
-	assert.EqualError(t, vd.Validate(&TStruct{TOk: "1"}), "invalid parameter: TOk")
-	// assert.NoError(t, vd.Validate(&TStruct{TOk: "1", TFail: "1"}))
+	assertEqualError(t, vd.Validate(&TStruct{TOk: "1"}), "invalid parameter: TOk")
+	// assertNoError(t, vd.Validate(&TStruct{TOk: "1", TFail: "1"}))
 }
 
 func TestIssue31(t *testing.T) {
 	type TStruct struct {
 		A []int32 `vd:"$ == nil || ($ != nil && range($, in(#v, 1, 2, 3))"`
 	}
-	assert.EqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
-	assert.EqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
-	assert.EqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
+	assertEqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
+	assertEqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
+	assertEqualError(t, vd.Validate(&TStruct{A: []int32{1}}), "syntax error: \"($ != nil && range($, in(#v, 1, 2, 3))\"")
 }
 
 func TestRegexp(t *testing.T) {
 	type TStruct struct {
 		A string `vd:"regexp('(\\d+\\.){3}\\d+')"`
 	}
-	assert.NoError(t, vd.Validate(&TStruct{A: "0.0.0.0"}))
-	assert.EqualError(t, vd.Validate(&TStruct{A: "0...0"}), "invalid parameter: A")
-	assert.EqualError(t, vd.Validate(&TStruct{A: "abc1"}), "invalid parameter: A")
-	assert.EqualError(t, vd.Validate(&TStruct{A: "0?0?0?0"}), "invalid parameter: A")
+	assertNoError(t, vd.Validate(&TStruct{A: "0.0.0.0"}))
+	assertEqualError(t, vd.Validate(&TStruct{A: "0...0"}), "invalid parameter: A")
+	assertEqualError(t, vd.Validate(&TStruct{A: "abc1"}), "invalid parameter: A")
+	assertEqualError(t, vd.Validate(&TStruct{A: "0?0?0?0"}), "invalid parameter: A")
 }
 
 func TestRangeIn(t *testing.T) {
@@ -317,9 +346,9 @@ func TestRangeIn(t *testing.T) {
 	err := vd.Validate(S{
 		F: []string{"ttp", "", "euttp"},
 	})
-	assert.NoError(t, err)
+	assertNoError(t, err)
 	err = vd.Validate(S{
 		F: []string{"ttp", "?", "euttp"},
 	})
-	assert.EqualError(t, err, "invalid parameter: F")
+	assertEqualError(t, err, "invalid parameter: F")
 }

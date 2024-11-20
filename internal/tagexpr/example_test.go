@@ -17,7 +17,7 @@ package tagexpr_test
 import (
 	"fmt"
 
-	tagexpr "github.com/bytedance/go-tagexpr/v2"
+	"github.com/cloudwego/hertz/internal/tagexpr"
 )
 
 func Example() {
@@ -31,7 +31,7 @@ func Example() {
 		f  struct {
 			g int `tagexpr:"$"`
 		}
-		h  int 				`tagexpr:"$>minVal"`
+		h int `tagexpr:"$>minVal"`
 	}
 
 	vm := tagexpr.New("tagexpr")

@@ -12,26 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tagexpr
+package tagexpr_test
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/cloudwego/hertz/internal/tagexpr"
 )
+
+func assertEqual(t *testing.T, v1, v2 interface{}, msgs ...interface{}) {
+	t.Helper()
+	if reflect.DeepEqual(v1, v2) {
+		return
+	}
+	t.Fatal(fmt.Sprintf("not equal %v %v", v1, v2) + "\n" + fmt.Sprint(msgs...))
+}
 
 func BenchmarkTagExpr(b *testing.B) {
 	type T struct {
 		a int `bench:"$%3"`
 	}
-	vm := New("bench")
+	vm := tagexpr.New("bench")
 	vm.MustRun(new(T)) // warm up
 	b.ReportAllocs()
 	b.ResetTimer()
-	var t = &T{10}
+	t := &T{10}
 	for i := 0; i < b.N; i++ {
 		tagExpr, err := vm.Run(t)
 		if err != nil {
@@ -49,7 +58,7 @@ func BenchmarkReflect(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	var t = &T{1}
+	t := &T{1}
 	for i := 0; i < b.N; i++ {
 		v := reflect.ValueOf(t).Elem()
 		ft, ok := v.Type().FieldByName("a")
@@ -82,7 +91,7 @@ func Test(t *testing.T) {
 	e := new(int)
 	*e = 3
 	type iface interface{}
-	var cases = []struct {
+	cases := []struct {
 		tagName   string
 		structure interface{}
 		tests     map[string]interface{}
@@ -214,7 +223,7 @@ func Test(t *testing.T) {
 		},
 	}
 	for i, c := range cases {
-		vm := New(c.tagName)
+		vm := tagexpr.New(c.tagName)
 		// vm.WarmUp(c.structure)
 		tagExpr, err := vm.Run(c.structure)
 		if err != nil {
@@ -226,7 +235,7 @@ func Test(t *testing.T) {
 				t.Fatalf("Eval Serial: %d, selector: %q, got: %v, expect: %v", i, selector, val, value)
 			}
 		}
-		tagExpr.Range(func(eh *ExprHandler) error {
+		tagExpr.Range(func(eh *tagexpr.ExprHandler) error {
 			es := eh.ExprSelector()
 			t.Logf("Range selector: %s, field: %q exprName: %q", es, es.Field(), es.Name())
 			value := c.tests[es.String()]
@@ -283,7 +292,7 @@ func TestFieldNotInit(t *testing.T) {
 		g: &g,
 		i: "12",
 	}
-	vm := New("expr")
+	vm := tagexpr.New("expr")
 	e, err := vm.Run(structure)
 	if err != nil {
 		t.Fatal(err)
@@ -315,15 +324,17 @@ func TestFieldNotInit(t *testing.T) {
 	for _, c := range cases {
 		fh, _ := e.Field(c.fieldSelector)
 		val := fh.Value(false).Interface()
-		assert.Equal(t, c.value, val, c.fieldSelector)
+		assertEqual(t, c.value, val, c.fieldSelector)
 	}
 	var i int
-	e.RangeFields(func(fh *FieldHandler) bool {
+	e.RangeFields(func(fh *tagexpr.FieldHandler) bool {
 		val := fh.Value(false).Interface()
 		if fh.StringSelector() == "c.d" {
-			assert.NotNil(t, fh.EvalFuncs()["c.d@test"])
+			if fh.EvalFuncs()["c.d@test"] == nil {
+				t.Fatal("nil")
+			}
 		}
-		assert.Equal(t, cases[i].value, val, fh.StringSelector())
+		assertEqual(t, cases[i].value, val, fh.StringSelector())
 		i++
 		return true
 	})
@@ -392,7 +403,7 @@ func TestFieldInitZero(t *testing.T) {
 		i: "12",
 	}
 
-	vm := New("")
+	vm := tagexpr.New("")
 	e, err := vm.Run(structure)
 	if err != nil {
 		t.Fatal(err)
@@ -429,15 +440,14 @@ func TestFieldInitZero(t *testing.T) {
 	for _, c := range cases {
 		fh, _ := e.Field(c.fieldSelector)
 		val := fh.Value(true).Interface()
-		assert.Equal(t, c.value, val, c.fieldSelector)
+		assertEqual(t, c.value, val, c.fieldSelector)
 	}
 }
 
 func TestOperator(t *testing.T) {
-
 	type Tmp1 struct {
-		A string `tagexpr:$=="1"||$=="2"||$="3"`
-		B []int  `tagexpr:len($)>=10&&$[0]<10`
+		A string `tagexpr:$=="1"||$=="2"||$="3"` //nolint:govet
+		B []int  `tagexpr:len($)>=10&&$[0]<10`   //nolint:govet
 		C interface{}
 	}
 
@@ -468,7 +478,7 @@ func TestOperator(t *testing.T) {
 	k := "123456"
 	n := float64(-12.5)
 	o := [3]float64{15, 9, 9}
-	var cases = []struct {
+	cases := []struct {
 		tagName   string
 		structure interface{}
 		tests     map[string]interface{}
@@ -531,7 +541,7 @@ func TestOperator(t *testing.T) {
 	}
 
 	for i, c := range cases {
-		vm := New(c.tagName)
+		vm := tagexpr.New(c.tagName)
 		// vm.WarmUp(c.structure)
 		tagExpr, err := vm.Run(c.structure)
 		if err != nil {
@@ -543,7 +553,7 @@ func TestOperator(t *testing.T) {
 				t.Fatalf("Eval NO: %d, selector: %q, got: %v, expect: %v", i, selector, val, value)
 			}
 		}
-		tagExpr.Range(func(eh *ExprHandler) error {
+		tagExpr.Range(func(eh *tagexpr.ExprHandler) error {
 			es := eh.ExprSelector()
 			t.Logf("Range selector: %s, field: %q exprName: %q", es, es.Field(), es.Name())
 			value := c.tests[es.String()]
@@ -554,7 +564,6 @@ func TestOperator(t *testing.T) {
 			return nil
 		})
 	}
-
 }
 
 func TestStruct(t *testing.T) {
@@ -571,13 +580,13 @@ func TestStruct(t *testing.T) {
 	}
 	a := new(A)
 	a.B.C.D.X = "xxx"
-	vm := New("vd")
+	vm := tagexpr.New("vd")
 	expr := vm.MustRun(a)
-	assert.Equal(t, "xxx", expr.EvalString("B.C2"))
-	assert.Equal(t, "xxx", expr.EvalString("B.C3"))
-	assert.Equal(t, "xxx", expr.EvalString("B.C"))
-	assert.Equal(t, "xxx", expr.EvalString("B.C.D.X"))
-	expr.Range(func(eh *ExprHandler) error {
+	assertEqual(t, "xxx", expr.EvalString("B.C2"))
+	assertEqual(t, "xxx", expr.EvalString("B.C3"))
+	assertEqual(t, "xxx", expr.EvalString("B.C"))
+	assertEqual(t, "xxx", expr.EvalString("B.C.D.X"))
+	expr.Range(func(eh *tagexpr.ExprHandler) error {
 		es := eh.ExprSelector()
 		t.Logf("Range selector: %s, field: %q exprName: %q", es, es.Field(), es.Name())
 		if eh.Eval().(string) != "xxx" {
@@ -601,7 +610,7 @@ func TestStruct2(t *testing.T) {
 	b := new(IframeBlock)
 	b.XBlock.BlockType = "BlockType"
 	b.Props.Data.DataType = "DataType"
-	vm := New("vd")
+	vm := tagexpr.New("vd")
 	expr := vm.MustRun(b)
 	if expr.EvalString("XBlock.BlockType") != "BlockType" {
 		t.Fatal(expr.EvalString("XBlock.BlockType"))
@@ -617,8 +626,8 @@ func TestStruct3(t *testing.T) {
 	}
 	type Prop struct {
 		PropType string       `vd:"$"`
-		Datas    []*Data      `vd:"$"`
-		Datas2   []*Data      `vd:"$"`
+		DD       []*Data      `vd:"$"`
+		DD2      []*Data      `vd:"$"`
 		DataMap  map[int]Data `vd:"$"`
 		DataMap2 map[int]Data `vd:"$"`
 	}
@@ -637,7 +646,7 @@ func TestStruct3(t *testing.T) {
 	b.XBlock.BlockType = "BlockType"
 	p1 := Prop{
 		PropType: "p1",
-		Datas: []*Data{
+		DD: []*Data{
 			{"p1s1"},
 			{"p1s2"},
 			nil,
@@ -645,13 +654,13 @@ func TestStruct3(t *testing.T) {
 		DataMap: map[int]Data{
 			1: {"p1m1"},
 			2: {"p1m2"},
-			0: Data{},
+			0: {},
 		},
 	}
 	b.Props = []Prop{p1}
 	p2 := &Prop{
 		PropType: "p2",
-		Datas: []*Data{
+		DD: []*Data{
 			{"p2s1"},
 			{"p2s2"},
 			nil,
@@ -659,25 +668,27 @@ func TestStruct3(t *testing.T) {
 		DataMap: map[int]Data{
 			1: {"p2m1"},
 			2: {"p2m2"},
-			0: Data{},
+			0: {},
 		},
 	}
-	b.Props1 = [2]Prop{p1, Prop{}}
+	b.Props1 = [2]Prop{p1, {}}
 	b.PropMap = map[int]*Prop{
 		9: p2,
 	}
 
-	vm := New("vd")
+	vm := tagexpr.New("vd")
 	expr := vm.MustRun(b)
 	if expr.EvalString("XBlock.BlockType") != "BlockType" {
 		t.Fatal(expr.EvalString("XBlock.BlockType"))
 	}
-	err := expr.Range(func(eh *ExprHandler) error {
+	err := expr.Range(func(eh *tagexpr.ExprHandler) error {
 		es := eh.ExprSelector()
 		t.Logf("Range selector: %s, field: %q exprName: %q, eval: %v", eh.Path(), es.Field(), es.Name(), eh.Eval())
 		return nil
 	})
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestNilField(t *testing.T) {
@@ -687,11 +698,13 @@ func TestNilField(t *testing.T) {
 		} `tagexpr:"$"`
 		Y **struct{} `tagexpr:"$"`
 	}
-	vm := New("tagexpr")
+	vm := tagexpr.New("tagexpr")
 	te := vm.MustRun(&P{})
-	te.Range(func(eh *ExprHandler) error {
+	te.Range(func(eh *tagexpr.ExprHandler) error {
 		r := eh.Eval()
-		assert.Nil(t, r, eh.Path())
+		if r != nil {
+			t.Fatal(eh.Path())
+		}
 		return nil
 	})
 
@@ -703,48 +716,13 @@ func TestNilField(t *testing.T) {
 		// Nil1: new(int),
 		Nil2: new(int),
 	}
-	vm.MustRun(g).Range(func(eh *ExprHandler) error {
+	vm.MustRun(g).Range(func(eh *tagexpr.ExprHandler) error {
 		r, ok := eh.Eval().(bool)
-		assert.True(t, ok, eh.Path())
-		assert.True(t, r, eh.Path())
+		if !ok || !r {
+			t.Fatal(eh.Path())
+		}
 		return nil
 	})
-	return
-
-	type (
-		N struct {
-			X  string                 `tagexpr:"len($)>0"`
-			S  []*N                   `tagexpr:"?"`
-			M  map[string]*N          `tagexpr:"?"`
-			M2 map[string]*N          `tagexpr:"?"`
-			I  interface{}            `tagexpr:"-"`
-			MI map[string]interface{} `tagexpr:"?"`
-			SI []interface{}
-			*N `tagexpr:"?"`
-			N2 *N `tagexpr:"?"`
-		}
-		M struct {
-			X string `tagexpr:"len($)>0"`
-		}
-	)
-	n := &N{
-		X:  "n",
-		S:  []*N{nil},
-		M:  map[string]*N{"": nil},
-		M2: map[string]*N{"": {X: "nn"}},
-		I:  new(N),
-		MI: map[string]interface{}{"": (*M)(nil)},
-		SI: []interface{}{&M{X: "nn"}},
-	}
-	var cnt int
-	vm.MustRun(n).Range(func(eh *ExprHandler) error {
-		r := eh.EvalBool()
-		assert.True(t, r, eh.Path())
-		t.Log("path:", eh.Path(), "es:", eh.ExprSelector(), "val:", r)
-		cnt++
-		return nil
-	})
-	assert.Equal(t, 3, cnt)
 }
 
 func TestDeepNested(t *testing.T) {
@@ -780,15 +758,15 @@ func TestDeepNested(t *testing.T) {
 	expectKey := [...]interface{}{"S1.S.I.Address@name", "S2.S.I.Address@name", "S1.S.A[0].Address@name", "S2.S.A[0].Address@name", "S1.S.X[0].Address@name"}
 	expectValue := [...]interface{}{"I:address", nil, "A:address", nil, "X:address"}
 	var i int
-	vm := New("tagexpr")
-	vm.MustRun(data).Range(func(eh *ExprHandler) error {
-		assert.Equal(t, expectKey[i], eh.Path())
-		assert.Equal(t, expectValue[i], eh.Eval())
+	vm := tagexpr.New("tagexpr")
+	vm.MustRun(data).Range(func(eh *tagexpr.ExprHandler) error {
+		assertEqual(t, expectKey[i], eh.Path())
+		assertEqual(t, expectValue[i], eh.Eval())
 		i++
 		t.Log(eh.Path(), eh.ExprSelector(), eh.Eval())
 		return nil
 	})
-	assert.Equal(t, 5, i)
+	assertEqual(t, 5, i)
 }
 
 func TestIssue3(t *testing.T) {
@@ -808,21 +786,23 @@ func TestIssue3(t *testing.T) {
 			P:     new(int),
 		},
 	}
-	vm := New("vd")
-	err := vm.MustRun(a).Range(func(eh *ExprHandler) error {
+	vm := tagexpr.New("vd")
+	err := vm.MustRun(a).Range(func(eh *tagexpr.ExprHandler) error {
 		switch eh.Path() {
 		case "F1.Index":
-			assert.Equal(t, float64(1), eh.Eval(), eh.Path())
+			assertEqual(t, float64(1), eh.Eval(), eh.Path())
 		case "F2.Index":
-			assert.Equal(t, nil, eh.Eval(), eh.Path())
+			assertEqual(t, nil, eh.Eval(), eh.Path())
 		case "F1.P":
-			assert.Equal(t, true, eh.Eval(), eh.Path())
+			assertEqual(t, true, eh.Eval(), eh.Path())
 		case "F2.P":
-			assert.Equal(t, false, eh.Eval(), eh.Path())
+			assertEqual(t, false, eh.Eval(), eh.Path())
 		}
 		return nil
 	})
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestIssue4(t *testing.T) {
@@ -836,12 +816,14 @@ func TestIssue4(t *testing.T) {
 		B: new(string),
 		C: &c,
 	}
-	vm := New("te")
-	err := vm.MustRun(v).Range(func(eh *ExprHandler) error {
+	vm := tagexpr.New("te")
+	err := vm.MustRun(v).Range(func(eh *tagexpr.ExprHandler) error {
 		t.Logf("eval:%v, path:%s", eh.EvalFloat(), eh.Path())
 		return nil
 	})
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestIssue5(t *testing.T) {
@@ -855,17 +837,19 @@ func TestIssue5(t *testing.T) {
 		F2: 1500,
 		F3: 1500,
 	}
-	vm := New("vd")
-	err := vm.MustRun(a).Range(func(eh *ExprHandler) error {
+	vm := tagexpr.New("vd")
+	err := vm.MustRun(a).Range(func(eh *tagexpr.ExprHandler) error {
 		switch eh.Path() {
 		case "F1":
-			assert.Equal(t, true, eh.Eval(), eh.Path())
+			assertEqual(t, true, eh.Eval(), eh.Path())
 		case "F2":
-			assert.Equal(t, true, eh.Eval(), eh.Path())
+			assertEqual(t, true, eh.Eval(), eh.Path())
 		case "F3":
-			assert.Equal(t, true, eh.Eval(), eh.Path())
+			assertEqual(t, true, eh.Eval(), eh.Path())
 		}
 		return nil
 	})
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -1,3 +1,17 @@
+// Copyright 2019 Bytedance Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tagexpr
 
 import (
@@ -5,11 +19,6 @@ import (
 	"strings"
 	"unicode"
 )
-
-type namedTagExpr struct {
-	exprSelector string
-	expr         *Expr
-}
 
 const (
 	tagOmit    = "-"
@@ -99,7 +108,7 @@ func splitExpr(one string) (key, val string) {
 }
 
 func readOneExpr(tag *string) (string, error) {
-	var s = *(trimRightSpace(trimLeftSpace(tag)))
+	s := *(trimRightSpace(trimLeftSpace(tag)))
 	s = strings.TrimLeft(s, ";")
 	if s == "" {
 		return "", nil
@@ -108,7 +117,7 @@ func readOneExpr(tag *string) (string, error) {
 		s += ";"
 	}
 	a := strings.SplitAfter(strings.Replace(s, "\\'", "##", -1), ";")
-	var idx = -1
+	idx := -1
 	var patch int
 	for _, v := range a {
 		idx += len(v)
@@ -140,16 +149,16 @@ func readPairedSymbol(p *string, left, right rune) *string {
 		return nil
 	}
 	s = s[1:]
-	var last1 = left
+	last1 := left
 	var last2 rune
 	var leftLevel, rightLevel int
-	var escapeIndexes = make(map[int]bool)
+	escapeIndexes := make(map[int]bool)
 	var realEqual, escapeEqual bool
 	for i, r := range s {
 		if realEqual, escapeEqual = equalRune(right, r, last1, last2); realEqual {
 			if leftLevel == rightLevel {
 				*p = s[i+1:]
-				var sub = make([]rune, 0, i)
+				sub := make([]rune, 0, i)
 				for k, v := range s[:i] {
 					if !escapeIndexes[k] {
 						sub = append(sub, v)

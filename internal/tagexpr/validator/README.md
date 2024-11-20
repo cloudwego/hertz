@@ -119,7 +119,7 @@ func Example() {
 	// {"succ":false, "error":"validation failed: A[0]{v for k=x}.f.g"}
 	// {"succ":false, "error":"validation failed: {k}.f.g"}
 	// {"succ":false, "error":"validation failed: [0][0].f.g"}
-	// unsupport data: nil
+	// unsupported data: nil
 	// <nil>
 	// <nil>
 	// <nil>

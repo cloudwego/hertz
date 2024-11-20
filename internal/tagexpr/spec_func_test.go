@@ -15,15 +15,15 @@
 package tagexpr_test
 
 import (
+	"reflect"
 	"regexp"
 	"testing"
 
-	"github.com/bytedance/go-tagexpr/v2"
-	"github.com/stretchr/testify/assert"
+	"github.com/cloudwego/hertz/internal/tagexpr"
 )
 
 func TestFunc(t *testing.T) {
-	var emailRegexp = regexp.MustCompile(
+	emailRegexp := regexp.MustCompile(
 		"^([A-Za-z0-9_\\-\\.\u4e00-\u9fa5])+\\@([A-Za-z0-9_\\-\\.])+\\.([A-Za-z]{2,8})$",
 	)
 	tagexpr.RegFunc("email", func(args ...interface{}) interface{} {
@@ -38,12 +38,12 @@ func TestFunc(t *testing.T) {
 		return emailRegexp.MatchString(s)
 	})
 
-	var vm = tagexpr.New("te")
+	vm := tagexpr.New("te")
 
 	type T struct {
 		Email string `te:"email($)"`
 	}
-	var cases = []struct {
+	cases := []struct {
 		email  string
 		expect bool
 	}{
@@ -65,7 +65,7 @@ func TestFunc(t *testing.T) {
 	type R struct {
 		Str string `vd:"mblen($)<6"`
 	}
-	var lenCases = []struct {
+	lenCases := []struct {
 		str    string
 		expect bool
 	}{
@@ -87,7 +87,7 @@ func TestFunc(t *testing.T) {
 }
 
 func TestRangeIn(t *testing.T) {
-	var vm = tagexpr.New("te")
+	vm := tagexpr.New("te")
 	type S struct {
 		F []string `te:"range($, in(#v, '', 'ttp', 'euttp'))"`
 	}
@@ -96,5 +96,9 @@ func TestRangeIn(t *testing.T) {
 		F: a,
 		// F: b,
 	})
-	assert.Equal(t, []interface{}{true, true, true}, r.Eval("F"))
+	expect := []interface{}{true, true, true}
+	actual := r.Eval("F")
+	if !reflect.DeepEqual(expect, actual) {
+		t.Fatal("not equal", expect, actual)
+	}
 }

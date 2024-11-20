@@ -1,14 +1,28 @@
+// Copyright 2019 Bytedance Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tagexpr_test
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/bytedance/go-tagexpr/v2"
-	"github.com/stretchr/testify/assert"
+	"github.com/cloudwego/hertz/internal/tagexpr"
 )
 
 func TestIssue12(t *testing.T) {
-	var vm = tagexpr.New("te")
+	vm := tagexpr.New("te")
 	type I int
 	type S struct {
 		F    []I              `te:"range($, '>'+sprintf('%v:%v', #k, #v+2+len($)))"`
@@ -25,10 +39,16 @@ func TestIssue12(t *testing.T) {
 		MFs:  []map[string][]I{{"m": a}},
 		MFs2: []map[string][]I{},
 	})
-	assert.Equal(t, []interface{}{">0:6", ">1:7"}, r.Eval("F"))
-	assert.Equal(t, []interface{}{[]interface{}{">0:6", ">1:7"}}, r.Eval("Fs"))
-	assert.Equal(t, []interface{}{">m0:6", ">m1:7"}, r.Eval("M"))
-	assert.Equal(t, []interface{}{[]interface{}{[]interface{}{">0:6", ">1:7"}}}, r.Eval("MFs"))
-	assert.Equal(t, []interface{}{}, r.Eval("MFs2"))
-	assert.Equal(t, true, r.EvalBool("MFs2"))
+	assertEqual(t, []interface{}{">0:6", ">1:7"}, r.Eval("F"))
+	assertEqual(t, []interface{}{[]interface{}{">0:6", ">1:7"}}, r.Eval("Fs"))
+	assertEqual(t, []interface{}{[]interface{}{[]interface{}{">0:6", ">1:7"}}}, r.Eval("MFs"))
+	assertEqual(t, []interface{}{}, r.Eval("MFs2"))
+	assertEqual(t, true, r.EvalBool("MFs2"))
+
+	// result may not stable for map
+	got := r.Eval("M")
+	if !reflect.DeepEqual([]interface{}{">m0:6", ">m1:7"}, got) &&
+		!reflect.DeepEqual([]interface{}{">m1:7", ">m0:6"}, got) {
+		t.Fatal(got)
+	}
 }

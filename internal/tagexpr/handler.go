@@ -1,3 +1,17 @@
+// Copyright 2019 Bytedance Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tagexpr
 
 import "reflect"
@@ -29,7 +43,8 @@ func (f *FieldHandler) FieldSelector() FieldSelector {
 
 // Value returns the field value.
 // NOTE:
-//  If initZero==true, initialize nil pointer to zero value
+//
+//	If initZero==true, initialize nil pointer to zero value
 func (f *FieldHandler) Value(initZero bool) reflect.Value {
 	return f.field.reflectValueGetter(f.expr.ptr, initZero)
 }
@@ -100,14 +115,16 @@ func (e *ExprHandler) Path() string {
 
 // Eval evaluate the value of the struct tag expression.
 // NOTE:
-//  result types: float64, string, bool, nil
+//
+//	result types: float64, string, bool, nil
 func (e *ExprHandler) Eval() interface{} {
 	return e.expr.s.exprs[e.selector].run(e.base, e.targetExpr)
 }
 
 // EvalFloat evaluates the value of the struct tag expression.
 // NOTE:
-//  If the expression value type is not float64, return 0.
+//
+//	If the expression value type is not float64, return 0.
 func (e *ExprHandler) EvalFloat() float64 {
 	r, _ := e.Eval().(float64)
 	return r
@@ -115,7 +132,8 @@ func (e *ExprHandler) EvalFloat() float64 {
 
 // EvalString evaluates the value of the struct tag expression.
 // NOTE:
-//  If the expression value type is not string, return "".
+//
+//	If the expression value type is not string, return "".
 func (e *ExprHandler) EvalString() string {
 	r, _ := e.Eval().(string)
 	return r
@@ -123,7 +141,8 @@ func (e *ExprHandler) EvalString() string {
 
 // EvalBool evaluates the value of the struct tag expression.
 // NOTE:
-//  If the expression value is not 0, '' or nil, return true.
+//
+//	If the expression value is not 0, '' or nil, return true.
 func (e *ExprHandler) EvalBool() bool {
 	return FakeBool(e.Eval())
 }

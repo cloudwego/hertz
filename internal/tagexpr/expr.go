@@ -15,15 +15,12 @@
 package tagexpr
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os"
-
-	"github.com/andeya/goutil"
 )
 
 type variableKeyType string
+
 const variableKey variableKeyType = "__ENV_KEY__"
 
 // Expr expression
@@ -45,6 +42,7 @@ func parseExpr(expr string) (*Expr, error) {
 	sortPriority(e)
 	return p, nil
 }
+
 func (p *Expr) parseExprNode(expr *string, e ExprNode) error {
 	trimLeftSpace(expr)
 	if *expr == "" {
@@ -297,43 +295,3 @@ func (eb *exprBackground) SetRightOperand(right ExprNode) {
 }
 
 func (*exprBackground) Run(context.Context, string, *TagExpr) interface{} { return nil }
-
-var debugSwitch = goutil.IsGoTest()
-
-func printf(format string, a ...interface{}) {
-	if debugSwitch {
-		fmt.Fprintf(os.Stderr, format, a...)
-	}
-}
-
-func printExprNode(node ExprNode) {
-	if node == nil {
-		return
-	}
-	tail := true
-	if node.Parent() != nil {
-		tail = node == node.Parent().RightOperand()
-	}
-	printf("%s\n\n", formatExprNode(node, 0, tail))
-}
-
-func formatExprNode(node ExprNode, level int, tail bool) []byte {
-	var b bytes.Buffer
-	if node == nil {
-	} else {
-		b.Write(formatExprNode(node.LeftOperand(), level+1, false))
-
-		b.Write(bytes.Repeat([]byte("    "), level))
-		if tail {
-			b.Write([]byte("└── "))
-		} else {
-			b.Write([]byte("┌── "))
-		}
-
-		b.Write([]byte(node.String()))
-		b.Write([]byte("\n"))
-
-		b.Write(formatExprNode(node.RightOperand(), level+1, true))
-	}
-	return b.Bytes()
-}

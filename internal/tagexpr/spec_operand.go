@@ -21,8 +21,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/andeya/ameda"
 )
 
 // --------------------------- Operand ---------------------------
@@ -214,9 +212,7 @@ func readVariableExprNode(expr *string) ExprNode {
 	}
 }
 
-
 func getBoolAndSignOpposite(expr *string) (last string, boolOpposite *bool, signOpposite *bool) {
-	last = strings.TrimLeft(last, "+")
 	last, boolOpposite = getOpposite(expr, "!")
 	last = strings.TrimLeft(last, "+")
 	last, signOpposite = getOpposite(&last, "-")
@@ -241,7 +237,7 @@ func toString(i interface{}, enforce bool) (string, bool) {
 	case nil:
 		return "", false
 	default:
-		rv := ameda.DereferenceValue(reflect.ValueOf(i))
+		rv := dereferenceValue(reflect.ValueOf(i))
 		if rv.Kind() == reflect.String {
 			return rv.String(), true
 		}
@@ -258,7 +254,7 @@ func toString(i interface{}, enforce bool) (string, bool) {
 
 func toFloat64(i interface{}, tryParse bool) (float64, bool) {
 	var v float64
-	var ok = true
+	ok := true
 	switch t := i.(type) {
 	case float64:
 		v = t
@@ -287,7 +283,7 @@ func toFloat64(i interface{}, tryParse bool) (float64, bool) {
 	case nil:
 		ok = false
 	default:
-		rv := ameda.DereferenceValue(reflect.ValueOf(t))
+		rv := dereferenceValue(reflect.ValueOf(t))
 		switch rv.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			v = float64(rv.Int())
@@ -346,7 +342,7 @@ func realValue(v interface{}, boolOpposite *bool, signOpposite *bool) interface{
 			t[k] = realValue(v, boolOpposite, signOpposite)
 		}
 	default:
-		rv := ameda.DereferenceValue(reflect.ValueOf(v))
+		rv := dereferenceValue(reflect.ValueOf(v))
 		switch rv.Kind() {
 		case reflect.String:
 			v = rv.String()

@@ -1,3 +1,17 @@
+// Copyright 2019 Bytedance Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tagexpr
 
 import (
@@ -17,11 +31,6 @@ const (
 
 // FieldSelector expression selector
 type FieldSelector string
-
-// JoinFieldSelector creates a field selector.
-func JoinFieldSelector(path ...string) string {
-	return strings.Join(path, FieldSeparator)
-}
 
 // Name returns the current field name.
 func (f FieldSelector) Name() string {
@@ -57,15 +66,6 @@ func (f FieldSelector) Parent() (string, bool) {
 // String returns string type value.
 func (f FieldSelector) String() string {
 	return string(f)
-}
-
-// JoinExprSelector creates a expression selector.
-func JoinExprSelector(pathFields []string, exprName string) string {
-	p := strings.Join(pathFields, FieldSeparator)
-	if p == "" || exprName == "" {
-		return p
-	}
-	return p + ExprNameSeparator + exprName
 }
 
 // ExprSelector expression selector

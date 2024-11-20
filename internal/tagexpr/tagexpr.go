@@ -1,5 +1,3 @@
-// Package tagexpr is an interesting go struct tag expression syntax for field validation, etc.
-//
 // Copyright 2019 Bytedance Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Package tagexpr is an interesting go struct tag expression syntax for field validation, etc.
 package tagexpr
 
 import (
@@ -23,8 +23,6 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
-
-	"github.com/andeya/ameda"
 )
 
 // Internally unified data types
@@ -98,8 +96,8 @@ func (vm *VM) MustRun(structOrStructPtrOrReflectValue interface{}) *TagExpr {
 }
 
 var (
-	unsupportNil        = errors.New("unsupport data: nil")
-	unsupportCannotAddr = errors.New("unsupport data: can not addr")
+	unsupportedNil        = errors.New("unsupported data: nil")
+	unsupportedCannotAddr = errors.New("unsupported data: can not addr")
 )
 
 // Run returns the tag expression handler of the @structPtrOrReflectValue.
@@ -115,21 +113,20 @@ func (vm *VM) Run(structPtrOrReflectValue interface{}) (*TagExpr, error) {
 	var v reflect.Value
 	switch t := structPtrOrReflectValue.(type) {
 	case reflect.Value:
-		v = ameda.DereferenceValue(t)
+		v = dereferenceValue(t)
 	default:
-		v = ameda.DereferenceValue(reflect.ValueOf(t))
+		v = dereferenceValue(reflect.ValueOf(t))
 	}
 	if err := checkStructMapAddr(v); err != nil {
 		return nil, err
 	}
 
-	u := ameda.ValueFrom2(&v)
-	ptr := unsafe.Pointer(u.Pointer())
+	ptr := rvPtr(v)
 	if ptr == nil {
-		return nil, unsupportNil
+		return nil, unsupportedNil
 	}
 
-	tid := u.RuntimeTypeID()
+	tid := rvType(v)
 	var err error
 	vm.rw.RLock()
 	s, ok := vm.structJar[tid]
@@ -171,16 +168,16 @@ func checkStructMapAddr(v reflect.Value) error {
 	if !v.IsValid() || v.CanAddr() || v.NumField() != 1 || v.Field(0).Kind() != reflect.Map {
 		return nil
 	}
-	return unsupportCannotAddr
+	return unsupportedCannotAddr
 }
 
 func (vm *VM) subRunAll(omitNil bool, tePath string, value reflect.Value, fn func(*TagExpr, error) error) error {
-	rv := ameda.DereferenceInterfaceValue(value)
+	rv := dereferenceInterfaceValue(value)
 	if !rv.IsValid() {
 		return nil
 	}
-	rt := ameda.DereferenceType(rv.Type())
-	rv = ameda.DereferenceValue(rv)
+	rt := dereferenceType(rv.Type())
+	rv = dereferenceValue(rv)
 	switch rt.Kind() {
 	case reflect.Struct:
 		if len(tePath) == 0 {
@@ -188,22 +185,21 @@ func (vm *VM) subRunAll(omitNil bool, tePath string, value reflect.Value, fn fun
 				return err
 			}
 		}
-		u := ameda.ValueFrom2(&rv)
-		ptr := unsafe.Pointer(u.Pointer())
+		ptr := rvPtr(rv)
 		if ptr == nil {
 			if omitNil {
 				return nil
 			}
-			return fn(nil, unsupportNil)
+			return fn(nil, unsupportedNil)
 		}
-		return fn(vm.subRun(tePath, rt, u.RuntimeTypeID(), ptr))
+		return fn(vm.subRun(tePath, rt, rvType(rv), ptr))
 
 	case reflect.Slice, reflect.Array:
 		count := rv.Len()
 		if count == 0 {
 			return nil
 		}
-		switch ameda.DereferenceType(rv.Type().Elem()).Kind() {
+		switch dereferenceType(rv.Type().Elem()).Kind() {
 		case reflect.Struct, reflect.Interface, reflect.Slice, reflect.Array, reflect.Map:
 			for i := count - 1; i >= 0; i-- {
 				err := vm.subRunAll(omitNil, tePath+"["+strconv.Itoa(i)+"]", rv.Index(i), fn)
@@ -221,11 +217,11 @@ func (vm *VM) subRunAll(omitNil bool, tePath string, value reflect.Value, fn fun
 		}
 		var canKey, canValue bool
 		rt := rv.Type()
-		switch ameda.DereferenceType(rt.Key()).Kind() {
+		switch dereferenceType(rt.Key()).Kind() {
 		case reflect.Struct, reflect.Interface, reflect.Slice, reflect.Array, reflect.Map:
 			canKey = true
 		}
-		switch ameda.DereferenceType(rt.Elem()).Kind() {
+		switch dereferenceType(rt.Elem()).Kind() {
 		case reflect.Struct, reflect.Interface, reflect.Slice, reflect.Array, reflect.Map:
 			canValue = true
 		}
@@ -278,7 +274,7 @@ func (vm *VM) registerStructLocked(structType reflect.Type) (*structVM, error) {
 	if err != nil {
 		return nil, err
 	}
-	tid := ameda.RuntimeTypeID(structType)
+	tid := rtType(structType)
 	s, had := vm.structJar[tid]
 	if had {
 		return s, s.err
@@ -286,7 +282,7 @@ func (vm *VM) registerStructLocked(structType reflect.Type) (*structVM, error) {
 	s = vm.newStructVM()
 	s.name = structType.String()
 	vm.structJar[tid] = s
-	var numField = structType.NumField()
+	numField := structType.NumField()
 	var structField reflect.StructField
 	var sub *structVM
 	for i := 0; i < numField; i++ {
@@ -302,7 +298,7 @@ func (vm *VM) registerStructLocked(structType reflect.Type) (*structVM, error) {
 		}
 		switch field.elemKind {
 		default:
-			field.setUnsupportGetter()
+			field.setUnsupportedGetter()
 			switch field.elemKind {
 			case reflect.Struct:
 				sub, err = vm.registerStructLocked(field.structField.Type)
@@ -420,7 +416,7 @@ func (vm *VM) newStructVM() *structVM {
 }
 
 func (s *structVM) newFieldVM(structField reflect.StructField) (*fieldVM, bool, error) {
-	var tag = structField.Tag.Get(s.vm.tagName)
+	tag := structField.Tag.Get(s.vm.tagName)
 	if tag == tagOmit {
 		return nil, false, nil
 	}
@@ -437,7 +433,7 @@ func (s *structVM) newFieldVM(structField reflect.StructField) (*fieldVM, bool, 
 	s.fields[f.fieldSelector] = f
 	s.fieldSelectorList = append(s.fieldSelectorList, f.fieldSelector)
 
-	var t = structField.Type
+	t := structField.Type
 	var ptrDeep int
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -445,7 +441,7 @@ func (s *structVM) newFieldVM(structField reflect.StructField) (*fieldVM, bool, 
 	}
 	f.ptrDeep = ptrDeep
 
-	var offset = structField.Offset
+	offset := structField.Offset
 	f.getPtr = func(ptr unsafe.Pointer) unsafe.Pointer {
 		if ptr == nil {
 			return nil
@@ -701,7 +697,7 @@ func (f *fieldVM) setLengthGetter() {
 	}
 }
 
-func (f *fieldVM) setUnsupportGetter() {
+func (f *fieldVM) setUnsupportedGetter() {
 	f.valueGetter = func(ptr unsafe.Pointer) interface{} {
 		raw := f.packRawFrom(ptr)
 		if safeIsNil(raw) {
@@ -724,7 +720,7 @@ func (vm *VM) getStructType(t reflect.Type) (reflect.Type, error) {
 		structType = structType.Elem()
 	}
 	if structType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("unsupport type: %s", t.String())
+		return nil, fmt.Errorf("unsupported type: %s", t.String())
 	}
 	return structType, nil
 }
@@ -807,13 +803,13 @@ func FakeBool(v interface{}) bool {
 	case nil, error:
 		return false
 	case []interface{}:
-		var bol = true
+		bol := true
 		for _, v := range r {
 			bol = bol && FakeBool(v)
 		}
 		return bol
 	default:
-		vv := ameda.DereferenceValue(reflect.ValueOf(v))
+		vv := dereferenceValue(reflect.ValueOf(v))
 		if vv.IsValid() || vv.IsZero() {
 			return false
 		}
@@ -877,7 +873,7 @@ func (t *TagExpr) Eval(exprSelector string) interface{} {
 //
 //	format: fieldName, fieldName.exprName, fieldName1.fieldName2.exprName1
 //	result types: float64, string, bool, nil
-func (t *TagExpr) EvalWithEnv(exprSelector string, env map[string]interface{})interface{} {
+func (t *TagExpr) EvalWithEnv(exprSelector string, env map[string]interface{}) interface{} {
 	expr, ok := t.s.exprs[exprSelector]
 	if !ok {
 		// Compatible with single mode or the expression with the name @
@@ -940,7 +936,7 @@ func (t *TagExpr) Range(fn func(*ExprHandler) error) error {
 				keyPath := f.fieldSelector + "{k}"
 				for _, key := range v.MapKeys() {
 					if mapKeyStructVM != nil {
-						p := unsafe.Pointer(ameda.ValueFrom(derefValue(key)).Pointer())
+						p := rvPtr(derefValue(key))
 						if omitNil && p == nil {
 							continue
 						}
@@ -955,7 +951,7 @@ func (t *TagExpr) Range(fn func(*ExprHandler) error) error {
 						}
 					}
 					if mapOrSliceElemStructVM != nil {
-						p := unsafe.Pointer(ameda.ValueFrom(derefValue(v.MapIndex(key))).Pointer())
+						p := rvPtr(derefValue(v.MapIndex(key)))
 						if omitNil && p == nil {
 							continue
 						}
@@ -975,7 +971,7 @@ func (t *TagExpr) Range(fn func(*ExprHandler) error) error {
 				// slice or array
 				for i := v.Len() - 1; i >= 0; i-- {
 					if mapOrSliceElemStructVM != nil {
-						p := unsafe.Pointer(ameda.ValueFrom(derefValue(v.Index(i))).Pointer())
+						p := rvPtr(derefValue(v.Index(i)))
 						if omitNil && p == nil {
 							continue
 						}
@@ -1121,8 +1117,6 @@ func safeConvert(v reflect.Value, t reflect.Type) reflect.Value {
 	defer func() { recover() }()
 	return v.Convert(t)
 }
-
-var float64Type = reflect.TypeOf(float64(0))
 
 func splitFieldSelector(selector string) (dir, base string) {
 	idx := strings.LastIndex(selector, ExprNameSeparator)

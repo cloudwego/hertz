@@ -21,7 +21,7 @@ import (
 )
 
 func TestExpr(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr string
 		val  interface{}
 	}{
@@ -132,7 +132,7 @@ func TestExpr(t *testing.T) {
 }
 
 func TestExprWithEnv(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr string
 		val  interface{}
 	}{
@@ -162,7 +162,7 @@ func TestExprWithEnv(t *testing.T) {
 }
 
 func TestPriority(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr string
 		val  interface{}
 	}{
@@ -190,7 +190,7 @@ func TestPriority(t *testing.T) {
 }
 
 func TestBuiltInFunc(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr string
 		val  interface{}
 	}{
@@ -226,7 +226,7 @@ func TestBuiltInFunc(t *testing.T) {
 }
 
 func TestSyntaxIncorrect(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		incorrectExpr string
 	}{
 		{incorrectExpr: "1 + + 'a'"},

@@ -16,13 +16,12 @@ package tagexpr
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 )
 
 func TestReadPairedSymbol(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		left, right             rune
 		expr, val, lastExprNode string
 	}{
@@ -45,7 +44,7 @@ func TestReadPairedSymbol(t *testing.T) {
 }
 
 func TestReadBoolExprNode(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr         string
 		val          bool
 		lastExprNode string
@@ -69,7 +68,7 @@ func TestReadBoolExprNode(t *testing.T) {
 }
 
 func TestReadDigitalExprNode(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr         string
 		val          float64
 		lastExprNode string
@@ -98,7 +97,7 @@ func TestReadDigitalExprNode(t *testing.T) {
 }
 
 func TestFindSelector(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		expr         string
 		field        string
 		name         string
@@ -160,11 +159,4 @@ func TestFindSelector(t *testing.T) {
 			t.Fatalf("%q last: got: %q, want: %q", c.expr, last, c.last)
 		}
 	}
-}
-func printBoolPtr(b *bool) string {
-	var v interface{} = b
-	if b != nil {
-		v = *b
-	}
-	return fmt.Sprint(v)
 }

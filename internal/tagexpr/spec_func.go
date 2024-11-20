@@ -20,8 +20,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/andeya/goutil/errors"
 )
 
 // --------------------------- Custom function ---------------------------
@@ -54,7 +52,7 @@ func RegFunc(funcName string, fn func(...interface{}) interface{}, force ...bool
 	if len(force) == 0 || !force[0] {
 		_, ok := funcList[funcName]
 		if ok {
-			return errors.Errorf("duplicate registration expression function: %s", funcName)
+			return fmt.Errorf("duplicate registration expression function: %s", funcName)
 		}
 	}
 	funcList[funcName] = newFunc(funcName, fn)
@@ -241,7 +239,7 @@ func readRegexpFuncExprNode(p *Expr, expr *string) ExprNode {
 			return nil
 		}
 	} else {
-		var currFieldVal = "$"
+		currFieldVal := "$"
 		p.parseExprNode(&currFieldVal, operand)
 	}
 	trimLeftSpace(subExprNode)
