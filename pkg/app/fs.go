@@ -798,7 +798,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 	if h.pathRewrite != nil {
 		path = h.pathRewrite(ctx)
 	} else {
-		path = ctx.Path()
+		path = []byte(ctx.Param("filepath"))
 	}
 	path = stripTrailingSlashes(path)
 
