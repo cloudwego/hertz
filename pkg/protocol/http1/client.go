@@ -701,7 +701,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	shouldCloseConn = resetConnection || req.ConnectionClose() || resp.ConnectionClose()
 
 	if resp.Header.StatusCode() == consts.StatusSwitchingProtocols &&
-		bytes.Equal(resp.Header.Peek(consts.HeaderConnection), bytestr.StrUpgrade) {
+		bytes.EqualFold(resp.Header.Peek(consts.HeaderConnection), bytestr.StrUpgrade) {
 		// can not reuse connection in this case, it's no longer http1 protocol.
 		// set BodyStream for (*Response).Hijack
 		resp.SetBodyStream(newUpgradeConn(c, cc), -1)
