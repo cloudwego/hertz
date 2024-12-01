@@ -128,11 +128,16 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 }
 
 type clientRespStream struct {
+	hasClosed     bool
 	r             io.Reader
 	closeCallback func(shouldClose bool) error
 }
 
 func (c *clientRespStream) Close() (err error) {
+	if c.hasClosed {
+		return nil
+	}
+	c.hasClosed = true
 	runtime.SetFinalizer(c, nil)
 	// If error happened in release, the connection may be in abnormal state.
 	// Close it in the callback in order to avoid other unexpected problems.
@@ -156,6 +161,7 @@ func (c *clientRespStream) Read(p []byte) (n int, err error) {
 func (c *clientRespStream) reset() {
 	c.closeCallback = nil
 	c.r = nil
+	c.hasClosed = false
 	clientRespStreamPool.Put(c)
 }
 
