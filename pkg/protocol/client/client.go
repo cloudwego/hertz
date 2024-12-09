@@ -43,6 +43,7 @@ package client
 
 import (
 	"context"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"sync"
 	"time"
 
@@ -220,8 +221,12 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 	redirectsCount := 0
 
 	for {
+		hlog.Infof("[Redirect] request url: %s", url)
+		hlog.Infof("[Redirect] request host: %s", string(req.Header.Host()))
 		req.SetRequestURI(url)
 		req.ParseURI()
+		hlog.Infof("[Redirect] request url parsed: %s", req.URI().String())
+		hlog.Infof("[Redirect] request host parsed: %s", string(req.Header.Host()))
 
 		if err = c.Do(ctx, req, resp); err != nil {
 			break
@@ -241,7 +246,9 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 			err = errMissingLocation
 			break
 		}
+		hlog.Infof("[Redirect] redirect time: %d, origin url: %s, location: %s", redirectsCount, url, location)
 		url = getRedirectURL(url, location)
+		hlog.Infof("[Redirect] after redirect process url: %s", url)
 	}
 
 	return statusCode, body, err
