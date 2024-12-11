@@ -242,6 +242,9 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 			break
 		}
 		url = getRedirectURL(url, location)
+
+		// Remove the former host header.
+		req.Header.Del(consts.HeaderHost)
 	}
 
 	return statusCode, body, err
