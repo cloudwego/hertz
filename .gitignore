@@ -3,3 +3,8 @@
 pkg/app/fs.go.hertz.gz
 coverage.txt
 coverage.out
+
+# test benchmark tmp output
+cpu.out
+mem.out
+*.test

@@ -551,33 +551,29 @@ func (c *Client) CloseIdleConnections() {
 }
 
 func (c *Client) mCleaner() {
-	mustStop := false
-
 	for {
 		time.Sleep(10 * time.Second)
-		c.mLock.Lock()
-		for k, v := range c.m {
-			shouldRemove := v.ShouldRemove()
-
-			if shouldRemove {
-				delete(c.m, k)
-				if f, ok := v.(io.Closer); ok {
-					err := f.Close()
-					if err != nil {
-						hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
-					}
-				}
-			}
-		}
-		if len(c.m) == 0 {
-			mustStop = true
-		}
-		c.mLock.Unlock()
-
-		if mustStop {
+		if c.mClean() {
 			break
 		}
 	}
+}
+
+func (c *Client) mClean() bool {
+	c.mLock.Lock()
+	defer c.mLock.Unlock()
+	for k, v := range c.m {
+		if v.ShouldRemove() {
+			delete(c.m, k)
+			if f, ok := v.(io.Closer); ok {
+				err := f.Close()
+				if err != nil {
+					hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
+				}
+			}
+		}
+	}
+	return len(c.m) == 0
 }
 
 func (c *Client) SetClientFactory(cf suite.ClientFactory) {

@@ -42,6 +42,7 @@
 package protocol
 
 import (
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -344,6 +345,25 @@ func (resp *Response) BodyStream() io.Reader {
 		resp.bodyStream = NoResponseBody
 	}
 	return resp.bodyStream
+}
+
+// Hijack returns the underlying network.Conn if available.
+//
+// It's only available when StatusCode() == 101 and "Connection: Upgrade",
+// coz Hertz will NOT reuse connection in this case,
+// then make it optional for users to implement their own protocols.
+//
+// The most common scenario is used with github.com/hertz-contrib/websocket
+func (resp *Response) Hijack() (network.Conn, error) {
+	if resp.bodyStream != nil {
+		h, ok := resp.bodyStream.(interface {
+			Hijack() (network.Conn, error)
+		})
+		if ok {
+			return h.Hijack()
+		}
+	}
+	return nil, errors.New("not available")
 }
 
 // AppendBody appends p to response body.

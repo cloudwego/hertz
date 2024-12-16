@@ -67,7 +67,10 @@ func TestReusePorts(t *testing.T) {
 	go hb.Run()
 	go hc.Run()
 	go hd.Run()
-	time.Sleep(time.Second)
+	waitEngineRunning(ha)
+	waitEngineRunning(hb)
+	waitEngineRunning(hc)
+	waitEngineRunning(hd)
 
 	client, _ := c.NewClient()
 	for i := 0; i < 1000; i++ {
@@ -81,7 +84,7 @@ func TestReusePorts(t *testing.T) {
 func TestHertz_Spin(t *testing.T) {
 	engine := New(WithHostPorts("127.0.0.1:6668"))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 2)
+		time.Sleep(40 * time.Millisecond)
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
@@ -93,7 +96,7 @@ func TestHertz_Spin(t *testing.T) {
 	})
 
 	go engine.Spin()
-	time.Sleep(time.Millisecond)
+	waitEngineRunning(engine)
 
 	hc := http.Client{Timeout: time.Second}
 	var err error
@@ -101,7 +104,7 @@ func TestHertz_Spin(t *testing.T) {
 	ch := make(chan struct{})
 	ch2 := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
+		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
 			_, err := hc.Get("http://127.0.0.1:6668/test2")
@@ -120,7 +123,7 @@ func TestHertz_Spin(t *testing.T) {
 		ch <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(20 * time.Millisecond)
 	pid := strconv.Itoa(os.Getpid())
 	cmd := exec.Command("kill", "-SIGHUP", pid)
 	t.Logf("[%v]begin SIGHUP\n", time.Now())
@@ -131,9 +134,9 @@ func TestHertz_Spin(t *testing.T) {
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
-	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
 
 	<-ch2
+	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
 }
 
 func TestWithSenseClientDisconnection(t *testing.T) {
@@ -150,15 +153,16 @@ func TestWithSenseClientDisconnection(t *testing.T) {
 		}
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	con, err := net.Dial("tcp", "127.0.0.1:6631")
 	assert.Nil(t, err)
 	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
 	assert.Nil(t, err)
-	time.Sleep(time.Second)
+	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
 	assert.Nil(t, con.Close())
-	time.Sleep(time.Second)
+	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }
 
@@ -178,14 +182,15 @@ func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
 		}
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	con, err := net.Dial("tcp", "127.0.0.1:6632")
 	assert.Nil(t, err)
 	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
 	assert.Nil(t, err)
-	time.Sleep(time.Second)
+	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
 	assert.Nil(t, con.Close())
-	time.Sleep(time.Second)
+	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }

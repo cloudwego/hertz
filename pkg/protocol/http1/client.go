@@ -48,6 +48,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -689,22 +690,27 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 			return nil
 		})
 	}
+	zr.Release() //nolint:errcheck
 
 	if err != nil {
-		zr.Release() //nolint:errcheck
 		c.closeConn(cc)
 		// Don't retry in case of ErrBodyTooLarge since we will just get the same again.
 		retry := !errors.Is(err, errs.ErrBodyTooLarge)
 		return retry, err
 	}
-
-	zr.Release() //nolint:errcheck
-
 	shouldCloseConn = resetConnection || req.ConnectionClose() || resp.ConnectionClose()
+
+	if resp.Header.StatusCode() == consts.StatusSwitchingProtocols &&
+		bytes.EqualFold(resp.Header.Peek(consts.HeaderConnection), bytestr.StrUpgrade) {
+		// can not reuse connection in this case, it's no longer http1 protocol.
+		// set BodyStream for (*Response).Hijack
+		resp.SetBodyStream(newUpgradeConn(c, cc), -1)
+		return false, nil
+	}
 
 	// In stream mode, we still can close/release the connection immediately if there is no content on the wire.
 	if c.ResponseBodyStream && resp.BodyStream() != protocol.NoResponseBody {
-		return false, err
+		return false, nil
 	}
 
 	if shouldCloseConn {
@@ -712,8 +718,48 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	} else {
 		c.releaseConn(cc)
 	}
+	return false, nil
+}
 
-	return false, err
+var poolUpgradeConn = sync.Pool{
+	New: func() interface{} {
+		return &upgradeConn{}
+	},
+}
+
+type upgradeConn struct {
+	c  *HostClient
+	cc *clientConn
+}
+
+func newUpgradeConn(c *HostClient, cc *clientConn) *upgradeConn {
+	p := poolUpgradeConn.Get().(*upgradeConn)
+	p.c = c
+	p.cc = cc
+	runtime.SetFinalizer(p, (*upgradeConn).gc)
+	return p
+}
+
+// Read implements io.Reader
+func (p *upgradeConn) Read(b []byte) (int, error) { return p.cc.c.Read(b) }
+
+// Hijack returns underlying network.Conn. This method is called by (*Response).Hijack
+func (p *upgradeConn) Hijack() (network.Conn, error) { return p.cc.c, nil }
+
+// gc closes conn and reuse upgradeConn.
+//
+// It MUST be called only by go runtime to avoid concurenccy issue.
+// For the 1st GC, it closes conn, and put upgradeConn back to pool
+// For the 2nd GC, it will be recycled if it's still in pool
+func (p *upgradeConn) gc() error {
+	if p.c != nil {
+		runtime.SetFinalizer(p, nil)
+		p.c.closeConn(p.cc)
+		p.c = nil
+		p.cc = nil
+		poolUpgradeConn.Put(p)
+	}
+	return nil
 }
 
 func (c *HostClient) Close() error {

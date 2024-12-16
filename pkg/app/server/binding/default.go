@@ -70,8 +70,8 @@ import (
 	"strings"
 	"sync"
 
-	exprValidator "github.com/bytedance/go-tagexpr/v2/validator"
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	exprValidator "github.com/cloudwego/hertz/internal/tagexpr/validator"
 	inDecoder "github.com/cloudwego/hertz/pkg/app/server/binding/internal/decoder"
 	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/utils"
