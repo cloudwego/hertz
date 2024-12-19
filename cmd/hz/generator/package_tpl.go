@@ -27,9 +27,9 @@ var (
 	clientTplName           = "client.go"       // generate a default client for server
 	hertzClientTplName      = "hertz_client.go" // underlying client for client command
 	idlClientName           = "idl_client.go"   // client of service for quick call
-
-	insertPointNew        = "//INSERT_POINT: DO NOT DELETE THIS LINE!"
-	insertPointPatternNew = `//INSERT_POINT\: DO NOT DELETE THIS LINE\!`
+	swaggerTplName          = "swagger.go"
+	insertPointNew          = "//INSERT_POINT: DO NOT DELETE THIS LINE!"
+	insertPointPatternNew   = `//INSERT_POINT\: DO NOT DELETE THIS LINE\!`
 )
 
 var templateNameSet = map[string]string{
