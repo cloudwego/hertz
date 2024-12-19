@@ -19,8 +19,8 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -345,7 +345,7 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		return pkgGen.TemplateGenerator.Generate(register, registerTplName, registerPath, false)
 	}
 
-	file, err := ioutil.ReadFile(registerPath)
+	file, err := os.ReadFile(registerPath)
 	if err != nil {
 		return fmt.Errorf("read register '%s' failed, err: %v", registerPath, err.Error())
 	}
@@ -493,7 +493,7 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 		return nil
 	})
 
-	file, err := ioutil.ReadFile(filePath)
+	file, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
