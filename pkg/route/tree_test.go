@@ -94,7 +94,7 @@ func TestCountParams(t *testing.T) {
 }
 
 func TestEmptyPath(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"",
@@ -113,7 +113,7 @@ func TestEmptyPath(t *testing.T) {
 }
 
 func TestTreeAddAndGet(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi",
@@ -150,7 +150,7 @@ func TestTreeAddAndGet(t *testing.T) {
 }
 
 func TestTreeWildcard(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/",
@@ -198,7 +198,7 @@ func TestTreeWildcard(t *testing.T) {
 }
 
 func TestUnescapeParameters(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/",
@@ -247,7 +247,7 @@ type testRoute struct {
 }
 
 func testRoutes(t *testing.T, routes []testRoute) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	for _, route := range routes {
 		recv := catchPanic(func() {
@@ -306,7 +306,7 @@ func TestTreeChildConflict(t *testing.T) {
 }
 
 func TestTreeDuplicatePath(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/",
@@ -342,7 +342,7 @@ func TestTreeDuplicatePath(t *testing.T) {
 }
 
 func TestEmptyWildcardName(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/user:",
@@ -372,7 +372,7 @@ func TestTreeCatchAllConflict(t *testing.T) {
 }
 
 func TestTreeCatchMaxParams(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 	route := "/cmd/*filepath"
 	tree.addRoute(route, fakeHandler(route))
 }
@@ -387,7 +387,7 @@ func TestTreeDoubleWildcard(t *testing.T) {
 	}
 
 	for _, route := range routes {
-		tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+		tree := &router{method: "GET", root: &node{}}
 		recv := catchPanic(func() {
 			tree.addRoute(route, nil)
 		})
@@ -399,7 +399,7 @@ func TestTreeDoubleWildcard(t *testing.T) {
 }
 
 func TestTreeTrailingSlashRedirect2(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/api/:version/seller/locales/get",
@@ -444,7 +444,7 @@ func TestTreeTrailingSlashRedirect2(t *testing.T) {
 }
 
 func TestTreeTrailingSlashRedirect(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi",
@@ -543,7 +543,7 @@ func TestTreeTrailingSlashRedirect(t *testing.T) {
 }
 
 func TestTreeRootTrailingSlashRedirect(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	recv := catchPanic(func() {
 		tree.addRoute("/:test", fakeHandler("/:test"))
@@ -561,7 +561,7 @@ func TestTreeRootTrailingSlashRedirect(t *testing.T) {
 }
 
 func TestTreeFindCaseInsensitivePath(t *testing.T) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	longPath := "/l" + strings.Repeat("o", 128) + "ng"
 	lOngPath := "/l" + strings.Repeat("O", 128) + "ng/"

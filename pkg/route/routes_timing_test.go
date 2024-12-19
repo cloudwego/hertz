@@ -54,7 +54,7 @@ type Route struct {
 }
 
 func BenchmarkTree_FindStatic(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	static := []*Route{
 		{"/"},
@@ -230,7 +230,7 @@ func BenchmarkTree_FindStatic(b *testing.B) {
 }
 
 func BenchmarkTree_FindGithub(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	static := []*Route{
 		// OAuth Authorizations
@@ -508,7 +508,7 @@ func BenchmarkTree_FindGithub(b *testing.B) {
 }
 
 func BenchmarkTree_FindStaticTsr(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/doc/foo/go_faq.html/",
@@ -530,7 +530,7 @@ func BenchmarkTree_FindStaticTsr(b *testing.B) {
 }
 
 func BenchmarkTree_FindParam(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi/:key1/foo/:key2",
@@ -552,7 +552,7 @@ func BenchmarkTree_FindParam(b *testing.B) {
 }
 
 func BenchmarkTree_FindParamTsr(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi/:key1/foo/:key2/",
@@ -574,7 +574,7 @@ func BenchmarkTree_FindParamTsr(b *testing.B) {
 }
 
 func BenchmarkTree_FindAny(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi/*key1",
@@ -596,7 +596,7 @@ func BenchmarkTree_FindAny(b *testing.B) {
 }
 
 func BenchmarkTree_FindAnyFallback(b *testing.B) {
-	tree := &router{method: "GET", root: &node{}, hasTsrHandler: make(map[string]bool)}
+	tree := &router{method: "GET", root: &node{}}
 
 	routes := [...]string{
 		"/hi/a/b/c/d/e/*key1",
