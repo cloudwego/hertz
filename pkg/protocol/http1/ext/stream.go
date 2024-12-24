@@ -272,6 +272,11 @@ func (rs *bodyStream) skipRest() error {
 			if err != nil {
 				return err
 			}
+			err = rs.reader.Release()
+			if err != nil {
+				return err
+			}
+
 		}
 	}
 	// max value of pSize is 8193, it's safe.
@@ -300,7 +305,14 @@ func (rs *bodyStream) skipRest() error {
 		if skip > needSkipLen {
 			skip = needSkipLen
 		}
-		rs.reader.Skip(skip)
+		err := rs.reader.Skip(skip)
+		if err != nil {
+			return err
+		}
+		err = rs.reader.Release()
+		if err != nil {
+			return err
+		}
 		needSkipLen -= skip
 		if needSkipLen == 0 {
 			return nil
