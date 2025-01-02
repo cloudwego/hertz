@@ -1884,24 +1884,28 @@ func TestClientLastMiddleware(t *testing.T) {
 	}
 	mw1 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final0", "final0")
 			return next(ctx, req, resp)
 		}
 	}
 	mw2 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final1", "final1")
 			return next(ctx, req, resp)
 		}
 	}
 	mw3 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final2", "final2")
 			return next(ctx, req, resp)
 		}
 	}
 	mw4 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final0", "final3")
 			return next(ctx, req, resp)
 		}
