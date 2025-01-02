@@ -147,6 +147,10 @@ func getFieldTagInfoByTag(field reflect.StructField, tag string) []TagInfo {
 		if tagValue == "-" {
 			skip = true
 		}
+		defaultVal := ""
+		if val, ok := field.Tag.Lookup(defaultTag); ok {
+			defaultVal = val
+		}
 		var options []string
 		var opt string
 		var required bool
@@ -157,7 +161,7 @@ func getFieldTagInfoByTag(field reflect.StructField, tag string) []TagInfo {
 				required = true
 			}
 		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Skip: skip})
+		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Default: defaultVal, Skip: skip})
 	} else {
 		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name})
 	}
