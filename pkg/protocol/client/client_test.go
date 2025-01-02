@@ -33,7 +33,6 @@ type MockDoer struct {
 }
 
 func (m *MockDoer) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
-
 	// this is the real logic in (c *HostClient) doNonNilReqResp method
 	if len(req.Header.Host()) == 0 {
 		req.Header.SetHostBytes(req.URI().Host())

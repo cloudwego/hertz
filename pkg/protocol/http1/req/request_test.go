@@ -1425,6 +1425,7 @@ func TestStreamNotEnoughData(t *testing.T) {
 	err = ext.ReleaseBodyStream(req.BodyStream())
 	assert.Nil(t, err)
 	assert.DeepEqual(t, 0, len(conn.Data))
+	assert.DeepEqual(t, true, conn.HasReleased)
 }
 
 func TestRequestBodyStreamWithTrailer(t *testing.T) {
