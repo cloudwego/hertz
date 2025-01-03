@@ -458,6 +458,15 @@ func (req *Request) SetQueryString(queryString string) {
 	req.URI().SetQueryString(queryString)
 }
 
+// SetQueryParams sets query Params.
+func (req *Request) SetQueryParams(params map[string]string) {
+	queryString := "?"
+	for k, v := range params {
+		queryString += fmt.Sprintf("%s=%s&", k, v)
+	}
+	req.URI().SetQueryString(queryString[:len(queryString)-1])
+}
+
 // SetFormData sets x-www-form-urlencoded params
 func (req *Request) SetFormData(data map[string]string) {
 	for k, v := range data {
