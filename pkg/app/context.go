@@ -705,6 +705,28 @@ func (ctx *RequestContext) multipartFormValueArray(key string) ([]string, bool) 
 	return nil, false
 }
 
+func (ctx *RequestContext) multipartFormMap(key string) (map[string]string, bool) {
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		dict := make(map[string]string)
+		ex := false
+		for k, v := range mf.Value {
+			if i := strings.IndexByte(k, '['); i >= 1 && k[0:i] == key {
+				if j := strings.IndexByte(k[i+1:], ']'); j >= 1 {
+					ex = true
+					dict[k[i+1:][:j]] = v[0]
+				}
+			}
+		}
+		if ex {
+			return dict, true
+		} else {
+			return nil, false
+		}
+	}
+	return nil, false
+}
+
 func (ctx *RequestContext) RequestBodyStream() io.Reader {
 	return ctx.Request.BodyStream()
 }
@@ -1377,11 +1399,18 @@ func (ctx *RequestContext) PostForm(key string) string {
 	return value
 }
 
-// PostFormArray returns the specified key from a POST urlencoded form or multipart form
+// PostFormArray returns an array of the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns an empty array `([])`.
 func (ctx *RequestContext) PostFormArray(key string) []string {
 	values, _ := ctx.GetPostFormArray(key)
 	return values
+}
+
+// PostFormMap returns a map of the specified key from a POST urlencoded form or multipart form
+// when it exists, otherwise it returns an empty map `map[string]string{}`.
+func (ctx *RequestContext) PostFormMap(key string) map[string]string {
+	valueMap, _ := ctx.GetPostFormMap(key)
+	return valueMap
 }
 
 // DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
@@ -1417,9 +1446,9 @@ func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 //
 // For example, during a PATCH request to update the item's tags:
 //
-//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
-//		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
-//	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
+//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tag") // set tag to ["tag1", "tag2", "tag3"]
+//		   tag=                  -->  (nil, true) := GetPostFormArray("tag") // set tags to nil
+//	                            -->  (nil, false) := GetPostFormArray("tag") // do nothing with tags
 func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
 	vs := ctx.PostArgs().PeekAll(key)
 	values := make([]string, len(vs))
@@ -1430,6 +1459,32 @@ func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
 		return ctx.multipartFormValueArray(key)
 	} else {
 		return values, true
+	}
+}
+
+// GetPostFormMap is like PostFormMap(key). It returns a map of the specified key from a POST urlencoded
+// form or multipart form when it exists `(map[string]string, true)` (even when the value is an empty string),
+// otherwise it returns `(map[string]string(nil), false)`.
+//
+// For example, during a PATCH request to update the map of the field:
+//
+//	field[name]=Tom field[age]=22 field[id]=123456  -->  (map[string]string{"name": "Tom", "age": "22", "id": "123456"}, true) := GetPostFormMap("field") // set fields to map[string]string{"name": "Tom", "age": "22", "id": "123456"}
+//		   field=                  -->  (nil, true) := GetPostFormMap("field") // set fields to nil
+//	                            -->  (nil, false) := GetPostFormMap("field") // do nothing with fields
+func (ctx *RequestContext) GetPostFormMap(key string) (map[string]string, bool) {
+	dict := make(map[string]string)
+	ctx.PostArgs().VisitAll(func(kb, vb []byte) {
+		k, v := string(kb), string(vb)
+		if i := strings.IndexByte(k, '['); i >= 1 && k[0:i] == key {
+			if j := strings.IndexByte(k[i+1:], ']'); j >= 1 {
+				dict[k[i+1:][:j]] = v
+			}
+		}
+	})
+	if len(dict) == 0 {
+		return ctx.multipartFormMap(key)
+	} else {
+		return dict, true
 	}
 }
 
