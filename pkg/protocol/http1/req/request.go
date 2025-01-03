@@ -46,6 +46,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"mime/multipart"
 
@@ -253,6 +254,7 @@ func write(req *protocol.Request, w network.Writer, usingProxy bool) error {
 // then errBodyTooLarge is returned.
 func ContinueReadBodyStream(req *protocol.Request, zr network.Reader, maxBodySize int, preParseMultipartForm ...bool) error {
 	var err error
+	hlog.Infof("Read stream req body contentLength  = %d", req.Header.ContentLength())
 	contentLength := req.Header.ContentLength()
 	if contentLength > 0 {
 		if len(preParseMultipartForm) == 0 || preParseMultipartForm[0] {
@@ -287,6 +289,7 @@ func ContinueReadBodyStream(req *protocol.Request, zr network.Reader, maxBodySiz
 	bodyBuf.Reset()
 	bodyBuf.B, err = ext.ReadBodyWithStreaming(zr, contentLength, maxBodySize, bodyBuf.B)
 	if err != nil {
+		hlog.Infof("ext.ReadBodyWithStreaming err = %v", err)
 		if errors.Is(err, errs.ErrBodyTooLarge) {
 			req.Header.SetContentLength(contentLength)
 			req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, req.Header.Trailer(), contentLength))

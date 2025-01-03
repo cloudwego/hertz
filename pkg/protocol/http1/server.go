@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"net"
 	"sync"
@@ -233,6 +234,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			}
 			// Read body
 			if s.StreamRequestBody {
+				hlog.Infof("Read stream req body MaxRequestBodySize = %d", s.MaxRequestBodySize)
 				err = req.ReadBodyStream(&ctx.Request, zr, s.MaxRequestBodySize, s.GetOnly, !s.DisablePreParseMultipartForm)
 			} else {
 				err = req.ReadLimitBody(&ctx.Request, zr, s.MaxRequestBodySize, s.GetOnly, !s.DisablePreParseMultipartForm)
