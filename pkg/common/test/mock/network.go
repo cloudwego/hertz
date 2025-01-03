@@ -325,7 +325,8 @@ func (m *Conn) AddCloseCallback(callback netpoll.CloseCallback) error {
 }
 
 type StreamConn struct {
-	Data []byte
+	HasReleased bool
+	Data        []byte
 }
 
 func NewStreamConn() *StreamConn {
@@ -354,7 +355,8 @@ func (m *StreamConn) Skip(n int) error {
 }
 
 func (m *StreamConn) Release() error {
-	panic("implement me")
+	m.HasReleased = true
+	return nil
 }
 
 func (m *StreamConn) Len() int {

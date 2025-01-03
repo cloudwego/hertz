@@ -1305,7 +1305,7 @@ func (ctx *RequestContext) Body() ([]byte, error) {
 	return ctx.Request.BodyE()
 }
 
-// ClientIP tries to parse the headers in [X-Real-Ip, X-Forwarded-For].
+// ClientIP attempts to parse the headers in the order of [X-Forwarded-For, X-Real-IP].
 // It calls RemoteIP() under the hood. If it cannot satisfy the requirements,
 // use engine.SetClientIPFunc to inject your own implementation.
 func (ctx *RequestContext) ClientIP() string {

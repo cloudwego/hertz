@@ -194,6 +194,9 @@ func Init() *cli.App {
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
 	trimGoPackage := cli.StringFlag{Name: "trim_gopackage", Aliases: []string{"trim_pkg"}, Usage: "Trim the prefix of go_package for protobuf.", Destination: &globalArgs.TrimGoPackage}
 
+	// client flag
+	enableClientOptionalFlag := cli.BoolFlag{Name: "enable_optional", Usage: "Optional field do not transfer for thrift if not set.(Only works for query tag)", Destination: &globalArgs.EnableClientOptional}
+
 	// app
 	app := cli.NewApp()
 	app.Name = "hz"
@@ -327,6 +330,7 @@ func Init() *cli.App {
 				&trimGoPackage,
 
 				&jsonEnumStrFlag,
+				&enableClientOptionalFlag,
 				&queryEnumIntFlag,
 				&unsetOmitemptyFlag,
 				&protoCamelJSONTag,
