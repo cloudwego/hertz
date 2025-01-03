@@ -19,5 +19,5 @@ package hertz
 // Name and Version info of this framework, used for statistics and debug
 const (
 	Name    = "Hertz"
-	Version = "v0.9.4"
+	Version = "v0.9.5"
 )
