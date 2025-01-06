@@ -46,6 +46,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"mime/multipart"
 	"net/url"
@@ -697,12 +698,16 @@ func (req *Request) BodyE() ([]byte, error) {
 		return req.bodyRaw, nil
 	}
 	if req.IsBodyStream() {
+		hlog.Infof("[Hertz]is body stream")
+		fmt.Printf("[Hertz]is body stream")
 		bodyBuf := req.BodyBuffer()
 		bodyBuf.Reset()
 		zw := network.NewWriter(bodyBuf)
 		_, err := utils.CopyZeroAlloc(zw, req.bodyStream)
 		req.CloseBodyStream() //nolint:errcheck
 		if err != nil {
+			hlog.Infof("[Hertz]CopyZeroAlloc err: %v", err)
+			fmt.Printf("[Hertz]CopyZeroAlloc err: %v", err)
 			return nil, err
 		}
 		return req.BodyBytes(), nil
@@ -720,7 +725,13 @@ func (req *Request) BodyE() ([]byte, error) {
 // Body returns request body.
 // if get body failed, returns nil.
 func (req *Request) Body() []byte {
-	body, _ := req.BodyE()
+	body, err := req.BodyE()
+	if err != nil {
+		hlog.Errorf("bodyE error: %v", err)
+		fmt.Printf("bodyE error: %v", err)
+
+		return []byte(fmt.Sprintf("err: %v, body: %s", err, body))
+	}
 	return body
 }
 
