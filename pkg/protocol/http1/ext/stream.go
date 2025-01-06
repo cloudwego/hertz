@@ -43,6 +43,7 @@ package ext
 
 import (
 	"bytes"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"sync"
 
@@ -184,6 +185,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 	// read from the pre-read buffer
 	if int(rs.prefetchedBytes.Size()) > rs.offset {
 		n, err = rs.prefetchedBytes.Read(p)
+		hlog.Errorf("[Hertz] read from prefetchedBytes, read len: %d, err: %v", n, err)
 		rs.offset += n
 		if rs.offset == rs.contentLength {
 			return n, io.EOF
@@ -203,6 +205,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 
 	if conn, ok := rs.reader.(io.Reader); ok {
 		m, err = conn.Read(p[n:])
+		hlog.Errorf("[Hertz] read from wire, read len: %d, err: %v", m, err)
 	} else {
 		var tmp []byte
 		tmp, err = rs.reader.Peek(m)

@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 
 	"github.com/cloudwego/hertz/pkg/network"
@@ -54,8 +55,12 @@ func copyBuffer(dst network.Writer, src io.Reader, buf []byte) (written int64, e
 		}
 		buf = make([]byte, size)
 	}
+	idx := 1
 	for {
+		hlog.Infof("[Hertz] %dth Read", idx)
 		nr, er := src.Read(buf)
+		hlog.Infof("[Hertz] read len: %d, read err: %v, read cnt: %s", nr, er, string(buf))
+		idx++
 		if nr > 0 {
 			nw, eb := dst.WriteBinary(buf[:nr])
 			if eb != nil {

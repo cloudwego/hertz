@@ -703,7 +703,9 @@ func (req *Request) BodyE() ([]byte, error) {
 		bodyBuf := req.BodyBuffer()
 		bodyBuf.Reset()
 		zw := network.NewWriter(bodyBuf)
-		_, err := utils.CopyZeroAlloc(zw, req.bodyStream)
+		n, err := utils.CopyZeroAlloc(zw, req.bodyStream)
+		hlog.Infof("[Hertz] copy body length: %d", n)
+		fmt.Printf("[Hertz] copy body length: %d", n)
 		req.CloseBodyStream() //nolint:errcheck
 		if err != nil {
 			hlog.Infof("[Hertz]CopyZeroAlloc err: %v", err)
