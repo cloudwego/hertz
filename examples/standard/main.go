@@ -32,9 +32,9 @@ type Test struct {
 func main() {
 	h := server.Default(server.WithStreamBody(true), server.WithHostPorts(":6789"))
 	h.POST("/hello", func(c context.Context, ctx *app.RequestContext) {
+		ctx.Request.CloseBodyStream()
 		b1 := ctx.Request.Body()
 		fmt.Println(len(b1))
-		ctx.Request.stream
 		b := ctx.Request.Body()
 		fmt.Println(len(b))
 		fmt.Println(ctx.Request.Header.ContentLength())

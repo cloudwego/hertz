@@ -58,7 +58,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
-const maxContentLengthInStream = 8 * 1024
+const maxContentLengthInStream = 10 * 1024
 
 var errBrokenChunk = errs.NewPublic("cannot find crlf at the end of chunk").SetMeta("when read body chunk")
 
