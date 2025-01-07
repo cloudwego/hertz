@@ -698,8 +698,8 @@ func (req *Request) BodyE() ([]byte, error) {
 		return req.bodyRaw, nil
 	}
 	if req.IsBodyStream() {
-		hlog.Infof("[Hertz]is body stream")
-		fmt.Printf("[Hertz]is body stream")
+		hlog.Infof("[Hertz]is body stream, content-length: %d", req.Header.ContentLength())
+		fmt.Printf("[Hertz]is body stream, content-length: %d", req.Header.ContentLength())
 		bodyBuf := req.BodyBuffer()
 		bodyBuf.Reset()
 		zw := network.NewWriter(bodyBuf)
