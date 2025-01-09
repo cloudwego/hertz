@@ -44,7 +44,7 @@ func TestExtWriter(t *testing.T) {
 
 	// setbody
 	b2 := []byte("abc")
-	w.SetBody([]byte(b2))
+	w.SetBody(b2)
 	err = w.Flush()
 	assert.DeepEqual(t, nil, err)
 	assert.DeepEqual(t, b2, w.Buf.Bytes())

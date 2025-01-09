@@ -174,13 +174,13 @@ func TestStreamConn(t *testing.T) {
 		assert.DeepEqual(t, cap(conn.Data), conn.Len())
 		err = conn.Skip(conn.Len() + 1)
 		assert.DeepEqual(t, "not enough data", err.Error())
+		err = conn.Release()
+		assert.DeepEqual(t, nil, err)
+		assert.DeepEqual(t, true, conn.HasReleased)
 	})
 
 	t.Run("TestNotImplement", func(t *testing.T) {
 		conn := NewStreamConn()
-		assert.Panic(t, func() {
-			conn.Release()
-		})
 		assert.Panic(t, func() {
 			conn.ReadByte()
 		})

@@ -814,6 +814,7 @@ func (t testTracer) Start(ctx context.Context, c *app.RequestContext) context.Co
 		value = v.(int)
 		value++
 	}
+	//nolint:staticcheck // SA1029 no built-in type string as key
 	return context.WithValue(ctx, "testKey", value)
 }
 
