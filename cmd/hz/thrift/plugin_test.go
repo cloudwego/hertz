@@ -17,7 +17,7 @@
 package thrift
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator"
@@ -26,7 +26,7 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	data, err := ioutil.ReadFile("../testdata/request_thrift.out")
+	data, err := os.ReadFile("../testdata/request_thrift.out")
 	if err != nil {
 		t.Fatal(err)
 	}
