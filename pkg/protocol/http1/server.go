@@ -30,6 +30,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -44,7 +45,8 @@ import (
 
 func init() {
 	if b, err := utils.GetBoolFromEnv("HERTZ_DISABLE_REQUEST_CONTEXT_POOL"); err == nil {
-		disabaleRequestContextPool = b
+		hlog.Infof("HERTZ_DISABLE_REQUEST_CONTEXT_POOL env is set to %t", b)
+		disableRequestContextPool = b
 	}
 }
 
@@ -59,7 +61,7 @@ var (
 	errShortConnection = errs.New(errs.ErrShortConnection, errs.ErrorTypePublic, "server is going to close the connection")
 	errUnexpectedEOF   = errs.NewPublic(io.ErrUnexpectedEOF.Error() + " when reading request")
 
-	disabaleRequestContextPool = false
+	disableRequestContextPool = false
 )
 
 type Option struct {
@@ -90,14 +92,14 @@ type Server struct {
 }
 
 func (s Server) getRequestContext() *app.RequestContext {
-	if disabaleRequestContextPool {
+	if disableRequestContextPool {
 		return &app.RequestContext{}
 	}
 	return s.Core.GetCtxPool().Get().(*app.RequestContext)
 }
 
 func (s Server) putRequestContext(ctx *app.RequestContext) {
-	if disabaleRequestContextPool {
+	if disableRequestContextPool {
 		return
 	}
 	ctx.Reset()

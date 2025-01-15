@@ -236,10 +236,10 @@ func TestServerDisableReqCtxPool(t *testing.T) {
 	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
 	err := server.Serve(context.TODO(), defaultConn)
 	assert.Nil(t, err)
-	disabaleRequestContextPool = true
+	disableRequestContextPool = true
 	defer func() {
 		// reset global variable
-		disabaleRequestContextPool = false
+		disableRequestContextPool = false
 	}()
 	server.Core = &mockCore{
 		ctxPool: &sync.Pool{New: func() interface{} {
