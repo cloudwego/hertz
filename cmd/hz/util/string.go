@@ -18,6 +18,7 @@ package util
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 	"unsafe"
@@ -96,4 +97,10 @@ func SnakeString(s string) string {
 		data = append(data, d)
 	}
 	return strings.ToLower(Bytes2Str(data))
+}
+
+func IsValidPackageName(name string) bool {
+	// Regular expression for a valid package name
+	re := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+	return re.MatchString(name)
 }
