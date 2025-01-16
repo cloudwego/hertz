@@ -97,7 +97,10 @@ type DialFunc func(addr string) (Conn, error)
 type StreamConn interface {
 	GetRawConnection() interface{}
 	// HandshakeComplete blocks until the handshake completes (or fails).
-	HandshakeComplete() context.Context
+	// For the client, data sent before completion of the handshake is encrypted with 0-RTT keys.
+	// For the server, data sent before completion of the handshake is encrypted with 1-RTT keys,
+	// however the client's identity is only verified once the handshake completes.
+	HandshakeComplete() <-chan struct{}
 	// GetVersion returns the version of the protocol used by the connection.
 	GetVersion() uint32
 	// CloseWithError closes the connection with an error.
