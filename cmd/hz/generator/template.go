@@ -247,7 +247,11 @@ func (tg *TemplateGenerator) Persist() error {
 		}
 
 		err = func() error {
-			file, err := os.OpenFile(abPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(0o755))
+			fileMode := 0o644
+			if strings.HasSuffix(abPath, ".sh") {
+				fileMode = 0o755
+			}
+			file, err := os.OpenFile(abPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.FileMode(fileMode))
 			defer file.Close()
 			if err != nil {
 				return fmt.Errorf("open file '%s' failed, err: %v", abPath, err.Error())
