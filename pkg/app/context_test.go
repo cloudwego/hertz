@@ -848,32 +848,27 @@ func TestContextContentType(t *testing.T) {
 	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
-type MockIpConn struct {
+type MockConn struct {
 	*mock.Conn
-	RemoteIp string
-	Port     int
+
+	remote net.Addr
 }
 
-func (c *MockIpConn) RemoteAddr() net.Addr {
-	return &net.UDPAddr{
-		IP:   net.ParseIP(c.RemoteIp),
-		Port: c.Port,
-	}
+func (c *MockConn) RemoteAddr() net.Addr {
+	return c.remote
 }
 
 func newContextClientIPTest() *RequestContext {
 	c := NewContext(0)
-	c.conn = &MockIpConn{
-		Conn:     mock.NewConn(""),
-		RemoteIp: "127.0.0.1",
-		Port:     8080,
+	c.conn = &MockConn{
+		remote: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
 	}
 	c.Request.Header.Set("X-Real-IP", " 10.10.10.10  ")
 	c.Request.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
 	return c
 }
 
-func TestClientIp(t *testing.T) {
+func TestClientIP(t *testing.T) {
 	c := newContextClientIPTest()
 	// default X-Forwarded-For and X-Real-IP behaviour
 	assert.DeepEqual(t, "20.20.20.20", c.ClientIP())
@@ -908,6 +903,14 @@ func TestClientIp(t *testing.T) {
 	}
 	c.SetClientIPFunc(ClientIPWithOption(opts))
 	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// UDS
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "unix", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// err: Addr not host:port
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "tcp", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "", c.ClientIP())
 }
 
 func TestSetClientIPFunc(t *testing.T) {
