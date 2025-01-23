@@ -57,6 +57,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -457,7 +458,12 @@ func TestClientReadTimeout(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	readtimeout := 50 * time.Millisecond
-	sleeptime := 75 * time.Millisecond // must > readtimeout
+	if runtime.GOOS == "windows" {
+		// XXX: The windows CI instance powered by Github is quite unstable.
+		// Increase readtimeout here for better testing stability.
+		readtimeout = 2 * readtimeout
+	}
+	sleeptime := readtimeout + readtimeout/2 // must > readtimeout
 
 	engine.GET("/normal", func(c context.Context, ctx *app.RequestContext) {
 		ctx.String(201, "ok")
