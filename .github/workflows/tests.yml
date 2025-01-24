@@ -37,9 +37,6 @@ jobs:
         run: go test -race ./...
 
   ut-windows:
-    strategy:
-      matrix:
-        version: ["1.20", "1.21", "1.22", "1.23"]
     runs-on: windows-latest
     env: # Fixes https://github.com/actions/setup-go/issues/240
       GOMODCACHE: 'D:\go\pkg\mod'
@@ -49,13 +46,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.version }}
+          go-version: stable
 
       - name: Unit Test
         run: go test -race ./...
 
   code-cov:
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -71,7 +68,7 @@ jobs:
         run: bash <(curl -s https://codecov.io/bash)
 
   hz-test-unix:
-    runs-on: [ self-hosted, X64 ]
+    runs-on: [ self-hosted, Linux, X64 ]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
