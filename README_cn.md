@@ -30,7 +30,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
   Hertz 采用了分层设计，提供了较多的接口以及默认的扩展实现，用户也可以自行扩展。同时得益于框架的分层设计，框架的扩展性也会大很多。目前仅将稳定的能力开源给社区，更多的规划参考 [RoadMap](ROADMAP.md)。
 - 多协议支持
 
-  Hertz 框架原生提供 HTTP/1.1、HTTP/2、HTTP/3 及 ALPN 协议支持。除此之外，由于分层设计，Hertz 甚至支持自定义构建协议解析逻辑，以满足协议层扩展的任意需求。
+  Hertz 框架原生提供 HTTP/1.1 及 ALPN 协议支持。除此之外，由于分层设计，Hertz 甚至支持自定义构建协议解析逻辑，以满足协议层扩展的任意需求。
 - 网络层切换能力
 
   Hertz 实现了 Netpoll 和 Golang 原生网络库 间按需切换能力，用户可以针对不同的场景选择合适的网络库，同时也支持以插件的方式为 Hertz 扩展网络库实现。
@@ -42,13 +42,11 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 ### 基本特性
   包含通用中间件的介绍和使用，上下文选择，数据绑定，数据渲染，直连访问，日志，错误处理，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/basic-feature/)
 ### 可观测性
-  包含日志，链路追踪，埋点，监控，OpenTelemetry 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/observability/)
-### 治理特性
-  包含服务注册与发现扩展，Sentinel 集成，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+  包含日志，链路追踪，埋点，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/observability/)
 ### 框架扩展
-  包含网络库扩展，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
+  包含网络库扩展，协议扩展，日志扩展，监控扩展，服务注册与发现扩展，[详见文档](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### 参考
-  apidoc、框架可配置项一览，[详见文档](https://www.cloudwego.io/zh/docs/hertz/reference/)
+  框架可配置项一览，[详见文档](https://www.cloudwego.io/zh/docs/hertz/reference/)
 ### FAQ
   常见问题排查，[详见文档](https://www.cloudwego.io/zh/docs/hertz/faq/)
 ## 框架性能
@@ -56,9 +54,10 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
   我们提供了 [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark) 项目用来长期追踪和比较 Hertz 与其他框架在不同情况下的性能数据以供参考
 ## 相关项目
 - [Netpoll](https://github.com/cloudwego/netpoll): 自研高性能网络库，Hertz 默认集成
-- [hertz-Contrib](https://github.com/hertz-contrib): Hertz 扩展仓库，提供可观测、安全、流量治理、协议、HTTP 通用能力等扩展
 - [Example](https://github.com/cloudwego/hertz-examples): Hertz 使用例子
+
 ## 相关拓展
+[hertz-Contrib](https://github.com/hertz-contrib) 是 Hertz 扩展生态所在组织，提供服务注册发现、可观测、安全、流量治理、协议、HTTP 通用能力等扩展，由社区共建与维护
 
 | 拓展                                                                                                 | 描述                                                                                                |
 |----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
