@@ -4,7 +4,7 @@ on: [ pull_request ]
 
 jobs:
   compliant:
-    runs-on: [ self-hosted, X64 ]
+    runs-on: [ self-hosted, Linux, X64 ]
     steps:
       - uses: actions/checkout@v3
 
@@ -15,7 +15,7 @@ jobs:
         uses: crate-ci/typos@master
 
   lint:
-    runs-on: [ self-hosted, X64 ]
+    runs-on: [ self-hosted, Linux, X64 ]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
