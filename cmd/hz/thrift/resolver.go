@@ -269,10 +269,12 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret ResolvedSymbol, err 
 		return
 	}
 
-	sp := strings.SplitN(id, ".", 2)
-	if ref, ok := resolver.refPkgs[sp[0]]; ok {
+	idx := strings.LastIndex(id, ".")
+	depName := id[:idx]
+	typeName := id[idx+1:]
+	if ref, ok := resolver.refPkgs[depName]; ok {
 		ref.Referred = true
-		ret.Base = sp[1]
+		ret.Base = typeName
 		ret.Src = ref.Model.PackageName
 		ret.Type.Scope = ref.Model
 	} else {
@@ -334,9 +336,11 @@ func (resolver *Resolver) Get(name string) *Symbol {
 		return s
 	}
 	if strings.Contains(name, ".") {
-		sp := strings.SplitN(name, ".", 2)
-		if ref, ok := resolver.deps[sp[0]]; ok {
-			if ss, ok := ref[sp[1]]; ok {
+		idx := strings.LastIndex(name, ".")
+		depName := name[:idx]
+		typeName := name[idx+1:]
+		if ref, ok := resolver.deps[depName]; ok {
+			if ss, ok := ref[typeName]; ok {
 				return ss
 			}
 		}
