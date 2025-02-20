@@ -34,6 +34,8 @@ type ConnPoolState struct {
 	WaitConnNum int
 	// HostClient Addr
 	Addr string
+	// Maximum number of connections
+	MaxConns int
 }
 
 type HostClientState interface {
