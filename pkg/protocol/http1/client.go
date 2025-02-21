@@ -194,6 +194,7 @@ func (c *HostClient) ConnPoolState() config.ConnPoolState {
 		PoolConnNum:  len(c.conns),
 		TotalConnNum: c.connsCount,
 		Addr:         c.Addr,
+		MaxConns:     c.MaxConns,
 	}
 
 	if c.connsWait != nil {
