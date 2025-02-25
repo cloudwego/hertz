@@ -25,7 +25,6 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/route"
 )
@@ -106,10 +105,7 @@ func waitSignal(errCh chan error) error {
 	select {
 	case sig := <-signals:
 		switch sig {
-		case syscall.SIGTERM:
-			// force exit
-			return errors.NewPublic(sig.String()) // nolint
-		case syscall.SIGHUP, syscall.SIGINT:
+		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
 			hlog.SystemLogger().Infof("Received signal: %s\n", sig)
 			// graceful shutdown
 			return nil
