@@ -625,16 +625,64 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
 				}
 			} else { // add append content to the file directly
+				var appendContent []byte
 				data := CustomizedFileForIDL{
 					IDLPackageRenderInfo: &idlPackageRenderInfo,
 					FilePath:             filePath,
 					FilePackage:          util.SplitPackage(filepath.Dir(filePath), ""),
 				}
-				file, err := appendUpdateFile(tplInfo, data, fileContent)
+				insertKey, err := renderInsertKey(tplInfo, data)
 				if err != nil {
 					return err
 				}
-				pkgGen.files = append(pkgGen.files, File{filePath, string(file), false, ""})
+				if bytes.Contains(fileContent, []byte(insertKey)) {
+					return nil
+				}
+				imptSlice, err := getInsertImportContent(tplInfo, data, fileContent)
+				if err != nil {
+					return err
+				}
+				for _, impt := range imptSlice {
+					if bytes.Contains(fileContent, []byte(impt[1])) {
+						continue
+					}
+					fileContent, err = util.AddImportForContent(fileContent, impt[0], impt[1])
+					if err != nil {
+						logs.Warnf("can not add import(%s) for file(%s)\n", impt[1], filePath)
+					}
+				}
+				appendContent, err = appendUpdateFile(tplInfo, data, appendContent)
+				if err != nil {
+					return err
+				}
+				if len(tplInfo.UpdateBehavior.AppendLocation) == 0 {
+					buf := bytes.NewBuffer(nil)
+					_, err = buf.Write(fileContent)
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					_, err = buf.Write(appendContent)
+					if err != nil {
+						return fmt.Errorf("append file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is empty", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+				} else {
+					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
+					if len(part) == 0 {
+						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					if len(part) != 2 {
+						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
+					}
+					buf := bytes.NewBuffer(nil)
+					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if err != nil {
+						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
+					}
+					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is empty", filePath)
+					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
+				}
 			}
 		default:
 			// do nothing
