@@ -54,7 +54,7 @@ func TestReadBoolExprNode(t *testing.T) {
 		{expr: "true ", val: true, lastExprNode: " "},
 		{expr: "!true&", val: false, lastExprNode: "&"},
 		{expr: "!false|", val: true, lastExprNode: "|"},
-		{expr: "!!!!false =", val: !!!!false, lastExprNode: " ="},
+		{expr: "!!!!false =", val: !!!!false, lastExprNode: " ="}, //nolint:staticcheck // SA4013: negating a boolean twice has no effect
 	}
 	for _, c := range cases {
 		t.Log(c.expr)

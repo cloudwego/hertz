@@ -99,43 +99,43 @@ var defaultClientIPOptions = ClientIPOptions{
 	TrustedCIDRs:    defaultTrustedCIDRs,
 }
 
+var loopbackIP = net.ParseIP("127.0.0.1")
+
 // ClientIPWithOption used to generate custom ClientIP function and set by engine.SetClientIPFunc
 func ClientIPWithOption(opts ClientIPOptions) ClientIP {
 	return func(ctx *RequestContext) string {
-		RemoteIPHeaders := opts.RemoteIPHeaders
-		TrustedCIDRs := opts.TrustedCIDRs
-
-		remoteIPStr, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String()))
-		if err != nil {
-			return ""
+		remoteIPStr := ""
+		trustedProxy := false
+		if addr := ctx.RemoteAddr(); strings.HasPrefix(addr.Network(), "unix") {
+			// unix, unixgram, unixpacket is considered same as "127.0.0.1"
+			remoteIPStr = addr.String()
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, loopbackIP)
+		} else {
+			h, _, err := net.SplitHostPort(strings.TrimSpace(addr.String()))
+			if err != nil {
+				return ""
+			}
+			remoteIPStr = h
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, net.ParseIP(h))
 		}
 
-		remoteIP := net.ParseIP(remoteIPStr)
-		if remoteIP == nil {
-			return ""
-		}
-
-		trusted := isTrustedProxy(TrustedCIDRs, remoteIP)
-
-		if trusted {
-			for _, headerName := range RemoteIPHeaders {
-				ip, valid := validateHeader(TrustedCIDRs, ctx.Request.Header.Get(headerName))
+		if trustedProxy {
+			for _, headerName := range opts.RemoteIPHeaders {
+				ip, valid := validateHeader(opts.TrustedCIDRs, ctx.Request.Header.Get(headerName))
 				if valid {
 					return ip
 				}
 			}
 		}
-
 		return remoteIPStr
 	}
 }
 
 // isTrustedProxy will check whether the IP address is included in the trusted list according to trustedCIDRs
 func isTrustedProxy(trustedCIDRs []*net.IPNet, remoteIP net.IP) bool {
-	if trustedCIDRs == nil {
+	if trustedCIDRs == nil || remoteIP == nil {
 		return false
 	}
-
 	for _, cidr := range trustedCIDRs {
 		if cidr.Contains(remoteIP) {
 			return true

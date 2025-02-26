@@ -57,6 +57,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -457,7 +458,12 @@ func TestClientReadTimeout(t *testing.T) {
 	engine := route.NewEngine(opt)
 
 	readtimeout := 50 * time.Millisecond
-	sleeptime := 75 * time.Millisecond // must > readtimeout
+	if runtime.GOOS == "windows" {
+		// XXX: The windows CI instance powered by Github is quite unstable.
+		// Increase readtimeout here for better testing stability.
+		readtimeout = 2 * readtimeout
+	}
+	sleeptime := readtimeout + readtimeout/2 // must > readtimeout
 
 	engine.GET("/normal", func(c context.Context, ctx *app.RequestContext) {
 		ctx.String(201, "ok")
@@ -1884,24 +1890,28 @@ func TestClientLastMiddleware(t *testing.T) {
 	}
 	mw1 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final0", "final0")
 			return next(ctx, req, resp)
 		}
 	}
 	mw2 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final1", "final1")
 			return next(ctx, req, resp)
 		}
 	}
 	mw3 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final2", "final2")
 			return next(ctx, req, resp)
 		}
 	}
 	mw4 := func(next Endpoint) Endpoint {
 		return func(ctx context.Context, req *protocol.Request, resp *protocol.Response) (err error) {
+			//nolint:staticcheck // SA1029 no built-in type string as key
 			ctx = context.WithValue(ctx, "final0", "final3")
 			return next(ctx, req, resp)
 		}
@@ -2379,12 +2389,14 @@ func TestClientState(t *testing.T) {
 			case int32(0):
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
 				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
 				wg.Done()
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
+				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
 				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
 				wg.Done()

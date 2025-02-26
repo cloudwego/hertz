@@ -22,6 +22,11 @@ compile_hz() {
   judge_exit "$?"
 }
 
+
+PATH_BIN=$PWD/bin
+mkdir -p $PATH_BIN
+export PATH=$PATH_BIN:$PATH
+
 install_dependent_tools() {
   # install thriftgo
   go install github.com/cloudwego/thriftgo@latest
@@ -29,8 +34,8 @@ install_dependent_tools() {
   # install protoc
   wget https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-linux-x86_64.zip
   unzip -d protoc-3.19.4-linux-x86_64 protoc-3.19.4-linux-x86_64.zip
-  cp protoc-3.19.4-linux-x86_64/bin/protoc /usr/local/bin/protoc
-  cp -r protoc-3.19.4-linux-x86_64/include/google /usr/local/include/google
+  cp protoc-3.19.4-linux-x86_64/bin/protoc $PATH_BIN
+  cp -r protoc-3.19.4-linux-x86_64/include/google $PATH_BIN
 }
 
 test_thrift() {
