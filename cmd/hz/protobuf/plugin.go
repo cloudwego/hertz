@@ -49,7 +49,7 @@ package protobuf
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,7 +112,7 @@ func (plugin *Plugin) Run() int {
 		}
 	}()
 	// read protoc request
-	in, err := ioutil.ReadAll(os.Stdin)
+	in, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		logs.Errorf("read request failed: %s\n", err.Error())
 		return meta.PluginError
