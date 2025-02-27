@@ -62,8 +62,9 @@ jobs:
       - name: Unit Test
         run: go test -covermode=atomic -coverprofile=coverage.txt ./...
 
-      - name: Codecov
-        run: bash <(curl -s https://codecov.io/bash)
+      - uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
 
   hz-test-unix:
     runs-on: [ self-hosted, Linux, X64 ]
