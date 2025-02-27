@@ -434,3 +434,40 @@ func ToGoFuncName(s string) string {
 	}
 	return string(ss)
 }
+
+// ParseThriftPluginString parses a string in the format "pluginName[:pluginPath][key=value]*".
+func ParseThriftPluginString(input string) (pluginName, pluginPath string, params map[string]string) {
+	// Initialize the output variables
+	pluginName = ""
+	pluginPath = ""
+	params = make(map[string]string)
+
+	// Split the input on the first ':'
+	parts := strings.SplitN(input, ":", 2)
+	if len(parts) > 0 {
+		// Handle the plugin name and path
+		pluginPart := parts[0]
+		pluginNameAndPath := strings.SplitN(pluginPart, "=", 2)
+		pluginName = pluginNameAndPath[0]
+
+		if len(pluginNameAndPath) > 1 {
+			pluginPath = pluginNameAndPath[1]
+		}
+	}
+
+	// If there's a parameters part, parse it
+	if len(parts) > 1 {
+		paramsPart := parts[1]
+		paramPairs := strings.Split(paramsPart, ",")
+		for _, pair := range paramPairs {
+			keyValue := strings.SplitN(pair, "=", 2)
+			if len(keyValue) == 2 {
+				params[keyValue[0]] = keyValue[1]
+			} else if len(keyValue) == 1 {
+				params[keyValue[0]] = ""
+			}
+		}
+	}
+
+	return pluginName, pluginPath, params
+}
