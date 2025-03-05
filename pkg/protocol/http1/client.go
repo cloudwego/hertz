@@ -363,6 +363,10 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
+	if ctx == nil {
+		panic("ctx is nil")
+	}
+
 	var (
 		err                error
 		canIdempotentRetry bool
