@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
-	github.com/cloudwego/thriftgo v0.1.7
+	github.com/cloudwego/thriftgo v0.3.19
 	github.com/hashicorp/go-version v1.5.0
 	github.com/jhump/protoreflect v1.12.0
 	github.com/urfave/cli/v2 v2.23.0
