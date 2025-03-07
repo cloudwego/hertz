@@ -36,6 +36,10 @@ import (
 // global args. MUST fork it when use
 var globalArgs = config.NewArgument()
 
+func GetGlobalArgs() *config.Argument {
+	return globalArgs
+}
+
 func New(c *cli.Context) error {
 	args, err := globalArgs.Parse(c, meta.CmdNew)
 	if err != nil {

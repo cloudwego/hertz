@@ -1,11 +1,14 @@
 package sdk
 
 import (
+	"flag"
 	"fmt"
+	"github.com/cloudwego/hertz/cmd/hz/app"
 	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/thrift"
 	"github.com/cloudwego/thriftgo/plugin"
 	"github.com/cloudwego/thriftgo/sdk"
+	"github.com/urfave/cli/v2"
 	"os/exec"
 	"strings"
 )
@@ -44,12 +47,39 @@ func (k *HertzSDKPlugin) GetThriftgoParameters() []string {
 	return k.ThriftgoParams
 }
 
+func findCommon(client *cli.App, cmdType string) *cli.Command {
+	for _, cmd := range client.Commands {
+		if cmd.Name == cmdType {
+			return cmd
+		}
+	}
+	return nil
+}
+
 func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlugin, error) {
+	client := app.Init()
 
-	c := config.NewArgument()
-	c.CmdType = cmdType
+	c := findCommon(client, cmdType)
+	if c == nil {
+		return nil, fmt.Errorf("command not found: %s", cmdType)
+	}
 
-	cmd, err := config.BuildPluginCmd(c)
+	flagSet := flag.NewFlagSet("hz-parse", flag.ContinueOnError)
+
+	for _, f := range c.Flags {
+		if err := f.Apply(flagSet); err != nil {
+			return nil, err
+		}
+	}
+
+	ctx := cli.NewContext(client, flagSet, nil)
+
+	args, err := app.GetGlobalArgs().Parse(ctx, cmdType)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd, err := config.BuildPluginCmd(args)
 	if err != nil {
 		return nil, err
 	}
