@@ -44,16 +44,14 @@ type Plugin struct {
 	rmTags []string
 }
 
-func (plugin *Plugin) HandleRequest() *thriftgo_plugin.Response {
+func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.Request) *thriftgo_plugin.Response {
 	plugin.setLogger()
-	args := &config.Argument{}
-	err := plugin.handleRequest()
-	if err != nil {
-		logs.Errorf("handle request failed: %s", err.Error())
-		return thriftgo_plugin.BuildErrorResponse(err.Error())
-	}
+	plugin.req = req
+	// init thriftgo utils
+	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
+	thriftgoUtil.HandleOptions(req.GeneratorParameters)
 
-	args, err = plugin.parseArgs()
+	args, err := plugin.parseArgs()
 	if err != nil {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return thriftgo_plugin.BuildErrorResponse(err.Error())
@@ -198,131 +196,19 @@ func (plugin *Plugin) Run() int {
 		}
 	}()
 
-	err := plugin.handleRequest()
+	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		logs.Errorf("handle request failed: %s", err.Error())
+		logs.Errorf("read request failed: %s", err.Error())
+		return meta.PluginError
+	}
+	req, err := thriftgo_plugin.UnmarshalRequest(data)
+	if err != nil {
+		logs.Errorf("unmarshal request failed: %s", err.Error())
 		return meta.PluginError
 	}
 
-	args, err = plugin.parseArgs()
-	if err != nil {
-		logs.Errorf("parse args failed: %s", err.Error())
-		return meta.PluginError
-	}
-	plugin.rmTags = args.RmTags
-	if args.CmdType == meta.CmdModel {
-		// check tag options for model mode
-		CheckTagOption(plugin.args)
-		res, err := plugin.GetResponse(nil, args.OutDir)
-		if err != nil {
-			logs.Errorf("get response failed: %s", err.Error())
-			return meta.PluginError
-		}
-		plugin.response(res)
-		if err != nil {
-			logs.Errorf("response failed: %s", err.Error())
-			return meta.PluginError
-		}
-		return 0
-	}
+	res := plugin.HandleRequest(args, req)
 
-	err = plugin.initNameStyle()
-	if err != nil {
-		logs.Errorf("init naming style failed: %s", err.Error())
-		return meta.PluginError
-	}
-
-	options := CheckTagOption(plugin.args)
-
-	pkgInfo, err := plugin.getPackageInfo()
-	if err != nil {
-		logs.Errorf("get http package info failed: %s", err.Error())
-		return meta.PluginError
-	}
-
-	customPackageTemplate := args.CustomizePackage
-	pkg, err := args.GetGoPackage()
-	if err != nil {
-		logs.Errorf("get go package failed: %s", err.Error())
-		return meta.PluginError
-	}
-	handlerDir, err := args.GetHandlerDir()
-	if err != nil {
-		logs.Errorf("get handler dir failed: %s", err.Error())
-		return meta.PluginError
-	}
-	routerDir, err := args.GetRouterDir()
-	if err != nil {
-		logs.Errorf("get router dir failed: %s", err.Error())
-		return meta.PluginError
-	}
-	modelDir, err := args.GetModelDir()
-	if err != nil {
-		logs.Errorf("get model dir failed: %s", err.Error())
-		return meta.PluginError
-	}
-	clientDir, err := args.GetClientDir()
-	if err != nil {
-		logs.Errorf("get client dir failed: %s", err.Error())
-		return meta.PluginError
-	}
-	sg := generator.HttpPackageGenerator{
-		ConfigPath: customPackageTemplate,
-		HandlerDir: handlerDir,
-		RouterDir:  routerDir,
-		ModelDir:   modelDir,
-		UseDir:     args.Use,
-		ClientDir:  clientDir,
-		TemplateGenerator: generator.TemplateGenerator{
-			OutputDir: args.OutDir,
-			Excludes:  args.Excludes,
-		},
-		ProjPackage:          pkg,
-		Options:              options,
-		HandlerByMethod:      args.HandlerByMethod,
-		CmdType:              args.CmdType,
-		IdlClientDir:         util.SubDir(modelDir, pkgInfo.Package),
-		ForceClientDir:       args.ForceClientDir,
-		BaseDomain:           args.BaseDomain,
-		QueryEnumAsInt:       args.QueryEnumAsInt,
-		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
-		SortRouter:           args.SortRouter,
-		ForceUpdateClient:    args.ForceUpdateClient,
-	}
-	if args.ModelBackend != "" {
-		sg.Backend = meta.Backend(args.ModelBackend)
-	}
-	generator.SetDefaultTemplateConfig()
-
-	err = sg.Generate(pkgInfo)
-	if err != nil {
-		logs.Errorf("generate package failed: %s", err.Error())
-		return meta.PluginError
-	}
-	if len(args.Use) != 0 {
-		err = sg.Persist()
-		if err != nil {
-			logs.Errorf("persist file failed within '-use' option: %s", err.Error())
-			return meta.PluginError
-		}
-		res := thriftgo_plugin.BuildErrorResponse(errors.New(meta.TheUseOptionMessage).Error())
-		err = plugin.response(res)
-		if err != nil {
-			logs.Errorf("response failed: %s", err.Error())
-			return meta.PluginError
-		}
-		return 0
-	}
-	files, err := sg.GetFormatAndExcludedFiles()
-	if err != nil {
-		logs.Errorf("format file failed: %s", err.Error())
-		return meta.PluginError
-	}
-	res, err := plugin.GetResponse(files, sg.OutputDir)
-	if err != nil {
-		logs.Errorf("get response failed: %s", err.Error())
-		return meta.PluginError
-	}
 	err = plugin.response(res)
 	if err != nil {
 		logs.Errorf("response failed: %s", err.Error())
@@ -352,23 +238,6 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	plugin.logger.Flush()
 	logs.SetLogger(logs.NewStdLogger(logs.LevelInfo))
 	return verboseLog
-}
-
-func (plugin *Plugin) handleRequest() error {
-	data, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		return fmt.Errorf("read request failed: %s", err.Error())
-	}
-	req, err := thriftgo_plugin.UnmarshalRequest(data)
-	if err != nil {
-		return fmt.Errorf("unmarshal request failed: %s", err.Error())
-	}
-	plugin.req = req
-	// init thriftgo utils
-	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
-	thriftgoUtil.HandleOptions(req.GeneratorParameters)
-
-	return nil
 }
 
 func (plugin *Plugin) parseArgs() (*config.Argument, error) {
