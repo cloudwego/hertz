@@ -45,11 +45,6 @@ func (k *HertzSDKPlugin) GetThriftgoParameters() []string {
 }
 
 func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlugin, error) {
-	// run as kitex
-	//err := args.ParseArgs(kitex.Version, pwd, rawHertzArgs)
-	//if err != nil {
-	//	return nil, err
-	//}
 
 	c := config.NewArgument()
 	c.CmdType = cmdType
