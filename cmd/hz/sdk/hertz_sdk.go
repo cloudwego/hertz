@@ -1,17 +1,24 @@
 package sdk
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/thrift"
 	"github.com/cloudwego/thriftgo/plugin"
+	"github.com/cloudwego/thriftgo/sdk"
 	"os/exec"
 	"strings"
 )
 
-func RunHertzTool(wd string, plugins []plugin.SDKPlugin, kitexArgs ...string) error {
-	return nil
+func RunHertzTool(wd, cmdType string, plugins []plugin.SDKPlugin, hertzArgs ...string) error {
+	hertzPlugin, err := GetHertzSDKPlugin(wd, cmdType, hertzArgs)
+	if err != nil {
+		return err
+	}
+	s := []plugin.SDKPlugin{hertzPlugin}
+	s = append(s, plugins...)
+
+	return sdk.RunThriftgoAsSDK(wd, s, hertzPlugin.GetThriftgoParameters()...)
 }
 
 type HertzSDKPlugin struct {
@@ -37,22 +44,24 @@ func (k *HertzSDKPlugin) GetThriftgoParameters() []string {
 	return k.ThriftgoParams
 }
 
-func GetHertzSDKPlugin(pwd string, rawHertzArgs []string) (*HertzSDKPlugin, error) {
+func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlugin, error) {
 	// run as kitex
 	//err := args.ParseArgs(kitex.Version, pwd, rawHertzArgs)
 	//if err != nil {
 	//	return nil, err
 	//}
 
-	out := new(bytes.Buffer)
-	cmd, err := args.BuildCmd(out)
+	c := config.NewArgument()
+	c.CmdType = cmdType
+
+	cmd, err := config.BuildPluginCmd(c)
 	if err != nil {
 		return nil, err
 	}
 
 	hertzPlugin := &HertzSDKPlugin{}
 
-	hertzPlugin.ThriftgoParams, hertzPlugin.HertzParams, err:= ParseHertzCmd(cmd)
+	hertzPlugin.ThriftgoParams, hertzPlugin.HertzParams, err = ParseHertzCmd(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +69,6 @@ func GetHertzSDKPlugin(pwd string, rawHertzArgs []string) (*HertzSDKPlugin, erro
 
 	return hertzPlugin, nil
 }
-
 
 func ParseHertzCmd(cmd *exec.Cmd) (thriftgoParams, hertzParams []string, err error) {
 	cmdArgs := cmd.Args
@@ -85,5 +93,5 @@ func ParseHertzCmd(cmd *exec.Cmd) (thriftgoParams, hertzParams []string, err err
 		}
 		thriftgoParams = append(thriftgoParams, arg)
 	}
-	return thriftgoParams,hertzParams, nil
+	return thriftgoParams, hertzParams, nil
 }
