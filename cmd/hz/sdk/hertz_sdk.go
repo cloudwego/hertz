@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/thrift"
@@ -43,15 +44,15 @@ func GetHertzSDKPlugin(pwd string, rawHertzArgs []string) (*HertzSDKPlugin, erro
 	//	return nil, err
 	//}
 
-	//out := new(bytes.Buffer)
-	//cmd, err := args.BuildCmd(out)
-	//if err != nil {
-	//	return nil, err
-	//}
+	out := new(bytes.Buffer)
+	cmd, err := args.BuildCmd(out)
+	if err != nil {
+		return nil, err
+	}
 
 	hertzPlugin := &HertzSDKPlugin{}
 
-	hertzPlugin.ThriftgoParams, hertzPlugin.HertzParams, err := ParseKitexCmd(cmd)
+	hertzPlugin.ThriftgoParams, hertzPlugin.HertzParams, err:= ParseHertzCmd(cmd)
 	if err != nil {
 		return nil, err
 	}
