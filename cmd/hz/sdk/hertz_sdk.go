@@ -37,7 +37,7 @@ func (k *HertzSDKPlugin) Invoke(req *plugin.Request) (res *plugin.Response) {
 }
 
 func (k *HertzSDKPlugin) GetName() string {
-	return "kitex"
+	return "hz"
 }
 
 func (k *HertzSDKPlugin) GetPluginParameters() []string {
