@@ -173,7 +173,6 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 	}
 
 	return res
-
 }
 
 func (plugin *Plugin) Run() int {

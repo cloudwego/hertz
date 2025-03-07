@@ -3,14 +3,15 @@ package sdk
 import (
 	"flag"
 	"fmt"
+	"os/exec"
+	"strings"
+
 	"github.com/cloudwego/hertz/cmd/hz/app"
 	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/thrift"
 	"github.com/cloudwego/thriftgo/plugin"
 	"github.com/cloudwego/thriftgo/sdk"
 	"github.com/urfave/cli/v2"
-	"os/exec"
-	"strings"
 )
 
 func RunHertzTool(wd, cmdType string, plugins []plugin.SDKPlugin, hertzArgs ...string) error {
@@ -70,6 +71,10 @@ func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlu
 		if err := f.Apply(flagSet); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := flagSet.Parse(rawHertzArgs); err != nil {
+		return nil, err
 	}
 
 	ctx := cli.NewContext(client, flagSet, nil)
