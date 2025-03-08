@@ -18,9 +18,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/cloudwego/thriftgo/utils/dir_utils"
 	"path/filepath"
 	"strings"
+
+	"github.com/cloudwego/thriftgo/utils/dir_utils"
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"

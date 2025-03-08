@@ -45,7 +45,6 @@ type HertzSDKPlugin struct {
 	Pwd            string
 	Args           *config.Argument
 }
-}
 
 func (k *HertzSDKPlugin) Invoke(req *plugin.Request) (res *plugin.Response) {
 	r := thrift.Plugin{}

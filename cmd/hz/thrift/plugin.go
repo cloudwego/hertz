@@ -50,7 +50,7 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 	// init thriftgo utils
 	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
 	thriftgoUtil.HandleOptions(req.GeneratorParameters)
-
+	plugin.args = args
 	plugin.rmTags = args.RmTags
 	if args.CmdType == meta.CmdModel {
 		// check tag options for model mode
