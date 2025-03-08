@@ -43,11 +43,13 @@ type HertzSDKPlugin struct {
 	HertzParams    []string
 	ThriftgoParams []string
 	Pwd            string
+	Args           *config.Argument
+}
 }
 
 func (k *HertzSDKPlugin) Invoke(req *plugin.Request) (res *plugin.Response) {
 	r := thrift.Plugin{}
-	return r.HandleRequest(&config.Argument{}, req)
+	return r.HandleRequest(k.Args, req)
 }
 
 func (k *HertzSDKPlugin) GetName() string {
@@ -106,6 +108,8 @@ func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlu
 	hertzPlugin := &HertzSDKPlugin{}
 
 	hertzPlugin.ThriftgoParams, hertzPlugin.HertzParams, err = ParseHertzCmd(cmd)
+	hertzPlugin.Args = args
+
 	if err != nil {
 		return nil, err
 	}
