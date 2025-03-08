@@ -18,7 +18,7 @@ package config
 
 import (
 	"fmt"
-	"os"
+	"github.com/cloudwego/thriftgo/utils/dir_utils"
 	"path/filepath"
 	"strings"
 
@@ -149,7 +149,7 @@ func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
 
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
 func (arg *Argument) checkPath() error {
-	dir, err := os.Getwd()
+	dir, err := dir_utils.Getwd()
 	if err != nil {
 		return fmt.Errorf("get current path failed: %s", err)
 	}
