@@ -51,12 +51,6 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
 	thriftgoUtil.HandleOptions(req.GeneratorParameters)
 
-	args, err := plugin.parseArgs()
-	if err != nil {
-		logs.Errorf("parse args failed: %s", err.Error())
-		return thriftgo_plugin.BuildErrorResponse(err.Error())
-	}
-
 	plugin.rmTags = args.RmTags
 	if args.CmdType == meta.CmdModel {
 		// check tag options for model mode
@@ -74,7 +68,7 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 		return nil
 	}
 
-	err = plugin.initNameStyle()
+	err := plugin.initNameStyle()
 	if err != nil {
 		logs.Errorf("init naming style failed: %s", err.Error())
 		return thriftgo_plugin.BuildErrorResponse(err.Error())
@@ -203,6 +197,12 @@ func (plugin *Plugin) Run() int {
 	req, err := thriftgo_plugin.UnmarshalRequest(data)
 	if err != nil {
 		logs.Errorf("unmarshal request failed: %s", err.Error())
+		return meta.PluginError
+	}
+
+	args, err = plugin.parseArgs()
+	if err != nil {
+		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
 
