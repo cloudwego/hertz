@@ -60,12 +60,7 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 			logs.Errorf("get response failed: %s", err.Error())
 			return thriftgo_plugin.BuildErrorResponse(err.Error())
 		}
-		plugin.response(res)
-		if err != nil {
-			logs.Errorf("response failed: %s", err.Error())
-			return thriftgo_plugin.BuildErrorResponse(err.Error())
-		}
-		return nil
+		return res
 	}
 
 	err := plugin.initNameStyle()
@@ -148,12 +143,7 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 			return thriftgo_plugin.BuildErrorResponse(err.Error())
 		}
 		res := thriftgo_plugin.BuildErrorResponse(errors.New(meta.TheUseOptionMessage).Error())
-		err = plugin.response(res)
-		if err != nil {
-			logs.Errorf("response failed: %s", err.Error())
-			return thriftgo_plugin.BuildErrorResponse(err.Error())
-		}
-		return nil
+		return res
 	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
