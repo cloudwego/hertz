@@ -41,7 +41,7 @@ func TestRun(t *testing.T) {
 
 	plu.req = req
 
-	_, err = plu.parseArgs()
+	_, err = plu.parseArgs(req)
 	if err != nil {
 		t.Fatal(err)
 	}

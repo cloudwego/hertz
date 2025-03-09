@@ -190,7 +190,7 @@ func (plugin *Plugin) Run() int {
 		return meta.PluginError
 	}
 
-	args, err = plugin.parseArgs()
+	args, err = plugin.parseArgs(req)
 	if err != nil {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
@@ -229,12 +229,12 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	return verboseLog
 }
 
-func (plugin *Plugin) parseArgs() (*config.Argument, error) {
-	if plugin.req == nil {
+func (plugin *Plugin) parseArgs(req *thriftgo_plugin.Request) (*config.Argument, error) {
+	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
 	args := new(config.Argument)
-	err := args.Unpack(plugin.req.PluginParameters)
+	err := args.Unpack(req.PluginParameters)
 	if err != nil {
 		logs.Errorf("unpack args failed: %s", err.Error())
 	}
