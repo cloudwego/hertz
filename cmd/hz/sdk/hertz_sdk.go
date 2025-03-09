@@ -18,7 +18,11 @@ import (
 	"flag"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/cloudwego/hertz/cmd/hz/meta"
+	"github.com/cloudwego/hertz/cmd/hz/util"
 
 	"github.com/cloudwego/hertz/cmd/hz/app"
 	"github.com/cloudwego/hertz/cmd/hz/config"
@@ -29,14 +33,59 @@ import (
 )
 
 func RunHertzTool(wd, cmdType string, plugins []plugin.SDKPlugin, hertzArgs ...string) error {
-	hertzPlugin, err := GetHertzSDKPlugin(wd, cmdType, hertzArgs)
+	hertzPlugin, args, err := GetHertzSDKPlugin(wd, cmdType, hertzArgs)
 	if err != nil {
 		return err
 	}
 	s := []plugin.SDKPlugin{hertzPlugin}
 	s = append(s, plugins...)
 
-	return sdk.RunThriftgoAsSDK(wd, s, hertzPlugin.GetThriftgoParameters()...)
+	manifest := new(meta.Manifest)
+	switch cmdType {
+	case meta.CmdNew:
+		exist, err := util.PathExist(filepath.Join(args.OutDir, meta.ManifestFile))
+		if err != nil {
+			return err
+		}
+
+		if exist && !args.ForceNew {
+			return fmt.Errorf("the current is already a hertz project, if you want to regenerate it you can specify \"-force\"")
+		}
+
+		err = app.GenerateLayout(args)
+		if err != nil {
+			return err
+		}
+	case meta.CmdUpdate:
+		err = manifest.InitAndValidate(args.OutDir)
+		if err != nil {
+			return err
+		}
+		// update argument by ".hz", can automatically get "handler_dir"/"model_dir"/"router_dir"
+		args.UpdateByManifest(manifest)
+	}
+
+	err = sdk.RunThriftgoAsSDK(wd, s, hertzPlugin.GetThriftgoParameters()...)
+	if err != nil {
+		return err
+	}
+
+	switch cmdType {
+	case meta.CmdNew:
+		args.InitManifest(manifest)
+		err = manifest.Persist(args.OutDir)
+		if err != nil {
+			return fmt.Errorf("persist manifest failed: %v", err)
+		}
+	case meta.CmdUpdate:
+		args.UpdateManifest(manifest)
+		err = manifest.Persist(args.OutDir)
+		if err != nil {
+			return cli.Exit(fmt.Errorf("persist manifest failed: %v", err), meta.PersistError)
+		}
+	}
+
+	return nil
 }
 
 type HertzSDKPlugin struct {
@@ -72,36 +121,36 @@ func findCommon(client *cli.App, cmdType string) *cli.Command {
 	return nil
 }
 
-func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlugin, error) {
+func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlugin, *config.Argument, error) {
 	client := app.Init()
 
 	c := findCommon(client, cmdType)
 	if c == nil {
-		return nil, fmt.Errorf("command not found: %s", cmdType)
+		return nil, nil, fmt.Errorf("command not found: %s", cmdType)
 	}
 
 	flagSet := flag.NewFlagSet("hz-parse", flag.ContinueOnError)
 
 	for _, f := range c.Flags {
 		if err := f.Apply(flagSet); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	if err := flagSet.Parse(rawHertzArgs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ctx := cli.NewContext(client, flagSet, nil)
 
 	args, err := app.GetGlobalArgs().Parse(ctx, cmdType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cmd, err := config.BuildPluginCmd(args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	hertzPlugin := &HertzSDKPlugin{}
@@ -110,11 +159,11 @@ func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlu
 	hertzPlugin.Args = args
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	hertzPlugin.Pwd = pwd
 
-	return hertzPlugin, nil
+	return hertzPlugin, args, nil
 }
 
 func ParseHertzCmd(cmd *exec.Cmd) (thriftgoParams, hertzParams []string, err error) {
