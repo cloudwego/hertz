@@ -67,7 +67,9 @@ func RunHertzTool(wd, cmdType string, plugins []plugin.SDKPlugin, hertzArgs ...s
 
 	err = sdk.RunThriftgoAsSDK(wd, s, hertzPlugin.GetThriftgoParameters()...)
 	if err != nil {
-		return err
+		if !strings.Contains(err.Error(), meta.TheUseOptionMessage) {
+			return err
+		}
 	}
 
 	switch cmdType {
