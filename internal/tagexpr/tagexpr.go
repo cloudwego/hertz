@@ -517,7 +517,7 @@ func (s *structVM) mergeSubStructVM(field *fieldVM, sub *structVM) {
 	}
 }
 
-func (s *structVM) newChildField(parent *fieldVM, child *fieldVM, toBind bool) *fieldVM {
+func (s *structVM) newChildField(parent, child *fieldVM, toBind bool) *fieldVM {
 	f := &fieldVM{
 		structField:            child.structField,
 		exprs:                  make(map[string]*Expr, len(child.exprs)),

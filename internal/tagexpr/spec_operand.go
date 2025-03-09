@@ -212,7 +212,7 @@ func readVariableExprNode(expr *string) ExprNode {
 	}
 }
 
-func getBoolAndSignOpposite(expr *string) (last string, boolOpposite *bool, signOpposite *bool) {
+func getBoolAndSignOpposite(expr *string) (last string, boolOpposite, signOpposite *bool) {
 	last, boolOpposite = getOpposite(expr, "!")
 	last = strings.TrimLeft(last, "+")
 	last, signOpposite = getOpposite(&last, "-")
@@ -305,7 +305,7 @@ func toFloat64(i interface{}, tryParse bool) (float64, bool) {
 	return v, ok
 }
 
-func realValue(v interface{}, boolOpposite *bool, signOpposite *bool) interface{} {
+func realValue(v interface{}, boolOpposite, signOpposite *bool) interface{} {
 	if boolOpposite != nil {
 		bol := FakeBool(v)
 		if *boolOpposite {
