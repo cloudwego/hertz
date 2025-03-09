@@ -131,7 +131,7 @@ func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlu
 		return nil, nil, fmt.Errorf("command not found: %s", cmdType)
 	}
 
-	flagSet := flag.NewFlagSet("hz-parse", flag.ContinueOnError)
+	flagSet := flag.NewFlagSet(cmdType+"-parse", flag.ContinueOnError)
 
 	for _, f := range c.Flags {
 		if err := f.Apply(flagSet); err != nil {
