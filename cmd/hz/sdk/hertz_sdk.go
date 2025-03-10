@@ -150,7 +150,7 @@ func GetHertzSDKPlugin(pwd, cmdType string, rawHertzArgs []string) (*HertzSDKPlu
 		return nil, nil, err
 	}
 
-	cmd, err := config.BuildPluginCmd(args, true)
+	cmd, err := config.BuildSdkPluginCmd(args)
 	if err != nil {
 		return nil, nil, err
 	}

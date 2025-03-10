@@ -29,7 +29,7 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 )
 
-func lookupTool(idlType string, isSDK bool) (string, error) {
+func lookupTool(idlType string) (string, error) {
 	tool := meta.TpCompilerThrift
 	if idlType == meta.IdlProto {
 		tool = meta.TpCompilerProto
@@ -48,10 +48,6 @@ func lookupTool(idlType string, isSDK bool) (string, error) {
 	isExist, err := util.PathExist(path)
 	if err != nil {
 		return "", fmt.Errorf("check '%s' path error: %v", path, err)
-	}
-
-	if isSDK {
-		return path, nil
 	}
 
 	if !isExist {
@@ -91,7 +87,23 @@ func link(src, dst string) error {
 	return nil
 }
 
-func BuildPluginCmd(args *Argument, isSdk bool) (*exec.Cmd, error) {
+// BuildSdkPluginCmd  build cmd for hz plugin sdk
+func BuildSdkPluginCmd(args *Argument) (*exec.Cmd, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect current executable, err: %v", err)
+	}
+
+	argPacks, err := args.Pack()
+	if err != nil {
+		return nil, err
+	}
+	kas := strings.Join(argPacks, ",")
+	return wrapCmd(args, "", exe, kas)
+}
+
+// BuildPluginCmd  build cmd for hz plugin cmd
+func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect current executable, err: %v", err)
@@ -103,14 +115,16 @@ func BuildPluginCmd(args *Argument, isSdk bool) (*exec.Cmd, error) {
 	}
 	kas := strings.Join(argPacks, ",")
 
-	path, err := lookupTool(args.IdlType, isSdk)
+	path, err := lookupTool(args.IdlType)
 	if err != nil {
 		return nil, err
 	}
-	cmd := &exec.Cmd{
-		Path: path,
-	}
 
+	return wrapCmd(args, path, exe, kas)
+}
+
+func wrapCmd(args *Argument, path, exe, kas string) (*exec.Cmd, error) {
+	cmd := &exec.Cmd{Path: path}
 	if args.IdlType == meta.IdlThrift {
 		// thriftgo
 		os.Setenv(meta.EnvPluginMode, meta.ThriftPluginName)
