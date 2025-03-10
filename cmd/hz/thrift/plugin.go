@@ -151,10 +151,6 @@ func (plugin *Plugin) HandleRequest(args *config.Argument, req *thriftgo_plugin.
 		return thriftgo_plugin.BuildErrorResponse(err.Error())
 	}
 
-	for _, f := range files {
-		fmt.Fprintf(os.Stderr, f.Path, sg.OutputDir)
-	}
-
 	res, err := plugin.GetResponse(files, sg.OutputDir)
 	if err != nil {
 		logs.Errorf("get response failed: %s", err.Error())

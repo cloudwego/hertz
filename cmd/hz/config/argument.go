@@ -158,8 +158,9 @@ func (arg *Argument) checkPath() error {
 	if arg.OutDir == "" {
 		arg.OutDir = dir
 	}
+
 	if !filepath.IsAbs(arg.OutDir) {
-		ap := filepath.Join(arg.Cwd, arg.OutDir)
+		ap, _ := filepath.Abs(arg.OutDir)
 		arg.OutDir = ap
 	}
 	if arg.ModelDir != "" && filepath.IsAbs(arg.ModelDir) {
