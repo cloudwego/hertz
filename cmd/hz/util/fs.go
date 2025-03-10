@@ -17,6 +17,7 @@
 package util
 
 import (
+	"github.com/cloudwego/thriftgo/utils/dir_utils"
 	"os"
 	"path/filepath"
 )
@@ -38,7 +39,7 @@ func RelativePath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cwd, err := os.Getwd()
+	cwd, err := dir_utils.Getwd()
 	if err != nil {
 		return "", err
 	}
