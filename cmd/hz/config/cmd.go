@@ -29,7 +29,7 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 )
 
-func lookupTool(idlType string) (string, error) {
+func lookupTool(idlType string, isSDK bool) (string, error) {
 	tool := meta.TpCompilerThrift
 	if idlType == meta.IdlProto {
 		tool = meta.TpCompilerProto
@@ -48,6 +48,10 @@ func lookupTool(idlType string) (string, error) {
 	isExist, err := util.PathExist(path)
 	if err != nil {
 		return "", fmt.Errorf("check '%s' path error: %v", path, err)
+	}
+
+	if isSDK {
+		return path, nil
 	}
 
 	if !isExist {
@@ -87,7 +91,7 @@ func link(src, dst string) error {
 	return nil
 }
 
-func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
+func BuildPluginCmd(args *Argument, isSdk bool) (*exec.Cmd, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect current executable, err: %v", err)
@@ -99,7 +103,7 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	}
 	kas := strings.Join(argPacks, ",")
 
-	path, err := lookupTool(args.IdlType)
+	path, err := lookupTool(args.IdlType, isSdk)
 	if err != nil {
 		return nil, err
 	}

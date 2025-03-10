@@ -422,7 +422,7 @@ func TriggerPlugin(args *config.Argument) error {
 	if len(args.IdlPaths) == 0 {
 		return nil
 	}
-	cmd, err := config.BuildPluginCmd(args)
+	cmd, err := config.BuildPluginCmd(args, false)
 	if err != nil {
 		return fmt.Errorf("build plugin command failed: %v", err)
 	}
