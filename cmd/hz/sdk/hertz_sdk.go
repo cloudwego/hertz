@@ -32,6 +32,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// RunHertzTool Run hz SDK
 func RunHertzTool(wd, cmdType string, plugins []plugin.SDKPlugin, hertzArgs ...string) error {
 	hertzPlugin, args, err := GetHertzSDKPlugin(wd, cmdType, hertzArgs)
 	if err != nil {
