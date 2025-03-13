@@ -2244,10 +2244,6 @@ func TestClientHostClientConfigHook(t *testing.T) {
 	assert.DeepEqual(t, "FOO.BAR:443", hcr.Addr)
 }
 
-func TestCleanClientHost(t *testing.T) {
-
-}
-
 func TestClientDialerName(t *testing.T) {
 	client, _ := NewClient()
 	dName, err := client.GetDialerName()
