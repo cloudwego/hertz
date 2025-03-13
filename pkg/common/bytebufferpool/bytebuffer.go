@@ -61,6 +61,10 @@ func (b *ByteBuffer) Len() int {
 	return len(b.B)
 }
 
+func (b *ByteBuffer) Cap() int {
+	return cap(b.B)
+}
+
 // ReadFrom implements io.ReaderFrom.
 //
 // The function appends all the data read from r to b.
