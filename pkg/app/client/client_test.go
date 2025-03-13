@@ -1754,7 +1754,7 @@ func TestClientProxyWithNetpollDialer(t *testing.T) {
 		{false, false},
 		{true, false},
 		{false, true},
-		{false, true},
+		{true, true},
 	}
 	for _, testCase := range testCases {
 		httpsSite := testCase.httpsSite
@@ -2242,6 +2242,10 @@ func TestClientHostClientConfigHook(t *testing.T) {
 	hcr, ok := hc.(*http1.HostClient)
 	assert.True(t, ok)
 	assert.DeepEqual(t, "FOO.BAR:443", hcr.Addr)
+}
+
+func TestCleanClientHost(t *testing.T) {
+
 }
 
 func TestClientDialerName(t *testing.T) {
