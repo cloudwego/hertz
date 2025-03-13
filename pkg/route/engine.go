@@ -300,35 +300,51 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
-	ch := make(chan struct{})
-	// trigger hooks if any
-	go engine.executeOnShutdownHooks(ctx, ch)
+	hooksDone := make(chan struct{})
+	engineDone, done := make(chan error), make(chan error)
 
-	defer func() {
-		// ensure that the hook is executed until wait timeout or finish
-		select {
-		case <-ctx.Done():
-			hlog.SystemLogger().Infof("Execute OnShutdownHooks timeout: error=%v", ctx.Err())
-			return
-		case <-ch:
-			hlog.SystemLogger().Info("Execute OnShutdownHooks finish")
+	go func() {
+		// trigger hooks if any
+		go engine.executeOnShutdownHooks(ctx, hooksDone)
+
+		go func() {
+			if opt := engine.options; opt != nil && opt.Registry != nil {
+				if err := opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+					hlog.SystemLogger().Errorf("Deregister error=%v", err)
+					engineDone <- err
+					return
+				}
+			}
+
+			// call transport shutdown
+			if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
+				engineDone <- err
+				return
+			}
+
+			engineDone <- nil
+		}()
+
+		// return immediately if any error occurs
+		if err := <-engineDone; err != nil {
+			hlog.SystemLogger().Errorf("Engine shutdown error=%v", err)
+			done <- err
 			return
 		}
+
+		<-hooksDone
+		hlog.SystemLogger().Info("Execute OnShutdownHooks finish")
+		done <- nil
 	}()
 
-	if opt := engine.options; opt != nil && opt.Registry != nil {
-		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.SystemLogger().Errorf("Deregister error=%v", err)
-			return err
-		}
+	// ensure that the hook is executed until wait timeout or finish
+	select {
+	case <-ctx.Done():
+		hlog.SystemLogger().Infof("Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+		return
+	case err = <-done:
+		return
 	}
-
-	// call transport shutdown
-	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
-		return err
-	}
-
-	return
 }
 
 func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
