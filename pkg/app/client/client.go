@@ -532,7 +532,11 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	c.mLock.Unlock()
 
 	if startCleaner {
-		go c.mCleaner()
+		if isTLS {
+			go c.msCleaner()
+		} else {
+			go c.mCleaner()
+		}
 	}
 
 	return hc.Do(ctx, req, resp)
@@ -551,20 +555,28 @@ func (c *Client) CloseIdleConnections() {
 }
 
 func (c *Client) mCleaner() {
+	c.cleaner(c.m)
+}
+
+func (c *Client) msCleaner() {
+	c.cleaner(c.ms)
+}
+
+func (c *Client) cleaner(m map[string]client.HostClient) {
 	for {
 		time.Sleep(10 * time.Second)
-		if c.mClean() {
+		if c.cleanHostClients(m) {
 			break
 		}
 	}
 }
 
-func (c *Client) mClean() bool {
+func (c *Client) cleanHostClients(m map[string]client.HostClient) bool {
 	c.mLock.Lock()
 	defer c.mLock.Unlock()
-	for k, v := range c.m {
+	for k, v := range m {
 		if v.ShouldRemove() {
-			delete(c.m, k)
+			delete(m, k)
 			if f, ok := v.(io.Closer); ok {
 				err := f.Close()
 				if err != nil {
@@ -573,7 +585,7 @@ func (c *Client) mClean() bool {
 			}
 		}
 	}
-	return len(c.m) == 0
+	return len(m) == 0
 }
 
 func (c *Client) SetClientFactory(cf suite.ClientFactory) {

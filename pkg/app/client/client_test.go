@@ -157,7 +157,7 @@ func TestCloseIdleConnections(t *testing.T) {
 		t.Errorf("expected 0 conns got %d", conns)
 	}
 
-	c.mClean()
+	c.cleanHostClients(c.m)
 
 	func() {
 		c.mLock.Lock()
