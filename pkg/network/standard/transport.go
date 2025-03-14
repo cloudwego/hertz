@@ -19,8 +19,10 @@ package standard
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -48,6 +50,15 @@ type transport struct {
 	lock             sync.Mutex
 	OnAccept         func(conn net.Conn) context.Context
 	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
+
+	// active connections. it +1 after accept and -1 after handler returns
+	active int32
+}
+
+func (t *transport) listener() net.Listener {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.ln
 }
 
 func (t *transport) serve() (err error) {
@@ -58,24 +69,28 @@ func (t *transport) serve() (err error) {
 	} else {
 		t.ln, err = net.Listen(t.network, t.addr)
 	}
+	// fix concurrency issue
+	// normally listener must not be changed during serve()
+	ln := t.ln
 	t.lock.Unlock()
 	if err != nil {
 		return err
 	}
-	hlog.SystemLogger().Infof("HTTP server listening on address=%s", t.ln.Addr().String())
+	hlog.SystemLogger().Infof("HTTP server listening on address=%s", ln.Addr().String())
 	for {
 		ctx := context.Background()
-		conn, err := t.ln.Accept()
-		var c network.Conn
+		conn, err := ln.Accept()
 		if err != nil {
 			hlog.SystemLogger().Errorf("Error=%s", err.Error())
 			return err
 		}
+		t.updateActive(1)
 
 		if t.OnAccept != nil {
 			ctx = t.OnAccept(conn)
 		}
 
+		var c network.Conn
 		if t.tls != nil {
 			c = newTLSConn(tls.Server(conn, t.tls), t.readBufferSize)
 		} else {
@@ -85,8 +100,15 @@ func (t *transport) serve() (err error) {
 		if t.OnConnect != nil {
 			ctx = t.OnConnect(ctx, c)
 		}
-		go t.handler(ctx, c)
+		go func(ctx context.Context, conn network.Conn) {
+			t.handler(ctx, conn)
+			t.updateActive(-1)
+		}(ctx, c)
 	}
+}
+
+func (t *transport) updateActive(delta int32) int32 {
+	return atomic.AddInt32(&t.active, delta)
 }
 
 func (t *transport) ListenAndServe(onData network.OnData) (err error) {
@@ -100,6 +122,13 @@ func (t *transport) Close() error {
 	return t.Shutdown(ctx)
 }
 
+var (
+	shutdownTimeout = 30 * time.Second
+	shutdownTicker  = 10 * time.Millisecond
+
+	errShutdownTimeout = errors.New("shutdown timeout")
+)
+
 func (t *transport) Shutdown(ctx context.Context) error {
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
@@ -109,8 +138,33 @@ func (t *transport) Shutdown(ctx context.Context) error {
 		_ = t.ln.Close()
 	}
 	t.lock.Unlock()
-	<-ctx.Done()
-	return nil
+
+	tk := time.NewTicker(shutdownTicker)
+	defer tk.Stop()
+
+	// make sure t.active is updated correctly under concurrency
+	<-tk.C
+
+	// luckily the server is idle, no more active connections
+	if t.updateActive(0) <= 0 {
+		return nil
+	}
+
+	// check periodically to see if all connections closed
+	t0 := time.Now()
+	for {
+		select {
+		case now := <-tk.C:
+			if t.updateActive(0) <= 0 {
+				return nil
+			}
+			if now.Sub(t0) > shutdownTimeout {
+				return errShutdownTimeout
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 // For transporter switch
