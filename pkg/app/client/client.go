@@ -532,11 +532,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	c.mLock.Unlock()
 
 	if startCleaner {
-		if isTLS {
-			go c.msCleaner()
-		} else {
-			go c.mCleaner()
-		}
+		go c.cleaner(isTLS)
 	}
 
 	return hc.Do(ctx, req, resp)
@@ -554,26 +550,22 @@ func (c *Client) CloseIdleConnections() {
 	c.mLock.Unlock()
 }
 
-func (c *Client) mCleaner() {
-	c.cleaner(c.m)
-}
-
-func (c *Client) msCleaner() {
-	c.cleaner(c.ms)
-}
-
-func (c *Client) cleaner(m map[string]client.HostClient) {
+func (c *Client) cleaner(isTLS bool) {
 	for {
 		time.Sleep(10 * time.Second)
-		if c.cleanHostClients(m) {
+		if c.cleanHostClients(isTLS) {
 			break
 		}
 	}
 }
 
-func (c *Client) cleanHostClients(m map[string]client.HostClient) bool {
+func (c *Client) cleanHostClients(isTLS bool) bool {
 	c.mLock.Lock()
 	defer c.mLock.Unlock()
+	m := c.m
+	if isTLS {
+		m = c.ms
+	}
 	for k, v := range m {
 		if v.ShouldRemove() {
 			delete(m, k)
