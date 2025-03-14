@@ -53,29 +53,14 @@ import (
 
 type routeEngine interface {
 	IsRunning() bool
-	GetOptions() *config.Options
 }
 
 func waitEngineRunning(e routeEngine) {
 	for i := 0; i < 100; i++ {
 		if e.IsRunning() {
-			break
+			return
 		}
 		time.Sleep(10 * time.Millisecond)
-	}
-	opts := e.GetOptions()
-	network, addr := opts.Network, opts.Addr
-	if network == "" {
-		network = "tcp"
-	}
-	for i := 0; i < 100; i++ {
-		conn, err := net.Dial(network, addr)
-		if err != nil {
-			time.Sleep(10 * time.Millisecond)
-			continue
-		}
-		conn.Close()
-		return
 	}
 	panic("not running")
 }
@@ -840,15 +825,9 @@ type CloseWithoutResetBuffer interface {
 }
 
 func TestOnprepare(t *testing.T) {
-	n := int32(0)
 	h1 := New(
 		WithHostPorts("localhost:9333"),
 		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-			if atomic.AddInt32(&n, 1) == 1 {
-				// the 1st connection is from waitEngineRunning
-				conn.Close()
-				return ctx
-			}
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
 			assert.DeepEqual(t, string(b), "GET")

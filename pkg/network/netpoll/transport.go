@@ -47,18 +47,19 @@ func cancelContext(ctx context.Context) context.Context {
 }
 
 type transporter struct {
-	sync.RWMutex
 	senseClientDisconnection bool
 	network                  string
 	addr                     string
 	keepAliveTimeout         time.Duration
 	readTimeout              time.Duration
 	writeTimeout             time.Duration
-	listener                 net.Listener
-	eventLoop                netpoll.EventLoop
 	listenConfig             *net.ListenConfig
 	OnAccept                 func(conn net.Conn) context.Context
 	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
+
+	mu sync.RWMutex
+	ln net.Listener
+	el netpoll.EventLoop
 }
 
 // For transporter switch
@@ -70,23 +71,31 @@ func NewTransporter(options *config.Options) network.Transporter {
 		keepAliveTimeout:         options.KeepAliveTimeout,
 		readTimeout:              options.ReadTimeout,
 		writeTimeout:             options.WriteTimeout,
-		listener:                 nil,
-		eventLoop:                nil,
 		listenConfig:             options.ListenConfig,
 		OnAccept:                 options.OnAccept,
 		OnConnect:                options.OnConnect,
 	}
 }
 
+func (t *transporter) Listener() net.Listener {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.ln
+}
+
 // ListenAndServe binds listen address and keep serving, until an error occurs
 // or the transport shutdowns
 func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 	network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
+
+	t.mu.Lock()
 	if t.listenConfig != nil {
-		t.listener, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
+		t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
 	} else {
-		t.listener, err = net.Listen(t.network, t.addr)
+		t.ln, err = net.Listen(t.network, t.addr)
 	}
+	ln := t.ln
+	t.mu.Unlock()
 
 	if err != nil {
 		panic("create netpoll listener fail: " + err.Error())
@@ -127,20 +136,19 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 	}
 
 	// Create EventLoop
-	t.Lock()
-	t.eventLoop, err = netpoll.NewEventLoop(func(ctx context.Context, connection netpoll.Connection) error {
+	t.mu.Lock()
+	t.el, err = netpoll.NewEventLoop(func(ctx context.Context, connection netpoll.Connection) error {
 		return onReq(ctx, newConn(connection))
 	}, opts...)
-	t.Unlock()
+	eventLoop := t.el
+	t.mu.Unlock()
 	if err != nil {
 		panic("create netpoll event-loop fail")
 	}
 
 	// Start Server
-	hlog.SystemLogger().Infof("HTTP server listening on address=%s", t.listener.Addr().String())
-	t.RLock()
-	err = t.eventLoop.Serve(t.listener)
-	t.RUnlock()
+	hlog.SystemLogger().Infof("HTTP server listening on address=%s", ln.Addr().String())
+	err = eventLoop.Serve(ln)
 	if err != nil {
 		panic("netpoll server exit")
 	}
@@ -160,11 +168,11 @@ func (t *transporter) Close() error {
 func (t *transporter) Shutdown(ctx context.Context) error {
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
-		t.RUnlock()
+		t.mu.RUnlock()
 	}()
-	t.RLock()
-	if t.eventLoop == nil {
+	t.mu.RLock()
+	if t.el == nil {
 		return nil
 	}
-	return t.eventLoop.Shutdown(ctx)
+	return t.el.Shutdown(ctx)
 }

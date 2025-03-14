@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -258,7 +259,18 @@ func (engine *Engine) IsStreamRequestBody() bool {
 }
 
 func (engine *Engine) IsRunning() bool {
-	return atomic.LoadUint32(&engine.status) == statusRunning
+	if atomic.LoadUint32(&engine.status) != statusRunning {
+		return false
+	}
+	// double check listener
+	type ListenerIface interface {
+		Listener() net.Listener
+	}
+	v, ok := engine.transport.(ListenerIface)
+	if ok {
+		return v.Listener() != nil
+	}
+	return true // default behavior if no ListenerIface
 }
 
 func (engine *Engine) HijackConnHandle(c network.Conn, h app.HijackHandler) {

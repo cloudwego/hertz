@@ -55,12 +55,12 @@ func TestTransporter(t *testing.T) {
 		<-handlerExit
 		return nil
 	})
-	for trans.listener() == nil { // wait server up
+	for trans.Listener() == nil { // wait server up
 		time.Sleep(5 * time.Millisecond)
 	}
 
 	// dial and test
-	c, err := net.Dial("tcp", trans.listener().Addr().String())
+	c, err := net.Dial("tcp", trans.Listener().Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,12 +27,17 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
 )
+
+func getListenerAddr(trans network.Transporter) string {
+	return trans.(*transporter).Listener().Addr().String()
+}
 
 func TestDial(t *testing.T) {
 	t.Run("NetpollDial", func(t *testing.T) {
 		const nw = "tcp"
-		const addr = "localhost:10100"
+		var addr = "127.0.0.1:0"
 		transporter := NewTransporter(&config.Options{
 			Addr:    addr,
 			Network: nw,
@@ -48,6 +53,7 @@ func TestDial(t *testing.T) {
 		_, err := dial.DialConnection("tcp", "localhost:10101", time.Second, nil) // wrong addr
 		assert.NotNil(t, err)
 
+		addr = getListenerAddr(transporter)
 		nwConn, err := dial.DialConnection(nw, addr, time.Second, nil)
 		assert.Nil(t, err)
 		defer nwConn.Close()
