@@ -2464,11 +2464,9 @@ func (m *mockHostClient) Do(ctx context.Context, req *protocol.Request, resp *pr
 }
 
 func (m *mockHostClient) SetDynamicConfig(dc *client.DynamicConfig) {
-	return
 }
 
 func (m *mockHostClient) CloseIdleConnections() {
-	return
 }
 
 func (m *mockHostClient) ShouldRemove() bool {
