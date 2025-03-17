@@ -34,8 +34,8 @@ import (
 
 func TestTransport(t *testing.T) {
 	const nw = "tcp"
-	const addr = "localhost:10103"
 	t.Run("TestDefault", func(t *testing.T) {
+		var addr = "127.0.0.1:0"
 		var onConnFlag, onAcceptFlag, onDataFlag int32
 		transporter := NewTransporter(&config.Options{
 			Addr:    addr,
@@ -57,6 +57,8 @@ func TestTransport(t *testing.T) {
 		defer transporter.Close()
 		time.Sleep(100 * time.Millisecond)
 
+		addr = getListenerAddr(transporter)
+
 		dial := NewDialer()
 		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
 		assert.Nil(t, err)
@@ -70,6 +72,7 @@ func TestTransport(t *testing.T) {
 	})
 
 	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
+		var addr = "127.0.0.1:0"
 		var onReqFlag int32
 		transporter := NewTransporter(&config.Options{
 			Addr:                     addr,
@@ -85,6 +88,8 @@ func TestTransport(t *testing.T) {
 		})
 		defer transporter.Close()
 		time.Sleep(100 * time.Millisecond)
+
+		addr = getListenerAddr(transporter)
 
 		dial := NewDialer()
 		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
@@ -106,7 +111,7 @@ func TestTransport(t *testing.T) {
 			})
 		}}
 		transporter := NewTransporter(&config.Options{
-			Addr:         addr,
+			Addr:         "127.0.0.1:0",
 			Network:      nw,
 			ListenConfig: listenCfg,
 		})

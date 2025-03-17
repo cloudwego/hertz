@@ -44,26 +44,27 @@ type transport struct {
 	keepAliveTimeout time.Duration
 	readTimeout      time.Duration
 	handler          network.OnData
-	ln               net.Listener
 	tls              *tls.Config
 	listenConfig     *net.ListenConfig
-	lock             sync.Mutex
 	OnAccept         func(conn net.Conn) context.Context
 	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
 
 	// active connections. it +1 after accept and -1 after handler returns
 	active int32
+
+	mu sync.RWMutex
+	ln net.Listener
 }
 
-func (t *transport) listener() net.Listener {
-	t.lock.Lock()
-	defer t.lock.Unlock()
+func (t *transport) Listener() net.Listener {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.ln
 }
 
 func (t *transport) serve() (err error) {
 	network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
-	t.lock.Lock()
+	t.mu.Lock()
 	if t.listenConfig != nil {
 		t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
 	} else {
@@ -72,7 +73,7 @@ func (t *transport) serve() (err error) {
 	// fix concurrency issue
 	// normally listener must not be changed during serve()
 	ln := t.ln
-	t.lock.Unlock()
+	t.mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -133,11 +134,9 @@ func (t *transport) Shutdown(ctx context.Context) error {
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
-	t.lock.Lock()
-	if t.ln != nil {
-		_ = t.ln.Close()
+	if ln := t.Listener(); ln != nil {
+		_ = ln.Close()
 	}
-	t.lock.Unlock()
 
 	tk := time.NewTicker(shutdownTicker)
 	defer tk.Stop()

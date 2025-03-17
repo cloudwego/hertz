@@ -111,25 +111,10 @@ func nextUnixSock() string {
 func waitEngineRunning(e *route.Engine) {
 	for i := 0; i < 100; i++ {
 		if e.IsRunning() {
-			break
+			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	opts := e.GetOptions()
-	network, addr := opts.Network, opts.Addr
-	if network == "" {
-		network = "tcp"
-	}
-	for i := 0; i < 100; i++ {
-		conn, err := net.Dial(network, addr)
-		if err != nil {
-			time.Sleep(10 * time.Millisecond)
-			continue
-		}
-		conn.Close()
-		return
-	}
-
 	panic("not running")
 }
 
