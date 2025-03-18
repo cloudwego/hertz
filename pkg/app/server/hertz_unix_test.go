@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -82,7 +83,7 @@ func TestReusePorts(t *testing.T) {
 }
 
 func TestHertz_Spin(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:6668"))
+	engine := New(WithHostPorts("127.0.0.1:0"))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(40 * time.Millisecond)
 		path := ctx.Request.URI().PathOriginal()
@@ -107,7 +108,7 @@ func TestHertz_Spin(t *testing.T) {
 		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			_, err := hc.Get("http://127.0.0.1:6668/test2")
+			_, err := hc.Get(testutils.GetURL(engine, "/test2"))
 			t.Logf("[%v]begin listening\n", time.Now())
 			if err != nil {
 				t.Logf("[%v]listening closed: %v", time.Now(), err)
@@ -118,7 +119,7 @@ func TestHertz_Spin(t *testing.T) {
 	}()
 	go func() {
 		t.Logf("[%v]begin request\n", time.Now())
-		resp, err = http.Get("http://127.0.0.1:6668/test")
+		resp, err = http.Get(testutils.GetURL(engine, "/test"))
 		t.Logf("[%v]end request\n", time.Now())
 		ch <- struct{}{}
 	}()
@@ -141,7 +142,7 @@ func TestHertz_Spin(t *testing.T) {
 
 func TestWithSenseClientDisconnection(t *testing.T) {
 	var closeFlag int32
-	h := New(WithHostPorts("127.0.0.1:6631"), WithSenseClientDisconnection(true))
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true))
 	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
 		assert.DeepEqual(t, "aa", string(ctx.Host()))
 		ch := make(chan struct{})
@@ -155,7 +156,7 @@ func TestWithSenseClientDisconnection(t *testing.T) {
 	go h.Spin()
 	waitEngineRunning(h)
 
-	con, err := net.Dial("tcp", "127.0.0.1:6631")
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
 	assert.Nil(t, err)
 	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
 	assert.Nil(t, err)
@@ -168,7 +169,7 @@ func TestWithSenseClientDisconnection(t *testing.T) {
 
 func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
 	var closeFlag int32
-	h := New(WithHostPorts("127.0.0.1:6632"), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
 		return ctx
 	}))
 	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
@@ -184,7 +185,7 @@ func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
 	go h.Spin()
 	waitEngineRunning(h)
 
-	con, err := net.Dial("tcp", "127.0.0.1:6632")
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
 	assert.Nil(t, err)
 	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
 	assert.Nil(t, err)
