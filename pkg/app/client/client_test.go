@@ -76,6 +76,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
@@ -157,7 +158,7 @@ func TestCloseIdleConnections(t *testing.T) {
 		t.Errorf("expected 0 conns got %d", conns)
 	}
 
-	c.mClean()
+	c.cleanHostClients(false)
 
 	func() {
 		c.mLock.Lock()
@@ -1754,7 +1755,7 @@ func TestClientProxyWithNetpollDialer(t *testing.T) {
 		{false, false},
 		{true, false},
 		{false, true},
-		{false, true},
+		{true, true},
 	}
 	for _, testCase := range testCases {
 		httpsSite := testCase.httpsSite
@@ -2451,4 +2452,127 @@ func TestClientRetryErr(t *testing.T) {
 		assert.DeepEqual(t, 3, retryNum)
 		l.Unlock()
 	})
+}
+
+type mockHostClient struct {
+	shouldRemove bool
+	closed       bool
+}
+
+func (m *mockHostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
+	return nil
+}
+
+func (m *mockHostClient) SetDynamicConfig(dc *client.DynamicConfig) {
+}
+
+func (m *mockHostClient) CloseIdleConnections() {
+}
+
+func (m *mockHostClient) ShouldRemove() bool {
+	return m.shouldRemove
+}
+
+func (m *mockHostClient) ConnectionCount() int {
+	return 0
+}
+
+func (m *mockHostClient) Close() error {
+	m.closed = true
+	return nil
+}
+
+func TestCleanHostClients(t *testing.T) {
+	tests := []struct {
+		name         string
+		isTLS        bool
+		initMap      map[string]*mockHostClient
+		expectedKeys []string
+		shouldClose  bool
+		expectedRes  bool
+	}{
+		{
+			name:  "Remove item from c.m",
+			isTLS: false,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: true},
+			},
+			expectedKeys: []string{},
+			shouldClose:  true,
+			expectedRes:  true,
+		},
+		{
+			name:  "Remove item from c.ms",
+			isTLS: true,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: true},
+			},
+			expectedKeys: []string{},
+			shouldClose:  true,
+			expectedRes:  true,
+		},
+		{
+			name:  "Do not remove non-removable client",
+			isTLS: false,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: false},
+			},
+			expectedKeys: []string{"google.com"},
+			shouldClose:  false,
+			expectedRes:  false,
+		},
+		{
+			name:         "Empty map",
+			isTLS:        false,
+			initMap:      map[string]*mockHostClient{},
+			expectedKeys: []string{},
+			shouldClose:  false,
+			expectedRes:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := &Client{
+				mLock: sync.Mutex{},
+				m:     map[string]client.HostClient{},
+				ms:    map[string]client.HostClient{},
+			}
+
+			if tt.isTLS {
+				for k, v := range tt.initMap {
+					cli.ms[k] = v
+				}
+			} else {
+				for k, v := range tt.initMap {
+					cli.m[k] = v
+				}
+			}
+
+			result := cli.cleanHostClients(tt.isTLS)
+
+			var resultMap map[string]client.HostClient
+			if tt.isTLS {
+				resultMap = cli.ms
+			} else {
+				resultMap = cli.m
+			}
+
+			var keys []string
+			for k := range resultMap {
+				keys = append(keys, k)
+			}
+			assert.Assert(t, len(tt.expectedKeys) == len(keys))
+
+			for _, v := range tt.initMap {
+				if v.shouldRemove {
+					assert.Assert(t, v.closed, "Expected client to be closed")
+				} else {
+					assert.Assert(t, !v.closed, "Client should not be closed")
+				}
+			}
+
+			assert.Assert(t, tt.expectedRes == result)
+		})
+	}
 }
