@@ -226,12 +226,15 @@ func TestResponseSwapResponseBody(t *testing.T) {
 
 func TestResponseAcquireResponse(t *testing.T) {
 	t.Parallel()
-	resp1 := AcquireResponse()
-	assert.NotNil(t, resp1)
-	resp1.SetBody([]byte("test"))
-	resp1.SetStatusCode(consts.StatusOK)
-	ReleaseResponse(resp1)
-	assert.Nil(t, resp1.body)
+	for i := 0; i < 10; i++ {
+		resp1 := AcquireResponse()
+		assert.NotNil(t, resp1)
+		assert.Nil(t, resp1.body)
+
+		resp1.SetBody([]byte("test"))
+		resp1.SetStatusCode(consts.StatusOK)
+		ReleaseResponse(resp1)
+	}
 }
 
 type closeBuffer struct {
@@ -263,6 +266,8 @@ func TestSetBodyStreamNoReset(t *testing.T) {
 
 func TestRespSafeCopy(t *testing.T) {
 	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
 	resp.bodyRaw = make([]byte, 1)
 	resps := make([]*Response, 10)
 	for i := 0; i < 10; i++ {
@@ -278,6 +283,8 @@ func TestRespSafeCopy(t *testing.T) {
 
 func TestResponse_HijackWriter(t *testing.T) {
 	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
 	buf := new(bytes.Buffer)
 	isFinal := false
 	resp.HijackWriter(&mock.ExtWriter{Buf: buf, IsFinal: &isFinal})
