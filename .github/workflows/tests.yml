@@ -3,10 +3,10 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
-  compat-test:
+  unit-test-x64:
     strategy:
       matrix:
-        version: ["1.17", "1.18", "1.19"]
+        version: ["1.19", "1.20", oldstable, stable]
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -16,15 +16,14 @@ jobs:
           go-version: ${{ matrix.version }}
           cache: false # don't use cache for self-hosted runners
 
-      # Just build tests without running them
-      - name: Build Test
-        run: go test -run=nope ./...
+      - name: Unit Test
+        run: go test -race ./...
 
-  unit-test:
+  unit-test-arm64:
     strategy:
       matrix:
-        version: ["1.20", "1.21", "1.22", "1.23", "1.24"]
-    runs-on: [self-hosted, Linux, X64]
+        version: ["1.19", "1.20", oldstable, stable]
+    runs-on: [self-hosted, ARM64]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
