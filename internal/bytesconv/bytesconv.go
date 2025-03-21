@@ -59,9 +59,22 @@ const (
 var hexIntBufPool sync.Pool
 
 func LowercaseBytes(b []byte) {
-	for i := 0; i < len(b); i++ {
-		p := &b[i]
-		*p = ToLowerTable[*p]
+	// Process in chunks of 8 bytes for better CPU cache utilization
+	n := len(b)
+	for i := 0; i+8 <= n; i += 8 {
+		b[i] = ToLowerTable[b[i]]
+		b[i+1] = ToLowerTable[b[i+1]]
+		b[i+2] = ToLowerTable[b[i+2]]
+		b[i+3] = ToLowerTable[b[i+3]]
+		b[i+4] = ToLowerTable[b[i+4]]
+		b[i+5] = ToLowerTable[b[i+5]]
+		b[i+6] = ToLowerTable[b[i+6]]
+		b[i+7] = ToLowerTable[b[i+7]]
+	}
+
+	// Process remaining bytes
+	for i := (n / 8) * 8; i < n; i++ {
+		b[i] = ToLowerTable[b[i]]
 	}
 }
 
