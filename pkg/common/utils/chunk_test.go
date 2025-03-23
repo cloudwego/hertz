@@ -97,3 +97,128 @@ func TestChunkReadFalseCRLF(t *testing.T) {
 	err := SkipCRLF(zr)
 	assert.DeepEqual(t, errBrokenChunk, err)
 }
+
+// TestParseChunkSize tests the chunk size parsing functionality with various input formats
+func TestParseChunkSize(t *testing.T) {
+	testCases := []struct {
+		name        string
+		input       string
+		expectSize  int
+		expectError bool
+	}{
+		{
+			name:        "valid hex with CRLF",
+			input:       "a\r\n",
+			expectSize:  10,
+			expectError: false,
+		},
+		{
+			name:        "valid hex with spaces and CRLF",
+			input:       "10   \r\n",
+			expectSize:  16,
+			expectError: false,
+		},
+		{
+			name:        "empty input",
+			input:       "",
+			expectSize:  -1,
+			expectError: true,
+		},
+		{
+			name:        "missing CR",
+			input:       "a\n",
+			expectSize:  -1,
+			expectError: true,
+		},
+		{
+			name:        "missing LF",
+			input:       "a\r",
+			expectSize:  -1,
+			expectError: true,
+		},
+		{
+			name:        "invalid hex",
+			input:       "xyz\r\n",
+			expectSize:  -1,
+			expectError: true,
+		},
+		{
+			name:        "invalid char after size",
+			input:       "a#\r\n",
+			expectSize:  -1,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := mock.NewZeroCopyReader(tc.input)
+			size, err := ParseChunkSize(r)
+
+			if tc.expectError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.DeepEqual(t, tc.expectSize, size)
+		})
+	}
+}
+
+// TestSkipCRLF tests the CRLF skipping functionality with different input sequences
+func TestSkipCRLF(t *testing.T) {
+	testCases := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			name:        "valid CRLF",
+			input:       "\r\n",
+			expectError: false,
+		},
+		{
+			name:        "only CR",
+			input:       "\r",
+			expectError: true,
+		},
+		{
+			name:        "only LF",
+			input:       "\n",
+			expectError: true,
+		},
+		{
+			name:        "empty input",
+			input:       "",
+			expectError: true,
+		},
+		{
+			name:        "invalid sequence",
+			input:       "ab",
+			expectError: true,
+		},
+		{
+			name:        "CRLF with extra data",
+			input:       "\r\ndata",
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := mock.NewZeroCopyReader(tc.input)
+			err := SkipCRLF(r)
+
+			if tc.expectError {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				if len(tc.input) > 2 {
+					// Verify that CRLF was correctly skipped by checking remaining data
+					remaining, _ := r.Peek(len(tc.input) - 2)
+					assert.DeepEqual(t, tc.input[2:], string(remaining))
+				}
+			}
+		})
+	}
+}
