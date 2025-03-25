@@ -82,7 +82,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46.0.1
 
       - name: Hz Test
         if: contains(steps.changed-files.outputs.all_changed_files, 'cmd/hz')
