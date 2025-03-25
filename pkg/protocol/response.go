@@ -296,7 +296,7 @@ func (resp *Response) ResetBody() {
 	resp.bodyRaw = nil
 	resp.CloseBodyStream() //nolint:errcheck
 	if resp.body != nil {
-		if resp.body.Len() <= resp.maxKeepBodySize {
+		if resp.body.Cap() <= resp.maxKeepBodySize {
 			resp.body.Reset()
 			return
 		}

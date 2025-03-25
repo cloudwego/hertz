@@ -172,6 +172,26 @@ func TestResponseResetBody(t *testing.T) {
 	assert.Nil(t, resp.body)
 }
 
+func TestResponseBodyReuse(t *testing.T) {
+	resp := Response{}
+	resp.maxKeepBodySize = 1024
+
+	buf := resp.BodyBuffer()
+	// set a big body
+	buf.Write(make([]byte, resp.maxKeepBodySize+1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+	// NOTICE: bytebufferpool may not get a big enough buffer,
+	// so we just mock a new one here
+	resp.body = &bytebufferpool.ByteBuffer{
+		B: make([]byte, 0, resp.maxKeepBodySize+1),
+	}
+	// set a small body
+	buf.Write(make([]byte, 1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+}
+
 func testResponseCopyTo(t *testing.T, src *Response) {
 	var dst Response
 	src.CopyTo(&dst)

@@ -411,7 +411,7 @@ func (req *Request) ResetBody() {
 	req.RemoveMultipartFormFiles()
 	req.CloseBodyStream() //nolint:errcheck
 	if req.body != nil {
-		if req.body.Len() <= req.maxKeepBodySize {
+		if req.body.Cap() <= req.maxKeepBodySize {
 			req.body.Reset()
 			return
 		}
