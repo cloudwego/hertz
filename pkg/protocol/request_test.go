@@ -703,6 +703,26 @@ func TestRequestSetMaxKeepBodySize(t *testing.T) {
 	assert.DeepEqual(t, 1024, r.maxKeepBodySize)
 }
 
+func TestRequestBodyReuse(t *testing.T) {
+	req := Request{}
+	req.maxKeepBodySize = 1024
+
+	buf := req.BodyBuffer()
+	// set a big body
+	buf.Write(make([]byte, req.maxKeepBodySize+1))
+	req.ResetBody()
+	assert.Nil(t, req.body)
+	// NOTICE: bytebufferpool may not get a big enough buffer,
+	// so we just mock a new one here
+	req.body = &bytebufferpool.ByteBuffer{
+		B: make([]byte, 0, req.maxKeepBodySize+1),
+	}
+	// set a small body
+	buf.Write(make([]byte, 1))
+	req.ResetBody()
+	assert.Nil(t, req.body)
+}
+
 func TestRequestGetBodyAfterGetBodyStream(t *testing.T) {
 	req := AcquireRequest()
 	req.SetBodyString("abc")
