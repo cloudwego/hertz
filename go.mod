@@ -1,6 +1,6 @@
 module github.com/cloudwego/hertz
 
-go 1.17
+go 1.19
 
 require (
 	github.com/bytedance/gopkg v0.1.0
