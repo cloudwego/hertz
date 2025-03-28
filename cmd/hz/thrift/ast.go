@@ -212,6 +212,9 @@ func astToService(ast *parser.Thrift, resolver *Resolver, args *config.Argument)
 			if args.CmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
+				if len(m.Arguments) == 0 { // request parameter is nil
+					return nil, fmt.Errorf("method '%s' request parameter must be set in client scenario", m.GetName())
+				}
 				rt, err := resolver.ResolveIdentifier(m.Arguments[0].GetType().GetName())
 				if err != nil {
 					return nil, err
