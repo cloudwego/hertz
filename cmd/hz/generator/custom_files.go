@@ -19,7 +19,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -315,7 +315,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 				return err
 			}
 		case Append: // todo: append logic need to be optimized for method
-			fileContent, err := ioutil.ReadFile(filePath)
+			fileContent, err := os.ReadFile(filePath)
 			if err != nil {
 				return err
 			}
@@ -492,7 +492,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 				return err
 			}
 		case Append: // todo: append logic need to be optimized for single file
-			fileContent, err := ioutil.ReadFile(filePath)
+			fileContent, err := os.ReadFile(filePath)
 			if err != nil {
 				return err
 			}
