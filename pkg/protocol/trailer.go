@@ -163,7 +163,7 @@ func (t *Trailer) SetTrailers(trailers []byte) (err error) {
 		}
 
 		utils.NormalizeHeaderKey(trailerKey, t.disableNormalizing)
-		err = t.addArgBytes(trailerKey, nilByteSlice, argsNoValue)
+		err = t.addArgBytes(trailerKey, nil, argsNoValue)
 	}
 	return
 }

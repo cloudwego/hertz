@@ -124,7 +124,7 @@ func TestTransport(t *testing.T) {
 	t.Run("TestExceptionCase", func(t *testing.T) {
 		assert.Panic(t, func() { // listen err
 			transporter := NewTransporter(&config.Options{
-				Network: "unknow",
+				Network: "unknown",
 			})
 			transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
 				return nil
