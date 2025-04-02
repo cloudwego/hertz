@@ -59,7 +59,7 @@ func (p *Expr) readSelectorExprNode(expr *string) ExprNode {
 
 var selectorRegexp = regexp.MustCompile(`^([\!\+\-]*)(\([ \t]*[A-Za-z_]+[A-Za-z0-9_\.]*[ \t]*\))?(\$)([\)\[\],\+\-\*\/%><\|&!=\^ \t\\]|$)`)
 
-func findSelector(expr *string) (field string, name string, subSelector []string, boolOpposite, signOpposite *bool, found bool) {
+func findSelector(expr *string) (field, name string, subSelector []string, boolOpposite, signOpposite *bool, found bool) {
 	raw := *expr
 	a := selectorRegexp.FindAllStringSubmatch(raw, -1)
 	if len(a) != 1 {
