@@ -35,7 +35,6 @@ import (
 	c "github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"golang.org/x/sys/unix"
@@ -138,60 +137,4 @@ func TestHertz_Spin(t *testing.T) {
 
 	<-ch2
 	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
-}
-
-func TestWithSenseClientDisconnection(t *testing.T) {
-	var closeFlag int32
-	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
-}
-
-func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
-	var closeFlag int32
-	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-		return ctx
-	}))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }

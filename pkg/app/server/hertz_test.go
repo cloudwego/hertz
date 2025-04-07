@@ -1234,3 +1234,59 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	r, _ := hc.Get(testutils.GetURL(h, "")) //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
 }
+
+func TestWithSenseClientDisconnection(t *testing.T) {
+	var closeFlag int32
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true))
+	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, "aa", string(ctx.Host()))
+		ch := make(chan struct{})
+		select {
+		case <-c.Done():
+			atomic.StoreInt32(&closeFlag, 1)
+			assert.DeepEqual(t, context.Canceled, c.Err())
+		case <-ch:
+		}
+	})
+	go h.Spin()
+	waitEngineRunning(h)
+
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
+	assert.Nil(t, err)
+	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
+	assert.Nil(t, err)
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
+	assert.Nil(t, con.Close())
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
+}
+
+func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
+	var closeFlag int32
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+		return ctx
+	}))
+	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, "aa", string(ctx.Host()))
+		ch := make(chan struct{})
+		select {
+		case <-c.Done():
+			atomic.StoreInt32(&closeFlag, 1)
+			assert.DeepEqual(t, context.Canceled, c.Err())
+		case <-ch:
+		}
+	})
+	go h.Spin()
+	waitEngineRunning(h)
+
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
+	assert.Nil(t, err)
+	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
+	assert.Nil(t, err)
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
+	assert.Nil(t, con.Close())
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
+}
