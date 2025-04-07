@@ -816,3 +816,15 @@ func TestSetTrailerWithROString(t *testing.T) {
 	h1.Add(consts.HeaderTrailer, "foo,bar,hertz")
 	assert.DeepEqual(t, "Foo, Bar, Hertz", h1.Get(consts.HeaderTrailer))
 }
+
+func Benchmark_RequestHeader_Peek(b *testing.B) {
+	h := &RequestHeader{}
+	h.Add("hello", "world")
+	if s := string(h.Peek("hello")); s != "world" {
+		b.Fatal(s)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Peek("hello")
+	}
+}

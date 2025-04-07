@@ -718,6 +718,7 @@ func TestRequestBodyReuse(t *testing.T) {
 		B: make([]byte, 0, req.maxKeepBodySize+1),
 	}
 	// set a small body
+	buf = req.BodyBuffer()
 	buf.Write(make([]byte, 1))
 	req.ResetBody()
 	assert.Nil(t, req.body)
