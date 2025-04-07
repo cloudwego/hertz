@@ -17,14 +17,18 @@
 package standard
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 	"runtime"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/bytedance/gopkg/lang/dirtmake"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -637,4 +641,155 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 			maxSize:      maxSize,
 		},
 	}
+}
+
+var earliestTime = time.Unix(1, 0)
+
+type StatefulConn interface {
+	network.Conn
+	DetectConnectionClose(context.Context)
+	AbortBlockingRead(context.Context)
+	OnConnectionError(context.Context, error)
+	Context() context.Context
+}
+
+var _ StatefulConn = &statefulConn{}
+
+func NewStatefulConn(ctx context.Context, c network.Conn) StatefulConn {
+	ctx, cancelCtx := context.WithCancel(ctx)
+	return &statefulConn{
+		Conn:      c,
+		ctx:       ctx,
+		cancelCtx: cancelCtx,
+		ch:        make(chan struct{}, 1),
+	}
+}
+
+type statefulConn struct {
+	network.Conn
+	ctx       context.Context
+	cancelCtx context.CancelFunc
+	mu        sync.Mutex
+	buf       [1]byte
+	hasBuf    bool
+	isReading bool
+	aborted   bool
+	ch        chan struct{}
+}
+
+func (c *statefulConn) Context() context.Context {
+	return c.ctx
+}
+
+func (c *statefulConn) Peek(n int) ([]byte, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isReading {
+		panic("concurrent read not allowed")
+	}
+
+	var b []byte
+	var err error
+
+	c.isReading = true
+	if !c.hasBuf {
+		b, err = c.Conn.Peek(n)
+	} else {
+		if n == 1 {
+			b = dirtmake.Bytes(1, 1)
+			b[0] = c.buf[0]
+			c.hasBuf = false
+		} else {
+			bb, perr := c.Conn.Peek(n - 1)
+			if perr != nil {
+				err = perr
+			} else {
+				b = dirtmake.Bytes(n, n)
+				b[0] = c.buf[0]
+				copy(b[1:], bb)
+				c.hasBuf = false
+			}
+		}
+	}
+	c.isReading = false
+	return b, err
+}
+
+func (c *statefulConn) Read(b []byte) (n int, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isReading {
+		panic("concurrent read not allowed")
+	}
+
+	c.isReading = true
+	if c.hasBuf {
+		b[0] = c.buf[0]
+		c.hasBuf = false
+		c.isReading = false
+		return 1, nil
+	} else {
+		n, err = c.Conn.Read(b)
+		c.isReading = false
+	}
+	return n, err
+}
+
+func (c *statefulConn) DetectConnectionClose(ctx context.Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isReading {
+		panic("concurrent read not allowed")
+	}
+
+	c.isReading = true
+	c.Conn.SetReadDeadline(time.Time{}) // blocking read
+
+	go func() {
+		// start a blocking read, if return
+		// n != 0, err == nil: pipeline request
+		// err != nil:
+		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
+		// 2. other connection error (e.g. EOF), cancel the context
+		rc := c.Conn.(*Conn).c
+		n, err := rc.Read(c.buf[:])
+		c.mu.Lock()
+		c.isReading = false
+		if n == 1 {
+			c.hasBuf = true
+		}
+
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
+				// ignore the error triggered by AbortBlockingRead
+			} else {
+				c.OnConnectionError(c.ctx, err)
+			}
+		}
+
+		c.isReading = false
+		c.aborted = false
+		c.mu.Unlock()
+		c.ch <- struct{}{}
+	}()
+}
+
+func (c *statefulConn) AbortBlockingRead(ctx context.Context) {
+	var isReading bool
+	c.mu.Lock()
+	isReading = c.isReading
+	c.aborted = true
+	c.mu.Unlock()
+
+	if isReading {
+		c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
+		<-c.ch                               // wait until the blocking read returns
+	}
+}
+
+func (c *statefulConn) OnConnectionError(ctx context.Context, err error) {
+	c.cancelCtx()
 }

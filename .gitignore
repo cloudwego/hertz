@@ -3,6 +3,8 @@
 pkg/app/fs.go.hertz.gz
 coverage.txt
 coverage.out
+# OSX trash
+.DS_Store
 
 # test benchmark tmp output
 cpu.out

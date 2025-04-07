@@ -30,6 +30,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
+type standardTransportCtxKey struct{}
+
 type transport struct {
 	// Per-connection buffer size for requests' reading.
 	// This also limits the maximum header size.
@@ -38,16 +40,17 @@ type transport struct {
 	// and/or multi-KB headers (for example, BIG cookies).
 	//
 	// Default buffer size is used if not set.
-	readBufferSize   int
-	network          string
-	addr             string
-	keepAliveTimeout time.Duration
-	readTimeout      time.Duration
-	handler          network.OnData
-	tls              *tls.Config
-	listenConfig     *net.ListenConfig
-	OnAccept         func(conn net.Conn) context.Context
-	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
+	readBufferSize           int
+	network                  string
+	addr                     string
+	keepAliveTimeout         time.Duration
+	senseClientDisconnection bool
+	readTimeout              time.Duration
+	handler                  network.OnData
+	tls                      *tls.Config
+	listenConfig             *net.ListenConfig
+	OnAccept                 func(conn net.Conn) context.Context
+	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
 
 	// active connections. it +1 after accept and -1 after handler returns
 	active int32
@@ -101,6 +104,11 @@ func (t *transport) serve() (err error) {
 		if t.OnConnect != nil {
 			ctx = t.OnConnect(ctx, c)
 		}
+
+		if t.senseClientDisconnection {
+			ctx = newCtxWithTransportKey(ctx)
+		}
+
 		go func(ctx context.Context, conn network.Conn) {
 			t.handler(ctx, conn)
 			t.updateActive(-1)
@@ -166,17 +174,27 @@ func (t *transport) Shutdown(ctx context.Context) error {
 	}
 }
 
+func newCtxWithTransportKey(ctx context.Context) context.Context {
+	return context.WithValue(ctx, standardTransportCtxKey{}, struct{}{})
+}
+
+// CtxWithStandardTransport is used to check if standardTransportCtxKey is in context
+func CtxWithStandardTransport(ctx context.Context) bool {
+	return ctx.Value(standardTransportCtxKey{}) != nil
+}
+
 // For transporter switch
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transport{
-		readBufferSize:   options.ReadBufferSize,
-		network:          options.Network,
-		addr:             options.Addr,
-		keepAliveTimeout: options.KeepAliveTimeout,
-		readTimeout:      options.ReadTimeout,
-		tls:              options.TLS,
-		listenConfig:     options.ListenConfig,
-		OnAccept:         options.OnAccept,
-		OnConnect:        options.OnConnect,
+		readBufferSize:           options.ReadBufferSize,
+		network:                  options.Network,
+		addr:                     options.Addr,
+		keepAliveTimeout:         options.KeepAliveTimeout,
+		readTimeout:              options.ReadTimeout,
+		senseClientDisconnection: options.SenseClientDisconnection,
+		tls:                      options.TLS,
+		listenConfig:             options.ListenConfig,
+		OnAccept:                 options.OnAccept,
+		OnConnect:                options.OnConnect,
 	}
 }
