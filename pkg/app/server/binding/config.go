@@ -66,7 +66,7 @@ type BindConfig struct {
 	// TypeUnmarshalFuncs registers customized type unmarshaler.
 	// NOTE:
 	// time.Time is registered by default
-	TypeUnmarshalFuncs map[reflect.Type]inDecoder.CustomizeDecodeFunc
+	TypeUnmarshalFuncs map[reflect.Type]inDecoder.CustomDecodeFunc
 	// Validator is used to validate for BindAndValidate()
 	Validator StructValidator
 }
@@ -78,13 +78,13 @@ func NewBindConfig() *BindConfig {
 		DisableStructFieldResolve:          false,
 		EnableDecoderUseNumber:             false,
 		EnableDecoderDisallowUnknownFields: false,
-		TypeUnmarshalFuncs:                 make(map[reflect.Type]inDecoder.CustomizeDecodeFunc),
+		TypeUnmarshalFuncs:                 make(map[reflect.Type]inDecoder.CustomDecodeFunc),
 		Validator:                          defaultValidate,
 	}
 }
 
 // RegTypeUnmarshal registers customized type unmarshaler.
-func (config *BindConfig) RegTypeUnmarshal(t reflect.Type, fn inDecoder.CustomizeDecodeFunc) error {
+func (config *BindConfig) RegTypeUnmarshal(t reflect.Type, fn inDecoder.CustomDecodeFunc) error {
 	// check
 	switch t.Kind() {
 	case reflect.String, reflect.Bool,
@@ -96,7 +96,7 @@ func (config *BindConfig) RegTypeUnmarshal(t reflect.Type, fn inDecoder.Customiz
 		return fmt.Errorf("registration type cannot be a pointer type")
 	}
 	if config.TypeUnmarshalFuncs == nil {
-		config.TypeUnmarshalFuncs = make(map[reflect.Type]inDecoder.CustomizeDecodeFunc)
+		config.TypeUnmarshalFuncs = make(map[reflect.Type]inDecoder.CustomDecodeFunc)
 	}
 	config.TypeUnmarshalFuncs[t] = fn
 	return nil

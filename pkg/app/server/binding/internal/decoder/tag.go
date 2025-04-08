@@ -17,6 +17,7 @@
 package decoder
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 )
@@ -41,126 +42,77 @@ const (
 )
 
 type TagInfo struct {
-	Key         string
-	Value       string
-	JSONName    string
+	Tag         string
+	Name        string
 	Required    bool
-	Skip        bool
-	Default     string
 	Options     []string
 	Getter      getter
 	SliceGetter sliceGetter
 }
 
-func head(str, sep string) (head, tail string) {
-	idx := strings.Index(str, sep)
-	if idx < 0 {
-		return str, ""
-	}
-	return str[:idx], str[idx+len(sep):]
+func NewTagInfo(tag, name string) *TagInfo {
+	ti := &TagInfo{Tag: tag, Name: name}
+	ti.Getter = tag2getter[ti.Tag]
+	ti.SliceGetter = tag2sliceGetter[ti.Tag]
+	return ti
 }
 
-func lookupFieldTags(field reflect.StructField, parentJSONName string, config *DecodeConfig) ([]TagInfo, string, bool) {
-	var ret []string
-	var needValidate bool
-	if _, ok := field.Tag.Lookup(config.ValidateTag); ok {
-		needValidate = true
-	}
-	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag}
-	for _, tag := range tags {
-		if _, ok := field.Tag.Lookup(tag); ok {
-			ret = append(ret, tag)
-		}
-	}
-
-	defaultVal := ""
-	if val, ok := field.Tag.Lookup(defaultTag); ok {
-		defaultVal = val
-	}
-
-	var tagInfos []TagInfo
-	var newParentJSONName string
-	for _, tag := range ret {
-		tagContent := field.Tag.Get(tag)
-		tagValue, opts := head(tagContent, ",")
-		if len(tagValue) == 0 {
-			tagValue = field.Name
-		}
-		skip := false
-		jsonName := parentJSONName + "." + field.Name
-		if tag == jsonTag {
-			jsonName = parentJSONName + "." + tagValue
-		}
-		if tagValue == "-" {
-			skip = true
-			if tag == jsonTag {
-				jsonName = parentJSONName + "." + field.Name
-			}
-		}
-		if jsonName != "" {
-			jsonName = strings.TrimPrefix(jsonName, ".")
-			newParentJSONName = jsonName
-		}
-		var options []string
-		var opt string
-		var required bool
-		for len(opts) > 0 {
-			opt, opts = head(opts, ",")
-			options = append(options, opt)
-			if opt == requiredTagOpt {
-				required = true
-			}
-		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, JSONName: jsonName, Options: options, Required: required, Default: defaultVal, Skip: skip})
-	}
-	if len(newParentJSONName) == 0 {
-		newParentJSONName = strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
-	}
-
-	return tagInfos, newParentJSONName, needValidate
+func (ti *TagInfo) IsJSON() bool {
+	return ti.Tag == jsonTag
 }
 
-func getDefaultFieldTags(field reflect.StructField, parentJSONName string) (tagInfos []TagInfo, newParentJSONName string) {
-	defaultVal := ""
-	if val, ok := field.Tag.Lookup(defaultTag); ok {
-		defaultVal = val
-	}
+var errSkipped = errors.New("skipped")
 
-	tags := []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, fileNameTag}
-	for _, tag := range tags {
-		jsonName := strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name, Default: defaultVal, JSONName: jsonName})
+func (ti *TagInfo) Parse(tagvalue string) error {
+	tagname, opts, _ := strings.Cut(tagvalue, ",")
+	if len(tagname) > 0 {
+		ti.Name = tagname
 	}
-	newParentJSONName = strings.TrimPrefix(parentJSONName+"."+field.Name, ".")
+	ti.Options = ti.Options[:0]
+	for opts != "" {
+		o := ""
+		o, opts, _ = strings.Cut(opts, ",")
+		if o == requiredTagOpt {
+			ti.Required = true
+		}
+		ti.Options = append(ti.Options, o)
+	}
+	return nil
+}
 
+func (ti *TagInfo) Skip() bool { return ti.Name == "-" }
+
+func lookupFieldTags(field reflect.StructField, config *DecodeConfig) []*TagInfo {
+	var tagInfos []*TagInfo
+	for _, tag := range []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, rawBodyTag, fileNameTag} {
+		tagv, ok := field.Tag.Lookup(tag)
+		if !ok {
+			continue
+		}
+
+		ti := NewTagInfo(tag, field.Name)
+		if ti.Parse(tagv) == errSkipped {
+			continue
+		}
+		tagInfos = append(tagInfos, ti)
+	}
+	return tagInfos
+}
+
+func getDefaultFieldTags(f reflect.StructField) (ret []*TagInfo) {
+	for _, tag := range []string{pathTag, formTag, queryTag, cookieTag, headerTag, jsonTag, fileNameTag} {
+		ti := NewTagInfo(tag, f.Name)
+		ret = append(ret, ti)
+	}
 	return
 }
 
-func getFieldTagInfoByTag(field reflect.StructField, tag string) []TagInfo {
-	var tagInfos []TagInfo
-	if content, ok := field.Tag.Lookup(tag); ok {
-		tagValue, opts := head(content, ",")
-		if len(tagValue) == 0 {
-			tagValue = field.Name
-		}
-		skip := false
-		if tagValue == "-" {
-			skip = true
-		}
-		var options []string
-		var opt string
-		var required bool
-		for len(opts) > 0 {
-			opt, opts = head(opts, ",")
-			options = append(options, opt)
-			if opt == requiredTagOpt {
-				required = true
-			}
-		}
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: tagValue, Options: options, Required: required, Skip: skip})
-	} else {
-		tagInfos = append(tagInfos, TagInfo{Key: tag, Value: field.Name})
+func getFieldTagInfoByTag(field reflect.StructField, tag string) *TagInfo {
+	ti := NewTagInfo(tag, field.Name)
+	v, ok := field.Tag.Lookup(tag)
+	if !ok {
+		return ti
 	}
-
-	return tagInfos
+	ti.Parse(v)
+	return ti
 }
