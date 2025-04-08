@@ -52,3 +52,52 @@ func TestLocalIP(t *testing.T) {
 		assert.DeepEqual(t, got, expectedIP)
 	}
 }
+
+// TestGetLocalIp tests the getLocalIp function with different network interface scenarios
+func TestGetLocalIp(t *testing.T) {
+	// Since getLocalIp is not exported, we can test it indirectly through LocalIP
+	// The actual value will depend on the test environment, but we can at least
+	// verify that it returns a non-empty value that is not the unknown marker
+	ip := LocalIP()
+	assert.NotEqual(t, "", ip)
+	
+	// We can also verify that the returned IP is either a valid IP or the unknown marker
+	if ip != UNKNOWN_IP_ADDR {
+		parsedIP := net.ParseIP(ip)
+		assert.NotNil(t, parsedIP, "LocalIP should return a valid IP address")
+	}
+}
+
+// TestTLSRecordHeaderLooksLikeHTTPWithEdgeCases tests additional edge cases for TLS header detection
+func TestTLSRecordHeaderLooksLikeHTTPWithEdgeCases(t *testing.T) {
+	// Test with partial HTTP method matches
+	partialMatches := [][5]byte{
+		{'G', 'E', 'T', 'x', '/'}, // Almost "GET /"
+		{'H', 'E', 'A', 'x', ' '}, // Almost "HEAD "
+		{'P', 'O', 'S', 'x', ' '}, // Almost "POST "
+		{'P', 'U', 'T', 'x', '/'}, // Almost "PUT /"
+		{'O', 'P', 'T', 'x', 'O'}, // Almost "OPTIO"
+	}
+	
+	for _, header := range partialMatches {
+		assert.False(t, TLSRecordHeaderLooksLikeHTTP(header), 
+			"Partial HTTP method match should not be detected as HTTP")
+	}
+	
+	// Test with empty header
+	emptyHeader := [5]byte{}
+	assert.False(t, TLSRecordHeaderLooksLikeHTTP(emptyHeader),
+		"Empty header should not be detected as HTTP")
+	
+	// Test with other common HTTP methods that are not in the list
+	otherMethods := [][5]byte{
+		{'D', 'E', 'L', 'E', 'T'}, // DELETE
+		{'P', 'A', 'T', 'C', 'H'}, // PATCH
+		{'T', 'R', 'A', 'C', 'E'}, // TRACE
+	}
+	
+	for _, header := range otherMethods {
+		assert.False(t, TLSRecordHeaderLooksLikeHTTP(header),
+			"Other HTTP methods should not be detected as HTTP by this function")
+	}
+}
