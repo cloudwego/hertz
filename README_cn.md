@@ -93,11 +93,12 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了
 | [Cache](https://github.com/hertz-contrib/cache)                                                    | 用于缓存 HTTP 接口内容的 Hertz 中间件，支持多种客户端。                                                                |
 
 ## 相关文章
-- [字节跳动在 Go 网络库上的实践](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
+- [字节跳动在 Go 网络库上的实践](https://www.cloudwego.io/zh/blog/2020/05/24/%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E5%9C%A8-go-%E7%BD%91%E7%BB%9C%E5%BA%93%E4%B8%8A%E7%9A%84%E5%AE%9E%E8%B7%B5/)
 - [超大规模的企业级微服务 HTTP 框架 — Hertz 正式开源！](https://www.cloudwego.io/zh/blog/2022/06/21/%E8%B6%85%E5%A4%A7%E8%A7%84%E6%A8%A1%E7%9A%84%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%BE%AE%E6%9C%8D%E5%8A%A1-http-%E6%A1%86%E6%9E%B6-hertz-%E6%AD%A3%E5%BC%8F%E5%BC%80%E6%BA%90/)
 - [字节跳动开源 Go HTTP 框架 Hertz 设计实践](https://www.cloudwego.io/zh/blog/2022/06/21/%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E5%BC%80%E6%BA%90-go-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
 - [助力字节降本增效，大规模企业级 HTTP 框架 Hertz 设计实践](https://www.cloudwego.io/zh/blog/2022/09/27/%E5%8A%A9%E5%8A%9B%E5%AD%97%E8%8A%82%E9%99%8D%E6%9C%AC%E5%A2%9E%E6%95%88%E5%A4%A7%E8%A7%84%E6%A8%A1%E4%BC%81%E4%B8%9A%E7%BA%A7-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
-- [HTTP 框架 Hertz 实践入门：性能测试指南](https://www.cloudwego.io/zh/blog/2022/11/01/http-%E6%A1%86%E6%9E%B6-hertz-%E5%AE%9E%E8%B7%B5%E5%85%A5%E9%97%A8%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%8C%87%E5%8D%97/)
+- [HTTP 框架 Hertz 实践入门：性能测试指南](https://www.cloudwego.io/zh/blog/2023/02/24/http-%E6%A1%86%E6%9E%B6-hertz-%E5%AE%9E%E8%B7%B5%E5%85%A5%E9%97%A8%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%8C%87%E5%8D%97/)
+
 ## 贡献代码
   [Contributing](https://github.com/cloudwego/hertz/blob/main/CONTRIBUTING.md)
 ## RoadMap
