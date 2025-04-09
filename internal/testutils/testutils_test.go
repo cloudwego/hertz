@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -60,4 +61,21 @@ func TestGetListener(t *testing.T) {
 	if s := string(body); s != msg {
 		t.Fatal(s, "!=", msg)
 	}
+}
+
+type routeEngine struct {
+	Running atomic.Bool
+}
+
+func (e *routeEngine) IsRunning() bool {
+	return e.Running.Load()
+}
+
+func TestWaitEngineRunning(t *testing.T) {
+	e := &routeEngine{}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		e.Running.Store(true)
+	}()
+	WaitEngineRunning(e)
 }
