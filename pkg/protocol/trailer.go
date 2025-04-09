@@ -41,13 +41,15 @@ func (t *Trailer) Get(key string) string {
 // Returned value is valid until the next call to Trailer.
 // Do not store references to returned value. Make copies instead.
 func (t *Trailer) Peek(key string) []byte {
-	k := getHeaderKeyBytes(&t.bufKV, key, t.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, t.disableNormalizing)
 	return peekArgBytes(t.h, k)
 }
 
 // Del deletes trailer with the given key.
 func (t *Trailer) Del(key string) {
-	k := getHeaderKeyBytes(&t.bufKV, key, t.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, t.disableNormalizing)
 	t.h = delAllArgsBytes(t.h, k)
 }
 
@@ -163,7 +165,7 @@ func (t *Trailer) SetTrailers(trailers []byte) (err error) {
 		}
 
 		utils.NormalizeHeaderKey(trailerKey, t.disableNormalizing)
-		err = t.addArgBytes(trailerKey, nilByteSlice, argsNoValue)
+		err = t.addArgBytes(trailerKey, nil, argsNoValue)
 	}
 	return
 }

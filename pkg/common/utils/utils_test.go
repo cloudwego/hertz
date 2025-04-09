@@ -81,7 +81,7 @@ func TestUtilsAssert(t *testing.T) {
 
 func TestUtilsIsTrueString(t *testing.T) {
 	normalTrueStr := "true"
-	upperTrueStr := "trUe"
+	upperTrueStr := "TRUE"
 	otherStr := "hertz"
 
 	assert.DeepEqual(t, true, IsTrueString(normalTrueStr))
@@ -114,7 +114,7 @@ func TestUtilsCaseInsensitiveCompare(t *testing.T) {
 	assert.DeepEqual(t, false, CaseInsensitiveCompare(lessStr, moreStr))
 
 	firstStr := []byte("content-type")
-	secondStr := []byte("contant-type")
+	secondStr := []byte("content0type")
 	assert.DeepEqual(t, false, CaseInsensitiveCompare(firstStr, secondStr))
 }
 

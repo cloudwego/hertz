@@ -66,6 +66,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -75,6 +76,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
@@ -111,25 +113,10 @@ func nextUnixSock() string {
 func waitEngineRunning(e *route.Engine) {
 	for i := 0; i < 100; i++ {
 		if e.IsRunning() {
-			break
+			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	opts := e.GetOptions()
-	network, addr := opts.Network, opts.Addr
-	if network == "" {
-		network = "tcp"
-	}
-	for i := 0; i < 100; i++ {
-		conn, err := net.Dial(network, addr)
-		if err != nil {
-			time.Sleep(10 * time.Millisecond)
-			continue
-		}
-		conn.Close()
-		return
-	}
-
 	panic("not running")
 }
 
@@ -171,7 +158,7 @@ func TestCloseIdleConnections(t *testing.T) {
 		t.Errorf("expected 0 conns got %d", conns)
 	}
 
-	c.mClean()
+	c.cleanHostClients(false)
 
 	func() {
 		c.mLock.Lock()
@@ -348,7 +335,7 @@ func TestClientNilResp(t *testing.T) {
 
 func TestClientParseConn(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10005"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
@@ -357,6 +344,7 @@ func TestClientParseConn(t *testing.T) {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
+	opt.Addr = testutils.GetListenerAddr(engine)
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -1242,7 +1230,7 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 
 func TestNewClient(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10022"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
 		ctx.SetBodyString("pong")
@@ -1258,7 +1246,7 @@ func TestNewClient(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	status, resp, err := client.Get(context.Background(), nil, "http://127.0.0.1:10022/ping")
+	status, resp, err := client.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -1271,7 +1259,7 @@ func TestNewClient(t *testing.T) {
 
 func TestUseShortConnection(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10023"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
@@ -1280,6 +1268,7 @@ func TestUseShortConnection(t *testing.T) {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
+	opt.Addr = testutils.GetListenerAddr(engine)
 
 	c, _ := NewClient(WithKeepAlive(false))
 	var wg sync.WaitGroup
@@ -1287,7 +1276,7 @@ func TestUseShortConnection(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10023"); err != nil {
+			if _, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "")); err != nil {
 				t.Error(err)
 				return
 			}
@@ -1298,11 +1287,11 @@ func TestUseShortConnection(t *testing.T) {
 		c.mLock.Lock()
 		defer c.mLock.Unlock()
 
-		if _, ok := c.m["127.0.0.1:10023"]; !ok {
+		if _, ok := c.m[opt.Addr]; !ok {
 			return 0
 		}
 
-		return c.m["127.0.0.1:10023"].ConnectionCount()
+		return c.m[opt.Addr].ConnectionCount()
 	}
 
 	if conns := connsLen(); conns > 0 {
@@ -1312,7 +1301,7 @@ func TestUseShortConnection(t *testing.T) {
 
 func TestPostWithFormData(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10025"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		var ans string
@@ -1348,7 +1337,7 @@ func TestPostWithFormData(t *testing.T) {
 		"a": []string{"d", "e"},
 		"c": []string{"f"},
 	})
-	req.SetRequestURI("http://127.0.0.1:10025")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1365,7 +1354,7 @@ func TestPostWithFormData(t *testing.T) {
 
 func TestPostWithMultipartField(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10026"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		if string(ctx.FormValue("a")) != "1" {
@@ -1394,7 +1383,7 @@ func TestPostWithMultipartField(t *testing.T) {
 		"b": "2",
 	}
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI("http://127.0.0.1:10026")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMultipartFormData(data)
 	req.SetMultipartFormData(map[string]string{
 		"c": "3",
@@ -1407,7 +1396,7 @@ func TestPostWithMultipartField(t *testing.T) {
 
 func TestSetFiles(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10027"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		form, _ := ctx.MultipartForm()
@@ -1436,7 +1425,7 @@ func TestSetFiles(t *testing.T) {
 		protocol.ReleaseResponse(rsp)
 	}()
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI("http://127.0.0.1:10027")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	files := []string{"../../common/testdata/test.txt", "../../common/testdata/proto/test.proto", "../../common/testdata/test.png", "../../common/testdata/proto/test.pb.go"}
 	defer func() {
 		for _, file := range files {
@@ -1457,7 +1446,7 @@ func TestSetFiles(t *testing.T) {
 
 func TestSetMultipartFields(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10028"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		t.Log(req.GetHTTP1Request(&ctx.Request).String())
@@ -1510,7 +1499,7 @@ func TestSetMultipartFields(t *testing.T) {
 	}()
 	req.SetMultipartFields(fields...)
 	req.SetMultipartFormData(map[string]string{"a": "1", "b": "2"})
-	req.SetRequestURI("http://127.0.0.1:10028")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.DoTimeout(context.Background(), req, rsp, 1*time.Second)
 	if err != nil {
@@ -1523,7 +1512,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 	part2 := "ghij"
 
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10033"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1+part2)
@@ -1540,7 +1529,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(resp)
 	}()
-	req.SetRequestURI("http://127.0.0.1:10033")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -1567,7 +1556,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 
 func TestWithBasicAuth(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10034"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 		auth := ctx.GetHeader(consts.HeaderAuthorization)
@@ -1597,7 +1586,7 @@ func TestWithBasicAuth(t *testing.T) {
 
 	// Success
 	req.SetBasicAuth("myuser", "basicauth")
-	req.SetRequestURI("http://127.0.0.1:10034")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodGet)
 	err := client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1610,7 +1599,7 @@ func TestWithBasicAuth(t *testing.T) {
 	// Fail
 	req.Reset()
 	rsp.Reset()
-	req.SetRequestURI("http://127.0.0.1:10034")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodGet)
 	err = client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1766,7 +1755,7 @@ func TestClientProxyWithNetpollDialer(t *testing.T) {
 		{false, false},
 		{true, false},
 		{false, true},
-		{false, true},
+		{true, true},
 	}
 	for _, testCase := range testCases {
 		httpsSite := testCase.httpsSite
@@ -1952,7 +1941,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	part2 := "ghij"
 
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10035"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1+part2)
@@ -1969,7 +1958,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(resp)
 	}()
-	req.SetRequestURI("http://127.0.0.1:10035")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -1996,7 +1985,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		protocol.ReleaseRequest(req1)
 		protocol.ReleaseResponse(resp1)
 	}()
-	req1.SetRequestURI("http://127.0.0.1:10035")
+	req1.SetRequestURI(testutils.GetURL(engine, ""))
 	req1.SetMethod(consts.MethodPost)
 	err = client.Do(context.Background(), req1, resp1)
 	if err != nil {
@@ -2025,7 +2014,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	}
 
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10036"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1)
@@ -2046,7 +2035,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	}()
 	req.SetConnectionClose()
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI("http://127.0.0.1:10036")
+	req.SetRequestURI(testutils.GetURL(engine, ""))
 
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -2063,7 +2052,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	}()
 	req1.SetConnectionClose()
 	req1.SetMethod(consts.MethodPost)
-	req1.SetRequestURI("http://127.0.0.1:10036")
+	req1.SetRequestURI(testutils.GetURL(engine, ""))
 
 	err = client.Do(context.Background(), req1, resp1)
 	if err != nil {
@@ -2371,13 +2360,14 @@ func TestClientDoWithDialFunc(t *testing.T) {
 
 func TestClientState(t *testing.T) {
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:10037"
+	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	go engine.Run()
 	defer func() {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
+	opt.Addr = testutils.GetListenerAddr(engine)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -2390,19 +2380,19 @@ func TestClientState(t *testing.T) {
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
 				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
-				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, opt.Addr, hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
 				wg.Done()
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
 				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
-				assert.DeepEqual(t, "127.0.0.1:10037", hcs.ConnPoolState().Addr)
+				assert.DeepEqual(t, opt.Addr, hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
 				wg.Done()
 			}
 		}, 50*time.Millisecond))
-	client.Get(context.Background(), nil, "http://127.0.0.1:10037")
+	client.Get(context.Background(), nil, "http://"+opt.Addr)
 	wg.Wait()
 	assert.DeepEqual(t, int32(2), atomic.LoadInt32(&state))
 }
@@ -2410,7 +2400,7 @@ func TestClientState(t *testing.T) {
 func TestClientRetryErr(t *testing.T) {
 	t.Run("200", func(t *testing.T) {
 		opt := config.NewOptions([]config.Option{})
-		opt.Addr = "127.0.0.1:10136"
+		opt.Addr = "127.0.0.1:0"
 		engine := route.NewEngine(opt)
 		var l sync.Mutex
 		retryNum := 0
@@ -2427,7 +2417,7 @@ func TestClientRetryErr(t *testing.T) {
 		waitEngineRunning(engine)
 
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
-		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10136/ping")
+		_, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
 		assert.Nil(t, err)
 		l.Lock()
 		assert.DeepEqual(t, 1, retryNum)
@@ -2436,7 +2426,7 @@ func TestClientRetryErr(t *testing.T) {
 
 	t.Run("502", func(t *testing.T) {
 		opt := config.NewOptions([]config.Option{})
-		opt.Addr = "127.0.0.1:10137"
+		opt.Addr = "127.0.0.1:0"
 		engine := route.NewEngine(opt)
 		var l sync.Mutex
 		retryNum := 0
@@ -2456,10 +2446,133 @@ func TestClientRetryErr(t *testing.T) {
 		c.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 			return resp.StatusCode() == 502
 		})
-		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:10137/ping")
+		_, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
 		assert.Nil(t, err)
 		l.Lock()
 		assert.DeepEqual(t, 3, retryNum)
 		l.Unlock()
 	})
+}
+
+type mockHostClient struct {
+	shouldRemove bool
+	closed       bool
+}
+
+func (m *mockHostClient) Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error {
+	return nil
+}
+
+func (m *mockHostClient) SetDynamicConfig(dc *client.DynamicConfig) {
+}
+
+func (m *mockHostClient) CloseIdleConnections() {
+}
+
+func (m *mockHostClient) ShouldRemove() bool {
+	return m.shouldRemove
+}
+
+func (m *mockHostClient) ConnectionCount() int {
+	return 0
+}
+
+func (m *mockHostClient) Close() error {
+	m.closed = true
+	return nil
+}
+
+func TestCleanHostClients(t *testing.T) {
+	tests := []struct {
+		name         string
+		isTLS        bool
+		initMap      map[string]*mockHostClient
+		expectedKeys []string
+		shouldClose  bool
+		expectedRes  bool
+	}{
+		{
+			name:  "Remove item from c.m",
+			isTLS: false,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: true},
+			},
+			expectedKeys: []string{},
+			shouldClose:  true,
+			expectedRes:  true,
+		},
+		{
+			name:  "Remove item from c.ms",
+			isTLS: true,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: true},
+			},
+			expectedKeys: []string{},
+			shouldClose:  true,
+			expectedRes:  true,
+		},
+		{
+			name:  "Do not remove non-removable client",
+			isTLS: false,
+			initMap: map[string]*mockHostClient{
+				"google.com": {shouldRemove: false},
+			},
+			expectedKeys: []string{"google.com"},
+			shouldClose:  false,
+			expectedRes:  false,
+		},
+		{
+			name:         "Empty map",
+			isTLS:        false,
+			initMap:      map[string]*mockHostClient{},
+			expectedKeys: []string{},
+			shouldClose:  false,
+			expectedRes:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := &Client{
+				mLock: sync.Mutex{},
+				m:     map[string]client.HostClient{},
+				ms:    map[string]client.HostClient{},
+			}
+
+			if tt.isTLS {
+				for k, v := range tt.initMap {
+					cli.ms[k] = v
+				}
+			} else {
+				for k, v := range tt.initMap {
+					cli.m[k] = v
+				}
+			}
+
+			result := cli.cleanHostClients(tt.isTLS)
+
+			var resultMap map[string]client.HostClient
+			if tt.isTLS {
+				resultMap = cli.ms
+			} else {
+				resultMap = cli.m
+			}
+
+			var keys []string
+			for k := range resultMap {
+				keys = append(keys, k)
+			}
+			assert.Assert(t, len(tt.expectedKeys) == len(keys))
+
+			for _, v := range tt.initMap {
+				if v.shouldRemove {
+					assert.Assert(t, v.closed, "Expected client to be closed")
+				} else {
+					assert.Assert(t, !v.closed, "Client should not be closed")
+				}
+			}
+
+			assert.Assert(t, tt.expectedRes == result)
+		})
+	}
 }

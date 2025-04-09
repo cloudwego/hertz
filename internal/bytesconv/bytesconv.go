@@ -43,7 +43,6 @@ package bytesconv
 
 import (
 	"net/http"
-	"reflect"
 	"sync"
 	"time"
 	"unsafe"
@@ -71,8 +70,13 @@ func LowercaseBytes(b []byte) {
 // Note it may break if string and/or slice header will change
 // in the future go versions.
 func B2s(b []byte) string {
-	/* #nosec G103 */
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+type sliceHeader struct {
+	Data unsafe.Pointer
+	Len  int
+	Cap  int
 }
 
 // S2b converts string to a byte slice without memory allocation.
@@ -80,14 +84,9 @@ func B2s(b []byte) string {
 // Note it may break if string and/or slice header will change
 // in the future go versions.
 func S2b(s string) (b []byte) {
-	/* #nosec G103 */
-	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	/* #nosec G103 */
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh.Data = sh.Data
-	bh.Len = sh.Len
-	bh.Cap = sh.Len
-	return b
+	*(*string)(unsafe.Pointer(&b)) = s
+	(*sliceHeader)(unsafe.Pointer(&b)).Cap = len(s)
+	return
 }
 
 func WriteHexInt(w network.Writer, n int) error {

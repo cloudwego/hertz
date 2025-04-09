@@ -172,7 +172,7 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 //     with ContinueReadBody.
 //   - Or close the connection.
 func (req *Request) MayContinue() bool {
-	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
+	return bytes.Equal(req.Header.peek(consts.HeaderExpect), bytestr.Str100Continue)
 }
 
 // Scheme returns the scheme of the request.
@@ -238,7 +238,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 		return nil, errors.ErrNoMultipartForm
 	}
 
-	ce := req.Header.peek(bytestr.StrContentEncoding)
+	ce := req.Header.peek(consts.HeaderContentEncoding)
 	var err error
 	var f *multipart.Form
 
@@ -411,7 +411,7 @@ func (req *Request) ResetBody() {
 	req.RemoveMultipartFormFiles()
 	req.CloseBodyStream() //nolint:errcheck
 	if req.body != nil {
-		if req.body.Len() <= req.maxKeepBodySize {
+		if req.body.Cap() <= req.maxKeepBodySize {
 			req.body.Reset()
 			return
 		}

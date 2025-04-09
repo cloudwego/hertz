@@ -91,8 +91,7 @@ func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
 }
 
 // Default implementation for signal waiter.
-// SIGTERM triggers immediately close.
-// SIGHUP|SIGINT triggers graceful shutdown.
+// SIGHUP|SIGINT|SIGTERM triggers graceful shutdown.
 func waitSignal(errCh chan error) error {
 	signalToNotify := []os.Signal{syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM}
 	if signal.Ignored(syscall.SIGHUP) {

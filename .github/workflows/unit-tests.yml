@@ -1,0 +1,66 @@
+name: Unit Tests
+
+on: [push, pull_request]
+
+jobs:
+  unit-test-x64:
+    strategy:
+      matrix:
+        version: ["1.19", "1.20", oldstable, stable]
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.version }}
+          cache: false # don't use cache for self-hosted runners
+
+      - name: Unit Test
+        run: go test -race ./...
+
+  unit-test-arm64:
+    strategy:
+      matrix:
+        version: ["1.19", "1.20", oldstable, stable]
+    runs-on: [self-hosted, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.version }}
+          cache: false # don't use cache for self-hosted runners
+
+      - name: Unit Test
+        run: go test -race ./...
+
+  ut-windows:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false # don't use cache for self-hosted runners
+
+      - name: Unit Test
+        run: go test -race ./...
+
+  code-cov:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false # don't use cache for self-hosted runners
+
+      - name: Unit Test
+        run: go test -covermode=atomic -coverprofile=coverage.txt ./...
+
+      - uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true

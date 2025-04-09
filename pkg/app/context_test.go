@@ -117,11 +117,11 @@ func TestIfModifiedSince(t *testing.T) {
 	req.Header.Set(string(bytestr.StrIfModifiedSince), "Mon, 02 Jan 2006 15:04:05 MST")
 	req.CopyTo(&ctx.Request)
 	if !ctx.IfModifiedSince(time.Now()) {
-		t.Fatalf("ifModifiedSice error, expected false, but get true")
+		t.Fatalf("ifModifiedSince error, expected false, but get true")
 	}
 	tt, _ := time.Parse(time.RFC3339, "2004-11-12T11:45:26.371Z")
 	if ctx.IfModifiedSince(tt) {
-		t.Fatalf("ifModifiedSice error, expected true, but get false")
+		t.Fatalf("ifModifiedSince error, expected true, but get false")
 	}
 }
 

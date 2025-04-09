@@ -92,11 +92,12 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Cache](https://github.com/hertz-contrib/cache)                                                    | Hertz middleware for cache HTTP response with multi-backend support                                                                                                            |
 
 ## Blogs
-- [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
+- [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2020/05/24/bytedance-practices-on-go-network-library/)
 - [Ultra-large-scale Enterprise-level Microservice HTTP Framework — Hertz is Officially Open Source!](https://www.cloudwego.io/zh/blog/2022/06/21/%E8%B6%85%E5%A4%A7%E8%A7%84%E6%A8%A1%E7%9A%84%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%BE%AE%E6%9C%8D%E5%8A%A1-http-%E6%A1%86%E6%9E%B6-hertz-%E6%AD%A3%E5%BC%8F%E5%BC%80%E6%BA%90/)
 - [ByteDance Open Source Go HTTP Framework Hertz Design Practice](https://www.cloudwego.io/zh/blog/2022/06/21/%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E5%BC%80%E6%BA%90-go-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
 - [Help ByteDance Reduce Costs and Increase Efficiency, the Design Practice for Large-scale Enterprise-level HTTP Framework Hertz](https://www.cloudwego.io/zh/blog/2022/09/27/%E5%8A%A9%E5%8A%9B%E5%AD%97%E8%8A%82%E9%99%8D%E6%9C%AC%E5%A2%9E%E6%95%88%E5%A4%A7%E8%A7%84%E6%A8%A1%E4%BC%81%E4%B8%9A%E7%BA%A7-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
-- [A Practical Introduction to the HTTP Framework Hertz: A Guide to Performance Testing](https://www.cloudwego.io/zh/blog/2022/11/01/http-%E6%A1%86%E6%9E%B6-hertz-%E5%AE%9E%E8%B7%B5%E5%85%A5%E9%97%A8%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%8C%87%E5%8D%97/)
+- [Getting Started with Hertz: Performance Testing Guide](https://www.cloudwego.io/blog/2023/02/24/getting-started-with-hertz-performance-testing-guide/)
+
 ## Contributing
 
 [Contributing](https://github.com/cloudwego/hertz/blob/main/CONTRIBUTING.md)

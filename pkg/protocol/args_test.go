@@ -130,6 +130,37 @@ func TestArgsVisitAll(t *testing.T) {
 	assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
 }
 
+func TestArgsCopyTo(t *testing.T) {
+	var a Args
+	a.Add("cloudwego", "")
+	a.Add("hello", "world")
+
+	var b Args
+	a.CopyTo(&b)
+	assert.Assert(t, b.Len() == 2)
+	assert.Assert(t, a.Peek("cloudwego") != nil && len(a.Peek("cloudwego")) == 0)
+	assert.Assert(t, string(a.Peek("hello")) == "world")
+	assert.Assert(t, a.Peek("key-not-exists") == nil)
+}
+
+func TestArgsPeek(t *testing.T) {
+	var a Args
+	a.Add("cloudwego", "")
+	a.Add("hello", "world")
+
+	assert.Assert(t, a.Peek("cloudwego") != nil && len(a.Peek("cloudwego")) == 0)
+	assert.Assert(t, string(a.Peek("hello")) == "world")
+	assert.Assert(t, a.Peek("key-not-exists") == nil)
+
+	// reset and reuse
+	a.Reset()
+	a.Add("cloudwego", "")
+	a.Add("hello", "world")
+	assert.Assert(t, a.Peek("cloudwego") != nil && len(a.Peek("cloudwego")) == 0)
+	assert.Assert(t, string(a.Peek("hello")) == "world")
+	assert.Assert(t, a.Peek("key-not-exists") == nil)
+}
+
 func TestArgsPeekMulti(t *testing.T) {
 	var a Args
 	a.Add("cloudwego", "hertz")
@@ -141,7 +172,7 @@ func TestArgsPeekMulti(t *testing.T) {
 	expectedVV := [][]byte{
 		[]byte("hertz"),
 		[]byte("kitex"),
-		[]byte(nil),
+		[]byte{},
 	}
 	assert.DeepEqual(t, expectedVV, vv)
 

@@ -258,8 +258,8 @@ func (h *RequestHeader) Add(key, value string) {
 	if h.setSpecialHeader(bytesconv.S2b(key), bytesconv.S2b(value)) {
 		return
 	}
-
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	h.h = appendArg(h.h, bytesconv.B2s(k), value, ArgsHasValue)
 }
 
@@ -336,7 +336,7 @@ func (h *RequestHeader) GetBufValue() []byte {
 // HasAcceptEncodingBytes returns true if the header contains
 // the given Accept-Encoding value.
 func (h *RequestHeader) HasAcceptEncodingBytes(acceptEncoding []byte) bool {
-	ae := h.peek(bytestr.StrAcceptEncoding)
+	ae := h.peek(consts.HeaderAcceptEncoding)
 	n := bytes.Index(ae, acceptEncoding)
 	if n < 0 {
 		return false
@@ -352,7 +352,7 @@ func (h *RequestHeader) HasAcceptEncodingBytes(acceptEncoding []byte) bool {
 }
 
 func (h *RequestHeader) PeekIfModifiedSinceBytes() []byte {
-	return h.peek(bytestr.StrIfModifiedSince)
+	return h.peek(consts.HeaderIfModifiedSince)
 }
 
 // RequestURI returns RequestURI from the first HTTP request line.
@@ -551,8 +551,8 @@ func (h *ResponseHeader) Add(key, value string) {
 	if h.setSpecialHeader(bytesconv.S2b(key), bytesconv.S2b(value)) {
 		return
 	}
-
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	h.h = appendArg(h.h, bytesconv.B2s(k), value, ArgsHasValue)
 }
 
@@ -622,9 +622,9 @@ func (h *ResponseHeader) DelCookieBytes(key []byte) {
 
 // DelBytes deletes header with the given key.
 func (h *ResponseHeader) DelBytes(key []byte) {
-	h.bufKV.key = append(h.bufKV.key[:0], key...)
-	utils.NormalizeHeaderKey(h.bufKV.key, h.disableNormalizing)
-	h.del(h.bufKV.key)
+	k := []byte(string(key))
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
+	h.del(k)
 }
 
 // Header returns response header representation.
@@ -636,7 +636,7 @@ func (h *ResponseHeader) Header() []byte {
 }
 
 func (h *ResponseHeader) PeekLocation() []byte {
-	return h.peek(bytestr.StrLocation)
+	return h.peek(consts.HeaderLocation)
 }
 
 // DelClientCookie instructs the client to remove the given cookie.
@@ -684,8 +684,9 @@ func (h *ResponseHeader) DelClientCookieBytes(key []byte) {
 // Returned value is valid until the next call to ResponseHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *ResponseHeader) Peek(key string) []byte {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
-	return h.peek(k)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
+	return h.peek(bytesconv.B2s(k))
 }
 
 func (h *ResponseHeader) IsDisableNormalizing() bool {
@@ -699,8 +700,8 @@ func (h *ResponseHeader) ParseSetCookie(value []byte) {
 	kv.value = append(kv.value[:0], value...)
 }
 
-func (h *ResponseHeader) peek(key []byte) []byte {
-	switch string(key) {
+func (h *ResponseHeader) peek(key string) []byte {
+	switch key {
 	case consts.HeaderContentType:
 		return h.ContentType()
 	case consts.HeaderContentEncoding:
@@ -711,7 +712,7 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 		if h.ConnectionClose() {
 			return bytestr.StrClose
 		}
-		return peekArgBytes(h.h, key)
+		return peekArgStr(h.h, key)
 	case consts.HeaderContentLength:
 		return h.contentLengthBytes
 	case consts.HeaderSetCookie:
@@ -719,7 +720,7 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 	case consts.HeaderTrailer:
 		return h.Trailer().GetBytes()
 	default:
-		return peekArgBytes(h.h, key)
+		return peekArgStr(h.h, key)
 	}
 }
 
@@ -730,7 +731,8 @@ func (h *ResponseHeader) peek(key []byte) []byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use ResponseHeader.GetAll(key) instead.
 func (h *ResponseHeader) PeekAll(key string) [][]byte {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	return h.peekAll(k)
 }
 
@@ -772,7 +774,8 @@ func (h *ResponseHeader) peekAll(key []byte) [][]byte {
 // Any future calls to the Peek* will modify the returned value.
 // Do not store references to returned value. Use RequestHeader.GetAll(key) instead.
 func (h *RequestHeader) PeekAll(key string) [][]byte {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	return h.peekAll(k)
 }
 
@@ -984,7 +987,8 @@ func (h *ResponseHeader) StatusCode() int {
 
 // Del deletes header with the given key.
 func (h *ResponseHeader) Del(key string) {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	h.del(k)
 }
 
@@ -1013,7 +1017,8 @@ func (h *ResponseHeader) del(key []byte) {
 //
 // Use AddBytesV for setting multiple header values under the same key.
 func (h *ResponseHeader) SetBytesV(key string, value []byte) {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	h.SetCanonical(k, value)
 }
 
@@ -1064,14 +1069,15 @@ func (h *RequestHeader) SetByteRange(startPos, endPos int) {
 
 // DelBytes deletes header with the given key.
 func (h *RequestHeader) DelBytes(key []byte) {
-	h.bufKV.key = append(h.bufKV.key[:0], key...)
-	utils.NormalizeHeaderKey(h.bufKV.key, h.disableNormalizing)
-	h.del(h.bufKV.key)
+	k := []byte(string(key))
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
+	h.del(k)
 }
 
 // Del deletes header with the given key.
 func (h *RequestHeader) Del(key string) {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
 	h.del(k)
 }
 
@@ -1128,8 +1134,9 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 // Returned value is valid until the next call to RequestHeader.
 // Do not store references to returned value. Make copies instead.
 func (h *RequestHeader) Peek(key string) []byte {
-	k := getHeaderKeyBytes(&h.bufKV, key, h.disableNormalizing)
-	return h.peek(k)
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
+	return h.peek(bytesconv.B2s(k))
 }
 
 // SetMultipartFormBoundary sets the following Content-Type:
@@ -1277,9 +1284,9 @@ func (h *RequestHeader) SetRequestURIBytes(requestURI []byte) {
 //
 // Use AddBytesKV for setting multiple header values under the same key.
 func (h *RequestHeader) SetBytesKV(key, value []byte) {
-	h.bufKV.key = append(h.bufKV.key[:0], key...)
-	utils.NormalizeHeaderKey(h.bufKV.key, h.disableNormalizing)
-	h.SetCanonical(h.bufKV.key, value)
+	k := []byte(string(key))
+	utils.NormalizeHeaderKey(k, h.disableNormalizing)
+	h.SetCanonical(k, value)
 }
 
 func (h *RequestHeader) AddArgBytes(key, value []byte, noValue bool) {
@@ -1324,11 +1331,11 @@ func (h *RequestHeader) Cookies() []*Cookie {
 }
 
 func (h *RequestHeader) PeekRange() []byte {
-	return h.peek(bytestr.StrRange)
+	return h.peek(consts.HeaderRange)
 }
 
 func (h *RequestHeader) PeekContentEncoding() []byte {
-	return h.peek(bytestr.StrContentEncoding)
+	return h.peek(consts.HeaderContentEncoding)
 }
 
 // FullCookie returns complete cookie bytes
@@ -1409,7 +1416,8 @@ func (h *RequestHeader) Set(key, value string) {
 }
 
 func initHeaderKV(kv *argsKV, key, value string, disableNormalizing bool) {
-	kv.key = getHeaderKeyBytes(kv, key, disableNormalizing)
+	kv.key = append(kv.key[:0], key...)
+	utils.NormalizeHeaderKey(kv.key, disableNormalizing)
 	kv.value = append(kv.value[:0], value...)
 }
 
@@ -1598,8 +1606,8 @@ func appendArg(args []argsKV, key, value string, noValue bool) []argsKV {
 	return args
 }
 
-func (h *RequestHeader) peek(key []byte) []byte {
-	switch string(key) {
+func (h *RequestHeader) peek(key string) []byte {
+	switch key {
 	case consts.HeaderHost:
 		return h.Host()
 	case consts.HeaderContentType:
@@ -1610,18 +1618,18 @@ func (h *RequestHeader) peek(key []byte) []byte {
 		if h.ConnectionClose() {
 			return bytestr.StrClose
 		}
-		return peekArgBytes(h.h, key)
+		return peekArgStr(h.h, key)
 	case consts.HeaderContentLength:
 		return h.contentLengthBytes
 	case consts.HeaderCookie:
 		if h.cookiesCollected {
 			return appendRequestCookieBytes(nil, h.cookies)
 		}
-		return peekArgBytes(h.h, key)
+		return peekArgStr(h.h, key)
 	case consts.HeaderTrailer:
 		return h.Trailer().GetBytes()
 	default:
-		return peekArgBytes(h.h, key)
+		return peekArgStr(h.h, key)
 	}
 }
 
@@ -1691,12 +1699,6 @@ func UpdateServerDate() {
 func refreshServerDate() {
 	b := bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), time.Now())
 	ServerDate.Store(b)
-}
-
-func getHeaderKeyBytes(kv *argsKV, key string, disableNormalizing bool) []byte {
-	kv.key = append(kv.key[:0], key...)
-	utils.NormalizeHeaderKey(kv.key, disableNormalizing)
-	return kv.key
 }
 
 // SetMethodBytes sets HTTP request method.

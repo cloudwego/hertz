@@ -219,7 +219,7 @@ func TestRequestSuccess(t *testing.T) {
 	testRequestSuccess(t, consts.MethodPost, "/bbb", "aaa.com", "Chrome aaa", "post body", consts.MethodPost)
 
 	// PUT method with body
-	testRequestSuccess(t, consts.MethodPut, "/aa/bb", "a.com", "ome aaa", "put body", consts.MethodPut)
+	testRequestSuccess(t, consts.MethodPut, "/aa/bb", "a.com", "aaa", "put body", consts.MethodPut)
 
 	// only host is set
 	testRequestSuccess(t, "", "", "gooble.com", "", "", consts.MethodGet)

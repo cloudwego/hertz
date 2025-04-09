@@ -656,3 +656,13 @@ func TestDialTimeout(t *testing.T) {
 
 	c.Do(context.Background(), req, resp)
 }
+
+func TestContextNil(t *testing.T) {
+	defer func() {
+		v := recover()
+		assert.NotNil(t, v)
+		assert.True(t, fmt.Sprint(v) == "ctx is nil")
+	}()
+	c := &HostClient{}
+	c.Do(nil, nil, nil) //nolint:staticcheck // SA1012: do not pass a nil Context
+}

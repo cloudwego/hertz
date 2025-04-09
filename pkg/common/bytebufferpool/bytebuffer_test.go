@@ -47,6 +47,8 @@ import (
 	"io"
 	"testing"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestByteBufferReadFrom(t *testing.T) {
@@ -73,6 +75,7 @@ func TestByteBufferReadFrom(t *testing.T) {
 		if bbLen != expectedLen {
 			t.Fatalf("unexpected byteBuffer length: %d. Expecting %d", bbLen, expectedLen)
 		}
+		assert.True(t, bb.Cap() >= int(expectedLen))
 		for j := 0; j < i; j++ {
 			start := prefixLen + int64(j)*expectedN
 			b := bb.B[start : start+expectedN]
@@ -104,6 +107,7 @@ func TestByteBufferWriteTo(t *testing.T) {
 			t.Fatalf("unexpected string written %q. Expecting %q", s, expectedS)
 		}
 		w.Reset()
+		assert.True(t, bb.Cap() >= len(expectedS))
 	}
 }
 

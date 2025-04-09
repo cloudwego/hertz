@@ -1,11 +1,11 @@
 module github.com/cloudwego/hertz
 
-go 1.17
+go 1.19
 
 require (
 	github.com/bytedance/gopkg v0.1.0
 	github.com/bytedance/mockey v1.2.12
-	github.com/bytedance/sonic v1.12.7
+	github.com/bytedance/sonic v1.13.2
 	github.com/cloudwego/netpoll v0.6.4
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/nyaruka/phonenumbers v1.0.55
@@ -17,8 +17,8 @@ require (
 )
 
 require (
-	github.com/bytedance/sonic/loader v0.2.2 // indirect
-	github.com/cloudwego/base64x v0.1.4 // indirect
+	github.com/bytedance/sonic/loader v0.2.4 // indirect
+	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
