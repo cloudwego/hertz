@@ -572,6 +572,7 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 }
 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	var isCustomValidator bool
 	// init validator
 	if opt.CustomValidator != nil {
 		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
@@ -579,6 +580,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 			panic("customized validator does not implement binding.StructValidator")
 		}
 		engine.validator = customValidator
+		isCustomValidator = true
 	} else {
 		engine.validator = binding.NewValidator(binding.NewValidateConfig())
 		if opt.ValidateConfig != nil {
@@ -587,6 +589,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
 			}
 			engine.validator = binding.NewValidator(vConf)
+			isCustomValidator = true
 		}
 	}
 
@@ -607,7 +610,8 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		if !ok {
 			panic("opt.BindConfig is not the '*binding.BindConfig' type")
 		}
-		if bConf.Validator == nil {
+		// optimize: user customized validator has the highest priority
+		if isCustomValidator || bConf.Validator == nil {
 			bConf.Validator = engine.validator
 		}
 		engine.binder = binding.NewDefaultBinder(bConf)
