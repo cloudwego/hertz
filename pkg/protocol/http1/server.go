@@ -28,6 +28,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network/standard"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
@@ -137,7 +138,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	// for sensing connection close
 	var (
 		configuredSenseConnClose = standard.CtxWithStandardTransport(c) // check if we are using standard transport and senseConnClose is configured
-		statefulConn             standard.StatefulConn
+		statefulConn             internalNetwork.StatefulConn
 	)
 	if configuredSenseConnClose {
 		statefulConn = standard.NewStatefulConn(c, conn)
