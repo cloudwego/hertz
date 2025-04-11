@@ -40,7 +40,7 @@ func getListenerAddr(trans network.Transporter) string {
 
 func TestDial(t *testing.T) {
 	const nw = "tcp"
-	var addr = "127.0.0.1:0"
+	addr := "127.0.0.1:0"
 	transporter := NewTransporter(&config.Options{
 		Addr:    addr,
 		Network: nw,
@@ -65,7 +65,7 @@ func TestDial(t *testing.T) {
 
 func TestDialTLS(t *testing.T) {
 	const nw = "tcp"
-	var addr = "127.0.0.1:0"
+	addr := "127.0.0.1:0"
 	data := []byte("abcdefg")
 	listened := make(chan net.Listener)
 	go func() {
