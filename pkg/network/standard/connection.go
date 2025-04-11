@@ -576,12 +576,20 @@ func (c *Conn) readErr() error {
 	return err
 }
 
+func (c *Conn) rawConn() net.Conn {
+	return c.c
+}
+
 func (c *TLSConn) Handshake() error {
 	return c.c.(network.ConnTLSer).Handshake()
 }
 
 func (c *TLSConn) ConnectionState() tls.ConnectionState {
 	return c.c.(network.ConnTLSer).ConnectionState()
+}
+
+func (c *TLSConn) rawConn() net.Conn {
+	return c.c
 }
 
 func newConn(c net.Conn, size int) network.Conn {
@@ -642,6 +650,10 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 			maxSize:      maxSize,
 		},
 	}
+}
+
+type rawConn interface {
+	rawConn() net.Conn
 }
 
 var earliestTime = time.Unix(1, 0)
@@ -747,7 +759,7 @@ func (c *statefulConn) DetectConnectionClose(ctx context.Context) {
 		// err != nil:
 		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
 		// 2. other connection error (e.g. EOF), cancel the context
-		rc := c.Conn.(*Conn).c
+		rc := c.Conn.(rawConn).rawConn() // TLSConn or Conn
 		n, err := rc.Read(c.buf[:])
 		c.mu.Lock()
 		c.isReading = false
