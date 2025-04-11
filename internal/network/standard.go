@@ -16,13 +16,14 @@ package network
 
 import (
 	"context"
+
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
 type StatefulConn interface {
 	network.Conn
-	DetectConnectionClose(context.Context)
-	AbortBlockingRead(context.Context)
-	OnConnectionError(context.Context, error)
+	DetectConnectionClose()
+	AbortBlockingRead()
+	OnConnectionError(error)
 	Context() context.Context
 }
