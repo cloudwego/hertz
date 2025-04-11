@@ -30,6 +30,7 @@ import (
 
 	"github.com/bytedance/gopkg/lang/dirtmake"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -645,17 +646,9 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 
 var earliestTime = time.Unix(1, 0)
 
-type StatefulConn interface {
-	network.Conn
-	DetectConnectionClose(context.Context)
-	AbortBlockingRead(context.Context)
-	OnConnectionError(context.Context, error)
-	Context() context.Context
-}
+var _ internalNetwork.StatefulConn = &statefulConn{}
 
-var _ StatefulConn = &statefulConn{}
-
-func NewStatefulConn(ctx context.Context, c network.Conn) StatefulConn {
+func NewStatefulConn(ctx context.Context, c network.Conn) internalNetwork.StatefulConn {
 	ctx, cancelCtx := context.WithCancel(ctx)
 	return &statefulConn{
 		Conn:      c,
