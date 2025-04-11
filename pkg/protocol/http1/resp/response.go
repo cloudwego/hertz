@@ -89,13 +89,8 @@ func GetHTTP1Response(resp *protocol.Response) fmt.Stringer {
 	return &h1Response{resp}
 }
 
-// ReadHeaderAndLimitBody reads response from the given r, limiting the body size.
-//
-// If maxBodySize > 0 and the body size exceeds maxBodySize,
-// then ErrBodyTooLarge is returned.
-//
-// io.EOF is returned if r is closed before reading the first header byte.
-func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySize int) error {
+// ReadHeaders reads http header into *protocol.Response
+func ReadHeaders(resp *protocol.Response, r network.Reader) error {
 	resp.ResetBody()
 	err := ReadHeader(&resp.Header, r)
 	if err != nil {
@@ -107,23 +102,40 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 			return err
 		}
 	}
+	return nil
+}
 
-	if !resp.MustSkipBody() {
-		bodyBuf := resp.BodyBuffer()
-		bodyBuf.Reset()
-		bodyBuf.B, err = ext.ReadBody(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
-		if err != nil {
+// ReadHeaderAndLimitBody ...
+func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySize int) error {
+	if err := ReadHeaders(resp, r); err != nil {
+		return err
+	}
+	return ReadRespBody(resp, r, maxBodySize)
+}
+
+// ReadRespBody reads response body from the given r, limiting the body size.
+//
+// If maxBodySize > 0 and the body size exceeds maxBodySize,
+// then ErrBodyTooLarge is returned.
+//
+// io.EOF is returned if r is closed before reading the first header byte.
+func ReadRespBody(resp *protocol.Response, r network.Reader, maxBodySize int) (err error) {
+	if resp.MustSkipBody() {
+		return nil
+	}
+	bodyBuf := resp.BodyBuffer()
+	bodyBuf.Reset()
+	bodyBuf.B, err = ext.ReadBody(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
+	if err != nil {
+		return err
+	}
+	if resp.Header.ContentLength() == -1 {
+		err = ext.ReadTrailer(resp.Header.Trailer(), r)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		if resp.Header.ContentLength() == -1 {
-			err = ext.ReadTrailer(resp.Header.Trailer(), r)
-			if err != nil && err != io.EOF {
-				return err
-			}
-		}
-		resp.Header.SetContentLength(len(bodyBuf.B))
 	}
-
+	resp.Header.SetContentLength(len(bodyBuf.B))
 	return nil
 }
 
@@ -173,25 +185,24 @@ func convertClientRespStream(bs io.Reader, fn func(shouldClose bool) error) *cli
 	return clientStream
 }
 
-// ReadBodyStream reads response body in stream
-func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, closeCallBack func(shouldClose bool) error) error {
-	resp.ResetBody()
-	err := ReadHeader(&resp.Header, r)
-	if err != nil {
+// ReadHeaderBodyStream ...
+func ReadHeaderBodyStream(resp *protocol.Response, r network.Reader,
+	maxBodySize int, closeCallBack func(shouldClose bool) error) error {
+	if err := ReadHeaders(resp, r); err != nil {
 		return err
 	}
+	return ReadRespBodyStream(resp, r, maxBodySize, closeCallBack)
+}
 
-	if resp.Header.StatusCode() == consts.StatusContinue {
-		// Read the next response according to http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html .
-		if err = ReadHeader(&resp.Header, r); err != nil {
-			return err
-		}
-	}
+// Deprecated: use ReadHeaderBodyStream
+var ReadBodyStream = ReadHeaderBodyStream
 
+// ReadRespBodyStream reads response body in stream
+func ReadRespBodyStream(resp *protocol.Response, r network.Reader,
+	maxBodySize int, closeCallBack func(shouldClose bool) error) (err error) {
 	if resp.MustSkipBody() {
 		return nil
 	}
-
 	bodyBuf := resp.BodyBuffer()
 	bodyBuf.Reset()
 	bodyBuf.B, err = ext.ReadBodyWithStreaming(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
@@ -211,7 +222,6 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 		resp.Reset()
 		return err
 	}
-
 	bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), resp.Header.ContentLength())
 	resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 	return nil
