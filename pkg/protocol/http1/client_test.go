@@ -64,6 +64,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -145,6 +146,36 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 	}
 }
 
+func TestReadHeaderErr(t *testing.T) {
+	ln, _ := net.Listen("tcp", "localhost:0")
+	defer ln.Close()
+	svr := http.Server{}
+	svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj := w.(http.Hijacker)
+		conn, rw, err := hj.Hijack()
+		assert.Nil(t, err)
+		defer conn.Close()
+		rw.Write([]byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Ty"))
+		rw.Flush()
+	})
+	go svr.Serve(ln)
+
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+	req.SetRequestURI("http://" + ln.Addr().String())
+
+	resp := protocol.AcquireResponse()
+	defer protocol.ReleaseResponse(resp)
+	c := &HostClient{
+		Addr: ln.Addr().String(),
+		ClientOptions: &ClientOptions{
+			Dialer: dialer.DefaultDialer(),
+		},
+	}
+	err := c.Do(context.Background(), req, resp)
+	assert.NotNil(t, err)
+}
+
 func TestResponseReadBodyStream(t *testing.T) {
 	// small body
 	genBody := "abcdef4343"
@@ -182,7 +213,7 @@ func TestResponseReadBodyStream(t *testing.T) {
 func testContinueReadResponseBodyStream(t *testing.T, header, body string, maxBodySize, firstRead, leftBytes, bytesLeftInReader int) {
 	mr := netpoll.NewReader(bytes.NewBufferString(header + body))
 	var r protocol.Response
-	if err := resp.ReadBodyStream(&r, mr, maxBodySize, nil); err != nil {
+	if err := resp.ReadHeaderBodyStream(&r, mr, maxBodySize, nil); err != nil {
 		t.Fatalf("error when reading request body stream: %s", err)
 	}
 	fRead := firstRead
@@ -257,7 +288,7 @@ func TestReadTimeoutPriority(t *testing.T) {
 
 	req := protocol.AcquireRequest()
 	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithReadTimeout(time.Second * 1))
+	req.SetOptions(config.WithReadTimeout(200 * time.Millisecond))
 	resp := protocol.AcquireResponse()
 
 	ch := make(chan error, 1)
@@ -312,7 +343,52 @@ func TestDoNonNilReqResp1(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestConnUpgrade(t *testing.T) {
+func doGET(t *testing.T, addr string, path string) *protocol.Response {
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+	req.SetRequestURI("http://" + addr + path)
+
+	resp := protocol.AcquireResponse()
+	c := &HostClient{
+		Addr: addr,
+		ClientOptions: &ClientOptions{
+			Dialer: dialer.DefaultDialer(),
+		},
+	}
+	err := c.Do(context.Background(), req, resp)
+	assert.Nil(t, err)
+	return resp
+}
+
+func TestStreamResponse_EventStream(t *testing.T) {
+	ln, _ := net.Listen("tcp", "localhost:0")
+	defer ln.Close()
+	svr := http.Server{}
+	svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		f := w.(http.Flusher)
+		for i := 0; i < 5; i++ {
+			_, err := w.Write([]byte(fmt.Sprintf("data:%d", i)))
+			assert.Nil(t, err)
+			f.Flush() // Transfer-Encoding chunked
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
+	go svr.Serve(ln)
+
+	resp := doGET(t, ln.Addr().String(), "/")
+	defer protocol.ReleaseResponse(resp)
+	assert.Assert(t, resp.IsBodyStream())
+	r := resp.BodyStream()
+	b := make([]byte, 10)
+	for i := 0; i < 5; i++ {
+		n, err := r.Read(b)
+		assert.Nil(t, err)
+		assert.Assert(t, string(b[:n]) == fmt.Sprintf("data:%d", i))
+	}
+}
+
+func TestStreamResponse_ConnUpgrade(t *testing.T) {
 	ln, _ := net.Listen("tcp", "localhost:0")
 	defer ln.Close()
 	svr := http.Server{}
@@ -346,16 +422,8 @@ func TestConnUpgrade(t *testing.T) {
 	})
 	go svr.Serve(ln)
 
-	c := &HostClient{
-		Addr:          ln.Addr().String(),
-		ClientOptions: &ClientOptions{},
-	}
-	req := protocol.AcquireRequest()
-	req.SetRequestURI("http://" + ln.Addr().String() + "/")
-	resp := protocol.AcquireResponse()
-	retry, err := c.doNonNilReqResp(req, resp)
-	assert.False(t, retry)
-	assert.Nil(t, err)
+	resp := doGET(t, ln.Addr().String(), "/")
+	defer protocol.ReleaseResponse(resp)
 	assert.DeepEqual(t, resp.StatusCode(), 101)
 
 	s := resp.BodyStream()
@@ -385,7 +453,7 @@ func TestWriteTimeoutPriority(t *testing.T) {
 
 	req := protocol.AcquireRequest()
 	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithWriteTimeout(time.Second * 1))
+	req.SetOptions(config.WithWriteTimeout(200 * time.Millisecond))
 	resp := protocol.AcquireResponse()
 
 	ch := make(chan error, 1)
@@ -413,7 +481,7 @@ func TestDialTimeoutPriority(t *testing.T) {
 
 	req := protocol.AcquireRequest()
 	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithDialTimeout(time.Second * 1))
+	req.SetOptions(config.WithDialTimeout(200 * time.Millisecond))
 	resp := protocol.AcquireResponse()
 
 	ch := make(chan error, 1)
