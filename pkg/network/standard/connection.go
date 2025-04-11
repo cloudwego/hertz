@@ -742,7 +742,7 @@ func (c *statefulConn) Read(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (c *statefulConn) DetectConnectionClose(ctx context.Context) {
+func (c *statefulConn) DetectConnectionClose() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -771,7 +771,7 @@ func (c *statefulConn) DetectConnectionClose(ctx context.Context) {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
 				// ignore the error triggered by AbortBlockingRead
 			} else {
-				c.OnConnectionError(c.ctx, err)
+				c.OnConnectionError(err)
 			}
 		}
 
@@ -782,7 +782,7 @@ func (c *statefulConn) DetectConnectionClose(ctx context.Context) {
 	}()
 }
 
-func (c *statefulConn) AbortBlockingRead(ctx context.Context) {
+func (c *statefulConn) AbortBlockingRead() {
 	var isReading bool
 	c.mu.Lock()
 	isReading = c.isReading
@@ -795,6 +795,6 @@ func (c *statefulConn) AbortBlockingRead(ctx context.Context) {
 	}
 }
 
-func (c *statefulConn) OnConnectionError(ctx context.Context, err error) {
+func (c *statefulConn) OnConnectionError(err error) {
 	c.cancelCtx()
 }

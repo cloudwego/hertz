@@ -106,7 +106,9 @@ func (t *transport) serve() (err error) {
 		}
 
 		if t.senseClientDisconnection {
-			ctx = newCtxWithTransportKey(ctx)
+			sc := NewStatefulConn(ctx, c)
+			ctx = sc.Context()
+			c = sc
 		}
 
 		go func(ctx context.Context, conn network.Conn) {
@@ -172,15 +174,6 @@ func (t *transport) Shutdown(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
-}
-
-func newCtxWithTransportKey(ctx context.Context) context.Context {
-	return context.WithValue(ctx, standardTransportCtxKey{}, struct{}{})
-}
-
-// CtxWithStandardTransport is used to check if standardTransportCtxKey is in context
-func CtxWithStandardTransport(ctx context.Context) bool {
-	return ctx.Value(standardTransportCtxKey{}) != nil
 }
 
 // For transporter switch

@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
+
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
 )
@@ -49,7 +51,8 @@ func TestTransporter(t *testing.T) {
 	resp := "world"
 	trans := NewTransporter(&config.Options{Network: "tcp", Addr: "127.0.0.1:0", SenseClientDisconnection: true}).(*transport)
 	go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
-		if !CtxWithStandardTransport(ctx) {
+		_, isStatefulConn := conn.(internalNetwork.StatefulConn)
+		if !isStatefulConn {
 			t.Fatal("SenseClientDisconnection configure failed")
 		}
 		c := conn.(network.Conn)

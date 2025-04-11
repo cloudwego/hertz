@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/network/standard"
-
 	"github.com/cloudwego/hertz/internal/bytestr"
 	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
@@ -136,14 +134,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	)
 
 	// for sensing connection close
-	var (
-		configuredSenseConnClose = standard.CtxWithStandardTransport(c) // check if we are using standard transport and senseConnClose is configured
-		statefulConn             internalNetwork.StatefulConn
-	)
-	if configuredSenseConnClose {
-		statefulConn = standard.NewStatefulConn(c, conn)
-		cc = statefulConn.Context()
-	}
+	// only if `conn` is internalNetwork.StatefulConn
+	statefulConn, configuredSenseConnClose := conn.(internalNetwork.StatefulConn)
 
 	if s.EnableTrace {
 		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
@@ -179,11 +171,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	}()
 
 	ctx.HTMLRender = s.HTMLRender
-	if configuredSenseConnClose {
-		ctx.SetConn(statefulConn)
-	} else {
-		ctx.SetConn(conn)
-	}
+	ctx.SetConn(conn)
+
 	ctx.Request.SetIsTLS(s.TLS != nil)
 	ctx.SetEnableTrace(s.EnableTrace)
 
@@ -313,7 +302,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 					err = req.ContinueReadBody(&ctx.Request, zr, s.MaxRequestBodySize, !s.DisablePreParseMultipartForm)
 					if senseConnClose && err != nil {
 						// cancel if Read error
-						statefulConn.OnConnectionError(cc, err)
+						statefulConn.OnConnectionError(err)
 					}
 				}
 
@@ -340,7 +329,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// If request sets BodyStream, we don't start connection close detection logic to prevent concurrent Read.
 		senseConnClose = senseConnClose && !ctx.Request.IsBodyStream()
 		if senseConnClose {
-			statefulConn.DetectConnectionClose(context.TODO())
+			statefulConn.DetectConnectionClose()
 		}
 
 		// Handle the request
@@ -399,7 +388,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if senseConnClose {
 			// this should be sync to wait the blocking read return.
 			// we should make sure the read is not affected by other SetReadDeadline.
-			statefulConn.AbortBlockingRead(context.TODO())
+			statefulConn.AbortBlockingRead()
 		}
 
 		// Release the zeroCopyReader before flush to prevent data race
