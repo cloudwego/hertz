@@ -404,7 +404,7 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 
 	contentType := h.ContentType()
 	if len(contentType) == 0 && !h.IgnoreBody() && !h.noDefaultContentType {
-		contentType = bytestr.StrPostArgsContentType
+		contentType = bytestr.MIMEPostForm
 	}
 	if len(contentType) > 0 {
 		dst = appendHeaderLine(dst, bytestr.StrContentType, contentType)
@@ -1144,7 +1144,7 @@ func (h *RequestHeader) Peek(key string) []byte {
 // where ... is substituted by the given boundary.
 func (h *RequestHeader) SetMultipartFormBoundary(boundary string) {
 	b := h.bufKV.value[:0]
-	b = append(b, bytestr.StrMultipartFormData...)
+	b = append(b, bytestr.MIMEFormData...)
 	b = append(b, ';', ' ')
 	b = append(b, bytestr.StrBoundary...)
 	b = append(b, '=')
@@ -1202,10 +1202,10 @@ func (h *RequestHeader) InitContentLengthWithValue(contentLength int) {
 // from 'multipart/form-data; boundary=...' Content-Type.
 func (h *RequestHeader) MultipartFormBoundary() []byte {
 	b := h.ContentType()
-	if !bytes.HasPrefix(b, bytestr.StrMultipartFormData) {
+	if !bytes.HasPrefix(b, bytestr.MIMEFormData) {
 		return nil
 	}
-	b = b[len(bytestr.StrMultipartFormData):]
+	b = b[len(bytestr.MIMEFormData):]
 	if len(b) == 0 || b[0] != ';' {
 		return nil
 	}
