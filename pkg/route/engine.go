@@ -312,9 +312,17 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	opt := engine.GetOptions()
+	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most %s ...", opt.ExitWaitTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, opt.ExitWaitTimeout)
+	defer cancel()
+
 	ch := make(chan struct{})
-	// trigger hooks if any
-	go engine.executeOnShutdownHooks(ctx, ch)
+	go func() {
+		defer close(ch)
+		engine.executeOnShutdownHooks(ctx)
+	}()
 
 	defer func() {
 		// ensure that the hook is executed until wait timeout or finish
@@ -328,7 +336,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		}
 	}()
 
-	if opt := engine.options; opt != nil && opt.Registry != nil {
+	if opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
 			hlog.SystemLogger().Errorf("Deregister error=%v", err)
 			return err
@@ -343,7 +351,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	return
 }
 
-func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context) {
 	wg := sync.WaitGroup{}
 	for i := range engine.OnShutdown {
 		wg.Add(1)
@@ -353,7 +361,6 @@ func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct
 		}(i)
 	}
 	wg.Wait()
-	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {

@@ -889,11 +889,18 @@ func newMockStandardTransporter(opt *config.Options) network.Transporter {
 }
 
 func TestEngineShutdown(t *testing.T) {
-	mockCtxCallback := func(ctx context.Context) {}
-
 	opt := config.NewOptions(nil)
 	opt.Addr = "127.0.0.1:0"
 	opt.TransporterNewer = newMockStandardTransporter
+
+	mockCtxCallback := func(ctx context.Context) {
+		// Shutdown adds `ExitWaitTimeout` to the given context
+		dl, ok := ctx.Deadline()
+		assert.Assert(t, ok)
+		assert.Assert(t,
+			opt.ExitWaitTimeout-time.Until(dl) < 50*time.Millisecond, // runtime schedule latency
+			opt.ExitWaitTimeout, time.Until(dl))
+	}
 
 	var wg sync.WaitGroup
 	var engine *Engine
