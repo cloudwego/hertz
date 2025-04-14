@@ -195,6 +195,7 @@ func TestReadBytes(t *testing.T) {
 	}
 }
 
+// These tests are used to check if statefulConn affect the normal conn function
 func TestStatefulConnRead(t *testing.T) {
 	c := &mockConn{}
 	conn := NewStatefulConn(context.Background(), newConn(c, 4096))
@@ -353,6 +354,78 @@ func TestStatefulConnReadBytes(t *testing.T) {
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
 	}
+}
+
+// wrapConn returns a statefulConn wrapping a real TCP conn
+func wrapConn(t *testing.T) (server *statefulConn, client net.Conn) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan net.Conn)
+	go func() {
+		conn, _ := ln.Accept()
+		done <- conn
+	}()
+
+	cli, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverConn := <-done
+
+	svr := NewStatefulConn(context.Background(), newConn(serverConn, 4096)).(*statefulConn)
+	return svr, cli
+}
+
+func TestStatefulConnConnectionCloseDetection(t *testing.T) {
+	svrConn, cliConn := wrapConn(t)
+	defer svrConn.Close()
+
+	ctx := svrConn.Context()
+	// 1. normal request
+	svrConn.DetectConnectionClose()
+
+	svrConn.mu.Lock()
+	assert.True(t, svrConn.startDetection)
+	assert.True(t, svrConn.isReading)
+	svrConn.mu.Unlock()
+
+	svrConn.AbortBlockingRead()
+	select {
+	case <-ctx.Done():
+		t.Fatal("ctx should not be canceled")
+	default:
+	}
+	svrConn.mu.Lock()
+	assert.True(t, !svrConn.startDetection)
+	svrConn.mu.Unlock()
+
+	// 2. client close conn
+	svrConn.DetectConnectionClose()
+
+	svrConn.mu.Lock()
+	assert.True(t, svrConn.startDetection)
+	assert.True(t, svrConn.isReading)
+	svrConn.mu.Unlock()
+
+	cliConn.Close()
+	time.Sleep(100 * time.Millisecond) // wait a while
+
+	svrConn.mu.Lock()
+	assert.True(t, !svrConn.isReading)
+	svrConn.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		// expected
+	default:
+		t.Fatal("ctx should be canceled")
+	}
+	svrConn.mu.Lock()
+	assert.True(t, !svrConn.startDetection)
+	svrConn.mu.Unlock()
 }
 
 func TestWriteLogic(t *testing.T) {

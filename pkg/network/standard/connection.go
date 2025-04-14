@@ -672,14 +672,15 @@ func NewStatefulConn(ctx context.Context, c network.Conn) internalNetwork.Statef
 
 type statefulConn struct {
 	network.Conn
-	ctx       context.Context
-	cancelCtx context.CancelFunc
-	mu        sync.Mutex
-	buf       [1]byte
-	hasBuf    bool
-	isReading bool
-	aborted   bool
-	ch        chan struct{}
+	ctx            context.Context
+	cancelCtx      context.CancelFunc
+	mu             sync.Mutex
+	buf            [1]byte
+	hasBuf         bool
+	isReading      bool
+	startDetection bool
+	aborted        bool
+	ch             chan struct{}
 }
 
 func (c *statefulConn) Context() context.Context {
@@ -751,6 +752,7 @@ func (c *statefulConn) DetectConnectionClose() {
 	}
 
 	c.isReading = true
+	c.startDetection = true
 	c.Conn.SetReadDeadline(time.Time{}) // blocking read
 
 	go func() {
@@ -769,7 +771,7 @@ func (c *statefulConn) DetectConnectionClose() {
 
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
-				// ignore the error triggered by AbortBlockingRead
+				// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
 			} else {
 				c.OnConnectionError(err)
 			}
@@ -777,6 +779,7 @@ func (c *statefulConn) DetectConnectionClose() {
 
 		c.isReading = false
 		c.aborted = false
+		c.startDetection = false
 		c.mu.Unlock()
 		c.ch <- struct{}{}
 	}()
@@ -786,10 +789,11 @@ func (c *statefulConn) AbortBlockingRead() {
 	var isReading bool
 	c.mu.Lock()
 	isReading = c.isReading
+	startDetection := c.startDetection
 	c.aborted = true
 	c.mu.Unlock()
 
-	if isReading {
+	if isReading && startDetection {
 		c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
 		<-c.ch                               // wait until the blocking read returns
 	}

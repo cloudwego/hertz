@@ -30,8 +30,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
-type standardTransportCtxKey struct{}
-
 type transport struct {
 	// Per-connection buffer size for requests' reading.
 	// This also limits the maximum header size.
