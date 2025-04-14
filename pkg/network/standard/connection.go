@@ -28,8 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bytedance/gopkg/lang/dirtmake"
-
 	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -576,20 +574,12 @@ func (c *Conn) readErr() error {
 	return err
 }
 
-func (c *Conn) rawConn() net.Conn {
-	return c.c
-}
-
 func (c *TLSConn) Handshake() error {
 	return c.c.(network.ConnTLSer).Handshake()
 }
 
 func (c *TLSConn) ConnectionState() tls.ConnectionState {
 	return c.c.(network.ConnTLSer).ConnectionState()
-}
-
-func (c *TLSConn) rawConn() net.Conn {
-	return c.c
 }
 
 func newConn(c net.Conn, size int) network.Conn {
@@ -652,10 +642,6 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 	}
 }
 
-type rawConn interface {
-	rawConn() net.Conn
-}
-
 var earliestTime = time.Unix(1, 0)
 
 var _ internalNetwork.StatefulConn = &statefulConn{}
@@ -675,8 +661,6 @@ type statefulConn struct {
 	ctx            context.Context
 	cancelCtx      context.CancelFunc
 	mu             sync.Mutex
-	buf            [1]byte
-	hasBuf         bool
 	isReading      bool
 	startDetection bool
 	aborted        bool
@@ -695,29 +679,8 @@ func (c *statefulConn) Peek(n int) ([]byte, error) {
 		panic("concurrent read not allowed")
 	}
 
-	var b []byte
-	var err error
-
 	c.isReading = true
-	if !c.hasBuf {
-		b, err = c.Conn.Peek(n)
-	} else {
-		if n == 1 {
-			b = dirtmake.Bytes(1, 1)
-			b[0] = c.buf[0]
-			c.hasBuf = false
-		} else {
-			bb, perr := c.Conn.Peek(n - 1)
-			if perr != nil {
-				err = perr
-			} else {
-				b = dirtmake.Bytes(n, n)
-				b[0] = c.buf[0]
-				copy(b[1:], bb)
-				c.hasBuf = false
-			}
-		}
-	}
+	b, err := c.Conn.Peek(n)
 	c.isReading = false
 	return b, err
 }
@@ -731,15 +694,9 @@ func (c *statefulConn) Read(b []byte) (n int, err error) {
 	}
 
 	c.isReading = true
-	if c.hasBuf {
-		b[0] = c.buf[0]
-		c.hasBuf = false
-		c.isReading = false
-		return 1, nil
-	} else {
-		n, err = c.Conn.Read(b)
-		c.isReading = false
-	}
+	n, err = c.Conn.Read(b)
+	c.isReading = false
+
 	return n, err
 }
 
@@ -761,13 +718,9 @@ func (c *statefulConn) DetectConnectionClose() {
 		// err != nil:
 		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
 		// 2. other connection error (e.g. EOF), cancel the context
-		rc := c.Conn.(rawConn).rawConn() // TLSConn or Conn
-		n, err := rc.Read(c.buf[:])
+		_, err := c.Conn.Peek(c.Conn.Len() + 1) // read len+1 to trigger Read Syscall
 		c.mu.Lock()
 		c.isReading = false
-		if n == 1 {
-			c.hasBuf = true
-		}
 
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
