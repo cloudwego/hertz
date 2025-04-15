@@ -732,7 +732,7 @@ func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, re
 	expectedContentType, expectedBody string, expectedTrailer map[string]string, expectedProtocol string,
 ) {
 	zr := mock.NewZeroCopyReader(response)
-	err := ReadBodyStream(resp, zr, 0, nil)
+	err := ReadHeaderBodyStream(resp, zr, 0, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -751,7 +751,7 @@ func testResponseReadBodyStreamSuccess(t *testing.T, resp *protocol.Response, re
 
 func testResponseReadBodyStreamBadTrailer(t *testing.T, resp *protocol.Response, response string) {
 	zr := mock.NewZeroCopyReader(response)
-	err := ReadBodyStream(resp, zr, 0, nil)
+	err := ReadHeaderBodyStream(resp, zr, 0, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
