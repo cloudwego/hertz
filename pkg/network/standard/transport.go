@@ -103,14 +103,15 @@ func (t *transport) serve() (err error) {
 			ctx = t.OnConnect(ctx, c)
 		}
 
-		if t.senseClientDisconnection {
-			sc := NewStatefulConn(ctx, c)
-			ctx = sc.Context()
-			c = sc
-		}
-
 		go func(ctx context.Context, conn network.Conn) {
-			t.handler(ctx, conn)
+			if t.senseClientDisconnection {
+				ctx, cancelCtx := context.WithCancel(ctx)
+				conn = NewStatefulConn(conn, newOnReadErrorFunc(cancelCtx))
+				t.handler(ctx, conn)
+				cancelCtx()
+			} else {
+				t.handler(ctx, conn)
+			}
 			t.updateActive(-1)
 		}(ctx, c)
 	}

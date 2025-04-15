@@ -134,8 +134,10 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	)
 
 	// for sensing connection close
-	// only if `conn` is internalNetwork.StatefulConn
-	statefulConn, configuredSenseConnClose := conn.(internalNetwork.StatefulConn)
+	// Only if `conn` is internalNetwork.StatefulConn and StreamRequestBody not configured.
+	// If configured StreamRequestBody, close detection logic may cause concurrent Read issue.
+	statefulConn, senseConnClose := conn.(internalNetwork.StatefulConn)
+	senseConnClose = senseConnClose && !s.StreamRequestBody
 
 	if s.EnableTrace {
 		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
@@ -184,7 +186,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	for {
 		connRequestNum++
-		senseConnClose := configuredSenseConnClose // use to check if senseConnClose logic should be triggered for each request
 
 		if zr == nil {
 			zr = ctx.GetReader()

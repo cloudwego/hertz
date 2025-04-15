@@ -195,70 +195,32 @@ func TestReadBytes(t *testing.T) {
 	}
 }
 
-// wrapConn returns a statefulConn wrapping a real TCP conn
-func wrapConn(t *testing.T) (server *statefulConn, client net.Conn) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	done := make(chan net.Conn)
-	go func() {
-		conn, _ := ln.Accept()
-		done <- conn
-	}()
-
-	cli, err := net.Dial("tcp", ln.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverConn := <-done
-
-	svr := NewStatefulConn(context.Background(), newConn(serverConn, 4096)).(*statefulConn)
-	return svr, cli
-}
-
 func TestStatefulConnConnectionCloseDetection(t *testing.T) {
-	svrConn, cliConn := wrapConn(t)
-	defer svrConn.Close()
+	cliConn, svrConn := net.Pipe()
+	svrCtx, cancelCtx := context.WithCancel(context.Background())
+	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
+	defer svrStatefulConn.Close()
 
-	ctx := svrConn.Context()
 	// 1. normal request
-	svrConn.DetectConnectionClose()
-
-	svrConn.mu.Lock()
-	assert.True(t, svrConn.startDetection)
-	svrConn.mu.Unlock()
-
-	svrConn.AbortBlockingRead()
+	svrStatefulConn.DetectConnectionClose()
+	svrStatefulConn.AbortBlockingRead()
 	select {
-	case <-ctx.Done():
+	case <-svrCtx.Done():
 		t.Fatal("ctx should not be canceled")
 	default:
 	}
-	svrConn.mu.Lock()
-	assert.True(t, !svrConn.startDetection)
-	svrConn.mu.Unlock()
 
 	// 2. client close conn
-	svrConn.DetectConnectionClose()
-
-	svrConn.mu.Lock()
-	assert.True(t, svrConn.startDetection)
-	svrConn.mu.Unlock()
-
+	svrStatefulConn.DetectConnectionClose()
 	cliConn.Close()
 	time.Sleep(100 * time.Millisecond) // wait a while
 
 	select {
-	case <-ctx.Done():
+	case <-svrCtx.Done():
 		// expected
 	default:
 		t.Fatal("ctx should be canceled")
 	}
-	svrConn.mu.Lock()
-	assert.True(t, !svrConn.startDetection)
-	svrConn.mu.Unlock()
 }
 
 func TestWriteLogic(t *testing.T) {

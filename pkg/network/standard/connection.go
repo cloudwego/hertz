@@ -24,7 +24,6 @@ import (
 	"net"
 	"runtime"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -646,69 +645,50 @@ var earliestTime = time.Unix(1, 0)
 
 var _ internalNetwork.StatefulConn = &statefulConn{}
 
-func NewStatefulConn(ctx context.Context, c network.Conn) internalNetwork.StatefulConn {
-	ctx, cancelCtx := context.WithCancel(ctx)
+func NewStatefulConn(c network.Conn, onReadError func(err error)) internalNetwork.StatefulConn {
 	return &statefulConn{
-		Conn:      c,
-		ctx:       ctx,
-		cancelCtx: cancelCtx,
-		ch:        make(chan struct{}, 1),
+		Conn:        c,
+		onReadError: onReadError,
+		ch:          make(chan struct{}, 1),
 	}
 }
 
 type statefulConn struct {
 	network.Conn
-	ctx            context.Context
-	cancelCtx      context.CancelFunc
-	ch             chan struct{}
-	mu             sync.Mutex
-	startDetection bool
-	aborted        bool
+	onReadError func(err error)
+	ch          chan struct{}
 }
 
-func (c *statefulConn) Context() context.Context {
-	return c.ctx
-}
-
+// DetectConnectionClose starts a blocking read to detect connection error
 func (c *statefulConn) DetectConnectionClose() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.startDetection = true
 	c.Conn.SetReadDeadline(time.Time{}) // blocking read
-
 	go func() {
 		// start a blocking read, if return
-		// n != 0, err == nil: pipeline request
-		// err != nil:
-		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
-		// 2. other connection error (e.g. EOF), cancel the context
+		// 1. n != 0, err == nil: pipeline request
+		// 2. err != nil: execute onReadError
 		_, err := c.Conn.Peek(1) // peek 1 byte to trigger Read Syscall
-
-		c.mu.Lock()
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
-				// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
-			} else {
-				c.cancelCtx()
-			}
+			c.onReadError(err)
 		}
-		c.aborted = false
-		c.startDetection = false
-		c.mu.Unlock()
-
 		c.ch <- struct{}{}
 	}()
 }
 
+// AbortBlockingRead cancels the blocking read and waits for the DetectConnectionClose exit.
+// Only call AbortBlockingRead if already called DetectConnectionClose.
 func (c *statefulConn) AbortBlockingRead() {
-	c.mu.Lock()
-	startDetection := c.startDetection
-	c.aborted = true
-	c.mu.Unlock()
+	c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
+	<-c.ch                               // wait until the blocking read returns
+}
 
-	if startDetection {
-		c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
-		<-c.ch                               // wait until the blocking read returns
+func newOnReadErrorFunc(cancelCtx context.CancelFunc) func(err error) {
+	return func(err error) {
+		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
+		// 2. other connection error (e.g. EOF), cancel the context
+		if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
+		} else {
+			cancelCtx()
+		}
 	}
 }
