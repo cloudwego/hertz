@@ -250,6 +250,8 @@ func TestResponseAcquireResponse(t *testing.T) {
 		resp1 := AcquireResponse()
 		assert.NotNil(t, resp1)
 		assert.Nil(t, resp1.body)
+		assert.Assert(t, resp1.BodyStream() == NoResponseBody)
+		assert.Assert(t, resp1.IsBodyStream() == false)
 
 		resp1.SetBody([]byte("test"))
 		resp1.SetStatusCode(consts.StatusOK)

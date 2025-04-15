@@ -342,7 +342,7 @@ func (resp *Response) SetBody(body []byte) {
 
 func (resp *Response) BodyStream() io.Reader {
 	if resp.bodyStream == nil {
-		resp.bodyStream = NoResponseBody
+		return NoResponseBody
 	}
 	return resp.bodyStream
 }
