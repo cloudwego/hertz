@@ -300,10 +300,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 					err = req.ContinueReadBodyStream(&ctx.Request, zr, s.MaxRequestBodySize, !s.DisablePreParseMultipartForm)
 				} else {
 					err = req.ContinueReadBody(&ctx.Request, zr, s.MaxRequestBodySize, !s.DisablePreParseMultipartForm)
-					if senseConnClose && err != nil {
-						// cancel if Read error
-						statefulConn.OnConnectionError(err)
-					}
 				}
 
 				if err != nil {

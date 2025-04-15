@@ -675,10 +675,6 @@ func (c *statefulConn) Peek(n int) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.isReading {
-		panic("concurrent read not allowed")
-	}
-
 	c.isReading = true
 	b, err := c.Conn.Peek(n)
 	c.isReading = false
@@ -688,10 +684,6 @@ func (c *statefulConn) Peek(n int) ([]byte, error) {
 func (c *statefulConn) Read(b []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if c.isReading {
-		panic("concurrent read not allowed")
-	}
 
 	c.isReading = true
 	n, err = c.Conn.Read(b)
@@ -704,10 +696,6 @@ func (c *statefulConn) DetectConnectionClose() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.isReading {
-		panic("concurrent read not allowed")
-	}
-
 	c.isReading = true
 	c.startDetection = true
 	c.Conn.SetReadDeadline(time.Time{}) // blocking read
@@ -718,7 +706,7 @@ func (c *statefulConn) DetectConnectionClose() {
 		// err != nil:
 		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
 		// 2. other connection error (e.g. EOF), cancel the context
-		_, err := c.Conn.Peek(c.Conn.Len() + 1) // read len+1 to trigger Read Syscall
+		_, err := c.Conn.Peek(1) // peek 1 byte to trigger Read Syscall
 		c.mu.Lock()
 		c.isReading = false
 
@@ -726,7 +714,7 @@ func (c *statefulConn) DetectConnectionClose() {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
 				// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
 			} else {
-				c.OnConnectionError(err)
+				c.cancelCtx()
 			}
 		}
 
@@ -750,8 +738,4 @@ func (c *statefulConn) AbortBlockingRead() {
 		c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
 		<-c.ch                               // wait until the blocking read returns
 	}
-}
-
-func (c *statefulConn) OnConnectionError(err error) {
-	c.cancelCtx()
 }

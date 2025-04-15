@@ -422,9 +422,6 @@ func TestSenseClientConnClose(t *testing.T) {
 		abortFunc = func() {
 			state.abortCalled = true
 		}
-		connErrFunc = func(err error) {
-			state.connErrCalled = true
-		}
 	)
 
 	server := &Server{}
@@ -444,12 +441,10 @@ func TestSenseClientConnClose(t *testing.T) {
 		nil,
 		detectFunc,
 		abortFunc,
-		connErrFunc,
 	}
 	server.Serve(context.Background(), statefulConn)
 	assert.True(t, state.detectCalled)
 	assert.True(t, state.abortCalled)
-	assert.False(t, state.connErrCalled)
 	reset(state)
 
 	// 100 continue
@@ -458,7 +453,6 @@ func TestSenseClientConnClose(t *testing.T) {
 	server.Serve(context.Background(), statefulConn)
 	assert.True(t, state.detectCalled)
 	assert.True(t, state.abortCalled)
-	assert.False(t, state.connErrCalled)
 	reset(state)
 
 	// 100 continue: error
@@ -475,7 +469,6 @@ func TestSenseClientConnClose(t *testing.T) {
 	server.Serve(context.Background(), statefulConn)
 	assert.False(t, state.detectCalled)
 	assert.False(t, state.abortCalled)
-	assert.True(t, state.connErrCalled)
 	reset(state)
 
 	// bodyStream
@@ -485,7 +478,6 @@ func TestSenseClientConnClose(t *testing.T) {
 	server.Serve(context.Background(), statefulConn)
 	assert.False(t, state.detectCalled)
 	assert.False(t, state.abortCalled)
-	assert.False(t, state.connErrCalled)
 	reset(state)
 	server.StreamRequestBody = false
 
@@ -496,7 +488,6 @@ func TestSenseClientConnClose(t *testing.T) {
 		nil,
 		detectFunc,
 		abortFunc,
-		connErrFunc,
 	}
 	server.HijackConnHandle = func(c network.Conn, h app.HijackHandler) {
 		h(c)
@@ -515,7 +506,6 @@ func TestSenseClientConnClose(t *testing.T) {
 	server.Serve(context.Background(), statefulConn)
 	assert.True(t, state.detectCalled)
 	assert.False(t, state.abortCalled)
-	assert.False(t, state.connErrCalled)
 	reset(state)
 	server.HijackConnHandle = nil
 
@@ -526,7 +516,6 @@ func TestSenseClientConnClose(t *testing.T) {
 		nil,
 		detectFunc,
 		abortFunc,
-		connErrFunc,
 	}
 	server.Core = &mockCore{
 		ctxPool: &sync.Pool{New: func() interface{} {
@@ -545,7 +534,6 @@ func TestSenseClientConnClose(t *testing.T) {
 	server.Serve(context.Background(), statefulConn)
 	assert.True(t, state.detectCalled)
 	assert.True(t, state.abortCalled)
-	assert.False(t, state.connErrCalled)
 	reset(state)
 }
 
@@ -651,7 +639,6 @@ type mockStatefulConn struct {
 	Ctx                       context.Context
 	DetectConnectionCloseFunc func()
 	AbortBlockingReadFunc     func()
-	OnConnectionErrorFunc     func(error)
 }
 
 func (c *mockStatefulConn) DetectConnectionClose() {
@@ -660,10 +647,6 @@ func (c *mockStatefulConn) DetectConnectionClose() {
 
 func (c *mockStatefulConn) AbortBlockingRead() {
 	c.AbortBlockingReadFunc()
-}
-
-func (c *mockStatefulConn) OnConnectionError(error error) {
-	c.OnConnectionErrorFunc(error)
 }
 
 func (c *mockStatefulConn) Context() context.Context {

@@ -24,6 +24,5 @@ type StatefulConn interface {
 	network.Conn
 	DetectConnectionClose()
 	AbortBlockingRead()
-	OnConnectionError(error)
 	Context() context.Context
 }
