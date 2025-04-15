@@ -638,7 +638,7 @@ func (req *Request) IsBodyStream() bool {
 
 func (req *Request) BodyStream() io.Reader {
 	if req.bodyStream == nil {
-		req.bodyStream = NoBody
+		return NoBody
 	}
 	return req.bodyStream
 }
