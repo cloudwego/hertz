@@ -389,7 +389,6 @@ func TestStatefulConnConnectionCloseDetection(t *testing.T) {
 
 	svrConn.mu.Lock()
 	assert.True(t, svrConn.startDetection)
-	assert.True(t, svrConn.isReading)
 	svrConn.mu.Unlock()
 
 	svrConn.AbortBlockingRead()
@@ -407,15 +406,10 @@ func TestStatefulConnConnectionCloseDetection(t *testing.T) {
 
 	svrConn.mu.Lock()
 	assert.True(t, svrConn.startDetection)
-	assert.True(t, svrConn.isReading)
 	svrConn.mu.Unlock()
 
 	cliConn.Close()
 	time.Sleep(100 * time.Millisecond) // wait a while
-
-	svrConn.mu.Lock()
-	assert.True(t, !svrConn.isReading)
-	svrConn.mu.Unlock()
 
 	select {
 	case <-ctx.Done():

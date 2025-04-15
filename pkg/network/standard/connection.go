@@ -660,43 +660,20 @@ type statefulConn struct {
 	network.Conn
 	ctx            context.Context
 	cancelCtx      context.CancelFunc
+	ch             chan struct{}
 	mu             sync.Mutex
-	isReading      bool
 	startDetection bool
 	aborted        bool
-	ch             chan struct{}
 }
 
 func (c *statefulConn) Context() context.Context {
 	return c.ctx
 }
 
-func (c *statefulConn) Peek(n int) ([]byte, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.isReading = true
-	b, err := c.Conn.Peek(n)
-	c.isReading = false
-	return b, err
-}
-
-func (c *statefulConn) Read(b []byte) (n int, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.isReading = true
-	n, err = c.Conn.Read(b)
-	c.isReading = false
-
-	return n, err
-}
-
 func (c *statefulConn) DetectConnectionClose() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.isReading = true
 	c.startDetection = true
 	c.Conn.SetReadDeadline(time.Time{}) // blocking read
 
@@ -707,9 +684,8 @@ func (c *statefulConn) DetectConnectionClose() {
 		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
 		// 2. other connection error (e.g. EOF), cancel the context
 		_, err := c.Conn.Peek(1) // peek 1 byte to trigger Read Syscall
-		c.mu.Lock()
-		c.isReading = false
 
+		c.mu.Lock()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() && c.aborted {
 				// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
@@ -717,24 +693,21 @@ func (c *statefulConn) DetectConnectionClose() {
 				c.cancelCtx()
 			}
 		}
-
-		c.isReading = false
 		c.aborted = false
 		c.startDetection = false
 		c.mu.Unlock()
+
 		c.ch <- struct{}{}
 	}()
 }
 
 func (c *statefulConn) AbortBlockingRead() {
-	var isReading bool
 	c.mu.Lock()
-	isReading = c.isReading
 	startDetection := c.startDetection
 	c.aborted = true
 	c.mu.Unlock()
 
-	if isReading && startDetection {
+	if startDetection {
 		c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
 		<-c.ch                               // wait until the blocking read returns
 	}
