@@ -404,14 +404,12 @@ func TestExpect100ContinueHandler(t *testing.T) {
 
 func TestSenseClientConnClose(t *testing.T) {
 	type connstate struct {
-		detectCalled  bool
-		abortCalled   bool
-		connErrCalled bool
+		detectCalled bool
+		abortCalled  bool
 	}
 	reset := func(cs *connstate) {
 		cs.detectCalled = false
 		cs.abortCalled = false
-		cs.connErrCalled = false
 	}
 	state := &connstate{}
 
@@ -505,7 +503,7 @@ func TestSenseClientConnClose(t *testing.T) {
 	}
 	server.Serve(context.Background(), statefulConn)
 	assert.True(t, state.detectCalled)
-	assert.False(t, state.abortCalled)
+	assert.True(t, state.abortCalled)
 	reset(state)
 	server.HijackConnHandle = nil
 

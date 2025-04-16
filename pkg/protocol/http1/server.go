@@ -381,7 +381,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		// Abort the blocking read in DetectConnectionClose
-		if senseConnClose && hijackHandler == nil {
+		if senseConnClose {
 			// this should be sync to wait the blocking read return.
 			// we should make sure the read is not affected by other SetReadDeadline.
 			statefulConn.AbortBlockingRead()
