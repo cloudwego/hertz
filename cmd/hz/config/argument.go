@@ -18,9 +18,10 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cloudwego/thriftgo/utils/dir_utils"
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -149,7 +150,7 @@ func (arg *Argument) UpdateByManifest(m *meta.Manifest) {
 
 // checkPath sets the project path and verifies that the model、handler、router and client path is compliant
 func (arg *Argument) checkPath() error {
-	dir, err := os.Getwd()
+	dir, err := dir_utils.Getwd()
 	if err != nil {
 		return fmt.Errorf("get current path failed: %s", err)
 	}
@@ -157,8 +158,9 @@ func (arg *Argument) checkPath() error {
 	if arg.OutDir == "" {
 		arg.OutDir = dir
 	}
+
 	if !filepath.IsAbs(arg.OutDir) {
-		ap := filepath.Join(arg.Cwd, arg.OutDir)
+		ap, _ := filepath.Abs(arg.OutDir)
 		arg.OutDir = ap
 	}
 	if arg.ModelDir != "" && filepath.IsAbs(arg.ModelDir) {
