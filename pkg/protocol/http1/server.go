@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
@@ -132,6 +133,10 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		cc = c
 	)
 
+	// for sensing connection close
+	// only if `conn` is internalNetwork.StatefulConn
+	statefulConn, configuredSenseConnClose := conn.(internalNetwork.StatefulConn)
+
 	if s.EnableTrace {
 		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
 	}
@@ -167,6 +172,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	ctx.HTMLRender = s.HTMLRender
 	ctx.SetConn(conn)
+
 	ctx.Request.SetIsTLS(s.TLS != nil)
 	ctx.SetEnableTrace(s.EnableTrace)
 
@@ -178,6 +184,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	for {
 		connRequestNum++
+		senseConnClose := configuredSenseConnClose // use to check if senseConnClose logic should be triggered for each request
 
 		if zr == nil {
 			zr = ctx.GetReader()
@@ -294,6 +301,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				} else {
 					err = req.ContinueReadBody(&ctx.Request, zr, s.MaxRequestBodySize, !s.DisablePreParseMultipartForm)
 				}
+
 				if err != nil {
 					writeErrorResponse(zw, ctx, serverName, err)
 					return
@@ -313,6 +321,13 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				internalStats.Record(ti, stats.ServerHandleFinish, err)
 			})
 		}
+
+		// If request sets BodyStream, we don't start connection close detection logic to prevent concurrent Read.
+		senseConnClose = senseConnClose && !ctx.Request.IsBodyStream()
+		if senseConnClose {
+			statefulConn.DetectConnectionClose()
+		}
+
 		// Handle the request
 		//
 		// NOTE: All middlewares and business handler will be executed in this. And at this point, the request has been parsed
@@ -365,6 +380,13 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			}
 		}
 
+		// Abort the blocking read in DetectConnectionClose
+		if senseConnClose {
+			// this should be sync to wait the blocking read return.
+			// we should make sure the read is not affected by other SetReadDeadline.
+			statefulConn.AbortBlockingRead()
+		}
+
 		// Release the zeroCopyReader before flush to prevent data race
 		if zr != nil {
 			zr.Release() //nolint:errcheck
@@ -407,6 +429,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 		// Back to network layer to trigger.
 		// For now, only netpoll network mode has this feature.
+		// FIXME: check
 		if s.IdleTimeout == 0 {
 			return
 		}
