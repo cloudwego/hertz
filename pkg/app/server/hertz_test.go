@@ -57,13 +57,7 @@ type routeEngine interface {
 }
 
 func waitEngineRunning(e routeEngine) {
-	for i := 0; i < 100; i++ {
-		if e.IsRunning() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	panic("not running")
+	testutils.WaitEngineRunning(e)
 }
 
 func TestHertz_Run(t *testing.T) {
