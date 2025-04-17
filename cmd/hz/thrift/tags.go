@@ -197,6 +197,12 @@ func defaultBindingTags(f *parser.Field) []model.Tag {
 	for _, tag := range bindingTags {
 		if v := getAnnotation(f.Annotations, tag); len(v) > 0 {
 			out[0] = jsonTag(f)
+			// bugfix: if there is user's tag, json tag is always default to set
+			out[0].IsDefault = true
+			//// user's json tag
+			//if v := getAnnotation(f.Annotations, AnnotationBody); len(v) ==0 {
+			//	out[0].IsDefault = false
+			//}
 			return out[:1]
 		}
 	}
