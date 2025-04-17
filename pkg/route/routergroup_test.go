@@ -42,7 +42,7 @@ package route
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -137,7 +137,7 @@ func TestRouterGroupStatic(t *testing.T) {
 	}
 	assert.DeepEqual(t, http.StatusOK, w.Code)
 	defer fd.Close()
-	content, err := ioutil.ReadAll(fd)
+	content, err := io.ReadAll(fd)
 	if err != nil {
 		panic(err)
 	}
@@ -154,7 +154,7 @@ func TestRouterGroupStaticFile(t *testing.T) {
 		panic(err)
 	}
 	defer fd.Close()
-	content, err := ioutil.ReadAll(fd)
+	content, err := io.ReadAll(fd)
 	if err != nil {
 		panic(err)
 	}

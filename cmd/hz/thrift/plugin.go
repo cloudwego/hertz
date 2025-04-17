@@ -19,7 +19,7 @@ package thrift
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,7 +221,7 @@ func (plugin *Plugin) recvVerboseLogger() string {
 }
 
 func (plugin *Plugin) handleRequest() error {
-	data, err := ioutil.ReadAll(os.Stdin)
+	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("read request failed: %s", err.Error())
 	}
