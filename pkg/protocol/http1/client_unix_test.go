@@ -20,6 +20,7 @@ package http1
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -35,25 +36,28 @@ import (
 )
 
 func TestGcBodyStream(t *testing.T) {
-	srv := &http.Server{Addr: "127.0.0.1:11001", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		for range [1024]int{} {
 			w.Write([]byte("hello world\n"))
 		}
 	})}
-	go srv.ListenAndServe()
-	time.Sleep(100 * time.Millisecond)
+	go srv.Serve(ln)
 
+	addr := ln.Addr().String()
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer:             netpoll.NewDialer(),
 			ResponseBodyStream: true,
 		},
-		Addr: "127.0.0.1:11001",
+		Addr: addr,
 	}
 
 	for i := 0; i < 10; i++ {
 		req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-		req.SetRequestURI("http://127.0.0.1:11001")
+		req.SetRequestURI("http://" + addr)
 		req.SetMethod(consts.MethodPost)
 		err := c.Do(context.Background(), req, resp)
 		if err != nil {
@@ -69,12 +73,15 @@ func TestGcBodyStream(t *testing.T) {
 }
 
 func TestMaxConn(t *testing.T) {
-	srv := &http.Server{Addr: "127.0.0.1:11002", Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("hello world\n"))
 	})}
-	go srv.ListenAndServe()
-	time.Sleep(100 * time.Millisecond)
+	go srv.Serve(ln)
 
+	addr := ln.Addr().String()
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer:             netpoll.NewDialer(),
@@ -82,7 +89,7 @@ func TestMaxConn(t *testing.T) {
 			MaxConnWaitTimeout: time.Millisecond * 100,
 			MaxConns:           5,
 		},
-		Addr: "127.0.0.1:11002",
+		Addr: addr,
 	}
 
 	var successCount int32
@@ -93,7 +100,7 @@ func TestMaxConn(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
-			req.SetRequestURI("http://127.0.0.1:11002")
+			req.SetRequestURI("http://" + addr)
 			req.SetMethod(consts.MethodPost)
 			err := c.Do(context.Background(), req, resp)
 			if err != nil {
