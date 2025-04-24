@@ -324,14 +324,11 @@ func TestDoNonNilReqResp(t *testing.T) {
 	assert.DeepEqual(t, resp.Body(), []byte("123456"))
 }
 
-func TestDoNonNilReqResp1(t *testing.T) {
+func TestDoNonNilReqResp_Err(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
-				return &writeErrConn{
-						Conn: mock.NewConn(""),
-					},
-					nil
+				return peekErrConn{writeErrConn{mock.NewConn("")}}, nil
 			}),
 		},
 	}
@@ -341,6 +338,7 @@ func TestDoNonNilReqResp1(t *testing.T) {
 	retry, err := c.doNonNilReqResp(req, resp)
 	assert.True(t, retry)
 	assert.NotNil(t, err)
+	assert.Assert(t, err == errs.ErrConnectionClosed, err) // returned by writeErrConn
 }
 
 func doGET(t *testing.T, addr string, path string) *protocol.Response {
@@ -600,6 +598,14 @@ type writeErrConn struct {
 
 func (w writeErrConn) WriteBinary(b []byte) (n int, err error) {
 	return 0, errs.ErrConnectionClosed
+}
+
+type peekErrConn struct {
+	network.Conn
+}
+
+func (c peekErrConn) Peek(n int) ([]byte, error) {
+	return nil, errors.New("peek err")
 }
 
 type retryConn struct {

@@ -260,6 +260,25 @@ func TestServerDisableReqCtxPool(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestServer_RaceDetect(t *testing.T) {
+	c := &app.RequestContext{}
+	_ = c.Request.URI() // parsedURI = true
+	m := &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return c
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			panic("must not be called")
+		},
+	}
+	s := &Server{}
+	s.Core = m
+	conn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := s.Serve(context.Background(), conn)
+	assert.NotNil(t, err)
+	assert.Assert(t, err.Error() == "race detected")
+}
+
 func TestHijackResponseWriter(t *testing.T) {
 	server := &Server{}
 	reqCtx := &app.RequestContext{}
