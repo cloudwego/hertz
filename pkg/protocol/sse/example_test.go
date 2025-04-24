@@ -36,6 +36,7 @@ func Example() {
 	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(ctx context.Context, c *app.RequestContext) {
+		println("Server Got LastEventID", GetLastEventID(c))
 		w := NewWriter(c)
 		for i := 0; i < 5; i++ {
 			w.WriteEvent(fmt.Sprintf("id-%d", i), "message", []byte("hello\n\nworld"))
@@ -53,6 +54,7 @@ func Example() {
 	req, resp := protocol.AcquireRequest(), protocol.AcquireResponse()
 	req.SetRequestURI("http://" + opt.Addr + "/")
 	req.SetMethod("GET")
+	req.SetHeader(LastEventIDHeader, "id-0")
 	AddAcceptMIME(req) // optional for most SSE servers
 	if err := c.Do(context.Background(), req, resp); err != nil {
 		panic(err)
@@ -68,6 +70,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
+	println("Client LastEventID", r.LastEventID())
 	// Output:
 	//
 }
