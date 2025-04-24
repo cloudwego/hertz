@@ -39,6 +39,8 @@ type Reader struct {
 	resp   *protocol.Response
 	s      *bufio.Scanner
 	events int32
+
+	lastEventID string
 }
 
 // NewReader creates a new SSE reader from the given response.
@@ -81,6 +83,18 @@ func (r *Reader) ForEach(f func(e *Event) error) error {
 	}
 }
 
+// LastEventID returns the last event ID read by the reader.
+func (r *Reader) LastEventID() string {
+	return r.lastEventID
+}
+
+func (r *Reader) onEventRead(e *Event) {
+	r.events++
+	if e.IsSetID() {
+		r.lastEventID = e.ID
+	}
+}
+
 // Read reads a single SSE event from the response body.
 //
 // It populates the provided Event struct with the parsed data.
@@ -98,7 +112,7 @@ func (r *Reader) Read(e *Event) error {
 		if len(line) == 0 {
 			// Empty line marks the end of an event
 			if e.bitset != 0 {
-				r.events++
+				r.onEventRead(e)
 				return nil
 			}
 			continue // Skip empty lines at the beginning
@@ -156,7 +170,7 @@ func (r *Reader) Read(e *Event) error {
 	if e.bitset == 0 {
 		return io.EOF
 	}
-	r.events++
+	r.onEventRead(e)
 	return nil
 }
 

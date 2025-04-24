@@ -16,6 +16,17 @@
 
 package sse
 
+import (
+	"github.com/cloudwego/hertz/pkg/app"
+)
+
+const LastEventIDHeader = "Last-Event-ID"
+
+// GetLastEventID returns the value of the Last-Event-ID header.
+func GetLastEventID(c *app.RequestContext) string {
+	return string(c.GetHeader(LastEventIDHeader))
+}
+
 func sseEventType(v []byte) string {
 	switch string(v) {
 	case "message":

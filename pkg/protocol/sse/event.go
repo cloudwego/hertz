@@ -32,7 +32,7 @@ const (
 // Event represents a Server-Sent Event (SSE).
 type Event struct {
 	ID   string
-	Type string
+	Type string // aka `event` field, which means event type
 	Data []byte
 
 	// hertz only supports reading and writing the field,

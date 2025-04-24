@@ -228,6 +228,11 @@ func TestReader_ReadEvent(t *testing.T) {
 				assert.DeepEqual(t, tt.expected.Type, e.Type)
 				assert.DeepEqual(t, tt.expected.Retry, e.Retry)
 				assert.DeepEqual(t, tt.expected.Data, e.Data)
+
+				// LastEventID check
+				if e.ID != "" {
+					assert.DeepEqual(t, r.LastEventID(), e.ID)
+				}
 			}
 
 			e.Release()
@@ -258,6 +263,11 @@ func TestReader_ReadEvent_WithBodyStream(t *testing.T) {
 	assert.DeepEqual(t, "123", e.ID)
 	assert.DeepEqual(t, "update", e.Type)
 	assert.DeepEqual(t, []byte("test data"), e.Data)
+
+	// LastEventID check
+	if e.ID != "" {
+		assert.DeepEqual(t, r.LastEventID(), e.ID)
+	}
 
 	// Test Close
 	err = r.Close()
