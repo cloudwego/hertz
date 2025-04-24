@@ -82,6 +82,7 @@ import (
 const unknownTransporterName = "unknown"
 
 var (
+	// will be netpoll.NewTransporter if available, see: netpoll.go
 	defaultTransporter = standard.NewTransporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")

@@ -1,5 +1,4 @@
-//go:build !windows
-// +build !windows
+//go:build (amd64 || arm64) && (linux || darwin)
 
 /*
  * Copyright 2022 CloudWeGo Authors

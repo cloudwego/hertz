@@ -13,8 +13,7 @@
 // limitations under the License.
 //
 
-//go:build !windows
-// +build !windows
+//go:build (amd64 || arm64) && (linux || darwin)
 
 package route
 
