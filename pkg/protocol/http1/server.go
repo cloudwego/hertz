@@ -31,6 +31,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -326,6 +327,18 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		senseConnClose = senseConnClose && !ctx.Request.IsBodyStream()
 		if senseConnClose {
 			statefulConn.DetectConnectionClose()
+		}
+
+		if ctx.Request.IsURIParsed() {
+			// ctx.Request.URI() must not be called before ServeHTTP
+			// The only case is concurrency issue when parsing a new request,
+			// and user is reading the old request in background.
+			hlog.SystemLogger().Warnf("%s\n%s\n%s\n%s",
+				"Race detected.",
+				"Please be aware that the protocol.Request passed to handler is only valid before the handler returns.",
+				"DO NOT attempt to keep and access protocol.Request after the handler returns.",
+				"Try build with -race to check the race issue.")
+			return errors.New("race detected")
 		}
 
 		// Handle the request
