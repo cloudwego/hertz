@@ -468,7 +468,7 @@ func TestBind_RequiredBind(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
 	err := DefaultBinder().Bind(req.Req, &s, nil)
-	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
+	assert.DeepEqual(t, `decode field "A" err: field is required, but not set`, err.Error())
 
 	req = newMockRequest().
 		SetRequestURI("http://foobar.com").
@@ -617,9 +617,7 @@ func TestBind_JSON(t *testing.T) {
 		SetBody([]byte(fmt.Sprintf(`{"j1":"j1", "j2":12, "j3":[%d, %d], "j4":["%s", "%s"]}`, J3s[0], J3s[1], J4s[0], J4s[1])))
 	var result Req
 	err := DefaultBinder().Bind(req.Req, &result, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "j1", result.J1)
 	assert.DeepEqual(t, 13, result.J2)
 	for idx, val := range J3s {
@@ -931,9 +929,9 @@ func TestBind_JSONRequiredField(t *testing.T) {
 	var result Req
 	err := DefaultBinder().Bind(req.Req, &result, nil)
 	if err == nil {
-		t.Errorf("expected an error, but get nil")
+		t.Fatal("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, "'c' field is a 'required' parameter, but the request body does not have this parameter 'n.n2.c'", err.Error())
+	assert.DeepEqual(t, `decode field "N" err: decode field "N2" err: decode field "C" err: JSON field "n.n2.c" is required, but it's not set`, err.Error())
 	assert.DeepEqual(t, 1, result.N.A)
 	assert.DeepEqual(t, 2, result.N.B)
 	assert.DeepEqual(t, 0, result.N.N2.C)
@@ -1259,18 +1257,14 @@ func TestBind_PointerStruct(t *testing.T) {
 		SetRequestURI(fmt.Sprintf("http://foobar.com?%s", query.Encode()))
 
 	err := binder.Bind(req.Req, &result, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "111", (**result.B1).F1)
 
 	result = Bar{}
 	req = newMockRequest().
 		SetRequestURI(fmt.Sprintf("http://foobar.com?%s&F1=222", query.Encode()))
 	err = binder.Bind(req.Req, &result, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "222", (**result.B1).F1)
 }
 
@@ -1522,7 +1516,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
-	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
+	assert.DeepEqual(t, `decode field "A" err: field is required, but not set`, err.Error())
 
 	type TestValidate struct {
 		B int `query:"b" vd:"$>100"`
@@ -1617,9 +1611,7 @@ func TestBind_JSONWithDefault(t *testing.T) {
 		SetJSONContentType().
 		SetBody([]byte(`{"j2":"j2"}`))
 	err = DefaultBinder().Bind(req.Req, &result, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "j1default", result.J1)
 }
 
@@ -1637,9 +1629,7 @@ func TestBind_WithoutPreBindForTag(t *testing.T) {
 	var result BaseQuery
 
 	err := DefaultBinder().BindQuery(req.Req, &result)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, "action", result.Action)
 	assert.DeepEqual(t, "version", result.Version)
 }
@@ -1686,9 +1676,10 @@ func Benchmark_Binding(b *testing.B) {
 	})
 
 	b.ResetTimer()
+	result := &Req{}
 	for i := 0; i < b.N; i++ {
-		var result Req
-		err := DefaultBinder().Bind(req.Req, &result, params)
+		*result = Req{}
+		err := DefaultBinder().Bind(req.Req, result, params)
 		if err != nil {
 			b.Error(err)
 		}

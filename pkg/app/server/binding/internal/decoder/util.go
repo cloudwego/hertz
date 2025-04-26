@@ -20,11 +20,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/cloudwego/hertz/internal/bytesconv"
-	hJson "github.com/cloudwego/hertz/pkg/common/json"
-	"github.com/cloudwego/hertz/pkg/protocol"
-	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 const (
@@ -44,33 +39,6 @@ func toDefaultValue(typ reflect.Type, defaultValue string) string {
 	return defaultValue
 }
 
-// stringToValue is used to dynamically create reflect.Value for 'text'
-func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params, config *DecodeConfig) (v reflect.Value, err error) {
-	v = reflect.New(elemType).Elem()
-	if customizedFunc, exist := config.TypeUnmarshalFuncs[elemType]; exist {
-		val, err := customizedFunc(req, params, text)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return val, nil
-	}
-	switch elemType.Kind() {
-	case reflect.Struct:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
-	case reflect.Map:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
-	case reflect.Array, reflect.Slice:
-		// do nothing
-	default:
-		decoder, err := SelectTextDecoder(elemType)
-		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
-		}
-		err = decoder.UnmarshalString(text, v, config.LooseZeroMode)
-		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unable to decode '%s' as %s: %w", text, elemType.String(), err)
-		}
-	}
-
-	return v, err
+func newJSONDecodeErr(typ reflect.Type, err error) error {
+	return fmt.Errorf("json.Unmarshal for type %s err: %w", typ, err)
 }
