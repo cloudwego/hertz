@@ -87,12 +87,14 @@ func ReadHeader(h *protocol.ResponseHeader, r network.Reader) error {
 
 // WriteHeader writes response header to w.
 func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
+	// Data may become invalid after the next call of ResponseHeader.
+	// copy before WriteHeader returns
 	header := h.Header()
-	h.SetHeaderLength(len(header))
-	_, err := w.WriteBinary(header)
+	b, err := w.Malloc(len(header))
 	if err != nil {
 		return err
 	}
+	h.SetHeaderLength(copy(b, header))
 	return nil
 }
 

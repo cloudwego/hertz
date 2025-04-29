@@ -32,6 +32,7 @@ type mw struct {
 	flushCalled bool
 	writeErr    error
 	flushErr    error
+	finalizeErr error
 }
 
 func (m *mw) Write(p []byte) (n int, err error) {
@@ -48,6 +49,10 @@ func (m *mw) Flush() error {
 
 func (m *mw) String() string {
 	return m.buf.String()
+}
+
+func (m *mw) Finalize() error {
+	return m.finalizeErr
 }
 
 func TestWriter_WriteEvent(t *testing.T) {
@@ -219,4 +224,28 @@ func TestWriter_WriteComment(t *testing.T) {
 	err = w.WriteKeepAlive()
 	assert.Assert(t, err == nil)
 	assert.DeepEqual(t, ":keep-alive\n", m.String())
+}
+
+func TestWriter_Close(t *testing.T) {
+	// Create a mock writeFlusher
+	m := &mw{}
+
+	// Create a Writer with the mock
+	w := &Writer{w: m}
+
+	// Test Close method
+	err := w.Close()
+
+	// Verify no error occurred
+	assert.Nil(t, err)
+
+	// Set an error to be returned by Finalize
+	expectedErr := errors.New("finalize error")
+	m.finalizeErr = expectedErr
+
+	// Test Close method with error
+	err = w.Close()
+
+	// Verify the error is propagated
+	assert.DeepEqual(t, expectedErr, err)
 }

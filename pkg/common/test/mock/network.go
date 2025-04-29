@@ -374,3 +374,36 @@ func (m *StreamConn) ReadBinary(n int) (p []byte, err error) {
 func DialerFun(addr string) (network.Conn, error) {
 	return NewConn(""), nil
 }
+
+type MockWriter struct {
+	w network.Writer
+
+	MockMalloc      func(n int) (buf []byte, err error)
+	MockWriteBinary func(b []byte) (n int, err error)
+	MockFlush       func() error
+}
+
+func NewMockWriter(w network.Writer) *MockWriter {
+	return &MockWriter{w: w}
+}
+
+func (m *MockWriter) Malloc(n int) (buf []byte, err error) {
+	if m.MockMalloc != nil {
+		return m.MockMalloc(n)
+	}
+	return m.w.Malloc(n)
+}
+
+func (m *MockWriter) WriteBinary(b []byte) (n int, err error) {
+	if m.MockWriteBinary != nil {
+		return m.MockWriteBinary(b)
+	}
+	return m.w.WriteBinary(b)
+}
+
+func (m *MockWriter) Flush() error {
+	if m.MockFlush != nil {
+		return m.MockFlush()
+	}
+	return m.w.Flush()
+}
