@@ -18,6 +18,8 @@ package sse
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -277,6 +279,19 @@ func TestReader_ReadEvent_WithBodyStream(t *testing.T) {
 	e.Release()
 }
 
+type mockReadForceClose struct {
+	readFunc  func(b []byte) (int, error)
+	closeFunc func() error
+}
+
+func (m *mockReadForceClose) Read(b []byte) (int, error) {
+	return m.readFunc(b)
+}
+
+func (m *mockReadForceClose) ForceClose() error {
+	return m.closeFunc()
+}
+
 func TestReader_ReadEvent_Error(t *testing.T) {
 	// Create a reader that will return an error
 	errReader := &bytes.Reader{}
@@ -295,4 +310,36 @@ func TestReader_ReadEvent_Error(t *testing.T) {
 	assert.Assert(t, err == io.EOF)
 
 	e.Release()
+}
+
+func TestReader_ForEach(t *testing.T) {
+	// mock Read & ForceClose
+	mr := &mockReadForceClose{}
+	ch := make(chan error, 1)
+	defer close(ch)
+	mr.readFunc = func(b []byte) (int, error) {
+		return 0, <-ch
+	}
+	mr.closeFunc = func() error {
+		ch <- errors.New("closed")
+		return nil
+	}
+
+	// create protocol.Response
+	resp := &protocol.Response{}
+	resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	resp.SetBodyStream(mr, -1)
+	r, err := NewReader(resp)
+	assert.Assert(t, err == nil)
+
+	// test ForEach with context
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { // cancel after 50ms
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	err = r.ForEach(ctx, func(e *Event) error {
+		panic("must not called")
+	})
+	assert.Assert(t, err == ctx.Err())
 }

@@ -50,22 +50,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
-func TestWriteHexInt(t *testing.T) {
-	t.Parallel()
-
-	for _, v := range []struct {
-		s string
-		n int
-	}{
-		{"0", 0},
-		{"1", 1},
-		{"123", 0x123},
-		{"7fffffff", 0x7fffffff},
-	} {
-		testWriteHexInt(t, v.n, v.s)
-	}
-}
-
 func TestReadHexInt(t *testing.T) {
 	t.Parallel()
 

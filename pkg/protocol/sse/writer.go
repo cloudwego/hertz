@@ -19,7 +19,6 @@ package sse
 import (
 	"bytes"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,19 +26,15 @@ import (
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
-
-type writeFlusher interface {
-	io.Writer
-	Flush() error
-}
 
 // Writer represents a writer for Server-Sent Events (SSE).
 //
 // It is used to write individual events to the response body.
 type Writer struct {
-	w writeFlusher
+	w network.ExtWriter
 
 	mu sync.Mutex
 }
@@ -166,4 +161,10 @@ func (w *Writer) Write(e *Event) error {
 		return err
 	}
 	return w.w.Flush()
+}
+
+func (w *Writer) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Finalize()
 }
