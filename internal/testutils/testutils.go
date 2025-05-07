@@ -20,6 +20,7 @@ import (
 	"net"
 	"path"
 	"reflect"
+	"time"
 	"unsafe"
 
 	"github.com/cloudwego/hertz/pkg/network"
@@ -94,4 +95,18 @@ func GetListenerAddr(v interface{}) string {
 // GetURL ...
 func GetURL(v interface{}, p string) string {
 	return "http://" + path.Join(GetListenerAddr(v), p)
+}
+
+type RouteEngine interface {
+	IsRunning() bool
+}
+
+func WaitEngineRunning(e RouteEngine) {
+	for i := 0; i < 100; i++ {
+		if e.IsRunning() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	panic("not running")
 }
