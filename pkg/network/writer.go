@@ -106,6 +106,8 @@ func NewWriter(w io.Writer) Writer {
 
 type ExtWriter interface {
 	io.Writer
+
+	// Flush sends data to peer immediately
 	Flush() error
 
 	// Finalize will be called by framework before the writer is released.

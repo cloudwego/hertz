@@ -17,10 +17,10 @@
 package resp
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -28,39 +28,52 @@ import (
 
 func TestNewChunkedBodyWriter(t *testing.T) {
 	response := protocol.AcquireResponse()
+	defer protocol.ReleaseResponse(response)
+
 	mockConn := mock.NewConn("")
 	w := NewChunkedBodyWriter(response, mockConn)
-	w.Write([]byte("hello"))
-	w.Flush()
-	out, _ := mockConn.WriterRecorder().ReadBinary(mockConn.WriterRecorder().WroteLen())
-	assert.True(t, strings.Contains(string(out), "Transfer-Encoding: chunked"))
-	assert.True(t, strings.Contains(string(out), "5"+string(bytestr.StrCRLF)+"hello"))
-	assert.False(t, strings.Contains(string(out), "0"+string(bytestr.StrCRLF)+string(bytestr.StrCRLF)))
+	_, _ = w.Write([]byte("hello"))
+	assert.Nil(t, w.Flush())
+	out, _ := mockConn.WriterRecorder().Peek(mockConn.WriterRecorder().WroteLen())
+	resp := string(out)
+	assert.True(t, strings.Contains(resp, "Transfer-Encoding: chunked"))
+	assert.True(t, strings.HasSuffix(resp, "5\r\nhello\r\n"))
+
+	// Finalize adds 0\r\n\r\n
+	assert.Nil(t, w.Finalize())
+	assert.Nil(t, w.Finalize()) // noop
+	out, _ = mockConn.WriterRecorder().Peek(mockConn.WriterRecorder().WroteLen())
+	resp = string(out)
+	assert.True(t, strings.HasSuffix(resp, "5\r\nhello\r\n0\r\n\r\n"))
+
+	_, err := w.Write([]byte("world"))
+	assert.True(t, err == errChunkedFinished)
 }
 
-func TestNewChunkedBodyWriter1(t *testing.T) {
+func TestNewChunkedBodyWriter_Err(t *testing.T) {
 	response := protocol.AcquireResponse()
-	mockConn := mock.NewConn("")
-	w := NewChunkedBodyWriter(response, mockConn)
-	w.Write([]byte("hello"))
-	w.Flush()
-	w.Finalize()
-	w.Flush()
-	out, _ := mockConn.WriterRecorder().ReadBinary(mockConn.WriterRecorder().WroteLen())
-	assert.True(t, strings.Contains(string(out), "Transfer-Encoding: chunked"))
-	assert.True(t, strings.Contains(string(out), "5"+string(bytestr.StrCRLF)+"hello"))
-	assert.True(t, strings.Contains(string(out), "0"+string(bytestr.StrCRLF)+string(bytestr.StrCRLF)))
-}
+	defer protocol.ReleaseResponse(response)
 
-func TestNewChunkedBodyWriterNoData(t *testing.T) {
-	response := protocol.AcquireResponse()
-	response.Header.Set("Foo", "Bar")
-	mockConn := mock.NewConn("")
-	w := NewChunkedBodyWriter(response, mockConn)
-	w.Finalize()
-	w.Flush()
-	out, _ := mockConn.WriterRecorder().ReadBinary(mockConn.WriterRecorder().WroteLen())
-	assert.True(t, strings.Contains(string(out), "Transfer-Encoding: chunked"))
-	assert.True(t, strings.Contains(string(out), "Foo: Bar"))
-	assert.True(t, strings.Contains(string(out), "0"+string(bytestr.StrCRLF)+string(bytestr.StrCRLF)))
+	mw := mock.NewMockWriter(nil)
+	w := NewChunkedBodyWriter(response, mw)
+
+	expectErr := errors.New("mock malloc err")
+
+	mw.MockMalloc = func(n int) ([]byte, error) {
+		return nil, expectErr
+	}
+	_, err := w.Write([]byte("hello"))
+	assert.True(t, err == expectErr)
+
+	mw.MockMalloc = nil
+	_, err = w.Write([]byte("world"))
+	assert.True(t, err == expectErr) // next call will return last err
+
+	w = NewChunkedBodyWriter(response, mw)
+
+	mw.MockMalloc = func(n int) ([]byte, error) {
+		return nil, expectErr
+	}
+	err = w.Finalize()
+	assert.True(t, err == expectErr)
 }
