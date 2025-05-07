@@ -19,6 +19,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"go/token"
 	"net/url"
 	"path/filepath"
 	"reflect"
@@ -65,8 +66,12 @@ func PackArgs(c interface{}) (res []string, err error) {
 		f := t.Field(i)
 		x := v.Field(i)
 		n := f.Name
-
 		if x.IsZero() {
+			continue
+		}
+
+		// skip the plugin arguments to avoid the 'strings in strings' trouble
+		if f.Name == "ThriftPlugins" || f.Name == "ThriftPluginTimeLimit" || !token.IsExported(f.Name) {
 			continue
 		}
 

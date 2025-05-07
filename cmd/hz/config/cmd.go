@@ -133,6 +133,11 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 		if !args.NoRecurse {
 			cmd.Args = append(cmd.Args, "-r")
 		}
+		if args.ThriftPluginTimeLimit != 0 {
+			cmd.Args = append(cmd.Args,
+				"--plugin-time-limit", args.ThriftPluginTimeLimit.String(),
+			)
+		}
 	} else {
 		// protoc
 		os.Setenv(meta.EnvPluginMode, meta.ProtocPluginName)

@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/hertz/cmd/hz/meta"
 	"github.com/cloudwego/hertz/cmd/hz/util"
@@ -57,24 +58,25 @@ type Argument struct {
 	Use         string
 	NeedGoMod   bool
 
-	JSONEnumStr          bool
-	QueryEnumAsInt       bool
-	UnsetOmitempty       bool
-	ProtobufCamelJSONTag bool
-	ProtocOptions        []string // options to pass through to protoc
-	ThriftOptions        []string // options to pass through to thriftgo for go flag
-	ProtobufPlugins      []string
-	ThriftPlugins        []string
-	SnakeName            bool
-	RmTags               []string
-	Excludes             []string
-	NoRecurse            bool
-	HandlerByMethod      bool
-	ForceNew             bool
-	ForceUpdateClient    bool
-	SnakeStyleMiddleware bool
-	EnableExtends        bool
-	SortRouter           bool
+	JSONEnumStr           bool
+	QueryEnumAsInt        bool
+	UnsetOmitempty        bool
+	ProtobufCamelJSONTag  bool
+	ProtocOptions         []string // options to pass through to protoc
+	ThriftOptions         []string // options to pass through to thriftgo for go flag
+	ThriftPluginTimeLimit time.Duration
+	ProtobufPlugins       []string
+	ThriftPlugins         []string
+	SnakeName             bool
+	RmTags                []string
+	Excludes              []string
+	NoRecurse             bool
+	HandlerByMethod       bool
+	ForceNew              bool
+	ForceUpdateClient     bool
+	SnakeStyleMiddleware  bool
+	EnableExtends         bool
+	SortRouter            bool
 
 	// client flag
 	EnableClientOptional bool
@@ -126,6 +128,7 @@ func (arg *Argument) parseStringSlice(c *cli.Context) {
 	arg.Excludes = c.StringSlice("exclude_file")
 	arg.RawOptPkg = c.StringSlice("option_package")
 	arg.ThriftOptions = c.StringSlice("thriftgo")
+	arg.ThriftPluginTimeLimit = c.Duration("thrift-plugin-time-limit")
 	arg.ProtocOptions = c.StringSlice("protoc")
 	arg.ThriftPlugins = c.StringSlice("thrift-plugins")
 	arg.ProtobufPlugins = c.StringSlice("protoc-plugins")
