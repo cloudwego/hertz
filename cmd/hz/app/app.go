@@ -173,6 +173,7 @@ func Init() *cli.App {
 	includesFlag := cli.StringSliceFlag{Name: "proto_path", Aliases: []string{"I"}, Usage: "Add an IDL search path for includes. (Valid only if idl is protobuf)"}
 	excludeFilesFlag := cli.StringSliceFlag{Name: "exclude_file", Aliases: []string{"E"}, Usage: "Specify the files that do not need to be updated."}
 	thriftOptionsFlag := cli.StringSliceFlag{Name: "thriftgo", Aliases: []string{"t"}, Usage: "Specify arguments for the thriftgo. ({flag}={value})"}
+	thriftPluginTimeLimitFlag := cli.DurationFlag{Name: "thrift-plugin-time-limit", Usage: " Specify thrift plugin execution time limit. (default 1m0s)\n"}
 	protoOptionsFlag := cli.StringSliceFlag{Name: "protoc", Aliases: []string{"p"}, Usage: "Specify arguments for the protoc. ({flag}={value})"}
 	thriftPluginsFlag := cli.StringSliceFlag{Name: "thrift-plugins", Usage: "Specify plugins for the thriftgo. ({plugin_name}:{options})"}
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
@@ -228,6 +229,7 @@ func Init() *cli.App {
 
 				&includesFlag,
 				&thriftOptionsFlag,
+				&thriftPluginTimeLimitFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
 				&trimGoPackage,
@@ -265,6 +267,7 @@ func Init() *cli.App {
 
 				&includesFlag,
 				&thriftOptionsFlag,
+				&thriftPluginTimeLimitFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
 				&trimGoPackage,
@@ -296,6 +299,7 @@ func Init() *cli.App {
 
 				&includesFlag,
 				&thriftOptionsFlag,
+				&thriftPluginTimeLimitFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
 				&trimGoPackage,
@@ -324,6 +328,7 @@ func Init() *cli.App {
 
 				&includesFlag,
 				&thriftOptionsFlag,
+				&thriftPluginTimeLimitFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
 				&enableExtendsFlag,
