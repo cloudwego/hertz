@@ -14,7 +14,6 @@
 //
 
 //go:build gjson || !(amd64 && (linux || windows || darwin))
-// +build gjson !amd64 !linux,!windows,!darwin
 
 package decoder
 
