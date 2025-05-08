@@ -56,7 +56,6 @@ func New(config Config) app.HandlerFunc {
 		// 从原始context复制一些必要的值到新context
 		// 注意：由于context的设计，我们无法直接复制所有值
 		// 在实际应用中，可能需要根据需求复制特定的键值
-
 		// 使用新的context继续处理请求
 		ctx.Next(newCtx)
 	}
