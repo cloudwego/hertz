@@ -19,6 +19,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"github.com/urfave/cli/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/thrift"
 	"github.com/cloudwego/hertz/cmd/hz/util"
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
-	"github.com/urfave/cli/v2"
 )
 
 // global args. MUST fork it when use
@@ -372,6 +372,22 @@ func GenerateLayout(args *config.Argument) error {
 		HandlerDir:      args.HandlerDir,
 		RouterDir:       args.RouterDir,
 		NeedGoMod:       args.NeedGoMod,
+	}
+
+	for _, p := range args.ProtobufPlugins {
+		pluginParams := strings.Split(p, ":")
+		if pluginParams[0] == "http-swagger" {
+			layout.EnableSwagger = true
+			layout.SwaggerOutDir = pluginParams[2]
+		}
+	}
+	for _, p := range args.ThriftPlugins {
+		pluginName, pluginPath, params := util.ParseThriftPluginString(p)
+		if pluginName == "http-swagger" {
+			layout.EnableSwagger = true
+			layout.SwaggerOutDir = params["OutputDir"]
+		}
+		pluginPath = filepath.Join(args.OutDir, pluginPath)
 	}
 
 	if args.CustomizeLayout == "" {
