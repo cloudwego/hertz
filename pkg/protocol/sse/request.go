@@ -15,28 +15,3 @@
  */
 
 package sse
-
-import (
-	"bytes"
-
-	"github.com/cloudwego/hertz/internal/bytestr"
-	"github.com/cloudwego/hertz/pkg/protocol"
-)
-
-// AddAcceptMIME adds `text/event-stream` to http `Accept` header.
-//
-// This is NOT required as per spec:
-// * User agents MAY set (`Accept`, `text/event-stream`) in request's header list.
-func AddAcceptMIME(req *protocol.Request) {
-	v := req.Header.Peek("Accept")
-	if len(v) > 0 {
-		if bytes.Contains(v, bytestr.MIMETextEventStream) {
-			return
-		}
-		// for better compatibility, only use one Accept header value
-		// append `text/event-stream` to the end of the value
-		req.Header.Set("Accept", string(v)+", "+string(bytestr.MIMETextEventStream))
-	} else {
-		req.Header.Set("Accept", string(bytestr.MIMETextEventStream))
-	}
-}

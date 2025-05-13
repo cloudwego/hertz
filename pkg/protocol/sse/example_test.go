@@ -36,7 +36,7 @@ func Example() {
 	opt.Addr = "127.0.0.1:0"
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(ctx context.Context, c *app.RequestContext) {
-		println("Server Got LastEventID", GetLastEventID(c))
+		println("Server Got LastEventID", GetLastEventID(&c.Request))
 		w := NewWriter(c)
 		for i := 0; i < 5; i++ {
 			w.WriteEvent(fmt.Sprintf("id-%d", i), "message", []byte("hello\n\nworld"))
