@@ -43,7 +43,6 @@ package bytesconv
 
 import (
 	"net/http"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -54,8 +53,6 @@ const (
 	upperhex = "0123456789ABCDEF"
 	lowerhex = "0123456789abcdef"
 )
-
-var hexIntBufPool sync.Pool
 
 func LowercaseBytes(b []byte) {
 	for i := 0; i < len(b); i++ {
