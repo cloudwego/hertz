@@ -22,10 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
-	"github.com/cloudwego/hertz/pkg/network"
 )
 
 func TestAppendDate(t *testing.T) {
@@ -103,18 +101,36 @@ func TestS2b(t *testing.T) {
 	}
 }
 
-// common test function for 32bit and 64bit
-func testWriteHexInt(t *testing.T, n int, expectedS string) {
-	w := bytebufferpool.Get()
-	zw := network.NewWriter(w)
-	if err := WriteHexInt(zw, n); err != nil {
-		t.Errorf("unexpected error when writing hex %x: %v", n, err)
+func TestAppendIntHex(t *testing.T) {
+	testCases := []struct {
+		b        []byte
+		n        uint64
+		expected string
+	}{
+		{[]byte{}, 0, "0"},
+		{[]byte{}, 1, "1"},
+		{[]byte{}, 10, "a"},
+		{[]byte{}, 15, "f"},
+		{[]byte{}, 16, "10"},
+		{[]byte{}, 255, "ff"},
+		{[]byte{}, 256, "100"},
+		{[]byte{}, 123456789, "75bcd15"},
+		{[]byte{}, 0xffffffffffffffff, "ffffffffffffffff"},
+		{[]byte("pre-"), 255, "pre-ff"},
+		{[]byte("start"), 0, "start0"},
 	}
-	if err := zw.Flush(); err != nil {
-		t.Fatalf("unexpected error when flushing hex %x: %v", n, err)
+	for _, tc := range testCases {
+		result := AppendIntHex(tc.b, tc.n)
+		if string(result) != tc.expected {
+			t.Fatalf("AppendIntHex(%q, %d) = %q; want %q", tc.b, tc.n, result, tc.expected)
+		}
+
+		actualLen := EncodedIntHexLen(tc.n)
+		expectedLen := len(result) - len(tc.b)
+		if actualLen != expectedLen {
+			t.Fatalf("EncodedIntHexLen(%d) = %d; want %d", tc.n, actualLen, expectedLen)
+		}
 	}
-	s := B2s(w.B)
-	assert.DeepEqual(t, s, expectedS)
 }
 
 // common test function for 32bit and 64bit

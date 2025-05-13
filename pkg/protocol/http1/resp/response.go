@@ -140,35 +140,54 @@ func ReadRespBody(resp *protocol.Response, r network.Reader, maxBodySize int) (e
 }
 
 type clientRespStream struct {
+	mu sync.Mutex
+
 	r             io.Reader
 	closeCallback func(shouldClose bool) error
 }
 
+// ForceClose closes underlying conn. It enables `Read` call to return instead of blocking.
+//
+// This method is ONLY used by hertz internally.
+// Normally, users call `Close` when the body is no longer used.
+func (c *clientRespStream) ForceClose() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closeCallback != nil {
+		err = c.closeCallback(true)
+		c.closeCallback = nil
+	}
+	// NOTE: DO NOT put back to pool here,
+	// user may still use clientRespStream and call Close() like `defer body.Close()`
+	return
+}
+
+// Close closes response stream gracefully.
+//
+// NOTE:
+// * Since Close() will put it back to pool, MUST ensure it only be called when no longer use.
+// * MUST NOT call Close() and `Read()` concurrently to avoid race issue
 func (c *clientRespStream) Close() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	runtime.SetFinalizer(c, nil)
-	// If error happened in release, the connection may be in abnormal state.
+	// If error happened in ReleaseBodyStream, the connection may be in abnormal state.
 	// Close it in the callback in order to avoid other unexpected problems.
 	err = ext.ReleaseBodyStream(c.r)
-	shouldClose := false
-	if err != nil {
-		shouldClose = true
-		hlog.Warnf("connection will be closed instead of recycled because an error occurred during the stream body release: %s", err.Error())
-	}
 	if c.closeCallback != nil {
-		err = c.closeCallback(shouldClose)
+		if err != nil {
+			hlog.SystemLogger().Warnf("error occurred during the stream body close: %s", err)
+		}
+		err = c.closeCallback(err != nil)
 	}
-	c.reset()
+	c.r = nil
+	c.closeCallback = nil
+	clientRespStreamPool.Put(c)
 	return
 }
 
 func (c *clientRespStream) Read(p []byte) (n int, err error) {
 	return c.r.Read(p)
-}
-
-func (c *clientRespStream) reset() {
-	c.closeCallback = nil
-	c.r = nil
-	clientRespStreamPool.Put(c)
 }
 
 var clientRespStreamPool = sync.Pool{

@@ -19,6 +19,7 @@ package sse
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strconv"
@@ -37,6 +38,7 @@ var errNotSSEContentType = errors.New("Content-Type returned by server is NOT te
 // It is used to parse the response body and extract individual events.
 type Reader struct {
 	resp   *protocol.Response
+	r      io.Reader
 	s      *bufio.Scanner
 	events int32
 
@@ -52,11 +54,16 @@ func NewReader(resp *protocol.Response) (*Reader, error) {
 	}
 	r := &Reader{resp: resp}
 	if resp.IsBodyStream() {
-		r.s = bufio.NewScanner(resp.BodyStream())
+		r.r = resp.BodyStream()
 	} else {
-		r.s = bufio.NewScanner(bytes.NewReader(resp.Body()))
+		r.r = bytes.NewReader(resp.Body())
 	}
+	r.s = bufio.NewScanner(r.r)
 	return r, nil
+}
+
+type forceCloseIf interface {
+	ForceClose() error // implemented by *clientRespStream
 }
 
 // ForEach iterates over all SSE events in the response body,
@@ -66,14 +73,38 @@ func NewReader(resp *protocol.Response) (*Reader, error) {
 // Use (*Event).Clone to create a copy instead.
 //
 // Iteration stops if the handler returns an error or if reading fails.
+// `ctx` is used to cancel the iteration if ctx.Done() != nil
+//
 // It returns nil if all events are processed successfully.
-func (r *Reader) ForEach(f func(e *Event) error) error {
+func (r *Reader) ForEach(ctx context.Context, f func(e *Event) error) error {
+	if ctx.Done() != nil {
+		ch := make(chan struct{})
+		defer close(ch)
+		go func() {
+			select {
+			case <-ctx.Done():
+				// force close the underlying connection to release resource
+				// or r.Read may block until remote server ends
+				if s, ok := r.r.(forceCloseIf); ok {
+					s.ForceClose()
+				}
+			case <-ch:
+				return
+			}
+		}()
+	}
 	e := NewEvent()
 	defer e.Release()
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := r.Read(e); err != nil {
 			if err == io.EOF {
 				return nil
+			}
+			if er := ctx.Err(); er != nil {
+				err = er
 			}
 			return err
 		}
@@ -175,6 +206,9 @@ func (r *Reader) Read(e *Event) error {
 }
 
 // Close closes the underlying response body.
+//
+// NOTE:
+// * MUST NOT call Close() and Read() / ForEach() concurrently to avoid race issue.
 func (r *Reader) Close() error {
 	return r.resp.CloseBodyStream()
 }

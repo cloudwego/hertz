@@ -42,11 +42,13 @@ func Example() {
 			w.WriteEvent(fmt.Sprintf("id-%d", i), "message", []byte("hello\n\nworld"))
 			time.Sleep(10 * time.Millisecond)
 		}
+		// [optional] it writes 0\r\n\r\n to indicate the end of chunked response
+		// hertz will do it after handler returns
+		w.Close()
 	})
 	go engine.Run()
 	defer engine.Close()
-	// Wait for server to start
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond) // wait for server to start
 	opt.Addr = testutils.GetListenerAddr(engine)
 
 	// --- SSE Client ---
@@ -55,7 +57,11 @@ func Example() {
 	req.SetRequestURI("http://" + opt.Addr + "/")
 	req.SetMethod("GET")
 	req.SetHeader(LastEventIDHeader, "id-0")
-	AddAcceptMIME(req) // optional for most SSE servers
+
+	// adds `text/event-stream` to http `Accept` header
+	// may required for some Model Context Protocol(MCP) servers
+	AddAcceptMIME(req)
+
 	if err := c.Do(context.Background(), req, resp); err != nil {
 		panic(err)
 	}
@@ -63,7 +69,15 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	err = r.ForEach(func(e *Event) error {
+	defer r.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		// cancel can be used to force ForEach returns by closing the remote connection
+		_ = cancel
+	}()
+	err = r.ForEach(ctx, func(e *Event) error {
 		println("Event:", e.String())
 		return nil
 	})
