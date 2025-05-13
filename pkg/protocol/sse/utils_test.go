@@ -19,8 +19,47 @@ package sse
 import (
 	"testing"
 
+	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
+
+func TestSetGetLastEventID(t *testing.T) {
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+
+	SetLastEventID(req, "123")
+	assert.DeepEqual(t, "123", GetLastEventID(req))
+}
+
+func TestAddAcceptMIME(t *testing.T) {
+	// Test case 1: Empty Accept header
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+
+	AddAcceptMIME(req)
+
+	acceptHeader := req.Header.Peek("Accept")
+	assert.DeepEqual(t, string(bytestr.MIMETextEventStream), string(acceptHeader))
+
+	// Test case 2: Existing Accept header without text/event-stream
+	req.Reset()
+	req.Header.Set("Accept", "text/html, application/json")
+
+	AddAcceptMIME(req)
+
+	acceptHeader = req.Header.Peek("Accept")
+	assert.DeepEqual(t, "text/html, application/json, text/event-stream", string(acceptHeader))
+
+	// Test case 3: Existing Accept header already containing text/event-stream
+	req.Reset()
+	req.Header.Set("Accept", "text/html, text/event-stream, application/json")
+
+	AddAcceptMIME(req)
+
+	acceptHeader = req.Header.Peek("Accept")
+	assert.DeepEqual(t, "text/html, text/event-stream, application/json", string(acceptHeader))
+}
 
 func TestHasCRLF(t *testing.T) {
 	assert.Assert(t, hasCRLF("\nThis is a test string"))
