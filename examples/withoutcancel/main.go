@@ -6,105 +6,104 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/app/middlewares/server/withoutcancel"
-	"github.com/cloudwego/hertz/pkg/app/middlewares/server/withoutcancelendpoints"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/common/utils/withoutcancel"
 )
 
 func main() {
 	h := server.Default(
-		// 开启客户端断开连接检测功能
+		// Enable client disconnection detection.
 		server.WithSenseClientDisconnection(true),
 	)
 
-	// 路由1: 普通路由，会感知客户端断开连接
-	// 当客户端断开连接时，处理函数会收到ctx.Done()信号
+	// Route 1: Normal route, will detect client disconnection.
+	// When the client disconnects, the handler will receive a ctx.Done() signal.
 	h.GET("/api/normal", func(c context.Context, ctx *app.RequestContext) {
-		hlog.Info("开始处理 /api/normal 请求")
+		hlog.Info("Start processing /api/normal request")
 
-		// 模拟耗时操作
+		// Simulate a time-consuming operation.
 		select {
 		case <-time.After(10 * time.Second):
-			hlog.Info("/api/normal: 操作完成")
-			ctx.String(200, "操作已完成")
+			hlog.Info("/api/normal: Operation completed")
+			ctx.String(200, "Operation completed")
 		case <-c.Done():
-			// 当客户端断开连接时，这里会被触发
-			hlog.Warn("/api/normal: 客户端已断开连接，操作被取消")
+			// This will be triggered when the client disconnects.
+			hlog.Warn("/api/normal: Client has disconnected, operation canceled")
 			return
 		}
 	})
 
-	// 路由2: 使用WithoutCancel中间件
-	// 即使客户端断开连接，处理函数也会继续执行直到完成
-	h.GET("/api/withoutcancel", withoutcancel.New(), func(c context.Context, ctx *app.RequestContext) {
-		hlog.Info("开始处理 /api/withoutcancel 请求")
+	// Route 2: Using WithoutCancel middleware.
+	// Even if the client disconnects, the handler will continue executing until completion.
+	h.GET("/api/withoutcancel", withoutcancel.WithoutCancel(), func(c context.Context, ctx *app.RequestContext) {
+		hlog.Info("Start processing /api/withoutcancel request")
 
-		// 模拟耗时操作
+		// Simulate a time-consuming operation.
 		select {
 		case <-time.After(10 * time.Second):
-			hlog.Info("/api/withoutcancel: 操作完成")
-			ctx.String(200, "操作已完成")
+			hlog.Info("/api/withoutcancel: Operation completed")
+			ctx.String(200, "Operation completed")
 		case <-c.Done():
-			// 这个分支永远不会被触发，因为使用了WithoutCancel中间件
-			hlog.Warn("/api/withoutcancel: 客户端已断开连接，操作被取消")
+			// This branch will never be triggered because the WithoutCancel middleware is used.
+			hlog.Warn("/api/withoutcancel: Client has disconnected, operation canceled")
 			return
 		}
 	})
 
-	// 创建白名单端点配置
-	whitelistConfig := withoutcancelendpoints.Config{
+	// Create whitelist endpoint configuration.
+	whitelistConfig := withoutcancel.WithoutCancelConfig{
 		WhitelistEndpoints: []string{
 			"GET /api/stream",
 			"GET /api/websocket",
 		},
 	}
 
-	// 路由组: 使用WithoutCancelEndpoints中间件
-	// 只有白名单中的端点会感知客户端断开连接，其他端点不受影响
-	apiGroup := h.Group("/api", withoutcancelendpoints.New(whitelistConfig))
+	// Route group: Using WithoutCancelWithWhitelist middleware.
+	// Only endpoints in the whitelist will detect client disconnection; others will not be affected.
+	apiGroup := h.Group("/api", withoutcancel.WithoutCancelWithWhitelist(whitelistConfig))
 
-	// 这个端点在白名单中，会感知客户端断开连接
+	// This endpoint is in the whitelist and will detect client disconnection.
 	apiGroup.GET("/stream", func(c context.Context, ctx *app.RequestContext) {
-		hlog.Info("开始处理 /api/stream 请求")
+		hlog.Info("Start processing /api/stream request")
 
-		// 模拟SSE或Websocket等需要感知客户端断开连接的场景
+		// Simulate a scenario that requires detecting client disconnection, such as SSE or WebSocket.
 		select {
 		case <-time.After(10 * time.Second):
-			hlog.Info("/api/stream: 操作完成")
-			ctx.String(200, "操作已完成")
+			hlog.Info("/api/stream: Operation completed")
+			ctx.String(200, "Operation completed")
 		case <-c.Done():
-			// 当客户端断开连接时，这里会被触发
-			hlog.Warn("/api/stream: 客户端已断开连接，操作被取消")
+			// This will be triggered when the client disconnects.
+			hlog.Warn("/api/stream: Client has disconnected, operation canceled")
 			return
 		}
 	})
 
-	// 这个端点不在白名单中，不会感知客户端断开连接
+	// This endpoint is not in the whitelist and will not detect client disconnection.
 	apiGroup.GET("/longprocess", func(c context.Context, ctx *app.RequestContext) {
-		hlog.Info("开始处理 /api/longprocess 请求")
+		hlog.Info("Start processing /api/longprocess request")
 
-		// 模拟耗时操作
+		// Simulate a time-consuming operation.
 		select {
 		case <-time.After(10 * time.Second):
-			hlog.Info("/api/longprocess: 操作完成")
-			ctx.String(200, "操作已完成")
+			hlog.Info("/api/longprocess: Operation completed")
+			ctx.String(200, "Operation completed")
 		case <-c.Done():
-			// 这个分支永远不会被触发，因为该端点不在白名单中
-			hlog.Warn("/api/longprocess: 客户端已断开连接，操作被取消")
+			// This branch will never be triggered because this endpoint is not in the whitelist.
+			hlog.Warn("/api/longprocess: Client has disconnected, operation canceled")
 			return
 		}
 	})
 
-	// 启动服务器
+	// Start the server.
 	addr := "127.0.0.1:8888"
-	hlog.Infof("服务器启动在 %s", addr)
-	hlog.Infof("访问以下URL测试:")
-	hlog.Infof("  - http://%s/api/normal (会感知客户端断开连接)", addr)
-	hlog.Infof("  - http://%s/api/withoutcancel (不会感知客户端断开连接)", addr)
-	hlog.Infof("  - http://%s/api/stream (白名单端点，会感知客户端断开连接)", addr)
-	hlog.Infof("  - http://%s/api/longprocess (非白名单端点，不会感知客户端断开连接)", addr)
+	hlog.Infof("Server started at %s", addr)
+	hlog.Infof("Access the following URLs for testing:")
+	hlog.Infof("  - http://%s/api/normal (will detect client disconnection)", addr)
+	hlog.Infof("  - http://%s/api/withoutcancel (will not detect client disconnection)", addr)
+	hlog.Infof("  - http://%s/api/stream (whitelisted endpoint, will detect client disconnection)", addr)
+	hlog.Infof("  - http://%s/api/longprocess (non-whitelisted endpoint, will not detect client disconnection)", addr)
 
-	fmt.Println("提示: 打开URL后，在10秒内关闭浏览器或取消请求，观察服务器日志输出")
+	fmt.Println("Tip: After opening the URL, close the browser or cancel the request within 10 seconds to observe the server log output.")
 	h.Spin()
 }
