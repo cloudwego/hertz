@@ -111,13 +111,7 @@ func nextUnixSock() string {
 }
 
 func waitEngineRunning(e *route.Engine) {
-	for i := 0; i < 100; i++ {
-		if e.IsRunning() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	panic("not running")
+	testutils.WaitEngineRunning(e)
 }
 
 func TestCloseIdleConnections(t *testing.T) {

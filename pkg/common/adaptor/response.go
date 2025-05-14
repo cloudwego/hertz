@@ -68,6 +68,8 @@ func (c *compatResponse) WriteHeader(statusCode int) {
 }
 
 // GetCompatResponseWriter only support basic function of ResponseWriter, not for all.
+//
+// Deprecated: use HertzHandler instead
 func GetCompatResponseWriter(resp *protocol.Response) http.ResponseWriter {
 	c := &compatResponse{
 		h: resp,
