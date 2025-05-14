@@ -81,11 +81,12 @@ type Response struct {
 	// Relevant for bodyStream only.
 	ImmediateHeaderFlush bool
 
-	bodyStream      io.Reader
-	w               responseBodyWriter
-	body            *bytebufferpool.ByteBuffer
-	bodyRaw         []byte
-	maxKeepBodySize int
+	bodyStream              io.Reader
+	writeBodyChunkedHandler func(w network.Writer, r io.Reader) error
+	w                       responseBodyWriter
+	body                    *bytebufferpool.ByteBuffer
+	bodyRaw                 []byte
+	maxKeepBodySize         int
 
 	// Response.Read() skips reading body if set to true.
 	// Use it for reading HEAD responses.
@@ -210,6 +211,14 @@ func (resp *Response) SetBodyStream(bodyStream io.Reader, bodySize int) {
 	resp.ResetBody()
 	resp.bodyStream = bodyStream
 	resp.Header.SetContentLength(bodySize)
+}
+
+func (resp *Response) SetWriteBodyStreamChunkedHandler(f func(w network.Writer, r io.Reader) error) {
+	resp.writeBodyChunkedHandler = f
+}
+
+func (resp *Response) WriteBodyStreamChunkedHandler() (f func(w network.Writer, r io.Reader) error) {
+	return resp.writeBodyChunkedHandler
 }
 
 // SetBodyStreamNoReset is almost the same as SetBodyStream,

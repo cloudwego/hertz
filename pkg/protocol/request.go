@@ -91,7 +91,9 @@ type Request struct {
 	uri      URI
 	postArgs Args
 
-	bodyStream      io.Reader
+	bodyStream              io.Reader
+	writeBodyChunkedHandler func(w network.Writer, r io.Reader) error
+
 	w               requestBodyWriter
 	body            *bytebufferpool.ByteBuffer
 	bodyRaw         []byte
@@ -660,6 +662,14 @@ func (req *Request) SetBodyStream(bodyStream io.Reader, bodySize int) {
 	req.ResetBody()
 	req.bodyStream = bodyStream
 	req.Header.SetContentLength(bodySize)
+}
+
+func (req *Request) SetWriteBodyStreamChunkedHandler(f func(w network.Writer, r io.Reader) error) {
+	req.writeBodyChunkedHandler = f
+}
+
+func (req *Request) WriteBodyStreamChunkedHandler() (f func(w network.Writer, r io.Reader) error) {
+	return req.writeBodyChunkedHandler
 }
 
 func (req *Request) ConstructBodyStream(body *bytebufferpool.ByteBuffer, bodyStream io.Reader) {
