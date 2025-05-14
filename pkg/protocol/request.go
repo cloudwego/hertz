@@ -212,6 +212,7 @@ func (req *Request) Reset() {
 	req.Header.Reset()
 	req.ResetSkipHeader()
 	req.CloseBodyStream()
+	req.writeBodyChunkedHandler = nil
 
 	req.options = nil
 }
@@ -664,6 +665,9 @@ func (req *Request) SetBodyStream(bodyStream io.Reader, bodySize int) {
 	req.Header.SetContentLength(bodySize)
 }
 
+// SetWriteBodyStreamChunkedHandler sets the handler for writing body stream chunked.
+//
+// the handler can customize chunk data's encoding, such as delimiter between chunks.
 func (req *Request) SetWriteBodyStreamChunkedHandler(f func(w network.Writer, r io.Reader) error) {
 	req.writeBodyChunkedHandler = f
 }

@@ -213,6 +213,9 @@ func (resp *Response) SetBodyStream(bodyStream io.Reader, bodySize int) {
 	resp.Header.SetContentLength(bodySize)
 }
 
+// SetWriteBodyStreamChunkedHandler sets the handler for writing body stream chunked.
+//
+// the handler can customize chunk data's encoding, such as delimiter between chunks.
 func (resp *Response) SetWriteBodyStreamChunkedHandler(f func(w network.Writer, r io.Reader) error) {
 	resp.writeBodyChunkedHandler = f
 }
@@ -289,6 +292,7 @@ func SwapResponseBody(a, b *Response) {
 func (resp *Response) Reset() {
 	resp.Header.Reset()
 	resp.resetSkipHeader()
+	resp.writeBodyChunkedHandler = nil
 	resp.SkipBody = false
 	resp.raddr = nil
 	resp.laddr = nil
