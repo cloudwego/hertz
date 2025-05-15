@@ -100,3 +100,45 @@ func TestPathAddMissingPort(t *testing.T) {
 		assert.DeepEqual(t, ip+customizedPort, AddMissingPort(ip+customizedPort, false))
 	}
 }
+
+// TestBufApp tests different branch logic of bufApp function
+// Handles buffer creation and management when modifying strings
+func TestBufApp(t *testing.T) {
+	var buf []byte
+	s := "test"
+	w := 1
+	
+	// Test case when buffer is empty and next char is same as original string
+	bufApp(&buf, s, w, 'e')
+	assert.DeepEqual(t, 0, len(buf)) // Buffer should remain empty as no modification needed
+
+	// Test case when buffer is empty and next char differs from original string
+	bufApp(&buf, s, w, 'x')
+	assert.DeepEqual(t, len(s), len(buf))  // New buffer should be created
+	assert.DeepEqual(t, byte('x'), buf[w]) // New char should be written to buffer
+	assert.DeepEqual(t, byte('t'), buf[0]) // Original string prefix should be copied
+
+	// Test case when buffer already exists
+	bufApp(&buf, s, 2, 'y')
+	assert.DeepEqual(t, byte('y'), buf[2]) // New char should be written to buffer
+	
+	// Test case with index w = 0 (first character)
+	var buf2 []byte
+	bufApp(&buf2, s, 0, 'X')
+	assert.DeepEqual(t, len(s), len(buf2))
+	assert.DeepEqual(t, byte('X'), buf2[0])
+	
+	// Test case with large string (exceeding stack buffer size)
+	var buf3 []byte
+	largeString := string(make([]byte, 256)) // Larger than stackBufSize (128)
+	bufApp(&buf3, largeString, 100, 'Z')
+	assert.DeepEqual(t, len(largeString), len(buf3))
+	assert.DeepEqual(t, byte('Z'), buf3[100])
+	
+	// Test edge case: when w is at the end of string
+	var buf4 []byte
+	lastIndex := len(s) - 1
+	bufApp(&buf4, s, lastIndex, 'L')
+	assert.DeepEqual(t, len(s), len(buf4))
+	assert.DeepEqual(t, byte('L'), buf4[lastIndex])
+}
