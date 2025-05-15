@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -433,7 +432,7 @@ func TestNotEnoughBodySize(t *testing.T) {
 	resp, err := http.Post(testutils.GetURL(engine, "/test"), "application/x-www-form-urlencoded", body)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, 413, resp.StatusCode)
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	assert.DeepEqual(t, "Request Entity Too Large", string(bodyBytes))
 }
 

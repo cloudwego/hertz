@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -63,7 +63,7 @@ func (lg *LayoutGenerator) Init() error {
 	config := layoutConfig
 	// unmarshal from user-defined config file if it exists
 	if lg.ConfigPath != "" {
-		cdata, err := ioutil.ReadFile(lg.ConfigPath)
+		cdata, err := os.ReadFile(lg.ConfigPath)
 		if err != nil {
 			return fmt.Errorf("read layout config from  %s failed, err: %v", lg.ConfigPath, err.Error())
 		}
@@ -216,7 +216,7 @@ func (lg *LayoutGenerator) GenerateByConfig(configPath string) error {
 	if err := lg.checkInited(); err != nil {
 		return err
 	}
-	buf, err := ioutil.ReadFile(configPath)
+	buf, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("read data file '%s' failed, err: %v", configPath, err.Error())
 	}

@@ -18,7 +18,6 @@ package ut
 
 import (
 	"io"
-	"io/ioutil"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -42,7 +41,7 @@ func createUtRequestContext(engine *route.Engine, method, url string, body *Body
 		if engine.IsStreamRequestBody() || body.Len == -1 {
 			ctx.Request.SetBodyStream(body.Body, body.Len)
 		} else {
-			buf, err := ioutil.ReadAll(&io.LimitedReader{R: body.Body, N: int64(body.Len)})
+			buf, err := io.ReadAll(&io.LimitedReader{R: body.Body, N: int64(body.Len)})
 			ctx.Request.SetBody(buf)
 			if err != nil && err != io.EOF {
 				panic(err)
