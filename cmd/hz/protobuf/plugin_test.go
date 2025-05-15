@@ -17,6 +17,7 @@
 package protobuf
 
 import (
+	"google.golang.org/protobuf/types/descriptorpb"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -94,5 +95,21 @@ func TestFixModelPathAndPackage(t *testing.T) {
 		if result != r[1] {
 			t.Fatalf("want go package: %s, but get: %s", r[1], result)
 		}
+	}
+}
+
+func TestFixGoPackage(t *testing.T) {
+	plu := &Plugin{}
+	plu.Package = "cloudwego/hertz"
+	plu.ModelDir = meta.ModelDir
+	req := &pluginpb.CodeGeneratorRequest{}
+	pbFile := &descriptorpb.FileDescriptorProto{}
+	fileOpt := &descriptorpb.FileOptions{}
+	fileOpt.GoPackage = proto.String("./")
+	pbFile.Options = fileOpt
+	req.ProtoFile = append(req.ProtoFile, pbFile)
+	plu.fixGoPackage(req, nil)
+	if req.ProtoFile[0].Options.GetGoPackage() != "cloudwego/hertz/biz/model" {
+		t.Fatalf("want go package: %s, but get: %s", "cloudwego/hertz/biz/model", req.ProtoFile[0].Options.GetGoPackage())
 	}
 }
