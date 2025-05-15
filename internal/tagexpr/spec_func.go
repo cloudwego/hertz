@@ -59,7 +59,7 @@ func RegFunc(funcName string, fn func(...interface{}) interface{}, force ...bool
 	return nil
 }
 
-func (p *Expr) parseFuncSign(funcName string, expr *string) (boolOpposite *bool, signOpposite *bool, args []ExprNode, found bool) {
+func (p *Expr) parseFuncSign(funcName string, expr *string) (boolOpposite, signOpposite *bool, args []ExprNode, found bool) {
 	prefix := funcName + "("
 	length := len(funcName)
 	last, boolOpposite, signOpposite := getBoolAndSignOpposite(expr)
