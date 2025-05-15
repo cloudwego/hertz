@@ -82,6 +82,7 @@ import (
 const unknownTransporterName = "unknown"
 
 var (
+	// will be netpoll.NewTransporter if available, see: netpoll.go
 	defaultTransporter = standard.NewTransporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")
@@ -312,9 +313,17 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	opt := engine.GetOptions()
+	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most %s ...", opt.ExitWaitTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, opt.ExitWaitTimeout)
+	defer cancel()
+
 	ch := make(chan struct{})
-	// trigger hooks if any
-	go engine.executeOnShutdownHooks(ctx, ch)
+	go func() {
+		defer close(ch)
+		engine.executeOnShutdownHooks(ctx)
+	}()
 
 	defer func() {
 		// ensure that the hook is executed until wait timeout or finish
@@ -328,7 +337,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		}
 	}()
 
-	if opt := engine.options; opt != nil && opt.Registry != nil {
+	if opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
 			hlog.SystemLogger().Errorf("Deregister error=%v", err)
 			return err
@@ -343,7 +352,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	return
 }
 
-func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context) {
 	wg := sync.WaitGroup{}
 	for i := range engine.OnShutdown {
 		wg.Add(1)
@@ -353,7 +362,6 @@ func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct
 		}(i)
 	}
 	wg.Wait()
-	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {
@@ -572,6 +580,7 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 }
 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	var isCustomValidator bool
 	// init validator
 	if opt.CustomValidator != nil {
 		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
@@ -579,6 +588,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 			panic("customized validator does not implement binding.StructValidator")
 		}
 		engine.validator = customValidator
+		isCustomValidator = true
 	} else {
 		engine.validator = binding.NewValidator(binding.NewValidateConfig())
 		if opt.ValidateConfig != nil {
@@ -587,6 +597,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
 			}
 			engine.validator = binding.NewValidator(vConf)
+			isCustomValidator = true
 		}
 	}
 
@@ -607,7 +618,8 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		if !ok {
 			panic("opt.BindConfig is not the '*binding.BindConfig' type")
 		}
-		if bConf.Validator == nil {
+		// optimize: user customized validator has the highest priority
+		if isCustomValidator || bConf.Validator == nil {
 			bConf.Validator = engine.validator
 		}
 		engine.binder = binding.NewDefaultBinder(bConf)

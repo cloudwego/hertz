@@ -23,11 +23,13 @@ import (
 	"testing"
 	"time"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
+
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
-func assertWriteRead(t *testing.T, c io.ReadWriter, w string, r string) {
+func assertWriteRead(t *testing.T, c io.ReadWriter, w, r string) {
 	t.Helper()
 	_, err := c.Write([]byte(w))
 	if err != nil {
@@ -47,8 +49,12 @@ func TestTransporter(t *testing.T) {
 	handlerExit := make(chan struct{})
 	req := "hello"
 	resp := "world"
-	trans := NewTransporter(&config.Options{Network: "tcp", Addr: "127.0.0.1:0"}).(*transport)
+	trans := NewTransporter(&config.Options{Network: "tcp", Addr: "127.0.0.1:0", SenseClientDisconnection: true}).(*transport)
 	go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+		_, isStatefulConn := conn.(internalNetwork.StatefulConn)
+		if !isStatefulConn {
+			t.Fatal("SenseClientDisconnection configure failed")
+		}
 		c := conn.(network.Conn)
 		defer c.Close()
 		assertWriteRead(t, c, resp, req)

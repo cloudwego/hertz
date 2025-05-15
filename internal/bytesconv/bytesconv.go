@@ -43,7 +43,6 @@ package bytesconv
 
 import (
 	"net/http"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -54,8 +53,6 @@ const (
 	upperhex = "0123456789ABCDEF"
 	lowerhex = "0123456789abcdef"
 )
-
-var hexIntBufPool sync.Pool
 
 func LowercaseBytes(b []byte) {
 	for i := 0; i < len(b); i++ {
@@ -89,29 +86,30 @@ func S2b(s string) (b []byte) {
 	return
 }
 
-func WriteHexInt(w network.Writer, n int) error {
-	if n < 0 {
-		panic("BUG: int must be positive")
+func EncodedIntHexLen(n uint64) int {
+	if n == 0 {
+		return 1
 	}
-
-	v := hexIntBufPool.Get()
-	if v == nil {
-		v = make([]byte, maxHexIntChars+1)
-	}
-	buf := v.([]byte)
-	i := len(buf) - 1
-	for {
-		buf[i] = lowerhex[n&0xf]
+	i := 0
+	for n > 0 {
+		i++
 		n >>= 4
-		if n == 0 {
-			break
-		}
-		i--
 	}
-	safeBuf, err := w.Malloc(maxHexIntChars + 1 - i)
-	copy(safeBuf, buf[i:])
-	hexIntBufPool.Put(v)
-	return err
+	return i
+}
+
+func AppendIntHex(b []byte, n uint64) []byte {
+	if n == 0 {
+		return append(b, '0')
+	}
+	var tmp [16]byte // 64 / 4 = 16
+	i := len(tmp)
+	for n > 0 {
+		i--
+		tmp[i] = lowerhex[n&0xf]
+		n >>= 4
+	}
+	return append(b, tmp[i:]...)
 }
 
 func ReadHexInt(r network.Reader) (int, error) {

@@ -38,16 +38,17 @@ type transport struct {
 	// and/or multi-KB headers (for example, BIG cookies).
 	//
 	// Default buffer size is used if not set.
-	readBufferSize   int
-	network          string
-	addr             string
-	keepAliveTimeout time.Duration
-	readTimeout      time.Duration
-	handler          network.OnData
-	tls              *tls.Config
-	listenConfig     *net.ListenConfig
-	OnAccept         func(conn net.Conn) context.Context
-	OnConnect        func(ctx context.Context, conn network.Conn) context.Context
+	readBufferSize           int
+	network                  string
+	addr                     string
+	keepAliveTimeout         time.Duration
+	senseClientDisconnection bool
+	readTimeout              time.Duration
+	handler                  network.OnData
+	tls                      *tls.Config
+	listenConfig             *net.ListenConfig
+	OnAccept                 func(conn net.Conn) context.Context
+	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
 
 	// active connections. it +1 after accept and -1 after handler returns
 	active int32
@@ -101,8 +102,16 @@ func (t *transport) serve() (err error) {
 		if t.OnConnect != nil {
 			ctx = t.OnConnect(ctx, c)
 		}
+
 		go func(ctx context.Context, conn network.Conn) {
-			t.handler(ctx, conn)
+			if t.senseClientDisconnection {
+				ctx, cancelCtx := context.WithCancel(ctx)
+				conn = NewStatefulConn(conn, newOnReadErrorFunc(cancelCtx))
+				t.handler(ctx, conn)
+				cancelCtx()
+			} else {
+				t.handler(ctx, conn)
+			}
 			t.updateActive(-1)
 		}(ctx, c)
 	}
@@ -169,14 +178,15 @@ func (t *transport) Shutdown(ctx context.Context) error {
 // For transporter switch
 func NewTransporter(options *config.Options) network.Transporter {
 	return &transport{
-		readBufferSize:   options.ReadBufferSize,
-		network:          options.Network,
-		addr:             options.Addr,
-		keepAliveTimeout: options.KeepAliveTimeout,
-		readTimeout:      options.ReadTimeout,
-		tls:              options.TLS,
-		listenConfig:     options.ListenConfig,
-		OnAccept:         options.OnAccept,
-		OnConnect:        options.OnConnect,
+		readBufferSize:           options.ReadBufferSize,
+		network:                  options.Network,
+		addr:                     options.Addr,
+		keepAliveTimeout:         options.KeepAliveTimeout,
+		readTimeout:              options.ReadTimeout,
+		senseClientDisconnection: options.SenseClientDisconnection,
+		tls:                      options.TLS,
+		listenConfig:             options.ListenConfig,
+		OnAccept:                 options.OnAccept,
+		OnConnect:                options.OnConnect,
 	}
 }

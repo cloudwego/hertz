@@ -342,7 +342,7 @@ func (resp *Response) SetBody(body []byte) {
 
 func (resp *Response) BodyStream() io.Reader {
 	if resp.bodyStream == nil {
-		resp.bodyStream = NoResponseBody
+		return NoResponseBody
 	}
 	return resp.bodyStream
 }
@@ -393,6 +393,10 @@ func (resp *Response) ConnectionClose() bool {
 	return resp.Header.ConnectionClose()
 }
 
+// CloseBodyStream tries call Close() of underlying body stream.
+//
+// NOTE:
+// * MUST NOT call CloseBodyStream() and BodyStream().Read() concurrently to avoid race issue.
 func (resp *Response) CloseBodyStream() error {
 	if resp.bodyStream == nil {
 		return nil

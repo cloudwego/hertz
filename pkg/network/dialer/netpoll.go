@@ -1,3 +1,5 @@
+//go:build (amd64 || arm64) && (linux || darwin)
+
 /*
  * Copyright 2022 CloudWeGo Authors
  *
@@ -16,10 +18,8 @@
 
 package dialer
 
-import (
-	"github.com/cloudwego/hertz/pkg/network/standard"
-)
+import "github.com/cloudwego/hertz/pkg/network/netpoll"
 
 func init() {
-	defaultDialer = standard.NewDialer()
+	defaultDialer = netpoll.NewDialer()
 }

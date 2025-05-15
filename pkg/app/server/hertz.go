@@ -73,12 +73,7 @@ func (h *Hertz) Spin() {
 		return
 	}
 
-	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), h.GetOptions().ExitWaitTimeout)
-	defer cancel()
-
-	if err := h.Shutdown(ctx); err != nil {
+	if err := h.Shutdown(context.Background()); err != nil {
 		hlog.SystemLogger().Errorf("Shutdown error=%v", err)
 	}
 }

@@ -683,10 +683,24 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	// This is to solve the circular dependency problem of Response and BodyStream
 	shouldCloseConn := false
 
-	if !c.ResponseBodyStream {
-		err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
+	if err = respI.ReadHeaders(resp, zr); err != nil {
+		_ = zr.Release()
+		c.closeConn(cc)
+		return true, err
+	}
+
+	stream := c.ResponseBodyStream
+
+	// if it's server-sent event response,
+	// we should set stream=true or it may block till timeout
+	if !stream && resp.Header.ContentLength() < 0 &&
+		bytes.HasPrefix(resp.Header.ContentType(), bytestr.MIMETextEventStream) {
+		stream = true
+	}
+	if !stream {
+		err = respI.ReadRespBody(resp, zr, c.MaxResponseBodySize)
 	} else {
-		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func(shouldClose bool) error {
+		err = respI.ReadRespBodyStream(resp, zr, c.MaxResponseBodySize, func(shouldClose bool) error {
 			if shouldCloseConn || shouldClose {
 				c.closeConn(cc)
 			} else {
@@ -714,7 +728,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 
 	// In stream mode, we still can close/release the connection immediately if there is no content on the wire.
-	if c.ResponseBodyStream && resp.BodyStream() != protocol.NoResponseBody {
+	if stream && resp.BodyStream() != protocol.NoResponseBody {
 		return false, nil
 	}
 

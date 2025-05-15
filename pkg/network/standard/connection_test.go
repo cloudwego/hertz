@@ -18,6 +18,7 @@ package standard
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -191,6 +192,34 @@ func TestReadBytes(t *testing.T) {
 	}
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
+	}
+}
+
+func TestStatefulConnConnectionCloseDetection(t *testing.T) {
+	cliConn, svrConn := net.Pipe()
+	svrCtx, cancelCtx := context.WithCancel(context.Background())
+	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
+	defer svrStatefulConn.Close()
+
+	// 1. normal request
+	svrStatefulConn.DetectConnectionClose()
+	svrStatefulConn.AbortBlockingRead()
+	select {
+	case <-svrCtx.Done():
+		t.Fatal("ctx should not be canceled")
+	default:
+	}
+
+	// 2. client close conn
+	svrStatefulConn.DetectConnectionClose()
+	cliConn.Close()
+	time.Sleep(100 * time.Millisecond) // wait a while
+
+	select {
+	case <-svrCtx.Done():
+		// expected
+	default:
+		t.Fatal("ctx should be canceled")
 	}
 }
 

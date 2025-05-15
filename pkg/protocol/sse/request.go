@@ -1,8 +1,5 @@
-//go:build !windows
-// +build !windows
-
 /*
- * Copyright 2022 CloudWeGo Authors
+ * Copyright 2025 CloudWeGo Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +14,4 @@
  * limitations under the License.
  */
 
-package dialer
-
-import "github.com/cloudwego/hertz/pkg/network/netpoll"
-
-func init() {
-	defaultDialer = netpoll.NewDialer()
-}
+package sse

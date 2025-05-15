@@ -801,6 +801,37 @@ func TestValidateConfigSetErrorFactory(t *testing.T) {
 	performRequest(e, "GET", "/bind?b=1")
 }
 
+func TestValidateConfigSetErrorFactoryWithBindConfig(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	opt.ValidateConfig = validateConfig
+	opt.BindConfig = binding.NewBindConfig()
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+	performRequest(e, "GET", "/bind?b=1")
+}
+
 func TestCustomBinder(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
@@ -889,11 +920,18 @@ func newMockStandardTransporter(opt *config.Options) network.Transporter {
 }
 
 func TestEngineShutdown(t *testing.T) {
-	mockCtxCallback := func(ctx context.Context) {}
-
 	opt := config.NewOptions(nil)
 	opt.Addr = "127.0.0.1:0"
 	opt.TransporterNewer = newMockStandardTransporter
+
+	mockCtxCallback := func(ctx context.Context) {
+		// Shutdown adds `ExitWaitTimeout` to the given context
+		dl, ok := ctx.Deadline()
+		assert.Assert(t, ok)
+		assert.Assert(t,
+			opt.ExitWaitTimeout-time.Until(dl) < 50*time.Millisecond, // runtime schedule latency
+			opt.ExitWaitTimeout, time.Until(dl))
+	}
 
 	var wg sync.WaitGroup
 	var engine *Engine
