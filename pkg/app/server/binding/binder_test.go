@@ -41,7 +41,9 @@
 package binding
 
 import (
+	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/url"
@@ -1663,6 +1665,41 @@ func TestBind_NormalizeContentType(t *testing.T) {
 	}
 	assert.DeepEqual(t, "action", result.Action)
 	assert.DeepEqual(t, "version", result.Version)
+}
+
+type TestEnumType int32
+
+var _ encoding.TextUnmarshaler = (*TestEnumType)(nil)
+
+func (p *TestEnumType) UnmarshalText(v []byte) error {
+	switch string(v) {
+	case "one":
+		*p = 1
+	case "two":
+		*p = 2
+	default:
+		return errors.New("invalid")
+	}
+	return nil
+}
+
+func TestBind_TextUnmarshaler(t *testing.T) {
+	type Query struct {
+		A TestEnumType  `query:"a"`
+		B TestEnumType  `query:"b"`
+		C *TestEnumType `query:"c"`
+		D *TestEnumType `query:"d"`
+	}
+	q := &Query{}
+	req := newMockRequest().SetRequestURI("http://example.com?a=1&b=one&c=2&d=two")
+	err := DefaultBinder().BindQuery(req.Req, q)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, TestEnumType(1), q.A)
+	assert.DeepEqual(t, TestEnumType(1), q.B)
+	assert.NotNil(t, q.C)
+	assert.NotNil(t, q.D)
+	assert.DeepEqual(t, TestEnumType(2), *q.C)
+	assert.DeepEqual(t, TestEnumType(2), *q.D)
 }
 
 func Benchmark_Binding(b *testing.B) {

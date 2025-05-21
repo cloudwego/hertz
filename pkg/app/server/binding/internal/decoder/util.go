@@ -17,6 +17,7 @@
 package decoder
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
@@ -45,8 +46,7 @@ func toDefaultValue(typ reflect.Type, defaultValue string) string {
 }
 
 // stringToValue is used to dynamically create reflect.Value for 'text'
-func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params, config *DecodeConfig) (v reflect.Value, err error) {
-	v = reflect.New(elemType).Elem()
+func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params, config *DecodeConfig) (reflect.Value, error) {
 	if customizedFunc, exist := config.TypeUnmarshalFuncs[elemType]; exist {
 		val, err := customizedFunc(req, params, text)
 		if err != nil {
@@ -54,23 +54,42 @@ func stringToValue(elemType reflect.Type, text string, req *protocol.Request, pa
 		}
 		return val, nil
 	}
+	v := reflect.New(elemType)
+	if tryTextUnmarshaler(v, text) {
+		return v.Elem(), nil
+	}
 	switch elemType.Kind() {
-	case reflect.Struct:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
-	case reflect.Map:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
+	case reflect.Struct, reflect.Map:
+		if err := hJson.Unmarshal(bytesconv.S2b(text), v.Interface()); err != nil {
+			return reflect.Value{}, err
+		}
+		return v.Elem(), nil
+
 	case reflect.Array, reflect.Slice:
 		// do nothing
+		return v.Elem(), nil
+
 	default:
 		decoder, err := SelectTextDecoder(elemType)
 		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
+			return reflect.Value{}, err
 		}
+		v = v.Elem()
 		err = decoder.UnmarshalString(text, v, config.LooseZeroMode)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("unable to decode '%s' as %s: %w", text, elemType.String(), err)
 		}
+		return v, nil
 	}
 
-	return v, err
+}
+
+func tryTextUnmarshaler(v reflect.Value, s string) bool {
+	enc, ok := v.Interface().(encoding.TextUnmarshaler)
+	if ok {
+		if err := enc.UnmarshalText(bytesconv.S2b(s)); err == nil {
+			return true
+		}
+	}
+	return false
 }
