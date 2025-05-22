@@ -45,9 +45,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	goerrs "errors"
 	"fmt"
 	"html"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -104,6 +106,9 @@ type PathRewriteFunc func(ctx *RequestContext) []byte
 // It is prohibited copying FS values. Create new values instead.
 type FS struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
+
+	// FS is filesystem to serve files from. eg: embed.FS os.DirFS
+	FS fs.FS
 
 	// Path to the root directory to serve files from.
 	Root string
@@ -175,6 +180,30 @@ type FS struct {
 	h    HandlerFunc
 }
 
+// ServeFS returns HTTP response containing compressed file contents from the given fs.FS's path.
+//
+// HTTP response may contain uncompressed file contents in the following cases:
+//
+//   - Missing 'Accept-Encoding: gzip' request header.
+//   - No write access to directory containing the file.
+//
+// Directory contents is returned if path points to directory.
+//
+// See also ServeFile.
+func ServeFS(ctx context.Context, c *RequestContext, filesystem fs.FS, path string) {
+	f := &FS{
+		FS:                 filesystem,
+		Root:               "",
+		GenerateIndexPages: true,
+		Compress:           true,
+		AcceptByteRange:    true,
+	}
+	handler := f.NewRequestHandler()
+
+	c.Request.SetRequestURI(path)
+	handler(ctx, c)
+}
+
 type byteRangeUpdater interface {
 	UpdateByteRange(startPos, endPos int) error
 }
@@ -212,7 +241,11 @@ func (r *fsSmallFileReader) Read(p []byte) (int, error) {
 
 	ff := r.ff
 	if ff.f != nil {
-		n, err := ff.f.ReadAt(p, int64(r.startPos))
+		ra, ok := ff.f.(io.ReaderAt)
+		if !ok {
+			return 0, errors.NewPublic("must implement io.ReaderAt")
+		}
+		n, err := ra.ReadAt(p, int64(r.startPos))
 		r.startPos += n
 		return n, err
 	}
@@ -247,7 +280,11 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 		if len(buf) > tailLen {
 			buf = buf[:tailLen]
 		}
-		n, err = ff.f.ReadAt(buf, int64(curPos))
+		ra, ok := ff.f.(io.ReaderAt)
+		if !ok {
+			return 0, errors.NewPublic("must implement io.ReaderAt")
+		}
+		n, err = ra.ReadAt(buf, int64(curPos))
 		nw, errw := w.Write(buf[:n])
 		curPos += nw
 		if errw == nil && nw != n {
@@ -330,6 +367,7 @@ func (fs *FS) initRequestHandler() {
 	}
 
 	h := &fsHandler{
+		fs:                   fs.FS,
 		root:                 root,
 		indexNames:           fs.IndexNames,
 		pathRewrite:          fs.PathRewrite,
@@ -341,6 +379,10 @@ func (fs *FS) initRequestHandler() {
 		compressedFileSuffix: compressedFileSuffix,
 		cache:                make(map[string]*fsFile),
 		compressedCache:      make(map[string]*fsFile),
+	}
+
+	if h.fs == nil {
+		h.fs = &osFS{} // It provides os.Open and os.Stat
 	}
 
 	go func() {
@@ -355,6 +397,7 @@ func (fs *FS) initRequestHandler() {
 }
 
 type fsHandler struct {
+	fs                   fs.FS
 	root                 string
 	indexNames           []string
 	pathRewrite          PathRewriteFunc
@@ -375,14 +418,18 @@ type fsHandler struct {
 // bigFileReader attempts to trigger sendfile
 // for sending big files over the wire.
 type bigFileReader struct {
-	f  *os.File
+	f  fs.File
 	ff *fsFile
 	r  io.Reader
 	lr io.LimitedReader
 }
 
 func (r *bigFileReader) UpdateByteRange(startPos, endPos int) error {
-	if _, err := r.f.Seek(int64(startPos), 0); err != nil {
+	seeker, ok := r.f.(io.Seeker)
+	if !ok {
+		return errors.NewPublic("must implement io.Seeker")
+	}
+	if _, err := seeker.Seek(int64(startPos), io.SeekStart); err != nil {
 		return err
 	}
 	r.r = &r.lr
@@ -407,7 +454,12 @@ func (r *bigFileReader) WriteTo(w io.Writer) (int64, error) {
 
 func (r *bigFileReader) Close() error {
 	r.r = r.f
-	n, err := r.f.Seek(0, 0)
+	seeker, ok := r.f.(io.Seeker)
+	if !ok {
+		_ = r.f.Close()
+		return errors.NewPublic("must implement io.Seeker")
+	}
+	n, err := seeker.Seek(0, io.SeekStart)
 	if err == nil {
 		if n != 0 {
 			panic("BUG: File.Seek(0,0) returned (non-zero, nil)")
@@ -419,6 +471,7 @@ func (r *bigFileReader) Close() error {
 		ff.bigFilesLock.Unlock()
 	} else {
 		r.f.Close()
+		err = errors.NewPublic("bug: File.Seek(0, io.SeekStart) returned (non-zero, nil)")
 	}
 	r.ff.decReadersCount()
 	return err
@@ -454,7 +507,7 @@ func (h *fsHandler) cleanCache(pendingFiles []*fsFile) []*fsFile {
 }
 
 func (h *fsHandler) compressAndOpenFSFile(filePath string) (*fsFile, error) {
-	f, err := os.Open(filePath)
+	f, err := h.fs.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -473,10 +526,15 @@ func (h *fsHandler) compressAndOpenFSFile(filePath string) (*fsFile, error) {
 	if strings.HasSuffix(filePath, h.compressedFileSuffix) ||
 		fileInfo.Size() > consts.FsMaxCompressibleFileSize ||
 		!isFileCompressible(f, consts.FsMinCompressRatio) {
-		return h.newFSFile(f, fileInfo, false)
+		return h.newFSFile(f, fileInfo, false, filePath)
 	}
 
 	compressedFilePath := filePath + h.compressedFileSuffix
+
+	if _, ok := h.fs.(*osFS); !ok {
+		return h.newCompressedFSFileCache(f, fileInfo, compressedFilePath)
+	}
+
 	absPath, err := filepath.Abs(compressedFilePath)
 	if err != nil {
 		f.Close()
@@ -491,6 +549,65 @@ func (h *fsHandler) compressAndOpenFSFile(filePath string) (*fsFile, error) {
 	return ff, err
 }
 
+func (h *fsHandler) newCompressedFSFileCache(f fs.File, fileInfo fs.FileInfo, filePath string) (*fsFile, error) {
+	var (
+		w   = &bytebufferpool.ByteBuffer{}
+		err error
+	)
+
+	defer func() { _ = f.Close() }()
+
+	zw := compress.AcquireStacklessGzipWriter(w, compress.CompressDefaultCompression)
+	lr := &io.LimitedReader{
+		R: f,
+		N: 4096,
+	}
+	zrw := network.NewWriter(zw)
+	_, err = utils.CopyZeroAlloc(zrw, lr)
+	if errf := zw.Flush(); err == nil {
+		err = errf
+	}
+	compress.ReleaseStacklessGzipWriter(zw, compress.CompressDefaultCompression)
+
+	if err != nil {
+		return nil, fmt.Errorf("error when compressing file %q: %w", filePath, err)
+	}
+
+	seeker, ok := f.(io.Seeker)
+	if !ok {
+		return nil, goerrs.New("not implemented io.Seeker")
+	}
+	if _, err = seeker.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	ext := fileExtension(fileInfo.Name(), false, h.compressedFileSuffix)
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		data, err := readFileHeader(f, false)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read header of the file %q: %w", fileInfo.Name(), err)
+		}
+		contentType = http.DetectContentType(data)
+	}
+
+	dirIndex := w.B
+	lastModified := fileInfo.ModTime()
+	ff := &fsFile{
+		h:               h,
+		dirIndex:        dirIndex,
+		contentType:     contentType,
+		contentLength:   len(dirIndex),
+		compressed:      true,
+		lastModified:    lastModified,
+		lastModifiedStr: bytesconv.AppendHTTPDate(make([]byte, 0, len(http.TimeFormat)), lastModified),
+
+		t: time.Now(),
+	}
+
+	return ff, nil
+}
+
 func (h *fsHandler) newCompressedFSFile(filePath string) (*fsFile, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -501,10 +618,10 @@ func (h *fsHandler) newCompressedFSFile(filePath string) (*fsFile, error) {
 		f.Close()
 		return nil, fmt.Errorf("cannot obtain info for compressed file %q: %s", filePath, err)
 	}
-	return h.newFSFile(f, fileInfo, true)
+	return h.newFSFile(f, fileInfo, true, filePath)
 }
 
-func (h *fsHandler) compressFileNolock(f *os.File, fileInfo os.FileInfo, filePath, compressedFilePath string) (*fsFile, error) {
+func (h *fsHandler) compressFileNolock(f fs.File, fileInfo fs.FileInfo, filePath, compressedFilePath string) (*fsFile, error) {
 	// Attempt to open compressed file created by another concurrent
 	// goroutine.
 	// It is safe opening such a file, since the file creation
@@ -520,8 +637,8 @@ func (h *fsHandler) compressFileNolock(f *os.File, fileInfo os.FileInfo, filePat
 	zf, err := os.Create(tmpFilePath)
 	if err != nil {
 		f.Close()
-		if !os.IsPermission(err) {
-			return nil, fmt.Errorf("cannot create temporary file %q: %s", tmpFilePath, err)
+		if !goerrs.Is(err, fs.ErrPermission) {
+			return nil, fmt.Errorf("cannot create temporary file %q: %w", tmpFilePath, err)
 		}
 		return nil, errNoCreatePermission
 	}
@@ -554,9 +671,9 @@ func (h *fsHandler) openFSFile(filePath string, mustCompress bool) (*fsFile, err
 		filePath += h.compressedFileSuffix
 	}
 
-	f, err := os.Open(filePath)
+	f, err := h.fs.Open(filePath)
 	if err != nil {
-		if mustCompress && os.IsNotExist(err) {
+		if mustCompress && goerrs.Is(err, fs.ErrNotExist) {
 			return h.compressAndOpenFSFile(filePathOriginal)
 		}
 		return nil, err
@@ -578,7 +695,7 @@ func (h *fsHandler) openFSFile(filePath string, mustCompress bool) (*fsFile, err
 	}
 
 	if mustCompress {
-		fileInfoOriginal, err := os.Stat(filePathOriginal)
+		fileInfoOriginal, err := fs.Stat(h.fs, filePathOriginal)
 		if err != nil {
 			f.Close()
 			return nil, fmt.Errorf("cannot obtain info for original file %q: %s", filePathOriginal, err)
@@ -592,10 +709,10 @@ func (h *fsHandler) openFSFile(filePath string, mustCompress bool) (*fsFile, err
 		}
 	}
 
-	return h.newFSFile(f, fileInfo, mustCompress)
+	return h.newFSFile(f, fileInfo, mustCompress, filePath)
 }
 
-func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool) (*fsFile, error) {
+func (h *fsHandler) newFSFile(f fs.File, fileInfo fs.FileInfo, compressed bool, filePath string) (*fsFile, error) {
 	n := fileInfo.Size()
 	contentLength := int(n)
 	if n != int64(contentLength) {
@@ -609,7 +726,7 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 	if len(contentType) == 0 {
 		data, err := readFileHeader(f, compressed)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read header of the file %q: %s", f.Name(), err)
+			return nil, fmt.Errorf("cannot read header of the file %q: %s", fileInfo.Name(), err)
 		}
 		contentType = http.DetectContentType(data)
 	}
@@ -618,6 +735,7 @@ func (h *fsHandler) newFSFile(f *os.File, fileInfo os.FileInfo, compressed bool)
 	ff := &fsFile{
 		h:               h,
 		f:               f,
+		filename:        filePath,
 		contentType:     contentType,
 		contentLength:   contentLength,
 		compressed:      compressed,
@@ -757,7 +875,7 @@ func (ff *fsFile) bigFileReader() (io.Reader, error) {
 		return r, nil
 	}
 
-	f, err := os.Open(ff.f.Name())
+	f, err := ff.h.fs.Open(ff.filename)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open already opened file: %s", err)
 	}
@@ -791,6 +909,16 @@ func (ff *fsFile) smallFileReader() io.Reader {
 		panic("BUG: fsSmallFileReader with non-nil startPos found in the pool")
 	}
 	return r
+}
+
+func (h *fsHandler) pathToFilePath(path string) string {
+	if _, ok := h.fs.(*osFS); !ok {
+		if len(path) < 1 {
+			return path
+		}
+		return path[1:]
+	}
+	return filepath.FromSlash(h.root + path)
 }
 
 func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
@@ -835,17 +963,17 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 
 	if !ok {
 		pathStr := string(path)
-		filePath := h.root + pathStr
+		filePath := h.pathToFilePath(pathStr)
+
 		var err error
 		ff, err = h.openFSFile(filePath, mustCompress)
-
 		if mustCompress && err == errNoCreatePermission {
 			hlog.SystemLogger().Errorf("Insufficient permissions for saving compressed file for path=%q. Serving uncompressed file. "+
 				"Allow write access to the directory with this file in order to improve hertz performance", filePath)
 			mustCompress = false
 			ff, err = h.openFSFile(filePath, mustCompress)
 		}
-		if err == errDirIndexRequired {
+		if goerrs.Is(err, errDirIndexRequired) {
 			ff, err = h.openIndexFile(ctx, filePath, mustCompress)
 			if err != nil {
 				hlog.SystemLogger().Errorf("Cannot open dir index, path=%q, error=%s", filePath, err)
@@ -950,7 +1078,8 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 
 type fsFile struct {
 	h             *fsHandler
-	f             *os.File
+	f             fs.File
+	filename      string
 	dirIndex      []byte
 	contentType   string
 	contentLength int
@@ -981,6 +1110,9 @@ func (ff *fsFile) Release() {
 }
 
 func (ff *fsFile) isBig() bool {
+	if _, ok := ff.h.fs.(*osFS); !ok { // fs.FS only uses bigFileReader, memory cache uses fsSmallFileReader
+		return ff.f != nil
+	}
 	return ff.contentLength > consts.MaxSmallFileSize && len(ff.dirIndex) == 0
 }
 
@@ -1009,7 +1141,7 @@ func stripTrailingSlashes(path []byte) []byte {
 	return path
 }
 
-func isFileCompressible(f *os.File, minCompressRatio float64) bool {
+func isFileCompressible(f fs.File, minCompressRatio float64) bool {
 	// Try compressing the first 4kb of the file
 	// and see if it can be compressed by more than
 	// the given minCompressRatio.
@@ -1022,7 +1154,11 @@ func isFileCompressible(f *os.File, minCompressRatio float64) bool {
 	zrw := network.NewWriter(zw)
 	_, err := utils.CopyZeroAlloc(zrw, lr)
 	compress.ReleaseStacklessGzipWriter(zw, compress.CompressDefaultCompression)
-	f.Seek(0, 0) //nolint:errcheck
+	seeker, ok := f.(io.Seeker)
+	if !ok {
+		return false
+	}
+	seeker.Seek(0, io.SeekStart) //nolint:errcheck
 	if err != nil {
 		return false
 	}
@@ -1060,7 +1196,7 @@ func fileExtension(path string, compressed bool, compressedFileSuffix string) st
 	return path[n:]
 }
 
-func readFileHeader(f *os.File, compressed bool) ([]byte, error) {
+func readFileHeader(f io.Reader, compressed bool) ([]byte, error) {
 	r := io.Reader(f)
 	var zr *gzip.Reader
 	if compressed {
@@ -1076,7 +1212,11 @@ func readFileHeader(f *os.File, compressed bool) ([]byte, error) {
 		N: 512,
 	}
 	data, err := ioutil.ReadAll(lr)
-	if _, err := f.Seek(0, 0); err != nil {
+	seeker, ok := f.(io.Seeker)
+	if !ok {
+		return nil, errors.NewPublic("must implement io.Seeker")
+	}
+	if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
 
@@ -1222,3 +1362,10 @@ func NewPathSlashesStripper(slashesCount int) PathRewriteFunc {
 		return stripLeadingSlashes(ctx.Path(), slashesCount)
 	}
 }
+
+var _ fs.FS = (*osFS)(nil)
+
+type osFS struct{}
+
+func (o *osFS) Open(name string) (fs.File, error)     { return os.Open(name) }
+func (o *osFS) Stat(name string) (fs.FileInfo, error) { return os.Stat(name) }
