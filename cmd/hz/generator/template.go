@@ -40,6 +40,8 @@ const (
 	Skip   = "skip"
 	Cover  = "cover"
 	Append = "append"
+	Before = "before"
+	After  = "after"
 )
 
 type Template struct {
@@ -56,11 +58,12 @@ type Template struct {
 type UpdateBehavior struct {
 	Type string `yaml:"type"` // Update behavior type: skip/cover/append
 	// the following variables are used for append update
-	AppendKey      string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
-	InsertKey      string   `yaml:"insert_key"`         // Insert content by "insert_key"
-	AppendTpl      string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
-	ImportTpl      []string `yaml:"import_tpl"`         // Import insert template
-	AppendLocation string   `yaml:"append_location"`    // AppendLocation specifies the location of append,  the default is the end of the file
+	AppendKey       string   `yaml:"append_key"`         // Append content based in key; for example: 'method'/'service'
+	InsertKey       string   `yaml:"insert_key"`         // Insert content by "insert_key"
+	AppendTpl       string   `yaml:"append_content_tpl"` // Append content if UpdateBehavior is "append"
+	ImportTpl       []string `yaml:"import_tpl"`         // Import insert template
+	AppendLocation  string   `yaml:"append_location"`    // AppendLocation specifies the location of append,  the default is the end of the file
+	AppendDirection string   `yaml:"append_direction"`   // AppendDirection specifies the direction of append, the default is "after", and the other option is "before"
 }
 
 // TemplateGenerator contains information about the output template
