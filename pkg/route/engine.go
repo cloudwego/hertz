@@ -707,7 +707,7 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
-		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}
+		methodRouter = &router{method: method, root: &node{}}
 		engine.trees = append(engine.trees, methodRouter)
 	}
 	methodRouter.addRoute(path, handlers)
