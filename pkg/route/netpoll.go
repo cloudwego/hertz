@@ -17,10 +17,6 @@
 
 package route
 
-import (
-	"github.com/cloudwego/hertz/pkg/network/netpoll"
-)
-
-func init() {
-	defaultTransporter = netpoll.NewTransporter
-}
+//func init() {
+//	defaultTransporter = netpoll.NewTransporter
+//}
