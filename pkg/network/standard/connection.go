@@ -581,6 +581,30 @@ func (c *TLSConn) ConnectionState() tls.ConnectionState {
 	return c.c.(network.ConnTLSer).ConnectionState()
 }
 
+// SetWriteTimeout sets the write timeout of the tls connection.
+//
+// As Write calls [tls.Conn.Handshake], in order to prevent indefinite blocking a deadline
+// must be set for both [Conn.Read] and Write before Write is called when the handshake
+// has not yet completed.
+func (c *TLSConn) SetWriteTimeout(t time.Duration) error {
+	if t <= 0 {
+		return c.c.SetDeadline(time.Time{})
+	}
+	return c.c.SetDeadline(time.Now().Add(t))
+}
+
+// SetReadTimeout sets the read timeout of the tls connection.
+//
+// As Read calls [tls.Conn.Handshake], in order to prevent indefinite blocking a deadline
+// must be set for both Read and [Conn.Write] before Read is called when the handshake
+// has not yet completed.
+func (c *TLSConn) SetReadTimeout(t time.Duration) error {
+	if t <= 0 {
+		return c.c.SetDeadline(time.Time{})
+	}
+	return c.c.SetDeadline(time.Now().Add(t))
+}
+
 func newConn(c net.Conn, size int) network.Conn {
 	maxSize := defaultMallocSize
 	if size > maxSize {

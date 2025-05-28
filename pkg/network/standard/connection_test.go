@@ -31,6 +31,7 @@ import (
 	"time"
 
 	. "github.com/bytedance/mockey"
+
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -425,4 +426,35 @@ func TestFillReturnErrAndN(t *testing.T) {
 	b, err = conn.Peek(4099)
 	assert.DeepEqual(t, err, io.EOF)
 	assert.DeepEqual(t, len(b), 4089)
+}
+
+func TestTLSConn_SetDeadline(t *testing.T) {
+	cfg := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Nil(t, err)
+	defer ln.Close()
+	go func() {
+		for {
+			_, err = ln.Accept()
+			if err != nil {
+				return
+			}
+		}
+	}()
+	c, err := net.DialTimeout("tcp", ln.Addr().String(), 0)
+	assert.Nil(t, err)
+	c.SetReadDeadline(time.Now().Add(10 * time.Second))
+
+	cTLS := tls.Client(c, cfg)
+	conn := newTLSConn(cTLS, defaultMallocSize)
+
+	err = conn.SetWriteTimeout(1 * time.Second)
+	assert.Nil(t, err)
+
+	now := time.Now()
+	conn.Write([]byte("hello world"))
+	duration := time.Since(now)
+	assert.True(t, duration.Seconds() <= 2)
 }
