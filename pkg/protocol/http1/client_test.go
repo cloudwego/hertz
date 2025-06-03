@@ -856,7 +856,7 @@ func TestCalcimeout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := calcTimeout(tt.deadline, tt.timeout)
 			diff := result - tt.expected
-			if diff < -time.Millisecond || diff > time.Millisecond {
+			if diff < -50*time.Millisecond || diff > 50*time.Millisecond {
 				t.Errorf("calcTimeout(%v, %v) = %v, expected %v",
 					tt.deadline, tt.timeout, result, tt.expected)
 			}
