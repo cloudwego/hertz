@@ -84,7 +84,7 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			MaxConns:           1,
@@ -244,28 +244,22 @@ func testContinueReadResponseBodyStream(t *testing.T, header, body string, maxBo
 	}
 }
 
-func newSlowConnDialer(dialer func(network, addr string, timeout time.Duration) (network.Conn, error)) network.Dialer {
-	return &mockDialer{customDialConn: dialer}
+type dialerFunc func(network, addr string, timeout time.Duration) (network.Conn, error)
+
+func (f dialerFunc) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
+	return f(network, address, timeout)
 }
 
-type mockDialer struct {
-	customDialConn func(network, addr string, timeout time.Duration) (network.Conn, error)
-}
-
-func (m *mockDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
-	return m.customDialConn(network, address, timeout)
-}
-
-func (m *mockDialer) DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn net.Conn, err error) {
+func (_ dialerFunc) DialTimeout(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn net.Conn, err error) {
 	return nil, nil
 }
 
-func (m *mockDialer) AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn, error) {
+func (_ dialerFunc) AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn, error) {
 	return nil, nil
 }
 
 type slowDialer struct {
-	*mockDialer
+	network.Dialer
 }
 
 func (s *slowDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
@@ -276,7 +270,7 @@ func (s *slowDialer) DialConnection(network, address string, timeout time.Durati
 func TestReadTimeoutPriority(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			MaxConns:           1,
@@ -306,11 +300,8 @@ func TestReadTimeoutPriority(t *testing.T) {
 func TestDoNonNilReqResp(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
-				return &writeErrConn{
-						Conn: mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456"),
-					},
-					nil
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				return mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456"), nil
 			}),
 		},
 	}
@@ -324,10 +315,85 @@ func TestDoNonNilReqResp(t *testing.T) {
 	assert.DeepEqual(t, resp.Body(), []byte("123456"))
 }
 
+func TestDoNonNilReqResp_WriteErr(t *testing.T) {
+	c := &HostClient{
+		ClientOptions: &ClientOptions{},
+	}
+	req := protocol.AcquireRequest()
+	resp := protocol.AcquireResponse()
+	req.SetHost("foobar")
+	req.SetConnectionClose() // won't reuse the conn
+
+	// 200 with write err, will return write err
+	c.ClientOptions.Dialer = dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+		return &writeErrConn{mock.NewConn("HTTP/1.1 200 OK\nContent-Length: 6\n\n123456")}, nil
+	})
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.True(t, retry)
+	assert.NotNil(t, err)
+
+	c = &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				return &writeErrConn{mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456")}, nil
+			}),
+		},
+	}
+
+	// 400 with write err, will NOT return write err
+	c.ClientOptions.Dialer = dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+		return &writeErrConn{mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456")}, nil
+	})
+	retry, err = c.doNonNilReqResp(req, resp)
+	assert.False(t, retry)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 400)
+	assert.DeepEqual(t, resp.Body(), []byte("123456"))
+}
+
+func TestDoNonNilReqResp_TLS(t *testing.T) {
+	const (
+		dialTimeout = 123 * time.Millisecond
+		dev         = 10 * time.Millisecond
+	)
+	conn := mock.NewConn("HTTP/1.1 200 OK\nContent-Length: 5\n\n54321")
+	tlsconn := mock.NewTLSConn(conn)
+	c := &HostClient{
+		IsTLS: true,
+		ClientOptions: &ClientOptions{
+			DialTimeout: dialTimeout,
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				return tlsconn, nil
+			}),
+		},
+	}
+	req := protocol.AcquireRequest()
+	resp := protocol.AcquireResponse()
+	req.SetHost("foobar")
+
+	// HandshakeErr != nil
+	tlsconn.HandshakeErr = errors.New("testerr")
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.True(t, retry)
+	assert.True(t, err == tlsconn.HandshakeErr)
+	if diff := conn.GetReadTimeout() - dialTimeout; diff < -dev || diff > dev {
+		t.Fatal("unexpected timeout. got", conn.GetReadTimeout(), "expect", dialTimeout)
+	}
+	assert.True(t, conn.GetReadTimeout() == conn.GetWriteTimeout())
+
+	// HandshakeErr == nil
+	tlsconn.HandshakeErr = nil
+	retry, err = c.doNonNilReqResp(req, resp)
+	assert.False(t, retry)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 200)
+	assert.DeepEqual(t, resp.Body(), []byte("54321"))
+}
+
 func TestDoNonNilReqResp_Err(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return peekErrConn{writeErrConn{mock.NewConn("")}}, nil
 			}),
 		},
@@ -439,7 +505,7 @@ func TestStreamResponse_ConnUpgrade(t *testing.T) {
 func TestWriteTimeoutPriority(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.SlowWriteDialer(addr)
 			}),
 			MaxConns:           1,
@@ -501,7 +567,7 @@ func TestStateObserve(t *testing.T) {
 	}{}
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			StateObserve: func(hcs config.HostClientState) {
@@ -529,7 +595,7 @@ func TestStateObserve(t *testing.T) {
 func TestCachedTLSConfig(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.SlowReadDialer(addr)
 			}),
 			TLSConfig: &tls.Config{
@@ -551,7 +617,7 @@ func TestRetry(t *testing.T) {
 	var times int32
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				times++
 				if times < 3 {
 					return &retryConn{
@@ -619,7 +685,7 @@ func (w retryConn) SetWriteTimeout(t time.Duration) error {
 func TestConnInPoolRetry(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.NewOneTimeConn("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: foo/bar\r\n\r\n0123456789"), nil
 			}),
 		},
@@ -651,7 +717,7 @@ func TestConnInPoolRetry(t *testing.T) {
 func TestConnNotRetry(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return mock.NewBrokenConn(""), nil
 			}),
 		},
@@ -691,7 +757,7 @@ func TestStreamNoContent(t *testing.T) {
 
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
-			Dialer: newSlowConnDialer(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 				return conn, nil
 			}),
 		},
@@ -714,12 +780,10 @@ func TestDialTimeout(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			DialTimeout: time.Second * 10,
-			Dialer: &mockDialer{
-				customDialConn: func(network, addr string, timeout time.Duration) (network.Conn, error) {
-					assert.DeepEqual(t, time.Second*10, timeout)
-					return nil, errors.New("test error")
-				},
-			},
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				assert.DeepEqual(t, time.Second*10, timeout)
+				return nil, errors.New("test error")
+			}),
 		},
 		Addr: "foobar",
 	}
@@ -739,4 +803,63 @@ func TestContextNil(t *testing.T) {
 	}()
 	c := &HostClient{}
 	c.Do(nil, nil, nil) //nolint:staticcheck // SA1012: do not pass a nil Context
+}
+
+func TestMinTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		d0       time.Duration
+		d1       time.Duration
+		expected time.Duration
+	}{
+		{"both positive, d0 < d1", 1 * time.Second, 2 * time.Second, 1 * time.Second},
+		{"both positive, d0 > d1", 3 * time.Second, 1 * time.Second, 1 * time.Second},
+		{"both positive, d0 = d1", 2 * time.Second, 2 * time.Second, 2 * time.Second},
+		{"d0 zero, d1 positive", 0, 2 * time.Second, 2 * time.Second},
+		{"d0 negative, d1 positive", -1 * time.Second, 2 * time.Second, 2 * time.Second},
+		{"d0 positive, d1 zero", 2 * time.Second, 0, 2 * time.Second},
+		{"d0 positive, d1 negative", 2 * time.Second, -1 * time.Second, 2 * time.Second},
+		{"both zero", 0, 0, 0},
+		{"both negative", -1 * time.Second, -2 * time.Second, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := minTimeout(tt.d0, tt.d1)
+			if result != tt.expected {
+				t.Errorf("minTimeout(%v, %v) = %v, expected %v", tt.d0, tt.d1, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalcimeout(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		deadline time.Time
+		timeout  time.Duration
+		expected time.Duration
+	}{
+		{"zero deadline, positive timeout", time.Time{}, 5 * time.Second, 5 * time.Second},
+		{"zero deadline, zero timeout", time.Time{}, 0, 0},
+		{"zero deadline, negative timeout", time.Time{}, -1 * time.Second, 0},
+		{"future deadline, zero timeout", now.Add(10 * time.Second), 0, 10 * time.Second},
+		{"future deadline, positive timeout (deadline < timeout)", now.Add(3 * time.Second), 5 * time.Second, 3 * time.Second},
+		{"future deadline, positive timeout (deadline > timeout)", now.Add(8 * time.Second), 5 * time.Second, 5 * time.Second},
+		{"past deadline, zero timeout", now.Add(-5 * time.Second), 0, -1},
+		{"past deadline, positive timeout", now.Add(-5 * time.Second), time.Second, -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calcTimeout(tt.deadline, tt.timeout)
+			diff := result - tt.expected
+			if diff < -time.Millisecond || diff > time.Millisecond {
+				t.Errorf("calcTimeout(%v, %v) = %v, expected %v",
+					tt.deadline, tt.timeout, result, tt.expected)
+			}
+		})
+	}
 }
