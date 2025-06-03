@@ -641,7 +641,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		defer zr.Release()
 		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
 			if code := resp.StatusCode(); code >= 400 && code < 600 {
-				// strictly for >= 4xx only, but 5xx is also acceptable.
+				// strictly for 4xx only, but 5xx is also acceptable.
 				// both can be considered better response rather than write err
 				return false, nil
 			}
