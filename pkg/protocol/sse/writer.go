@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -41,8 +40,11 @@ type Writer struct {
 
 // NewWriter creates a new SSE writer.
 func NewWriter(c *app.RequestContext) *Writer {
+	// make sure proxies won't cache the data
 	c.Response.Header.Set("Cache-Control", "no-cache")
-	c.Response.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	// browsers may need charset=utf-8 for logging responses
+	// even though it's unnecessary as per spec, coz chunks must be in utf8.
+	c.Response.Header.SetContentType("text/event-stream; charset=utf-8")
 	w := c.Response.GetHijackWriter()
 	if w == nil {
 		w = resp.NewChunkedBodyWriter(&c.Response, c.GetWriter())
