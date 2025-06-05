@@ -198,7 +198,7 @@ func TestNewWriter(t *testing.T) {
 	w := NewWriter(c)
 	assert.Assert(t, w != nil)
 	assert.DeepEqual(t, "no-cache", string(c.Response.Header.Peek("Cache-Control")))
-	assert.DeepEqual(t, "text/event-stream", string(c.Response.Header.Peek("Content-Type")))
+	assert.DeepEqual(t, "text/event-stream; charset=utf-8", string(c.Response.Header.Peek("Content-Type")))
 }
 
 func TestWriter_WriteComment(t *testing.T) {
