@@ -142,11 +142,11 @@ func TestWriter_Write(t *testing.T) {
 			name: "Multiline data",
 			event: func() *Event {
 				e := NewEvent()
-				e.SetData([]byte("line1\nline2\nline3"))
+				e.SetData([]byte("line1\rline2\nline3\r\nline4"))
 				return e
 			}(),
 			wantErr:  false,
-			expected: "data: line1\ndata: line2\ndata: line3\n\n",
+			expected: "data: line1\ndata: line2\ndata: line3\ndata: line4\n\n",
 		},
 		{
 			name: "Write error",

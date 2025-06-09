@@ -17,12 +17,11 @@
 package sse
 
 import (
-	"bytes"
 	"errors"
 	"strconv"
-	"strings"
 	"sync"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -86,16 +85,12 @@ func (w *Writer) WriteComment(s string) error {
 	defer bytebufferpool.Put(p)
 
 	buf := p.B[:0]
-	for len(s) > 0 {
-		i := strings.IndexByte(s, '\n')
-		if i >= 0 {
-			buf = append(buf, ':')
-			buf = append(buf, s[:i+1]...) // it contains '\n' already
-			s = s[i+1:]
-		} else {
-			buf = append(append(append(buf, ':'), s...), '\n')
-			s = ""
-		}
+	for data := bytesconv.S2b(s); len(data) > 0; {
+		i, b, _ := scanEOL(data, true)
+		buf = append(buf, ':')
+		buf = append(buf, b...)
+		buf = append(buf, '\n')
+		data = data[i:]
 	}
 	if len(buf) == 0 {
 		buf = append(buf, ':')
@@ -144,16 +139,13 @@ func (w *Writer) Write(e *Event) error {
 
 	if e.IsSetData() {
 		data := e.Data
+		// replace EOF with multiple "data: " lines
 		for len(data) > 0 {
-			i := bytes.IndexByte(data, '\n')
-			if i >= 0 {
-				buf = append(buf, "data: "...)
-				buf = append(buf, data[:i+1]...) // it contains '\n' already
-				data = data[i+1:]
-			} else {
-				buf = append(append(append(buf, "data: "...), data...), '\n')
-				data = nil
-			}
+			i, b, _ := scanEOL(data, true)
+			buf = append(buf, "data: "...)
+			buf = append(buf, b...)
+			buf = append(buf, '\n')
+			data = data[i:]
 		}
 	}
 	p.B = append(buf, '\n') // end of event
