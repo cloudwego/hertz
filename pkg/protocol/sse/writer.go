@@ -139,7 +139,7 @@ func (w *Writer) Write(e *Event) error {
 
 	if e.IsSetData() {
 		data := e.Data
-		// replace EOF with multiple "data: " lines
+		// replace EOLs with multiple "data: " lines
 		for len(data) > 0 {
 			i, b, _ := scanEOL(data, true)
 			buf = append(buf, "data: "...)
