@@ -74,31 +74,32 @@ func hasCRLF(s string) bool {
 // https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
 // end-of-line   = ( cr lf / cr / lf )
 func scanEOL(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
+	size := len(data)
+	if atEOF && size == 0 {
+		return
 	}
-	i := bytes.IndexByte(data, '\r')
-	j := bytes.IndexByte(data, '\n')
-	if i >= 0 {
-		if i+1 == j { // \r\n
-			return i + 2, data[0:i], nil
-		}
-		if j >= 0 { // choose the nearer \r or \n as EOL
-			if i < j {
-				return i + 1, data[0:i], nil // \r
+	for i, c := range data {
+		switch c {
+		case '\r': // \r OR \r\n AS EOL
+			if i+1 < size && data[i+1] == '\n' {
+				advance, token = i+2, data[:i]
+				return
 			}
-			return j + 1, data[0:j], nil // \n
+			// if ends with '\r', we need to check the next char is NOT '\n' as per spec
+			// this may cause unexpected blocks on reading more data.
+			if i+1 < size || atEOF {
+				advance, token = i+1, data[:i]
+				return
+			}
+		case '\n': // \n AS EOL
+			advance, token = i+1, data[:i]
+			return
+		default:
+			// nothing
 		}
-		// if ends with '\r', we need to check the next char is NOT '\n' as per spec
-		// this may cause unexpected blocks on reading more data.
-		if i < len(data)-1 || atEOF {
-			return i + 1, data[0:i], nil
-		}
-	} else if j >= 0 {
-		return j + 1, data[0:j], nil
 	}
 	if atEOF {
-		return len(data), data, nil
+		advance, token = size, data
 	}
-	return 0, nil, nil // more data
+	return // more data
 }
