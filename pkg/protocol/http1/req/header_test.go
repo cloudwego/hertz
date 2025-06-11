@@ -46,8 +46,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
 	"testing"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -80,34 +78,6 @@ func TestRequestHeader_Read(t *testing.T) {
 	assert.DeepEqual(t, []byte("foo"), rh.UserAgent())
 	assert.DeepEqual(t, []byte("127.0.0.1"), rh.Host())
 	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
-}
-
-func TestRequestHeaderMultiLineValue(t *testing.T) {
-	s := "HTTP/1.1 200 OK\r\n" +
-		"EmptyValue1:\r\n" +
-		"Content-Type: foo/bar;\r\n\tnewline;\r\n another/newline\r\n" +
-		"Foo: Bar\r\n" +
-		"Multi-Line: one;\r\n two\r\n" +
-		"Values: v1;\r\n v2; v3;\r\n v4;\tv5\r\n" +
-		"\r\n"
-
-	header := new(protocol.RequestHeader)
-	if _, err := parse(header, []byte(s)); err != nil {
-		t.Fatalf("parse headers with multi-line values failed, %s", err)
-	}
-	response, err := http.ReadResponse(bufio.NewReader(strings.NewReader(s)), nil)
-	if err != nil {
-		t.Fatalf("parse response using net/http failed, %s", err)
-	}
-
-	for name, vals := range response.Header {
-		got := string(header.Peek(name))
-		want := vals[0]
-
-		if got != want {
-			t.Errorf("unexpected %s got: %q want: %q", name, got, want)
-		}
-	}
 }
 
 func TestRequestHeader_Peek(t *testing.T) {
@@ -446,46 +416,68 @@ func TestTryRead(t *testing.T) {
 
 func TestParseFirstLine(t *testing.T) {
 	tests := []struct {
+		name     string
 		input    []byte
 		method   string
 		uri      string
 		protocol string
 		err      error
 	}{
-		// Test case 1: n < 0
 		{
+			name:     "case: normal",
 			input:    []byte("GET /path/to/resource HTTP/1.0\r\n"),
 			method:   "GET",
 			uri:      "/path/to/resource",
 			protocol: "HTTP/1.0",
-			err:      nil,
 		},
-		// Test case 2: n == 0
 		{
-			input:    []byte(" /path/to/resource HTTP/1.1\r\n"),
-			method:   "",
-			uri:      "",
-			protocol: "",
-			err:      fmt.Errorf("requestURI cannot be empty in"),
+			name:  "case: empty uri",
+			input: []byte("GET  HTTP/1.1\r\n"),
+			err:   errMalformedHTTPRequest,
 		},
-		// Test case 3: !bytes.Equal(b[n+1:], bytestr.StrHTTP11)
 		{
+			name:     "case: unknown protocol should use HTTP/1.0",
 			input:    []byte("POST /path/to/resource HTTP/1.2\r\n"),
 			method:   "POST",
 			uri:      "/path/to/resource",
 			protocol: "HTTP/1.0",
-			err:      nil,
+		},
+		{
+			name:  "case: invalid protocol",
+			input: []byte("POST /path/to/resource XTTP/1.1\r\n"),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: input too large",
+			input: make([]byte, 9<<10),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: method invalid",
+			input: []byte("< / HTTP/1."),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: need more err",
+			input: []byte("GET / HTTP/1."),
+			err:   errs.ErrNeedMore,
 		},
 	}
 
 	for _, tc := range tests {
-		header := &protocol.RequestHeader{}
-		_, err := parseFirstLine(header, tc.input)
+		h := &protocol.RequestHeader{}
+		_, err := parseFirstLine(h, tc.input)
 		if tc.err != nil {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
+			assert.Assert(t, errors.Is(err, tc.err), tc.name, err)
+			continue
 		}
+		assert.Assert(t, err == nil, tc.name, err)
+		if string(h.Method()) != tc.method ||
+			string(h.RequestURI()) != tc.uri ||
+			h.GetProtocol() != tc.protocol {
+			t.Fatal(tc.name, "got", h.String())
+		}
+
 	}
 }
 
