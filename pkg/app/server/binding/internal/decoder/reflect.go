@@ -12,102 +12,81 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * MIT License
- *
- * Copyright (c) 2019-present Fenny and Contributors
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- * This file may have been modified by CloudWeGo authors. All CloudWeGo
- * Modifications are Copyright 2023 CloudWeGo Authors
  */
 
 package decoder
 
 import (
 	"reflect"
+	"unsafe"
 )
 
-// ReferenceValue convert T to *T, the ptrDepth is the count of '*'.
-func ReferenceValue(v reflect.Value, ptrDepth int) reflect.Value {
-	switch {
-	case ptrDepth > 0:
-		for ; ptrDepth > 0; ptrDepth-- {
-			vv := reflect.New(v.Type())
-			vv.Elem().Set(v)
-			v = vv
-		}
-	case ptrDepth < 0:
-		for ; ptrDepth < 0 && v.Kind() == reflect.Ptr; ptrDepth++ {
-			v = v.Elem()
-		}
+// dereferencing a ptr value to left value for assignment
+func dereference2lvalue(rv reflect.Value) reflect.Value {
+	if rv.Kind() != reflect.Pointer {
+		return rv
 	}
-	return v
+	return dereference2lvalueSlow(rv)
 }
 
-func GetNonNilReferenceValue(v reflect.Value) (reflect.Value, int) {
-	var ptrDepth int
-	t := v.Type()
-	elemKind := t.Kind()
-	for elemKind == reflect.Ptr {
-		t = t.Elem()
-		elemKind = t.Kind()
-		ptrDepth++
+func dereference2lvalueSlow(rv reflect.Value) reflect.Value {
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			rv.Set(reflect.New(rv.Type().Elem()))
+		}
+		rv = rv.Elem()
 	}
-	val := reflect.New(t).Elem()
-	return val, ptrDepth
+	return rv
 }
 
-func GetFieldValue(reqValue reflect.Value, parentIndex []int) reflect.Value {
-	// reqValue -> (***bar)(nil) need new a default
-	if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
-		nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-		reqValue = ReferenceValue(nonNilVal, ptrDepth)
-	}
-	for _, idx := range parentIndex {
-		if reqValue.Kind() == reflect.Ptr && reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		for reqValue.Kind() == reflect.Ptr {
-			reqValue = reqValue.Elem()
-		}
-		reqValue = reqValue.Field(idx)
-	}
-
-	// It is possible that the parent struct is also a pointer,
-	// so need to create a non-nil reflect.Value for it at runtime.
-	for reqValue.Kind() == reflect.Ptr {
-		if reqValue.IsNil() {
-			nonNilVal, ptrDepth := GetNonNilReferenceValue(reqValue)
-			reqValue.Set(ReferenceValue(nonNilVal, ptrDepth))
-		}
-		reqValue = reqValue.Elem()
-	}
-
-	return reqValue
-}
-
-func getElemType(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Ptr {
+func dereferenceType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-
 	return t
+}
+
+type FieldSetter struct {
+	f   reflect.Value
+	old unsafe.Pointer
+}
+
+func newFieldSetter(f *fieldInfo, rv reflect.Value) FieldSetter {
+	rv = dereference2lvalue(rv)
+	if f.index >= 0 {
+		rv = rv.Field(f.index)
+	}
+	p := FieldSetter{f: rv}
+	if rv.Kind() == reflect.Pointer {
+		// Field() may change the field value
+		// save for Reset() if needed
+		p.old = rv.UnsafePointer()
+	}
+	return p
+}
+
+// Value returns reflect.Value for assignment.
+func (f *FieldSetter) Value() reflect.Value {
+	// can not call dereference2lvalue directly,
+	// then this method cost 81 which is too large for inline
+	if f.f.Kind() != reflect.Pointer {
+		return f.f
+	}
+	return dereference2lvalueSlow(f.f)
+}
+
+// Reset resets the underlying field to its original value. Currently only supports reflect.Pointer
+func (f *FieldSetter) Reset() {
+	if f.f.Kind() == reflect.Pointer {
+		f.f.Set(reflect.NewAt(f.f.Type().Elem(), f.old))
+	}
+}
+
+type reflectValue struct {
+	typ_ uintptr
+	ptr  unsafe.Pointer
+}
+
+func rvUnsafePointer(rv *reflect.Value) unsafe.Pointer {
+	return (*reflectValue)(unsafe.Pointer(rv)).ptr
 }

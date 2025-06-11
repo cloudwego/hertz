@@ -38,7 +38,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -121,7 +120,7 @@ func TestGetBody(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'e' field is a 'required' parameter, but the request body does not have this parameter 'X.e'")
+	assert.DeepEqual(t, `decode field "X" err: decode field "E" err: field is required, but not set`, err.Error())
 }
 
 func TestQueryNum(t *testing.T) {
@@ -429,9 +428,9 @@ func TestJSON(t *testing.T) {
 
 	err := DefaultBinder().Bind(req.Req, recv, nil)
 	if err == nil {
-		t.Error("expected an error, but get nil")
+		t.Fatal("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'y' field is a 'required' parameter, but the request body does not have this parameter 'y'")
+	assert.DeepEqual(t, `decode field "Y" err: JSON field "y" is required, but it's not set`, err.Error())
 	assert.DeepEqual(t, []string{"a1", "a2"}, (**recv.X).A)
 	assert.DeepEqual(t, int32(21), (**recv.X).B)
 	assert.DeepEqual(t, &[]uint16{31, 32}, (**recv.X).C)
@@ -694,23 +693,15 @@ func TestTypeUnmarshal(t *testing.T) {
 	recv := new(Recv)
 
 	err := DefaultBinder().Bind(req.Req, recv, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	t1, err := time.Parse(time.RFC3339, "2019-09-03T18:05:24+08:00")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, t1, recv.A)
 	t21, err := time.Parse(time.RFC3339, "2019-09-04T14:05:24+08:00")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, t21, *recv.B)
 	t22, err := time.Parse(time.RFC3339, "2019-09-04T18:05:24+08:00")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, err)
 	assert.DeepEqual(t, []time.Time{t21, t22}, recv.C)
 	t.Logf("%v", recv)
 }
@@ -753,7 +744,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
 	err = DefaultBinder().Bind(req.Req, recv, nil)
-	assert.DeepEqual(t, err.Error(), "'c' field is a 'required' parameter, but the request body does not have this parameter 'X.c'")
+	assert.DeepEqual(t, `decode field "X" err: decode field "C" err: JSON field "X.c" is required, but it's not set`, err.Error())
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
 	assert.DeepEqual(t, "y1", recv.Y)
@@ -786,7 +777,7 @@ func TestOption(t *testing.T) {
 	bindConfig.DisableStructFieldResolve = false
 	binder := NewDefaultBinder(bindConfig)
 	err = binder.Bind(req.Req, recv2, nil)
-	assert.DeepEqual(t, err.Error(), "'X' field is a 'required' parameter, but the request does not have this parameter")
+	assert.DeepEqual(t, `decode field "X" err: JSON field "X" is required, but it's not set`, err.Error())
 	assert.True(t, recv2.X == nil)
 	assert.DeepEqual(t, "y1", recv2.Y)
 }
@@ -798,7 +789,7 @@ func newRequest(u string, header http.Header, cookies []*http.Cookie, bodyReader
 	method := "GET"
 	var body []byte
 	if bodyReader != nil {
-		body, _ = ioutil.ReadAll(bodyReader)
+		body, _ = io.ReadAll(bodyReader)
 		method = "POST"
 	}
 	if u == "" {
