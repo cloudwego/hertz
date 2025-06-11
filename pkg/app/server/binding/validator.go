@@ -40,8 +40,43 @@
 
 package binding
 
+import "reflect"
+
 type StructValidator interface {
 	ValidateStruct(interface{}) error
 	Engine() interface{}
 	ValidateTag() string
+}
+
+func containsStructTag(rt reflect.Type, tag string, checking map[reflect.Type]bool) bool {
+	rt = dereferenceType(rt)
+	if rt.Kind() != reflect.Struct {
+		return false
+	}
+	if checking == nil {
+		checking = map[reflect.Type]bool{}
+	}
+	checking[rt] = true
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
+		_, ok := f.Tag.Lookup(tag)
+		if ok {
+			return true
+		}
+		ft := dereferenceType(f.Type)
+		if checking[ft] {
+			continue
+		}
+		if containsStructTag(ft, tag, checking) {
+			return true
+		}
+	}
+	return false
+}
+
+func dereferenceType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
 }
