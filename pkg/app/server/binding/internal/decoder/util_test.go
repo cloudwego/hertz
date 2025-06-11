@@ -17,14 +17,10 @@
 package decoder
 
 import (
-	"encoding"
-	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
-	"github.com/cloudwego/hertz/pkg/protocol"
-	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type testTextUnmarshaler struct {
@@ -36,126 +32,7 @@ func (t *testTextUnmarshaler) UnmarshalText(text []byte) error {
 	return nil
 }
 
-var _ encoding.TextUnmarshaler = (*testTextUnmarshaler)(nil)
-
-func TestStringToValue(t *testing.T) {
-	tests := []struct {
-		name        string
-		elemType    reflect.Type
-		text        string
-		config      *DecodeConfig
-		expectValue interface{}
-		expectError bool
-	}{
-		{
-			name:        "string type",
-			elemType:    reflect.TypeOf(""),
-			text:        "test string",
-			expectValue: "test string",
-		},
-		{
-			name:        "int type",
-			elemType:    reflect.TypeOf(0),
-			text:        "42",
-			expectValue: 42,
-		},
-		{
-			name:        "bool type",
-			elemType:    reflect.TypeOf(false),
-			text:        "true",
-			expectValue: true,
-		},
-		{
-			name:        "float type",
-			elemType:    reflect.TypeOf(0.0),
-			text:        "3.14",
-			expectValue: 3.14,
-		},
-		{
-			name:        "text unmarshaler",
-			elemType:    reflect.TypeOf(testTextUnmarshaler{}),
-			text:        "custom text",
-			expectValue: testTextUnmarshaler{Value: "custom text"},
-		},
-		{
-			name:        "invalid int",
-			elemType:    reflect.TypeOf(0),
-			text:        "not an int",
-			expectError: true,
-		},
-		{
-			name:        "struct type",
-			elemType:    reflect.TypeOf(struct{ Name string }{}),
-			text:        `{"Name":"test"}`,
-			expectValue: struct{ Name string }{Name: "test"},
-		},
-		{
-			name:        "struct type err",
-			elemType:    reflect.TypeOf(struct{ Name string }{}),
-			text:        `{"Name":1}`,
-			expectError: true,
-		},
-		{
-			name:        "list type",
-			elemType:    reflect.TypeOf([]int{}),
-			expectValue: *new([]int),
-		},
-		{
-			name:        "map type",
-			elemType:    reflect.TypeOf(map[string]interface{}{}),
-			text:        `{"key":"value"}`,
-			expectValue: map[string]interface{}{"key": "value"},
-		},
-		{
-			name:        "unsupported type",
-			elemType:    reflect.TypeOf(complex64(0)),
-			expectError: true,
-		},
-		{
-			name:     "custom type unmarshal func",
-			elemType: reflect.TypeOf(testTextUnmarshaler{}),
-			text:     "custom func",
-			config: &DecodeConfig{
-				TypeUnmarshalFuncs: map[reflect.Type]CustomizeDecodeFunc{
-					reflect.TypeOf(testTextUnmarshaler{}): func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
-						return reflect.ValueOf(testTextUnmarshaler{Value: "from custom func"}), nil
-					},
-				},
-			},
-			expectValue: testTextUnmarshaler{Value: "from custom func"},
-		},
-		{
-			name:     "custom type unmarshal func err",
-			elemType: reflect.TypeOf(testTextUnmarshaler{}),
-			config: &DecodeConfig{
-				TypeUnmarshalFuncs: map[reflect.Type]CustomizeDecodeFunc{
-					reflect.TypeOf(testTextUnmarshaler{}): func(req *protocol.Request, params param.Params, text string) (reflect.Value, error) {
-						return reflect.Value{}, errors.New("err")
-					},
-				},
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := &protocol.Request{}
-			params := param.Params{}
-			config := tt.config
-			if config == nil {
-				config = &DecodeConfig{}
-			}
-			val, err := stringToValue(tt.elemType, tt.text, req, params, config)
-			if tt.expectError {
-				assert.NotNil(t, err)
-				return
-			}
-			assert.Nil(t, err)
-			assert.DeepEqual(t, tt.expectValue, val.Interface())
-		})
-	}
-}
+var _ textUnmarshaler = (*testTextUnmarshaler)(nil)
 
 func TestTryTextUnmarshaler(t *testing.T) {
 	tests := []struct {

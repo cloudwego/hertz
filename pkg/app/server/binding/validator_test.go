@@ -17,6 +17,7 @@
 package binding
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -60,5 +61,21 @@ func Test_ValidateTag(t *testing.T) {
 	err = binder.BindAndValidate(req.Req, user, nil)
 	if err == nil {
 		t.Fatalf("expected an error, but got nil")
+	}
+}
+
+func Test_containsStructTag(t *testing.T) {
+	type A struct {
+		P *A
+		S string `vd:"hello"`
+	}
+
+	type B struct {
+		F A
+	}
+
+	ok := containsStructTag(reflect.TypeOf((*B)(nil)), "vd", nil)
+	if !ok {
+		t.Fatal("not contain?")
 	}
 }

@@ -12,30 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * MIT License
- *
- * Copyright (c) 2019-present Fenny and Contributors
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- * This file may have been modified by CloudWeGo authors. All CloudWeGo
- * Modifications are Copyright 2023 CloudWeGo Authors
  */
 
 package decoder
@@ -46,25 +22,28 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
-type sliceGetter func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string)
+type sliceGetter func(req *protocol.Request, params param.Params, key string) (ret []string)
 
-func pathSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
-	var value string
-	if params != nil {
-		value, _ = params.Get(key)
-	}
+var tag2sliceGetter = map[string]sliceGetter{
+	pathTag:   pathSlice,
+	formTag:   formSlice,
+	queryTag:  querySlice,
+	cookieTag: cookieSlice,
+	headerTag: headerSlice,
+}
 
-	if len(value) == 0 && len(defaultValue) != 0 {
-		value = defaultValue[0]
+func pathSlice(req *protocol.Request, params param.Params, key string) (ret []string) {
+	if params == nil {
+		return
 	}
-	if len(value) != 0 {
-		ret = append(ret, value)
+	value, ok := params.Get(key)
+	if ok {
+		return []string{value}
 	}
-
 	return
 }
 
-func postFormSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+func formSlice(req *protocol.Request, params param.Params, key string) (ret []string) {
 	req.PostArgs().VisitAll(func(formKey, value []byte) {
 		if bytesconv.B2s(formKey) == key {
 			ret = append(ret, string(value))
@@ -86,58 +65,37 @@ func postFormSlice(req *protocol.Request, params param.Params, key string, defau
 		return
 	}
 
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
+	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+		if bytesconv.B2s(queryKey) == key {
+			ret = append(ret, string(value))
+		}
+	})
 	return
 }
 
-func querySlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+func querySlice(req *protocol.Request, params param.Params, key string) (ret []string) {
 	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
 		if key == bytesconv.B2s(queryKey) {
 			ret = append(ret, string(value))
 		}
 	})
-
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
 	return
 }
 
-func cookieSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+func cookieSlice(req *protocol.Request, params param.Params, key string) (ret []string) {
 	req.Header.VisitAllCookie(func(cookieKey, value []byte) {
 		if bytesconv.B2s(cookieKey) == key {
 			ret = append(ret, string(value))
 		}
 	})
-
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
 	return
 }
 
-func headerSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+func headerSlice(req *protocol.Request, params param.Params, key string) (ret []string) {
 	req.Header.VisitAll(func(headerKey, value []byte) {
 		if bytesconv.B2s(headerKey) == key {
 			ret = append(ret, string(value))
 		}
 	})
-
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
-	}
-
-	return
-}
-
-func rawBodySlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
-	if req.Header.ContentLength() > 0 {
-		ret = append(ret, string(req.Body()))
-	}
 	return
 }

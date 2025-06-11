@@ -94,6 +94,11 @@ type decoderInfo struct {
 	needValidate bool
 }
 
+func (d *decoderInfo) Decode(req *protocol.Request, params param.Params, rv reflect.Value) error {
+	_, err := d.decoder.Decode(req, params, rv)
+	return err
+}
+
 var defaultBind = NewDefaultBinder(nil)
 
 func DefaultBinder() Binder {
@@ -187,28 +192,29 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 	if ok {
 		// cached fieldDecoder, fast path
 		decoder := cached.(decoderInfo)
-		return decoder.decoder(req, params, rv.Elem())
+		return decoder.Decode(req, params, rv.Elem())
 	}
 	validateTag := defaultValidateTag
 	if len(b.config.Validator.ValidateTag()) != 0 {
 		validateTag = b.config.Validator.ValidateTag()
 	}
 	decodeConfig := &inDecoder.DecodeConfig{
-		LooseZeroMode:                      b.config.LooseZeroMode,
-		DisableDefaultTag:                  b.config.DisableDefaultTag,
-		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
-		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
-		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        validateTag,
-		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
+		LooseZeroMode:             b.config.LooseZeroMode,
+		DisableDefaultTag:         b.config.DisableDefaultTag,
+		DisableStructFieldResolve: b.config.DisableStructFieldResolve,
+		TypeUnmarshalFuncs:        b.config.TypeUnmarshalFuncs,
+		DecodeTag:                 tag,
 	}
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
+	decoder, err := inDecoder.NewDecoder(rv.Type(), decodeConfig)
 	if err != nil {
 		return err
 	}
-
-	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	return decoder(req, params, rv.Elem())
+	cache.Store(typeID, decoderInfo{
+		decoder:      decoder,
+		needValidate: containsStructTag(rv.Type(), validateTag, nil),
+	})
+	_, err = decoder.Decode(req, params, rv.Elem())
+	return err
 }
 
 func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}, params param.Params, tag string) error {
@@ -230,7 +236,7 @@ func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}
 	if ok {
 		// cached fieldDecoder, fast path
 		decoder := cached.(decoderInfo)
-		err = decoder.decoder(req, params, rv.Elem())
+		err = decoder.Decode(req, params, rv.Elem())
 		if err != nil {
 			return err
 		}
@@ -244,21 +250,19 @@ func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}
 		validateTag = b.config.Validator.ValidateTag()
 	}
 	decodeConfig := &inDecoder.DecodeConfig{
-		LooseZeroMode:                      b.config.LooseZeroMode,
-		DisableDefaultTag:                  b.config.DisableDefaultTag,
-		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
-		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
-		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        validateTag,
-		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
+		LooseZeroMode:             b.config.LooseZeroMode,
+		DisableDefaultTag:         b.config.DisableDefaultTag,
+		DisableStructFieldResolve: b.config.DisableStructFieldResolve,
+		TypeUnmarshalFuncs:        b.config.TypeUnmarshalFuncs,
+		DecodeTag:                 tag,
 	}
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
+	decoder, err := inDecoder.NewDecoder(rv.Type(), decodeConfig)
 	if err != nil {
 		return err
 	}
-
+	needValidate := containsStructTag(rv.Type(), validateTag, nil)
 	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	err = decoder(req, params, rv.Elem())
+	_, err = decoder.Decode(req, params, rv.Elem())
 	if err != nil {
 		return err
 	}
