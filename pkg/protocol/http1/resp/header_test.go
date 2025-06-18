@@ -42,7 +42,10 @@
 package resp
 
 import (
+	"bufio"
 	"bytes"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -178,4 +181,32 @@ func equalCookie(c1, c2 *protocol.Cookie) bool {
 		return false
 	}
 	return true
+}
+
+func TestResponseHeaderMultiLineValue(t *testing.T) {
+	s := "HTTP/1.1 200 OK\r\n" +
+		"EmptyValue1:\r\n" +
+		"Content-Type: foo/bar;\r\n\tnewline;\r\n another/newline\r\n" +
+		"Foo: Bar\r\n" +
+		"Multi-Line: one;\r\n two\r\n" +
+		"Values: v1;\r\n v2; v3;\r\n v4;\tv5\r\n" +
+		"\r\n"
+
+	header := new(protocol.ResponseHeader)
+	if _, err := parse(header, []byte(s)); err != nil {
+		t.Fatalf("parse headers with multi-line values failed, %s", err)
+	}
+	response, err := http.ReadResponse(bufio.NewReader(strings.NewReader(s)), nil)
+	if err != nil {
+		t.Fatalf("parse response using net/http failed, %s", err)
+	}
+
+	for name, vals := range response.Header {
+		got := string(header.Peek(name))
+		want := vals[0]
+
+		if got != want {
+			t.Errorf("unexpected %s got: %q want: %q", name, got, want)
+		}
+	}
 }

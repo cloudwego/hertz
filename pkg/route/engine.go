@@ -455,17 +455,7 @@ func (engine *Engine) onData(c context.Context, conn interface{}) (err error) {
 	return
 }
 
-func errProcess(conn io.Closer, err error) {
-	if err == nil {
-		return
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
+func logError(conn network.Conn, err error) {
 	// Quiet close the connection
 	if errors.Is(err, errs.ErrShortConnection) || errors.Is(err, errs.ErrIdleTimeout) {
 		return
@@ -473,12 +463,14 @@ func errProcess(conn io.Closer, err error) {
 
 	// Do not process the hijack connection error
 	if errors.Is(err, errs.ErrHijacked) {
-		err = nil
 		return
 	}
 
 	// Get remote address
-	rip := getRemoteAddrFromCloser(conn)
+	rip := ""
+	if addr := conn.RemoteAddr(); addr != nil {
+		rip = addr.String()
+	}
 
 	// Handle Specific error
 	if hsp, ok := conn.(network.HandleSpecificError); ok {
@@ -488,15 +480,6 @@ func errProcess(conn io.Closer, err error) {
 	}
 	// other errors
 	hlog.SystemLogger().Errorf(hlog.EngineErrorFormat, err.Error(), rip)
-}
-
-func getRemoteAddrFromCloser(conn io.Closer) string {
-	if c, ok := conn.(network.Conn); ok {
-		if addr := c.RemoteAddr(); addr != nil {
-			return addr.String()
-		}
-	}
-	return ""
 }
 
 func (engine *Engine) Close() error {
@@ -523,7 +506,12 @@ func (engine *Engine) GetServerName() []byte {
 
 func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	defer func() {
-		errProcess(conn, err)
+		if err != nil {
+			logError(conn, err)
+		}
+		if !errors.Is(err, errs.ErrHijacked) {
+			_ = conn.Close()
+		}
 	}()
 
 	// H2C path

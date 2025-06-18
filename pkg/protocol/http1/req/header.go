@@ -131,39 +131,76 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 	return m + n, nil
 }
 
+const (
+	maxFirstLineLen   = 8 << 10
+	maxCheckMethodLen = 10
+
+	// reuse ValidHeaderFieldNameTable for Method, both are `token`
+	// see:
+	//	https://www.rfc-editor.org/rfc/rfc9110.html#name-methods
+	//	https://www.rfc-editor.org/rfc/rfc9110.html#name-field-names
+	validMethodCharTable = bytesconv.ValidHeaderFieldNameTable
+)
+
+var errMalformedHTTPRequest = errors.New("malformed HTTP request")
+
+// request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
-	bNext := buf
-	var b []byte
-	var err error
-	for len(b) == 0 {
-		if b, bNext, err = utils.NextLine(bNext); err != nil {
-			return 0, err
+	b, leftb, err := utils.NextLine(buf)
+	if err != nil {
+		// errs.ErrNeedMore?
+		// check malformed HTTP request before reading more data
+
+		// check len
+		if len(buf) > maxFirstLineLen {
+			return 0, errMalformedHTTPRequest
 		}
+
+		// check method bytes
+		// NOTE:
+		//  only check method bytes if errs.ErrNeedMore for closing malformed connections.
+		//  for performance concern, it won't be checked in the hot path.
+		for i, c := range buf {
+			if c == ' ' || i > maxCheckMethodLen {
+				break // skip if SP or reach maxCheckMethodLen
+			}
+			if validMethodCharTable[c] == 0 {
+				return 0, errMalformedHTTPRequest
+			}
+		}
+		return 0, err
 	}
 
 	// parse method
 	n := bytes.IndexByte(b, ' ')
 	if n <= 0 {
-		return 0, fmt.Errorf("cannot find http request method in %q", ext.BufferSnippet(buf))
+		return 0, errMalformedHTTPRequest
 	}
 	h.SetMethodBytes(b[:n])
 	b = b[n+1:]
 
-	// Set default protocol
-	h.SetProtocol(consts.HTTP11)
-	// parse requestURI
-	n = bytes.LastIndexByte(b, ' ')
-	if n < 0 {
-		h.SetProtocol(consts.HTTP10)
-		n = len(b)
-	} else if n == 0 {
-		return 0, fmt.Errorf("requestURI cannot be empty in %q", buf)
-	} else if !bytes.Equal(b[n+1:], bytestr.StrHTTP11) {
-		h.SetProtocol(consts.HTTP10)
+	// parse request-target (uri)
+	n = bytes.IndexByte(b, ' ')
+	if n <= 0 {
+		return 0, errMalformedHTTPRequest
 	}
 	h.SetRequestURIBytes(b[:n])
+	b = b[n+1:]
 
-	return len(buf) - len(bNext), nil
+	// parse http protocol
+	switch string(b) {
+	case consts.HTTP11: // likely HTTP/1.1
+		h.SetProtocol(consts.HTTP11)
+	case consts.HTTP10:
+		h.SetProtocol(consts.HTTP10)
+	default:
+		if len(b) < 5 || string(b[:5]) != "HTTP/" {
+			return 0, errMalformedHTTPRequest
+		}
+		// XXX: all other cases are considered to be HTTP/1.0 for safe
+		h.SetProtocol(consts.HTTP10)
+	}
+	return len(buf) - len(leftb), nil
 }
 
 // validHeaderFieldValue is equal to httpguts.ValidHeaderFieldValue（shares the same context）
