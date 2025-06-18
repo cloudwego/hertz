@@ -49,6 +49,7 @@ import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/internal/nocopy"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 // AcquireURI returns an empty URI instance from the pool.
@@ -581,11 +582,17 @@ func copyArgs(dst, src []argsKV) []argsKV {
 	for i := 0; i < n; i++ {
 		dstKV := &dst[i]
 		srcKV := &src[i]
+		prevKeyLen := len(srcKV.key)
 		dstKV.key = append(dstKV.key[:0], srcKV.key...)
+		nextKeyLen := len(dstKV.key)
+		hlog.Infof("prevKeyLen: %d, nextKeyLen: %d, prevKeyContent: %s", prevKeyLen, nextKeyLen, string(srcKV.key))
 		if srcKV.noValue {
 			dstKV.value = dstKV.value[:0]
 		} else {
+			prevValLen := len(srcKV.value)
 			dstKV.value = append(dstKV.value[:0], srcKV.value...)
+			nextValLen := len(dstKV.value)
+			hlog.Infof("prevValLen: %d, nextValLen: %d", prevValLen, nextValLen)
 		}
 		dstKV.noValue = srcKV.noValue
 	}
