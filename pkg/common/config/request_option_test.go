@@ -33,6 +33,7 @@ func TestRequestOptions(t *testing.T) {
 		WithDialTimeout(time.Second),
 		WithReadTimeout(time.Second),
 		WithWriteTimeout(time.Second),
+		WithSenseContextCancel(true),
 	})
 	assert.DeepEqual(t, "b", opt.Tag("a"))
 	assert.DeepEqual(t, "d", opt.Tag("c"))
@@ -40,6 +41,7 @@ func TestRequestOptions(t *testing.T) {
 	assert.DeepEqual(t, time.Second, opt.DialTimeout())
 	assert.DeepEqual(t, time.Second, opt.ReadTimeout())
 	assert.DeepEqual(t, time.Second, opt.WriteTimeout())
+	assert.DeepEqual(t, true, opt.SenseContextCancel())
 	assert.True(t, opt.IsSD())
 }
 

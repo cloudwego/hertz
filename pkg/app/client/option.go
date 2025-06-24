@@ -181,6 +181,14 @@ func WithDialFunc(f network.DialFunc, dialers ...network.Dialer) config.ClientOp
 	}}
 }
 
+// WithSenseContextCancel is used to set whether the ctx passed into Do control the lifecycle of the request,
+// so that when the ctx is canceled, the corresponding request will also be finished
+func WithSenseContextCancel(b bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.SenseContextCancel = b
+	}}
+}
+
 // customDialer set customDialerFunc and params to set dailFunc
 type customDialer struct {
 	network.Dialer

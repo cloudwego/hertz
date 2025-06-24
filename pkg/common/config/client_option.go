@@ -134,6 +134,10 @@ type ClientOptions struct {
 	// Callback hook for re-configuring host client
 	// If an error is returned, the request will be terminated.
 	HostClientConfigHook func(hc interface{}) error
+
+	// Whether to let the ctx passed into Do control the lifecycle of the request,
+	// so that when the ctx is canceled, the corresponding request will also be finished
+	SenseContextCancel bool
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {
