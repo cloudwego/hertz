@@ -18,6 +18,7 @@ package mock
 
 import (
 	"bytes"
+	"crypto/tls"
 	"io"
 	"net"
 	"strings"
@@ -34,10 +35,12 @@ var (
 )
 
 type Conn struct {
-	readTimeout time.Duration
-	zr          network.Reader
-	zw          network.ReadWriter
-	wroteLen    int
+	zr       network.Reader
+	zw       network.ReadWriter
+	wroteLen int
+
+	rtimeout time.Duration
+	wtimeout time.Duration
 }
 
 type Recorder interface {
@@ -59,7 +62,7 @@ func (m *SlowReadConn) SetWriteTimeout(t time.Duration) error {
 }
 
 func (m *SlowReadConn) SetReadTimeout(t time.Duration) error {
-	m.Conn.readTimeout = t
+	m.Conn.rtimeout = t
 	return nil
 }
 
@@ -90,11 +93,11 @@ func (m *Conn) Release() error {
 func (m *Conn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
 	if err != nil || len(b) != i {
-		if m.readTimeout <= 0 {
+		if m.rtimeout <= 0 {
 			// simulate timeout forever
 			select {}
 		}
-		time.Sleep(m.readTimeout)
+		time.Sleep(m.rtimeout)
 		return nil, errs.ErrTimeout
 	}
 	return b, err
@@ -132,7 +135,11 @@ func (m *Conn) WriterRecorder() Recorder {
 }
 
 func (m *Conn) GetReadTimeout() time.Duration {
-	return m.readTimeout
+	return m.rtimeout
+}
+
+func (m *Conn) GetWriteTimeout() time.Duration {
+	return m.wtimeout
 }
 
 type recorder struct {
@@ -146,8 +153,8 @@ func (r *recorder) WroteLen() int {
 
 func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
-	if m.readTimeout > 0 {
-		time.Sleep(m.readTimeout)
+	if m.rtimeout > 0 {
+		time.Sleep(m.rtimeout)
 	} else {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -283,11 +290,13 @@ func (m *Conn) RemoteAddr() net.Addr {
 }
 
 func (m *Conn) SetDeadline(t time.Time) error {
-	panic("implement me")
+	m.rtimeout = -time.Since(t)
+	m.wtimeout = m.rtimeout
+	return nil
 }
 
 func (m *Conn) SetReadDeadline(t time.Time) error {
-	m.readTimeout = -time.Since(t)
+	m.rtimeout = -time.Since(t)
 	return nil
 }
 
@@ -312,7 +321,7 @@ func (m *Conn) SetIdleTimeout(timeout time.Duration) error {
 }
 
 func (m *Conn) SetReadTimeout(t time.Duration) error {
-	m.readTimeout = t
+	m.rtimeout = t
 	return nil
 }
 
@@ -406,4 +415,24 @@ func (m *MockWriter) Flush() error {
 		return m.MockFlush()
 	}
 	return m.w.Flush()
+}
+
+type TLSConn struct {
+	network.Conn
+
+	HandshakeErr error
+}
+
+var _ network.ConnTLSer = (*TLSConn)(nil)
+
+func (c *TLSConn) Handshake() error {
+	return c.HandshakeErr
+}
+
+func (c *TLSConn) ConnectionState() tls.ConnectionState {
+	return tls.ConnectionState{}
+}
+
+func NewTLSConn(conn network.Conn) *TLSConn {
+	return &TLSConn{Conn: conn}
 }

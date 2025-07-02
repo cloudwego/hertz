@@ -71,7 +71,38 @@ func TestHasCRLF(t *testing.T) {
 	assert.Assert(t, hasCRLF("This is a test string") == false)
 }
 
-func TestSseEventType(t *testing.T) {
+func TestSSEEventType(t *testing.T) {
 	assert.DeepEqual(t, "message", sseEventType([]byte("message")))
 	assert.DeepEqual(t, "custom", sseEventType([]byte("custom")))
+}
+
+func TestScanEOL(t *testing.T) {
+	tests := []struct {
+		data    string
+		atEOF   bool
+		advance int
+		token   string
+	}{
+		{"", true, 0, ""},
+		{"", false, 0, ""},
+		{"hello\r\nworld", false, 7, "hello"},
+		{"hello\rworld", false, 6, "hello"},
+		{"hello\nworld", false, 6, "hello"},
+		{"hello world", false, 0, ""},
+		{"hello world", true, 11, "hello world"},
+		{"\r", false, 0, ""},
+		{"hello\r", false, 0, ""},
+		{"hello\r", true, 6, "hello"},
+		{"\n", false, 1, ""},
+		{"\r\nhello", false, 2, ""},
+		{"\r\n", false, 2, ""},
+	}
+
+	for _, tc := range tests {
+		advance, token, _ := scanEOL([]byte(tc.data), tc.atEOF)
+		if advance != tc.advance || string(token) != tc.token {
+			t.Fatalf("scanLines(data=%q, atEOF=%v) returns (%d, %q) expect (%d, %q)",
+				tc.data, tc.atEOF, advance, string(token), tc.advance, tc.token)
+		}
+	}
 }

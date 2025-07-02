@@ -59,6 +59,7 @@ func NewReader(resp *protocol.Response) (*Reader, error) {
 		r.r = bytes.NewReader(resp.Body())
 	}
 	r.s = bufio.NewScanner(r.r)
+	r.s.Split(scanEOL)
 	return r, nil
 }
 

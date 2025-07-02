@@ -472,51 +472,48 @@ func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, e
 	return canIdempotentRetry, err
 }
 
-type requestConfig struct {
-	dialTimeout  time.Duration
-	readTimeout  time.Duration
-	writeTimeout time.Duration
+func minTimeout(d0, d1 time.Duration) time.Duration {
+	if d0 <= 0 {
+		if d1 <= 0 {
+			return 0
+		}
+		return d1
+	}
+	if d1 <= 0 {
+		return d0
+	}
+	if d0 < d1 {
+		return d0
+	}
+	return d1
 }
 
-func (c *HostClient) preHandleConfig(o *config.RequestOptions) requestConfig {
-	rc := requestConfig{
-		dialTimeout:  c.DialTimeout,
-		readTimeout:  c.ReadTimeout,
-		writeTimeout: c.WriteTimeout,
+func timeUntil(deadline time.Time) time.Duration {
+	timeout := time.Until(deadline)
+	if timeout <= 0 {
+		return -1
 	}
-	if o.ReadTimeout() > 0 {
-		rc.readTimeout = o.ReadTimeout()
-	}
-
-	if o.WriteTimeout() > 0 {
-		rc.writeTimeout = o.WriteTimeout()
-	}
-
-	if o.DialTimeout() > 0 {
-		rc.dialTimeout = o.DialTimeout()
-	}
-
-	return rc
+	return timeout
 }
 
-func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time) (shouldCloseConn bool, timeout time.Duration) {
-	if reqTimeout <= 0 {
-		return false, compareTimeout
+// calcTimeout checks deadline and returns timeout for conn.SetXXXTimeout
+//
+// returns 0 which means no timeout
+// returns -1 if deadline exceeded
+func calcTimeout(deadline time.Time, timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		if deadline.IsZero() {
+			return 0
+		}
+		return timeUntil(deadline)
 	}
-	left := reqTimeout - time.Since(before)
-	if left <= 0 {
-		return true, 0
+	if deadline.IsZero() {
+		return timeout // must > 0
 	}
-
-	if compareTimeout <= 0 {
-		return false, left
+	if d := timeUntil(deadline); d < timeout {
+		return d
 	}
-
-	if left > compareTimeout {
-		return false, compareTimeout
-	}
-
-	return false, left
+	return timeout
 }
 
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
@@ -529,8 +526,6 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	atomic.StoreUint32(&c.lastUseTime, uint32(time.Now().Unix()-startTimeUnix))
 
-	rc := c.preHandleConfig(req.Options())
-
 	// Free up resources occupied by response before sending the request,
 	// so the GC may reclaim these resources (e.g. response body).
 	// backing up SkipBody in case it was set explicitly
@@ -541,19 +536,46 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
-	reqTimeout := req.Options().RequestTimeout()
-	begin := req.Options().StartTime()
 
-	dialTimeout := rc.dialTimeout
-	if (reqTimeout > 0 && reqTimeout < dialTimeout) || dialTimeout == 0 {
-		dialTimeout = reqTimeout
+	o := req.Options()
+	deadline := time.Time{}
+	if v := o.RequestTimeout(); v > 0 {
+		deadline = o.StartTime().Add(v)
 	}
-	cc, inPool, err := c.acquireConn(dialTimeout)
-	// if getting connection error, fast fail
+
+	// dial starts
+
+	timeout := calcTimeout(deadline, minTimeout(c.DialTimeout, o.DialTimeout()))
+	if timeout < 0 {
+		return false, errTimeout
+	}
+	cc, inPool, err := c.acquireConn(timeout)
 	if err != nil {
 		return false, err
 	}
 	conn := cc.c
+	resp.ParseNetAddr(conn)
+
+	if c.IsTLS && timeout > 0 { // force handshake using dial timeout
+		// NOTE: Handshake() here is optional as Write would tirigger handshake
+		// but for tls handshake, it writes and reads, and we need to set deadline for that.
+		tlsconn, ok := conn.(network.ConnTLSer)
+		if ok {
+			// currently netpoll doesn't support conn.SetDeadline nor tls, but crypto/tls.Conn does.
+			// in case netpoll supports tls in the future, may need to change this to
+			// call both conn.SetReadTimeout, and conn.SetWriteTimeout
+			err := conn.SetDeadline(time.Now().Add(timeout))
+			if err == nil {
+				err = tlsconn.Handshake()
+				// NOTE: no need conn.SetDeadline(time.Time{})?
+				// we always reset before Write and Read
+			}
+			if err != nil {
+				c.closeConn(cc)
+				return true, err
+			}
+		}
+	}
 
 	usingProxy := false
 	if c.ProxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
@@ -561,17 +583,15 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		proxy.SetProxyAuthHeader(&req.Header, c.ProxyURI)
 	}
 
-	resp.ParseNetAddr(conn)
+	// write starts
 
-	shouldClose, timeout := updateReqTimeout(reqTimeout, rc.writeTimeout, begin)
-	if shouldClose {
+	timeout = calcTimeout(deadline, minTimeout(c.WriteTimeout, o.WriteTimeout()))
+	if timeout < 0 {
 		c.closeConn(cc)
 		return false, errTimeout
 	}
-
 	if err = conn.SetWriteTimeout(timeout); err != nil {
 		c.closeConn(cc)
-		// try another connection if retry is enabled
 		return true, err
 	}
 
@@ -595,55 +615,53 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if resetConnection {
 		req.Header.ResetConnectionClose()
 	}
-
 	if err == nil {
 		err = zw.Flush()
 	}
-	// error happened when writing request, close the connection, and try another connection if retry is enabled
 	if err != nil {
 		defer c.closeConn(cc)
-
 		errNorm, ok := conn.(network.ErrorNormalization)
 		if ok {
 			err = errNorm.ToHertzError(err)
 		}
-
 		if !errors.Is(err, errs.ErrConnectionClosed) {
 			return true, err
 		}
 
-		// set a protection timeout to avoid infinite loop.
-		if conn.SetReadTimeout(time.Second) != nil {
+		// introduced by https://github.com/cloudwego/hertz/pull/412
+		// only for reading 4xx err
+
+		// short period of time (50ms) is enough for this case
+		// NOTE: can't use deadline since it likely already exceeded deadline when write
+		timeout = minTimeout(50*time.Millisecond, minTimeout(c.ReadTimeout, o.ReadTimeout()))
+		if conn.SetReadTimeout(timeout) != nil {
 			return true, err
 		}
-
-		// Only if the connection is closed while writing the request. Try to parse the response and return.
-		// In this case, the request/response is considered as successful.
-		// Otherwise, return the former error.
 		zr := c.acquireReader(conn)
 		defer zr.Release()
 		if respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize) == nil {
-			return false, nil
+			if code := resp.StatusCode(); code >= 400 && code < 600 {
+				// strictly for 4xx only, but 5xx is also acceptable.
+				// both can be considered better response rather than write err
+				return false, nil
+			}
 		}
 
 		if inPool {
 			err = errs.ErrBadPoolConn
 		}
-
 		return true, err
 	}
 
-	shouldClose, timeout = updateReqTimeout(reqTimeout, rc.readTimeout, begin)
-	if shouldClose {
+	// read starts
+
+	timeout = calcTimeout(deadline, minTimeout(c.ReadTimeout, o.ReadTimeout()))
+	if timeout < 0 {
 		c.closeConn(cc)
 		return false, errTimeout
 	}
-
-	// Set Deadline every time, since golang has fixed the performance issue
-	// See https://github.com/golang/go/issues/15133#issuecomment-271571395 for details
 	if err = conn.SetReadTimeout(timeout); err != nil {
 		c.closeConn(cc)
-		// try another connection if retry is enabled
 		return true, err
 	}
 
