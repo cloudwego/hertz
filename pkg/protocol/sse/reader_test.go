@@ -117,7 +117,7 @@ func TestReader_ReadEvent(t *testing.T) {
 		},
 		{
 			name:  "Event with multiline data",
-			input: "id: 123\nevent: update\ndata: line1\ndata: line2\ndata: line3\n\n",
+			input: "id: 123\revent: update\r\ndata: line1\rdata: line2\r\ndata: line3\n\n",
 			expected: func() *Event {
 				e := NewEvent()
 				e.SetID("123")

@@ -123,6 +123,11 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 	}
 
 	// Non-pointer elems
+	if field.CanAddr() {
+		if tryTextUnmarshaler(field.Addr(), text) {
+			return nil
+		}
+	}
 	err = d.decoder.UnmarshalString(text, field, d.config.LooseZeroMode)
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)
