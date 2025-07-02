@@ -398,7 +398,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		default:
 		}
 
-		canIdempotentRetry, err = c.do(req, resp)
+		canIdempotentRetry, err = c.do(ctx, req, resp)
 		// If there is no custom retry and err is equal to nil, the loop simply exits.
 		if err == nil && isDefaultRetryFunc {
 			if connAttempts != 0 {
@@ -456,20 +456,96 @@ func (c *HostClient) PendingRequests() int {
 	return int(atomic.LoadInt32(&c.pendingRequests))
 }
 
-func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) do(ctx context.Context, req *protocol.Request, resp *protocol.Response) (bool, error) {
 	nilResp := false
 	if resp == nil {
 		nilResp = true
 		resp = protocol.AcquireResponse()
 	}
+	defer func() {
+		if nilResp {
+			protocol.ReleaseResponse(resp)
+		}
+	}()
 
-	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
+	c.checkAndConfigureReqResp(req, resp)
 
-	if nilResp {
-		protocol.ReleaseResponse(resp)
+	// whole request timeout
+	o := req.Options()
+	deadline := time.Time{}
+	if v := o.RequestTimeout(); v > 0 {
+		deadline = o.StartTime().Add(v)
 	}
 
+	// dial starts
+	timeout := calcTimeout(deadline, minTimeout(c.DialTimeout, o.DialTimeout()))
+	if timeout < 0 {
+		return false, errTimeout
+	}
+	cc, inPool, err := c.acquireConn(timeout)
+	if err != nil {
+		return false, err
+	}
+	conn := cc.c
+	resp.ParseNetAddr(conn)
+	// force handshake using dial timeout
+	if c.IsTLS && timeout > 0 {
+		// NOTE: Handshake() here is optional as Write would tirigger handshake
+		// but for tls handshake, it writes and reads, and we need to set deadline for that.
+		tlsconn, ok := conn.(network.ConnTLSer)
+		if ok {
+			// currently netpoll doesn't support conn.SetDeadline nor tls, but crypto/tls.Conn does.
+			// in case netpoll supports tls in the future, may need to change this to
+			// call both conn.SetReadTimeout, and conn.SetWriteTimeout
+			err = conn.SetDeadline(time.Now().Add(timeout))
+			if err == nil {
+				err = tlsconn.Handshake()
+				// NOTE: no need conn.SetDeadline(time.Time{})?
+				// we always reset before Write and Read
+			}
+			if err != nil {
+				c.closeConn(cc)
+				return true, err
+			}
+		}
+	}
+
+	// write req
+	canIdempotentRetry, resetConnection, shouldFinish, err := c.writeReq(cc, inPool, req, resp, deadline)
+	if shouldFinish {
+		return canIdempotentRetry, err
+	}
+	if (c.ClientOptions.SenseContextCancel || o.SenseContextCancel()) && ctx.Done() != nil {
+		doChan := make(chan doResult)
+		go func() {
+			canRetry, dErr := c.readResp(cc, inPool, resetConnection, req, resp, deadline)
+			doChan <- doResult{
+				canIdempotentRetry: canRetry,
+				err:                dErr,
+			}
+		}()
+		select {
+		case <-ctx.Done():
+			// Close connection directly and wait for readResp releasing connection resource
+			cc.c.Close()
+			// wait for goroutine exited
+			// since the lifecycle of context has finished,
+			// there is no need to retry
+			<-doChan
+			return false, ctx.Err()
+		case res := <-doChan:
+			return res.canIdempotentRetry, res.err
+		}
+	}
+
+	canIdempotentRetry, err = c.readResp(cc, inPool, resetConnection, req, resp, deadline)
+
 	return canIdempotentRetry, err
+}
+
+type doResult struct {
+	canIdempotentRetry bool
+	err                error
 }
 
 func minTimeout(d0, d1 time.Duration) time.Duration {
@@ -516,7 +592,7 @@ func calcTimeout(deadline time.Time, timeout time.Duration) time.Duration {
 	return timeout
 }
 
-func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) checkAndConfigureReqResp(req *protocol.Request, resp *protocol.Response) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
 	}
@@ -536,46 +612,16 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if c.DisablePathNormalizing {
 		req.URI().DisablePathNormalizing = true
 	}
+}
 
-	o := req.Options()
-	deadline := time.Time{}
-	if v := o.RequestTimeout(); v > 0 {
-		deadline = o.StartTime().Add(v)
-	}
-
-	// dial starts
-
-	timeout := calcTimeout(deadline, minTimeout(c.DialTimeout, o.DialTimeout()))
-	if timeout < 0 {
-		return false, errTimeout
-	}
-	cc, inPool, err := c.acquireConn(timeout)
-	if err != nil {
-		return false, err
-	}
+func (c *HostClient) writeReq(cc *clientConn, connInPool bool, req *protocol.Request, resp *protocol.Response, deadline time.Time) (
+	canIdempotentRetry bool,
+	resetConnection bool,
+	shouldFinish bool,
+	err error,
+) {
 	conn := cc.c
-	resp.ParseNetAddr(conn)
-
-	if c.IsTLS && timeout > 0 { // force handshake using dial timeout
-		// NOTE: Handshake() here is optional as Write would tirigger handshake
-		// but for tls handshake, it writes and reads, and we need to set deadline for that.
-		tlsconn, ok := conn.(network.ConnTLSer)
-		if ok {
-			// currently netpoll doesn't support conn.SetDeadline nor tls, but crypto/tls.Conn does.
-			// in case netpoll supports tls in the future, may need to change this to
-			// call both conn.SetReadTimeout, and conn.SetWriteTimeout
-			err := conn.SetDeadline(time.Now().Add(timeout))
-			if err == nil {
-				err = tlsconn.Handshake()
-				// NOTE: no need conn.SetDeadline(time.Time{})?
-				// we always reset before Write and Read
-			}
-			if err != nil {
-				c.closeConn(cc)
-				return true, err
-			}
-		}
-	}
+	o := req.Options()
 
 	usingProxy := false
 	if c.ProxyURI != nil && bytes.Equal(req.Scheme(), bytestr.StrHTTP) {
@@ -584,18 +630,16 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	}
 
 	// write starts
-
-	timeout = calcTimeout(deadline, minTimeout(c.WriteTimeout, o.WriteTimeout()))
+	timeout := calcTimeout(deadline, minTimeout(c.WriteTimeout, o.WriteTimeout()))
 	if timeout < 0 {
 		c.closeConn(cc)
-		return false, errTimeout
+		return false, resetConnection, true, errTimeout
 	}
 	if err = conn.SetWriteTimeout(timeout); err != nil {
 		c.closeConn(cc)
-		return true, err
+		return true, resetConnection, true, err
 	}
 
-	resetConnection := false
 	if c.MaxConnDuration > 0 && time.Since(cc.createdTime) > c.MaxConnDuration && !req.ConnectionClose() {
 		req.SetConnectionClose()
 		resetConnection = true
@@ -625,7 +669,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 			err = errNorm.ToHertzError(err)
 		}
 		if !errors.Is(err, errs.ErrConnectionClosed) {
-			return true, err
+			return true, resetConnection, true, err
 		}
 
 		// introduced by https://github.com/cloudwego/hertz/pull/412
@@ -635,7 +679,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		// NOTE: can't use deadline since it likely already exceeded deadline when write
 		timeout = minTimeout(50*time.Millisecond, minTimeout(c.ReadTimeout, o.ReadTimeout()))
 		if conn.SetReadTimeout(timeout) != nil {
-			return true, err
+			return true, resetConnection, true, err
 		}
 		zr := c.acquireReader(conn)
 		defer zr.Release()
@@ -643,19 +687,26 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 			if code := resp.StatusCode(); code >= 400 && code < 600 {
 				// strictly for 4xx only, but 5xx is also acceptable.
 				// both can be considered better response rather than write err
-				return false, nil
+				return false, resetConnection, true, nil
 			}
 		}
 
-		if inPool {
+		if connInPool {
 			err = errs.ErrBadPoolConn
 		}
-		return true, err
+		return true, resetConnection, true, err
 	}
+	return false, resetConnection, false, nil
+}
+
+func (c *HostClient) readResp(cc *clientConn, connInPool, resetConnection bool, req *protocol.Request, resp *protocol.Response, deadline time.Time) (bool, error) {
+	var err error
+	customSkipBody := resp.SkipBody
+	conn := cc.c
+	o := req.Options()
 
 	// read starts
-
-	timeout = calcTimeout(deadline, minTimeout(c.ReadTimeout, o.ReadTimeout()))
+	timeout := calcTimeout(deadline, minTimeout(c.ReadTimeout, o.ReadTimeout()))
 	if timeout < 0 {
 		c.closeConn(cc)
 		return false, errTimeout
@@ -683,7 +734,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if err != nil {
 		zr.Release() //nolint:errcheck
 		c.closeConn(cc)
-		if inPool && (err == io.EOF || err == syscall.ECONNRESET) {
+		if connInPool && (err == io.EOF || err == syscall.ECONNRESET) {
 			return true, errs.ErrBadPoolConn
 		}
 		// if this is not a pooled connection,
@@ -1454,4 +1505,8 @@ type ClientOptions struct {
 
 	// StateObserve execution interval
 	ObservationInterval time.Duration
+
+	// Whether to let the ctx passed into Do control the lifecycle of the request,
+	// so that when the ctx is canceled, the corresponding request will also be finished
+	SenseContextCancel bool
 }

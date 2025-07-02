@@ -44,6 +44,7 @@ func TestClientOptions(t *testing.T) {
 		),
 		WithWriteTimeout(time.Second),
 		WithConnStateObserve(nil, time.Second),
+		WithSenseContextCancel(true),
 	})
 	assert.DeepEqual(t, 100*time.Millisecond, opt.DialTimeout)
 	assert.DeepEqual(t, 128, opt.MaxConnsPerHost)
@@ -59,6 +60,7 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.RetryConfig.MaxDelay)
 	assert.DeepEqual(t, 1*time.Second, opt.RetryConfig.MaxJitter)
 	assert.DeepEqual(t, 1*time.Second, opt.ObservationInterval)
+	assert.DeepEqual(t, true, opt.SenseContextCancel)
 	for i := 0; i < 100; i++ {
 		assert.DeepEqual(t, opt.RetryConfig.DelayPolicy(uint(i), nil, opt.RetryConfig), retry.CombineDelay(retry.DefaultDelayPolicy, retry.FixedDelayPolicy, retry.BackOffDelayPolicy)(uint(i), nil, opt.RetryConfig))
 	}
