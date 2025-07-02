@@ -55,8 +55,9 @@ import (
 )
 
 type router struct {
-	method string
-	root   *node
+	method        string
+	root          *node
+	hasTsrHandler map[string]bool
 }
 
 type MethodTrees []*router

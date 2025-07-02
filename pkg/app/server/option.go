@@ -278,8 +278,7 @@ func WithH2C(enable bool) config.Option {
 	}}
 }
 
-// WithReadBufferSize sets the size of each read buffer node in standard transport.
-// NOTE: this cannot limit the header size.
+// WithReadBufferSize sets the read buffer size which also limit the header size.
 func WithReadBufferSize(size int) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ReadBufferSize = size

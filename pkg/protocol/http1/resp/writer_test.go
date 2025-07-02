@@ -33,7 +33,6 @@ func TestNewChunkedBodyWriter(t *testing.T) {
 	mockConn := mock.NewConn("")
 	w := NewChunkedBodyWriter(response, mockConn)
 	_, _ = w.Write([]byte("hello"))
-	_, _ = w.Write(nil) // noop
 	assert.Nil(t, w.Flush())
 	out, _ := mockConn.WriterRecorder().Peek(mockConn.WriterRecorder().WroteLen())
 	resp := string(out)

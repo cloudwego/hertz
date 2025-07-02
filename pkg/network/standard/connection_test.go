@@ -25,10 +25,12 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	. "github.com/bytedance/mockey"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -381,20 +383,34 @@ func (m *mockAddr) String() string {
 	return m.address
 }
 
-func TestConnSetFinalizer(t *testing.T) {
-	defer func(newfunc func() interface{}) {
-		bufferPool.New = newfunc
-	}(bufferPool.New) // reset
+var release_count uint32 = 0
 
-	runtime.GC()
-	runtime.GC()
-	for i := 0; i < 1000; i++ {
-		_ = newConn(&mockConn{}, 4096)
+func mockLinkBufferNodeRelease(b *linkBufferNode) {
+	atomic.AddUint32(&release_count, 1)
+
+	if !b.readOnly {
+		free(b.buf)
 	}
-	runtime.GC()
-	bufferPool.New = nil
-	assert.NotNil(t, bufferPool.Get())
+	b.readOnly = false
+	b.buf = nil
+	b.next = nil
+	b.malloc, b.off = 0, 0
+	bufferPool.Put(b)
+}
 
+func TestConnSetFinalizer(t *testing.T) {
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	Mock((*linkBufferNode).Release).To(mockLinkBufferNodeRelease).Build()
+
+	atomic.StoreUint32(&release_count, 0)
+	_ = newConn(&mockConn{}, 4096)
+
+	runtime.GC()
+	time.Sleep(time.Millisecond * 100)
+
+	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
 }
 
 func TestFillReturnErrAndN(t *testing.T) {

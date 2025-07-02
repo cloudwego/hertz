@@ -26,10 +26,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
-var chunkWriterPool sync.Pool
+var chunkReaderPool sync.Pool
 
 func init() {
-	chunkWriterPool = sync.Pool{
+	chunkReaderPool = sync.Pool{
 		New: func() interface{} {
 			return &chunkedBodyWriter{}
 		},
@@ -57,12 +57,6 @@ func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 	}
 	if err := c.writeHeader(); err != nil {
 		return 0, err
-	}
-	if len(p) == 0 {
-		// prevent from sending zero-len chunk which indicates stream ends.
-		// callers may write with zero-len buf unintentionally.
-		// use Finalize() instead.
-		return 0, nil
 	}
 	if err := c.writeChunk(p); err != nil {
 		return 0, err
@@ -99,14 +93,11 @@ func (c *chunkedBodyWriter) Finalize() error {
 	if c.finalized || c.err != nil {
 		return c.err
 	}
-	c.finalized = true
-	if err := c.writeHeader(); err != nil {
-		return err
-	}
 	// zero-len chunk
-	if err := c.writeChunk(nil); err != nil {
+	if _, err := c.Write(nil); err != nil {
 		return err
 	}
+	c.finalized = true
 	// trailer which ends with \r\n
 	_, c.err = c.w.WriteBinary(c.r.Header.Trailer().Header())
 	if c.err == nil {
@@ -121,12 +112,12 @@ func (c *chunkedBodyWriter) release() {
 	c.err = nil
 	c.finalized = false
 	c.wroteHeader = false
-	chunkWriterPool.Put(c)
+	chunkReaderPool.Put(c)
 }
 
 // NewChunkedBodyWriter creates a new chunked body writer.
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {
-	extWriter := chunkWriterPool.Get().(*chunkedBodyWriter)
+	extWriter := chunkReaderPool.Get().(*chunkedBodyWriter)
 	extWriter.r = r
 	extWriter.w = w
 	runtime.SetFinalizer(extWriter, (*chunkedBodyWriter).release)

@@ -70,35 +70,3 @@ func hasCRLF(s string) bool {
 	}
 	return false
 }
-
-// https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
-// end-of-line   = ( cr lf / cr / lf )
-func scanEOL(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-	i := bytes.IndexByte(data, '\r')
-	j := bytes.IndexByte(data, '\n')
-	if i >= 0 {
-		if i+1 == j { // \r\n
-			return i + 2, data[0:i], nil
-		}
-		if j >= 0 { // choose the nearer \r or \n as EOL
-			if i < j {
-				return i + 1, data[0:i], nil // \r
-			}
-			return j + 1, data[0:j], nil // \n
-		}
-		// if ends with '\r', we need to check the next char is NOT '\n' as per spec
-		// this may cause unexpected blocks on reading more data.
-		if i < len(data)-1 || atEOF {
-			return i + 1, data[0:i], nil
-		}
-	} else if j >= 0 {
-		return j + 1, data[0:j], nil
-	}
-	if atEOF {
-		return len(data), data, nil
-	}
-	return 0, nil, nil // more data
-}

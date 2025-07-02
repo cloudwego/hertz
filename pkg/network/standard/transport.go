@@ -31,8 +31,13 @@ import (
 )
 
 type transport struct {
-	// The underlying read buffer is a buffer node list, `readBufferSize` is the size of a single node.
-	// `defaultReadBufferSize` (4KB) is used if not set.
+	// Per-connection buffer size for requests' reading.
+	// This also limits the maximum header size.
+	//
+	// Increase this buffer if your clients send multi-KB RequestURIs
+	// and/or multi-KB headers (for example, BIG cookies).
+	//
+	// Default buffer size is used if not set.
 	readBufferSize           int
 	network                  string
 	addr                     string

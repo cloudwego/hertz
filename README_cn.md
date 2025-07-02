@@ -11,9 +11,7 @@
 ![Stars](https://img.shields.io/github/stars/cloudwego/hertz)
 ![Forks](https://img.shields.io/github/forks/cloudwego/hertz)
 
-Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](https://github.com/valyala/fasthttp)，并在设计时参考了其他开源框架[gin](https://github.com/gin-gonic/gin)、[echo](https://github.com/labstack/echo) 的优势，并结合字节跳动内部的需求，使其具有高易用性、高
-性能、高扩展性等特点，目前在字节跳动内部已广泛使用。如今越来越多的微服务选择使用 Golang，如果对微服务性能有要求，又希望框架能够充分满足内部的可定制化需求，Hertz 会是一个不错的选择。
-
+Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，在设计之初参考了其他开源框架 [fasthttp](https://github.com/valyala/fasthttp)、[gin](https://github.com/gin-gonic/gin)、[echo](https://github.com/labstack/echo) 的优势，并结合字节跳动内部的需求，使其具有高易用性、高性能、高扩展性等特点，目前在字节跳动内部已广泛使用。如今越来越多的微服务选择使用 Golang，如果对微服务性能有要求，又希望框架能够充分满足内部的可定制化需求，Hertz 会是一个不错的选择。
 ## 框架特点
 - 高易用性
 

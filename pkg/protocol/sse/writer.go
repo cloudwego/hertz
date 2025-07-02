@@ -17,11 +17,13 @@
 package sse
 
 import (
+	"bytes"
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 
-	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -39,11 +41,8 @@ type Writer struct {
 
 // NewWriter creates a new SSE writer.
 func NewWriter(c *app.RequestContext) *Writer {
-	// make sure proxies won't cache the data
 	c.Response.Header.Set("Cache-Control", "no-cache")
-	// browsers may need charset=utf-8 for logging responses
-	// even though it's unnecessary as per spec, coz chunks must be in utf8.
-	c.Response.Header.SetContentType("text/event-stream; charset=utf-8")
+	c.Response.Header.SetContentType(string(bytestr.MIMETextEventStream))
 	w := c.Response.GetHijackWriter()
 	if w == nil {
 		w = resp.NewChunkedBodyWriter(&c.Response, c.GetWriter())
@@ -85,12 +84,16 @@ func (w *Writer) WriteComment(s string) error {
 	defer bytebufferpool.Put(p)
 
 	buf := p.B[:0]
-	for data := bytesconv.S2b(s); len(data) > 0; {
-		i, b, _ := scanEOL(data, true)
-		buf = append(buf, ':')
-		buf = append(buf, b...)
-		buf = append(buf, '\n')
-		data = data[i:]
+	for len(s) > 0 {
+		i := strings.IndexByte(s, '\n')
+		if i >= 0 {
+			buf = append(buf, ':')
+			buf = append(buf, s[:i+1]...) // it contains '\n' already
+			s = s[i+1:]
+		} else {
+			buf = append(append(append(buf, ':'), s...), '\n')
+			s = ""
+		}
 	}
 	if len(buf) == 0 {
 		buf = append(buf, ':')
@@ -139,13 +142,16 @@ func (w *Writer) Write(e *Event) error {
 
 	if e.IsSetData() {
 		data := e.Data
-		// replace EOLs with multiple "data: " lines
 		for len(data) > 0 {
-			i, b, _ := scanEOL(data, true)
-			buf = append(buf, "data: "...)
-			buf = append(buf, b...)
-			buf = append(buf, '\n')
-			data = data[i:]
+			i := bytes.IndexByte(data, '\n')
+			if i >= 0 {
+				buf = append(buf, "data: "...)
+				buf = append(buf, data[:i+1]...) // it contains '\n' already
+				data = data[i+1:]
+			} else {
+				buf = append(append(append(buf, "data: "...), data...), '\n')
+				data = nil
+			}
 		}
 	}
 	p.B = append(buf, '\n') // end of event
