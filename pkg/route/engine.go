@@ -89,9 +89,9 @@ var (
 	errAlreadyRunning   = errs.NewPrivate("engine is already running")
 	errStatusNotRunning = errs.NewPrivate("engine is not running")
 
-	default404Body = []byte("404 page not found")
-	default405Body = []byte("405 method not allowed")
-	default400Body = []byte("400 bad request")
+	default404Body = []byte("Not Found")
+	default405Body = []byte("Method Not Allowed")
+	default400Body = []byte("Bad Request")
 
 	requiredHostBody = []byte("missing required Host header")
 )

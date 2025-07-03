@@ -218,7 +218,7 @@ func formatAsDate(t time.Time) string {
 
 // copied from router
 var (
-	default400Body   = []byte("400 bad request")
+	default400Body   = []byte("Bad Request")
 	requiredHostBody = []byte("missing required Host header")
 )
 
