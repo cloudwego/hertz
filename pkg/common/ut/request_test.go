@@ -92,7 +92,7 @@ func TestPerformRequest(t *testing.T) {
 	resp = w.Result()
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode())
-	assert.DeepEqual(t, "404 page not found, faker", string(resp.Body()))
+	assert.DeepEqual(t, "Not Found, faker", string(resp.Body()))
 
 	// chunked body
 	body := bytes.NewReader(createChunkedBody([]byte("hello world!")))

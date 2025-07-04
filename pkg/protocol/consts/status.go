@@ -151,7 +151,7 @@ var (
 		StatusUnauthorized:                 "Unauthorized",
 		StatusPaymentRequired:              "Payment Required",
 		StatusForbidden:                    "Forbidden",
-		StatusNotFound:                     "404 Page not found",
+		StatusNotFound:                     "Not Found",
 		StatusMethodNotAllowed:             "Method Not Allowed",
 		StatusNotAcceptable:                "Not Acceptable",
 		StatusProxyAuthRequired:            "Proxy Authentication Required",
