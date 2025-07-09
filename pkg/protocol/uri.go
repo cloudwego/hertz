@@ -585,14 +585,18 @@ func copyArgs(dst, src []argsKV) []argsKV {
 		prevKeyLen := len(srcKV.key)
 		dstKV.key = append(dstKV.key[:0], srcKV.key...)
 		nextKeyLen := len(dstKV.key)
-		hlog.Infof("prevKeyLen: %d, nextKeyLen: %d, prevKeyContent: %s", prevKeyLen, nextKeyLen, string(srcKV.key))
+		if prevKeyLen != nextKeyLen {
+			hlog.Infof("prevKeyLen: %d, nextKeyLen: %d, prevKeyContent: %s", prevKeyLen, nextKeyLen, string(srcKV.key))
+		}
 		if srcKV.noValue {
 			dstKV.value = dstKV.value[:0]
 		} else {
 			prevValLen := len(srcKV.value)
 			dstKV.value = append(dstKV.value[:0], srcKV.value...)
 			nextValLen := len(dstKV.value)
-			hlog.Infof("prevValLen: %d, nextValLen: %d", prevValLen, nextValLen)
+			if prevValLen != nextValLen {
+				hlog.Infof("prevValLen: %d, nextValLen: %d", prevValLen, nextValLen)
+			}
 		}
 		dstKV.noValue = srcKV.noValue
 	}
