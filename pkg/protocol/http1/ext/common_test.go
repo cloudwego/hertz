@@ -181,6 +181,25 @@ func TestBodyFixedSizeQuickPath(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+type writeToConn struct{}
+
+func (o *writeToConn) Read(b []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
+}
+func (c *writeToConn) WriteTo(w io.Writer) (int64, error) {
+	return 1, nil
+}
+func (c *writeToConn) Write(p []byte) (n int, err error)       { return 0, nil }
+func (c *writeToConn) Malloc(n int) (buf []byte, err error)    { return nil, nil }
+func (c *writeToConn) WriteBinary(b []byte) (n int, err error) { return 0, nil }
+func (c *writeToConn) Flush() error                            { return nil }
+
+func TestBodyFixedSizeWriteTo(t *testing.T) {
+	conn := &writeToConn{}
+	err := WriteBodyFixedSize(conn, conn, 1)
+	assert.Nil(t, err)
+}
+
 func TestBodyIdentity(t *testing.T) {
 	body := mock.CreateFixedBody(1024)
 	zr := mock.NewZeroCopyReader(string(body))

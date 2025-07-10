@@ -150,7 +150,7 @@ func WriteBodyFixedSize(w network.Writer, r io.Reader, size int64) error {
 		}
 	}
 
-	if size > 0 {
+	if _, ok := r.(io.WriterTo); !ok && size > 0 {
 		r = io.LimitReader(r, size)
 	}
 
