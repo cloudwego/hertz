@@ -154,6 +154,14 @@ func (arg *Argument) checkPath() error {
 	if err != nil {
 		return fmt.Errorf("get current path failed: %s", err)
 	}
+
+	if !filepath.IsAbs(dir) {
+		dir, err = filepath.Abs(dir)
+		if err != nil {
+			return fmt.Errorf("get abs path failed: %s", err)
+		}
+	}
+
 	arg.Cwd = dir
 	if arg.OutDir == "" {
 		arg.OutDir = dir
