@@ -435,7 +435,7 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags R
 
 	// Message type declaration.
 	g.Annotate(m.GoIdent.GoName, m.Location)
-	leadingComments := appendDeprecationSuffix(m.Comments.Leading,
+	leadingComments := appendDeprecationSuffix(m.Comments.Leading, f.Desc,
 		m.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
 	g.P(leadingComments,
 		"type ", m.GoIdent, " struct {")
@@ -529,7 +529,7 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 		name = WeakFieldPrefix_goname + name
 	}
 	g.Annotate(m.GoIdent.GoName+"."+name, field.Location)
-	leadingComments := appendDeprecationSuffix(field.Comments.Leading,
+	leadingComments := appendDeprecationSuffix(field.Comments.Leading, f.Desc,
 		field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
 	g.P(leadingComments,
 		name, " ", goType, tags,

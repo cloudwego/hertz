@@ -205,7 +205,7 @@ func genExtensions(g *protogen.GeneratedFile, f *fileInfo)
 func genReflectFileDescriptor(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileInfo)
 
 //go:linkname appendDeprecationSuffix google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo.appendDeprecationSuffix
-func appendDeprecationSuffix(prefix protogen.Comments, deprecated bool) protogen.Comments
+func appendDeprecationSuffix(prefix protogen.Comments, parentFile protoreflect.FileDescriptor, deprecated bool) protogen.Comments
 
 //go:linkname genMessageDefaultDecls google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo.genMessageDefaultDecls
 func genMessageDefaultDecls(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo)
