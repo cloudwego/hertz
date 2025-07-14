@@ -90,7 +90,9 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 		}
 		if len(pkgGen.UseDir) != 0 {
 			oldModelDir := filepath.Clean(filepath.Join(pkgGen.ProjPackage, pkgGen.ModelDir))
+			oldModelDir = filepath.ToSlash(oldModelDir)
 			newModelDir := filepath.Clean(pkgGen.UseDir)
+			newModelDir = filepath.ToSlash(newModelDir)
 			for _, m := range client.ClientMethods {
 				for _, mm := range m.Models {
 					mm.Package = strings.Replace(mm.Package, oldModelDir, newModelDir, 1)
