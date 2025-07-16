@@ -1672,18 +1672,19 @@ func appendHeaderLine(dst, key, value []byte) []byte {
 	}
 	dst = append(dst, key...)
 	dst = append(dst, bytestr.StrColonSpace...)
-	dst = append(dst, newlineToSpace(value)...)
+	dst = appendHeaderValue(dst, value)
 	return append(dst, bytestr.StrCRLF...)
 }
 
-// newlineToSpace will return a copy of the original byte slice.
-func newlineToSpace(val []byte) []byte {
-	filteredVal := make([]byte, len(val))
-	copy(filteredVal, val)
-	for i := 0; i < len(filteredVal); i++ {
-		filteredVal[i] = bytesconv.NewlineToSpaceTable[filteredVal[i]]
+func appendHeaderValue(dst, v []byte) []byte {
+	ret := append(dst, v...)
+	v = ret[len(dst):]
+	for i, c := range v { // '\r' or '\n' -> ' '
+		if c == '\r' || c == '\n' {
+			v[i] = ' '
+		}
 	}
-	return filteredVal
+	return ret
 }
 
 func UpdateServerDate() {

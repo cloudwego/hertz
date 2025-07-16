@@ -828,3 +828,44 @@ func Benchmark_RequestHeader_Peek(b *testing.B) {
 		h.Peek("hello")
 	}
 }
+
+func TestAppendHeaderLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		dst      []byte
+		key      []byte
+		value    []byte
+		expected []byte
+	}{
+		{
+			name:     "basic header",
+			dst:      []byte{},
+			key:      []byte("Content-Type"),
+			value:    []byte("application/json"),
+			expected: []byte("Content-Type: application/json\r\n"),
+		},
+		{
+			name:     "value with newlines",
+			dst:      []byte{},
+			key:      []byte("X-Custom"),
+			value:    []byte("value\nwith\rnewlines"),
+			expected: []byte("X-Custom: value with newlines\r\n"),
+		},
+		{
+			name:     "invalid key",
+			dst:      []byte("initial"),
+			key:      []byte("Invalid\x00Key"),
+			value:    []byte("value"),
+			expected: []byte("initial"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := appendHeaderLine(tt.dst, tt.key, tt.value)
+			if !bytes.Equal(result, tt.expected) {
+				t.Errorf("appendHeaderLine() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}

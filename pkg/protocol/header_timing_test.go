@@ -104,3 +104,16 @@ func BenchmarkRefreshServerDate(b *testing.B) {
 		refreshServerDate()
 	}
 }
+
+func BenchmarkHeaderAppendBytes(b *testing.B) {
+	h := new(ResponseHeader)
+	h.Set("X-tt-logid", "abc123456789")
+	h.SetServerBytes([]byte("hertz"))
+
+	buf := make([]byte, 0, 1024)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = h.AppendBytes(buf)
+	}
+}
