@@ -398,7 +398,7 @@ func (c *HostClient) Do(ctx context.Context, req *protocol.Request, resp *protoc
 		default:
 		}
 
-		canIdempotentRetry, err = c.do(req, resp)
+		canIdempotentRetry, err = c.do(ctx, req, resp)
 		// If there is no custom retry and err is equal to nil, the loop simply exits.
 		if err == nil && isDefaultRetryFunc {
 			if connAttempts != 0 {
@@ -456,14 +456,14 @@ func (c *HostClient) PendingRequests() int {
 	return int(atomic.LoadInt32(&c.pendingRequests))
 }
 
-func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) do(ctx context.Context, req *protocol.Request, resp *protocol.Response) (bool, error) {
 	nilResp := false
 	if resp == nil {
 		nilResp = true
 		resp = protocol.AcquireResponse()
 	}
 
-	canIdempotentRetry, err := c.doNonNilReqResp(req, resp)
+	canIdempotentRetry, err := c.doNonNilReqResp(ctx, req, resp)
 
 	if nilResp {
 		protocol.ReleaseResponse(resp)
@@ -519,7 +519,7 @@ func updateReqTimeout(reqTimeout, compareTimeout time.Duration, before time.Time
 	return false, left
 }
 
-func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
+func (c *HostClient) doNonNilReqResp(ctx context.Context, req *protocol.Request, resp *protocol.Response) (bool, error) {
 	if req == nil {
 		panic("BUG: req cannot be nil")
 	}
@@ -632,6 +632,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 		return true, err
 	}
+	hlog.CtxInfof(ctx, "HERTZ: Write Req successfully")
 
 	shouldClose, timeout = updateReqTimeout(reqTimeout, rc.readTimeout, begin)
 	if shouldClose {
