@@ -48,6 +48,7 @@
 package protobuf
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -92,6 +93,8 @@ func (rm *RemoveTags) Exist(tag string) bool {
 	return false
 }
 
+var debugPlugin = os.Getenv("HERTZ_DEBUG_PLUGIN") != ""
+
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
@@ -130,6 +133,17 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("parse args failed: %s\n", err.Error())
 		return meta.PluginError
 	}
+
+	if debugPlugin {
+		os.WriteFile("./req.pb", in, 0644)
+		js, err := json.Marshal(args)
+		if err != nil {
+			logs.Errorf("marshal request failed: %s\n", err.Error())
+			return meta.PluginError
+		}
+		os.WriteFile("./args.json", js, 0644)
+	}
+
 	CheckTagOption(args)
 	// generate
 	err = plugin.Handle(req, args)
