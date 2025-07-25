@@ -1050,6 +1050,11 @@ func releaseClientConn(cc *clientConn) {
 var clientConnPool sync.Pool
 
 func (c *HostClient) releaseConn(cc *clientConn) {
+	if cc.c.Len() > 0 {
+		// unexpected buffered data due to malformed response
+		c.closeConn(cc)
+		return
+	}
 	cc.lastUseTime = time.Now()
 	if c.MaxConnWaitTimeout <= 0 {
 		c.connsLock.Lock()
