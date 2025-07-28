@@ -41,7 +41,9 @@
 package binding
 
 import (
+	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/url"
@@ -417,10 +419,11 @@ func TestBind_ZeroValueBind(t *testing.T) {
 
 func TestBind_DefaultValueBind(t *testing.T) {
 	var s struct {
-		A int      `default:"15"`
-		B float64  `query:"b" default:"17"`
-		C []int    `default:"15"`
-		D []string `default:"qwe"`
+		A int       `default:"15"`
+		B float64   `query:"b" default:"17"`
+		C []int     `default:"[15]"`
+		D []string  `default:"['qwe','asd']"`
+		F [2]string `default:"['qwe','asd','zxc']"`
 	}
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com")
@@ -432,7 +435,23 @@ func TestBind_DefaultValueBind(t *testing.T) {
 	assert.DeepEqual(t, 15, s.A)
 	assert.DeepEqual(t, float64(17), s.B)
 	assert.DeepEqual(t, 15, s.C[0])
+	assert.DeepEqual(t, 2, len(s.D))
 	assert.DeepEqual(t, "qwe", s.D[0])
+	assert.DeepEqual(t, "asd", s.D[1])
+	assert.DeepEqual(t, 2, len(s.F))
+	assert.DeepEqual(t, "qwe", s.F[0])
+	assert.DeepEqual(t, "asd", s.F[1])
+
+	var s2 struct {
+		F [2]string `default:"['qwe']"`
+	}
+	err = DefaultBinder().Bind(req.Req, &s2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.DeepEqual(t, 2, len(s2.F))
+	assert.DeepEqual(t, "qwe", s2.F[0])
+	assert.DeepEqual(t, "", s2.F[1])
 
 	var d struct {
 		D [2]string `default:"qwe"`
@@ -449,10 +468,14 @@ func TestBind_RequiredBind(t *testing.T) {
 		A int `query:"a,required"`
 	}
 	req := newMockRequest().
+		SetRequestURI("http://foobar.com")
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
+
+	req = newMockRequest().
 		SetRequestURI("http://foobar.com").
 		SetHeader("A", "1")
-
-	err := DefaultBinder().Bind(req.Req, &s, nil)
+	err = DefaultBinder().Bind(req.Req, &s, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -741,6 +764,31 @@ func TestBind_FileBind(t *testing.T) {
 	assert.DeepEqual(t, fileName, (**s.D).N.Filename)
 }
 
+func TestBind_FileBindWithNoFile(t *testing.T) {
+	var s struct {
+		A *multipart.FileHeader `file_name:"a"`
+		B *multipart.FileHeader `form:"b"`
+		C *multipart.FileHeader
+	}
+	fileName := "binder_test.go"
+	req := newMockRequest().
+		SetRequestURI("http://foobar.com").
+		SetFile("a", fileName).
+		SetFile("b", fileName)
+	// to parse multipart files
+	req2 := req2.GetHTTP1Request(req.Req)
+	_ = req2.String()
+	err := DefaultBinder().Bind(req.Req, &s, nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	assert.DeepEqual(t, fileName, s.A.Filename)
+	assert.DeepEqual(t, fileName, s.B.Filename)
+	if s.C != nil {
+		t.Fatalf("expected a nil for s.C")
+	}
+}
+
 func TestBind_FileSliceBind(t *testing.T) {
 	type Nest struct {
 		N *[]*multipart.FileHeader `form:"b"`
@@ -957,6 +1005,7 @@ func TestBind_JSONRequiredField(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected an error, but get nil")
 	}
+	assert.DeepEqual(t, "'c' field is a 'required' parameter, but the request body does not have this parameter 'n.n2.c'", err.Error())
 	assert.DeepEqual(t, 1, result.N.A)
 	assert.DeepEqual(t, 2, result.N.B)
 	assert.DeepEqual(t, 0, result.N.N2.C)
@@ -1545,6 +1594,7 @@ func Test_ValidatorErrorFactory(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
 	}
+	assert.DeepEqual(t, "'a' field is a 'required' parameter, but the request does not have this parameter", err.Error())
 
 	type TestValidate struct {
 		B int `query:"b" vd:"$>100"`
@@ -1619,6 +1669,32 @@ func TestBind_Issue1015(t *testing.T) {
 	assert.DeepEqual(t, "asd", result.A)
 }
 
+func TestBind_JSONWithDefault(t *testing.T) {
+	type Req struct {
+		J1 string `json:"j1" default:"j1default"`
+	}
+
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"j1":"j1"}`))
+	var result Req
+	err := DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "j1", result.J1)
+
+	result = Req{}
+	req = newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"j2":"j2"}`))
+	err = DefaultBinder().Bind(req.Req, &result, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "j1default", result.J1)
+}
+
 func TestBind_WithoutPreBindForTag(t *testing.T) {
 	type BaseQuery struct {
 		Action  string `query:"Action" binding:"required"`
@@ -1659,6 +1735,41 @@ func TestBind_NormalizeContentType(t *testing.T) {
 	}
 	assert.DeepEqual(t, "action", result.Action)
 	assert.DeepEqual(t, "version", result.Version)
+}
+
+type TestEnumType int32
+
+var _ encoding.TextUnmarshaler = (*TestEnumType)(nil)
+
+func (p *TestEnumType) UnmarshalText(v []byte) error {
+	switch string(v) {
+	case "one":
+		*p = 1
+	case "two":
+		*p = 2
+	default:
+		return errors.New("invalid")
+	}
+	return nil
+}
+
+func TestBind_TextUnmarshaler(t *testing.T) {
+	type Query struct {
+		A TestEnumType  `query:"a"`
+		B TestEnumType  `query:"b"`
+		C *TestEnumType `query:"c"`
+		D *TestEnumType `query:"d"`
+	}
+	q := &Query{}
+	req := newMockRequest().SetRequestURI("http://example.com?a=1&b=one&c=2&d=two")
+	err := DefaultBinder().BindQuery(req.Req, q)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, TestEnumType(1), q.A)
+	assert.DeepEqual(t, TestEnumType(1), q.B)
+	assert.NotNil(t, q.C)
+	assert.NotNil(t, q.D)
+	assert.DeepEqual(t, TestEnumType(2), *q.C)
+	assert.DeepEqual(t, TestEnumType(2), *q.D)
 }
 
 func Benchmark_Binding(b *testing.B) {

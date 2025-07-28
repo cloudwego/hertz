@@ -17,7 +17,6 @@
 package client
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ func TestClientOptions(t *testing.T) {
 			retry.WithInitDelay(100*time.Millisecond),
 			retry.WithMaxDelay(5*time.Second),
 			retry.WithMaxJitter(1*time.Second),
-			retry.WithDelayPolicy(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)),
+			retry.WithDelayPolicy(retry.CombineDelay(retry.DefaultDelayPolicy, retry.FixedDelayPolicy, retry.BackOffDelayPolicy)),
 		),
 		WithWriteTimeout(time.Second),
 		WithConnStateObserve(nil, time.Second),
@@ -60,5 +59,7 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 5*time.Second, opt.RetryConfig.MaxDelay)
 	assert.DeepEqual(t, 1*time.Second, opt.RetryConfig.MaxJitter)
 	assert.DeepEqual(t, 1*time.Second, opt.ObservationInterval)
-	assert.DeepEqual(t, fmt.Sprint(retry.CombineDelay(retry.FixedDelayPolicy, retry.BackOffDelayPolicy, retry.RandomDelayPolicy)), fmt.Sprint(opt.RetryConfig.DelayPolicy))
+	for i := 0; i < 100; i++ {
+		assert.DeepEqual(t, opt.RetryConfig.DelayPolicy(uint(i), nil, opt.RetryConfig), retry.CombineDelay(retry.DefaultDelayPolicy, retry.FixedDelayPolicy, retry.BackOffDelayPolicy)(uint(i), nil, opt.RetryConfig))
+	}
 }

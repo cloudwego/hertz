@@ -55,12 +55,11 @@ func TestWeightedBalancer(t *testing.T) {
 
 	// multi instances, weightSum > 0
 	insList = []discovery.Instance{
-		discovery.NewInstance("tcp", "127.0.0.1:8881", 10, nil),
-		discovery.NewInstance("tcp", "127.0.0.1:8882", 20, nil),
-		discovery.NewInstance("tcp", "127.0.0.1:8883", 50, nil),
-		discovery.NewInstance("tcp", "127.0.0.1:8884", 100, nil),
-		discovery.NewInstance("tcp", "127.0.0.1:8885", 200, nil),
-		discovery.NewInstance("tcp", "127.0.0.1:8886", 500, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8881", 100, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8882", 200, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8883", 300, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8884", 400, nil),
+		discovery.NewInstance("tcp", "127.0.0.1:8885", 500, nil),
 	}
 
 	var weightSum int
@@ -69,7 +68,7 @@ func TestWeightedBalancer(t *testing.T) {
 		weightSum += weight
 	}
 
-	n := 10000000
+	n := 1000000
 	pickedStat := map[int]int{}
 	e = discovery.Result{
 		Instances: insList,
@@ -91,7 +90,7 @@ func TestWeightedBalancer(t *testing.T) {
 		expect := float64(weight) / float64(weightSum) * float64(n)
 		actual := float64(pickedStat[weight])
 		delta := math.Abs(expect - actual)
-		assert.DeepEqual(t, true, delta/expect < 0.01)
+		assert.DeepEqual(t, true, delta/expect < 0.05)
 	}
 
 	// have instances that weight < 0

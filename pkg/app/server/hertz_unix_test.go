@@ -14,7 +14,6 @@
 //
 
 //go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
-// +build aix darwin dragonfly freebsd linux netbsd openbsd solaris
 
 package server
 
@@ -30,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -66,7 +66,10 @@ func TestReusePorts(t *testing.T) {
 	go hb.Run()
 	go hc.Run()
 	go hd.Run()
-	time.Sleep(time.Second)
+	waitEngineRunning(ha)
+	waitEngineRunning(hb)
+	waitEngineRunning(hc)
+	waitEngineRunning(hd)
 
 	client, _ := c.NewClient()
 	for i := 0; i < 1000; i++ {
@@ -78,9 +81,9 @@ func TestReusePorts(t *testing.T) {
 }
 
 func TestHertz_Spin(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:6668"))
+	engine := New(WithHostPorts("127.0.0.1:0"))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 2)
+		time.Sleep(40 * time.Millisecond)
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
@@ -92,7 +95,7 @@ func TestHertz_Spin(t *testing.T) {
 	})
 
 	go engine.Spin()
-	time.Sleep(time.Millisecond)
+	waitEngineRunning(engine)
 
 	hc := http.Client{Timeout: time.Second}
 	var err error
@@ -100,10 +103,10 @@ func TestHertz_Spin(t *testing.T) {
 	ch := make(chan struct{})
 	ch2 := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
+		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			_, err := hc.Get("http://127.0.0.1:6668/test2")
+			_, err := hc.Get(testutils.GetURL(engine, "/test2"))
 			t.Logf("[%v]begin listening\n", time.Now())
 			if err != nil {
 				t.Logf("[%v]listening closed: %v", time.Now(), err)
@@ -114,12 +117,12 @@ func TestHertz_Spin(t *testing.T) {
 	}()
 	go func() {
 		t.Logf("[%v]begin request\n", time.Now())
-		resp, err = http.Get("http://127.0.0.1:6668/test")
+		resp, err = http.Get(testutils.GetURL(engine, "/test"))
 		t.Logf("[%v]end request\n", time.Now())
 		ch <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(20 * time.Millisecond)
 	pid := strconv.Itoa(os.Getpid())
 	cmd := exec.Command("kill", "-SIGHUP", pid)
 	t.Logf("[%v]begin SIGHUP\n", time.Now())
@@ -130,7 +133,7 @@ func TestHertz_Spin(t *testing.T) {
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
-	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
 
 	<-ch2
+	assert.DeepEqual(t, uint32(1), atomic.LoadUint32(&testint))
 }

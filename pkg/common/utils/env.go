@@ -1,8 +1,5 @@
-//go:build !windows
-// +build !windows
-
 /*
- * Copyright 2022 CloudWeGo Authors
+ * Copyright 2024 CloudWeGo Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +14,23 @@
  * limitations under the License.
  */
 
-package dialer
+package utils
 
-import "github.com/cloudwego/hertz/pkg/network/netpoll"
+import (
+	"os"
+	"strconv"
+	"strings"
 
-func init() {
-	defaultDialer = netpoll.NewDialer()
+	"github.com/cloudwego/hertz/pkg/common/errors"
+)
+
+// Get bool from env
+func GetBoolFromEnv(key string) (bool, error) {
+	value, isExist := os.LookupEnv(key)
+	if !isExist {
+		return false, errors.NewPublic("env not exist")
+	}
+
+	value = strings.TrimSpace(value)
+	return strconv.ParseBool(value)
 }

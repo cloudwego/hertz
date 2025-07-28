@@ -24,6 +24,8 @@ import (
 )
 
 // GetCompatRequest only support basic function of Request, not for all.
+//
+// Deprecated: use HertzHandler instead
 func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
 	r, err := http.NewRequest(string(req.Method()), req.URI().String(), bytes.NewReader(req.Body()))
 	if err != nil {

@@ -17,6 +17,7 @@
 package resp
 
 import (
+	"errors"
 	"runtime"
 	"sync"
 
@@ -25,10 +26,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
-var chunkReaderPool sync.Pool
+var chunkWriterPool sync.Pool
 
 func init() {
-	chunkReaderPool = sync.Pool{
+	chunkWriterPool = sync.Pool{
 		New: func() interface{} {
 			return &chunkedBodyWriter{}
 		},
@@ -36,30 +37,56 @@ func init() {
 }
 
 type chunkedBodyWriter struct {
-	sync.Once
-	finalizeErr error
+	r *protocol.Response
+	w network.Writer
+
+	err         error
+	finalized   bool
 	wroteHeader bool
-	r           *protocol.Response
-	w           network.Writer
 }
 
-// Write will encode chunked p before writing
-// It will only return the length of p and a nil error if the writing is successful or 0, error otherwise.
-//
-// NOTE: Write will use the user buffer to flush.
-// Before flush successfully, the buffer b should be valid.
+var errChunkedFinished = errors.New("chunked response is finished; no more data will be written.")
+
+// Write implements network.ExtWriter.Write / io.Writer.Write
 func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
-	if !c.wroteHeader {
-		c.r.Header.SetContentLength(-1)
-		if err = WriteHeader(&c.r.Header, c.w); err != nil {
-			return
-		}
-		c.wroteHeader = true
+	if c.finalized {
+		return 0, errChunkedFinished
 	}
-	if err = ext.WriteChunk(c.w, p, false); err != nil {
-		return
+	if c.err != nil {
+		return 0, c.err
+	}
+	if err := c.writeHeader(); err != nil {
+		return 0, err
+	}
+	if len(p) == 0 {
+		// prevent from sending zero-len chunk which indicates stream ends.
+		// callers may write with zero-len buf unintentionally.
+		// use Finalize() instead.
+		return 0, nil
+	}
+	if err := c.writeChunk(p); err != nil {
+		return 0, err
 	}
 	return len(p), nil
+}
+
+func (c *chunkedBodyWriter) writeHeader() error {
+	if c.wroteHeader {
+		return nil
+	}
+	c.wroteHeader = true
+	c.r.Header.SetContentLength(-1)
+	if c.err = WriteHeader(&c.r.Header, c.w); c.err != nil {
+		return c.err
+	}
+	return nil
+}
+
+func (c *chunkedBodyWriter) writeChunk(b []byte) error {
+	if c.err = ext.WriteChunk(c.w, b, false); c.err != nil {
+		return c.err
+	}
+	return nil
 }
 
 func (c *chunkedBodyWriter) Flush() error {
@@ -69,37 +96,39 @@ func (c *chunkedBodyWriter) Flush() error {
 // Finalize will write the ending chunk as well as trailer and flush the writer.
 // Warning: do not call this method by yourself, unless you know what you are doing.
 func (c *chunkedBodyWriter) Finalize() error {
-	c.Do(func() {
-		// in case no actual data from user
-		if !c.wroteHeader {
-			c.r.Header.SetContentLength(-1)
-			if c.finalizeErr = WriteHeader(&c.r.Header, c.w); c.finalizeErr != nil {
-				return
-			}
-			c.wroteHeader = true
-		}
-		c.finalizeErr = ext.WriteChunk(c.w, nil, true)
-		if c.finalizeErr != nil {
-			return
-		}
-		c.finalizeErr = ext.WriteTrailer(c.r.Header.Trailer(), c.w)
-	})
-	return c.finalizeErr
+	if c.finalized || c.err != nil {
+		return c.err
+	}
+	c.finalized = true
+	if err := c.writeHeader(); err != nil {
+		return err
+	}
+	// zero-len chunk
+	if err := c.writeChunk(nil); err != nil {
+		return err
+	}
+	// trailer which ends with \r\n
+	_, c.err = c.w.WriteBinary(c.r.Header.Trailer().Header())
+	if c.err == nil {
+		c.err = c.Flush()
+	}
+	return c.err
 }
 
 func (c *chunkedBodyWriter) release() {
 	c.r = nil
 	c.w = nil
-	c.finalizeErr = nil
+	c.err = nil
+	c.finalized = false
 	c.wroteHeader = false
-	chunkReaderPool.Put(c)
+	chunkWriterPool.Put(c)
 }
 
+// NewChunkedBodyWriter creates a new chunked body writer.
 func NewChunkedBodyWriter(r *protocol.Response, w network.Writer) network.ExtWriter {
-	extWriter := chunkReaderPool.Get().(*chunkedBodyWriter)
+	extWriter := chunkWriterPool.Get().(*chunkedBodyWriter)
 	extWriter.r = r
 	extWriter.w = w
-	extWriter.Once = sync.Once{}
 	runtime.SetFinalizer(extWriter, (*chunkedBodyWriter).release)
 	return extWriter
 }

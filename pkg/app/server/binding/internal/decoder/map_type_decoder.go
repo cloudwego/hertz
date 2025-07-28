@@ -61,13 +61,16 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
-			defaultValue = tagInfo.Default
 			if tagInfo.Key == jsonTag {
+				defaultValue = tagInfo.Default
 				found := checkRequireJSON(req, tagInfo)
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
+				}
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
+					defaultValue = ""
 				}
 			}
 			continue
@@ -79,14 +82,14 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {
 		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
-		text = defaultValue
+		text = toDefaultValue(d.fieldType, defaultValue)
 	}
 	if !exist && len(text) == 0 {
 		return nil

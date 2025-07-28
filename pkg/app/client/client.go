@@ -532,7 +532,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	c.mLock.Unlock()
 
 	if startCleaner {
-		go c.mCleaner()
+		go c.cleaner(isTLS)
 	}
 
 	return hc.Do(ctx, req, resp)
@@ -550,34 +550,34 @@ func (c *Client) CloseIdleConnections() {
 	c.mLock.Unlock()
 }
 
-func (c *Client) mCleaner() {
-	mustStop := false
-
+func (c *Client) cleaner(isTLS bool) {
 	for {
 		time.Sleep(10 * time.Second)
-		c.mLock.Lock()
-		for k, v := range c.m {
-			shouldRemove := v.ShouldRemove()
-
-			if shouldRemove {
-				delete(c.m, k)
-				if f, ok := v.(io.Closer); ok {
-					err := f.Close()
-					if err != nil {
-						hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
-					}
-				}
-			}
-		}
-		if len(c.m) == 0 {
-			mustStop = true
-		}
-		c.mLock.Unlock()
-
-		if mustStop {
+		if c.cleanHostClients(isTLS) {
 			break
 		}
 	}
+}
+
+func (c *Client) cleanHostClients(isTLS bool) bool {
+	c.mLock.Lock()
+	defer c.mLock.Unlock()
+	m := c.m
+	if isTLS {
+		m = c.ms
+	}
+	for k, v := range m {
+		if v.ShouldRemove() {
+			delete(m, k)
+			if f, ok := v.(io.Closer); ok {
+				err := f.Close()
+				if err != nil {
+					hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
+				}
+			}
+		}
+	}
+	return len(m) == 0
 }
 
 func (c *Client) SetClientFactory(cf suite.ClientFactory) {

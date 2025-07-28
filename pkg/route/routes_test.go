@@ -510,7 +510,7 @@ func TestRouteNotAllowedDisabled(t *testing.T) {
 		ctx.String(http.StatusTeapot, "responseText")
 	})
 	w = performRequest(router, consts.MethodGet, "/path")
-	assert.DeepEqual(t, "404 page not found", w.Body.String())
+	assert.DeepEqual(t, "Not Found", w.Body.String())
 	assert.DeepEqual(t, consts.StatusNotFound, w.Code)
 }
 

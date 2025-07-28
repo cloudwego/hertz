@@ -49,6 +49,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -800,6 +801,37 @@ func TestValidateConfigSetErrorFactory(t *testing.T) {
 	performRequest(e, "GET", "/bind?b=1")
 }
 
+func TestValidateConfigSetErrorFactoryWithBindConfig(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	opt.ValidateConfig = validateConfig
+	opt.BindConfig = binding.NewBindConfig()
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+	performRequest(e, "GET", "/bind?b=1")
+}
+
 func TestCustomBinder(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
@@ -871,46 +903,98 @@ func (e mockDeregsitryErr) Deregister(*registry.Info) error {
 	return errTestDeregsitry
 }
 
+type mockStandardTransporter struct {
+	network.Transporter
+}
+
+func (m *mockStandardTransporter) Shutdown(ctx context.Context) error {
+	// FIXME: standard.Transporter mindlessly blocks on ctx.Done()
+	// This change help tests run faster
+	newctx, cancel := context.WithCancel(ctx)
+	cancel()
+	return m.Transporter.Shutdown(newctx)
+}
+
+func newMockStandardTransporter(opt *config.Options) network.Transporter {
+	return &mockStandardTransporter{standard.NewTransporter(opt)}
+}
+
 func TestEngineShutdown(t *testing.T) {
-	defaultTransporter = standard.NewTransporter
-	mockCtxCallback := func(ctx context.Context) {}
-	// Test case 1: serve not running error
-	engine := NewEngine(config.NewOptions(nil))
-	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
-	defer cancel1()
-	err := engine.Shutdown(ctx1)
-	assert.DeepEqual(t, errStatusNotRunning, err)
+	opt := config.NewOptions(nil)
+	opt.Addr = "127.0.0.1:0"
+	opt.TransporterNewer = newMockStandardTransporter
 
-	// Test case 2: serve successfully running and shutdown
-	engine = NewEngine(config.NewOptions(nil))
+	mockCtxCallback := func(ctx context.Context) {
+		// Shutdown adds `ExitWaitTimeout` to the given context
+		dl, ok := ctx.Deadline()
+		assert.Assert(t, ok)
+		assert.Assert(t,
+			opt.ExitWaitTimeout-time.Until(dl) < 50*time.Millisecond, // runtime schedule latency
+			opt.ExitWaitTimeout, time.Until(dl))
+	}
+
+	var wg sync.WaitGroup
+	var engine *Engine
+
+	runEngine := func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			engine.Run()
+		}()
+		// wait for engine to start
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	shutdownEngine := func(ctx context.Context, expectErr error, expectStatus uint32) {
+		t.Helper()
+		err := engine.Shutdown(ctx)
+		if expectErr == nil {
+			assert.Nil(t, err)
+		} else {
+			assert.DeepEqual(t, expectErr, err)
+		}
+		if expectStatus != 0 {
+			if expectStatus == statusShutdown {
+				assert.DeepEqual(t, expectStatus, atomic.LoadUint32(&engine.status))
+				// make sure engine.Run() returns
+				// in case registry fails, it blocks
+				engine.transport.Shutdown(ctx)
+				expectStatus = statusClosed
+			}
+			wg.Wait() // wait engine.Run() returns
+		}
+		assert.DeepEqual(t, expectStatus, atomic.LoadUint32(&engine.status))
+	}
+
+	// case: serve not running error
+	engine = NewEngine(opt)
+	shutdownEngine(context.Background(), errStatusNotRunning, 0)
+
+	// case: serve successfully running and shutdown
+	engine = NewEngine(opt)
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
-	go func() {
-		engine.Run()
-	}()
-	// wait for engine to start
-	time.Sleep(100 * time.Millisecond)
+	runEngine()
+	shutdownEngine(context.Background(), nil, statusClosed)
 
-	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
-	defer cancel2()
-	err = engine.Shutdown(ctx2)
-	assert.Nil(t, err)
-	assert.DeepEqual(t, statusClosed, atomic.LoadUint32(&engine.status))
-
-	// Test case 3: serve successfully running and shutdown with deregistry error
-	engine = NewEngine(config.NewOptions(nil))
+	// case: serve successfully running and shutdown with deregistry error
+	engine = NewEngine(opt)
 	engine.OnShutdown = []CtxCallback{mockCtxCallback}
 	engine.options.Registry = &mockDeregsitryErr{}
-	go func() {
-		engine.Run()
-	}()
-	// wait for engine to start
-	time.Sleep(100 * time.Millisecond)
+	runEngine()
+	shutdownEngine(context.Background(), errTestDeregsitry, statusShutdown)
+	engine.options.Registry = nil
 
-	ctx3, cancel3 := context.WithTimeout(context.Background(), time.Second)
-	defer cancel3()
-	err = engine.Shutdown(ctx3)
-	assert.DeepEqual(t, errTestDeregsitry, err)
-	assert.DeepEqual(t, statusShutdown, atomic.LoadUint32(&engine.status))
+	// case: ctx cancelled when Shutdown
+	engine = NewEngine(opt)
+
+	// make sure callback is in progress but ctx cancelled
+	engine.OnShutdown = []CtxCallback{func(ctx context.Context) { time.Sleep(50 * time.Millisecond) }}
+
+	runEngine()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	shutdownEngine(ctx, nil, statusClosed)
 }
 
 type mockStreamer struct{}
@@ -1028,4 +1112,34 @@ func TestAcquireHijackConn(t *testing.T) {
 	assert.NotNil(t, hijackConn.Conn)
 	assert.DeepEqual(t, engine, hijackConn.e)
 	assert.DeepEqual(t, conn, hijackConn.Conn)
+}
+
+func TestHandleParamsReassignInHandleFunc(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	routes := []string{
+		"/:a/:b/:c",
+	}
+	for _, r := range routes {
+		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
+			ctx.Params = make([]param.Param, 1)
+			ctx.String(consts.StatusOK, "")
+		})
+	}
+	testRoutes := []string{
+		"/aaa/bbb/ccc",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+	}
+	ctx := e.ctxPool.Get().(*app.RequestContext)
+	for _, tr := range testRoutes {
+		r := protocol.NewRequest(http.MethodGet, tr, nil)
+		r.CopyTo(&ctx.Request)
+		e.ServeHTTP(context.Background(), ctx)
+		ctx.ResetWithoutConn()
+	}
 }

@@ -61,15 +61,19 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 	var texts []string
 	var defaultValue string
 	var bindRawBody bool
+	var isDefault bool
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
-			defaultValue = tagInfo.Default
 			if tagInfo.Key == jsonTag {
+				defaultValue = tagInfo.Default
 				found := checkRequireJSON(req, tagInfo)
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
+				}
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) { //
+					defaultValue = ""
 				}
 			}
 			continue
@@ -84,14 +88,16 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {
 		return err
 	}
 	if len(texts) == 0 && len(defaultValue) != 0 {
+		defaultValue = toDefaultValue(d.fieldType, defaultValue)
 		texts = append(texts, defaultValue)
+		isDefault = true
 	}
 	if len(texts) == 0 {
 		return nil
@@ -113,7 +119,7 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 	}
 
 	if d.isArray {
-		if len(texts) != field.Len() {
+		if len(texts) != field.Len() && !isDefault {
 			return fmt.Errorf("%q is not valid value for %s", texts, field.Type().String())
 		}
 	} else {
@@ -134,6 +140,13 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 		t = t.Elem()
 		elemKind = t.Kind()
 		ptrDepth++
+	}
+	if isDefault {
+		err = hJson.Unmarshal(bytesconv.S2b(texts[0]), reqValue.Field(d.index).Addr().Interface())
+		if err != nil {
+			return fmt.Errorf("using '%s' to unmarshal field '%s: %s' failed, %v", texts[0], d.fieldName, d.fieldType.String(), err)
+		}
+		return nil
 	}
 
 	for idx, text := range texts {
@@ -217,34 +230,4 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 		},
 		isArray: isArray,
 	}}, nil
-}
-
-func stringToValue(elemType reflect.Type, text string, req *protocol.Request, params param.Params, config *DecodeConfig) (v reflect.Value, err error) {
-	v = reflect.New(elemType).Elem()
-	if customizedFunc, exist := config.TypeUnmarshalFuncs[elemType]; exist {
-		val, err := customizedFunc(req, params, text)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return val, nil
-	}
-	switch elemType.Kind() {
-	case reflect.Struct:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
-	case reflect.Map:
-		err = hJson.Unmarshal(bytesconv.S2b(text), v.Addr().Interface())
-	case reflect.Array, reflect.Slice:
-		// do nothing
-	default:
-		decoder, err := SelectTextDecoder(elemType)
-		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unsupported type %s for slice/array", elemType.String())
-		}
-		err = decoder.UnmarshalString(text, v, config.LooseZeroMode)
-		if err != nil {
-			return reflect.Value{}, fmt.Errorf("unable to decode '%s' as %s: %w", text, elemType.String(), err)
-		}
-	}
-
-	return v, err
 }

@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
+
 	inStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -70,6 +72,7 @@ func TestTraceEventCompleted(t *testing.T) {
 	assert.False(t, traceInfo.Stats().GetEvent(stats.WriteStart).IsNil())
 	assert.False(t, traceInfo.Stats().GetEvent(stats.WriteFinish).IsNil())
 	assert.False(t, traceInfo.Stats().GetEvent(stats.HTTPFinish).IsNil())
+	assert.Nil(t, traceInfo.Stats().Error())
 }
 
 func TestTraceEventReadHeaderError(t *testing.T) {
@@ -217,6 +220,65 @@ func TestDefaultWriter(t *testing.T) {
 	assert.DeepEqual(t, "hello, hertz", string(response.Body()))
 }
 
+func TestServerDisableReqCtxPool(t *testing.T) {
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			reqCtx.Set("POOL_KEY", "in pool")
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			if ctx.GetString("POOL_KEY") != "in pool" {
+				t.Fatal("reqCtx is not in pool")
+			}
+		},
+		isRunning: true,
+	}
+	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := server.Serve(context.TODO(), defaultConn)
+	assert.Nil(t, err)
+	disabaleRequestContextPool = true
+	defer func() {
+		// reset global variable
+		disabaleRequestContextPool = false
+	}()
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			reqCtx.Set("POOL_KEY", "in pool")
+			return reqCtx
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			if len(ctx.GetString("POOL_KEY")) != 0 {
+				t.Fatal("must not get pool key")
+			}
+		},
+		isRunning: true,
+	}
+	defaultConn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err = server.Serve(context.TODO(), defaultConn)
+	assert.Nil(t, err)
+}
+
+func TestServer_RaceDetect(t *testing.T) {
+	c := &app.RequestContext{}
+	_ = c.Request.URI() // parsedURI = true
+	m := &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return c
+		}},
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			panic("must not be called")
+		},
+	}
+	s := &Server{}
+	s.Core = m
+	conn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	err := s.Serve(context.Background(), conn)
+	assert.NotNil(t, err)
+	assert.Assert(t, err.Error() == "race detected")
+}
+
 func TestHijackResponseWriter(t *testing.T) {
 	server := &Server{}
 	reqCtx := &app.RequestContext{}
@@ -359,6 +421,139 @@ func TestExpect100ContinueHandler(t *testing.T) {
 	assert.DeepEqual(t, "", string(response.Body()))
 }
 
+func TestSenseClientConnClose(t *testing.T) {
+	type connstate struct {
+		detectCalled bool
+		abortCalled  bool
+	}
+	reset := func(cs *connstate) {
+		cs.detectCalled = false
+		cs.abortCalled = false
+	}
+	state := &connstate{}
+
+	var (
+		detectFunc = func() {
+			state.detectCalled = true
+		}
+		abortFunc = func() {
+			state.abortCalled = true
+		}
+	)
+
+	server := &Server{}
+	reqCtx := &app.RequestContext{}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		isRunning:   true,
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {},
+	}
+
+	// normal
+	conn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	statefulConn := &mockStatefulConn{
+		conn,
+		nil,
+		detectFunc,
+		abortFunc,
+	}
+	server.Serve(context.Background(), statefulConn)
+	assert.True(t, state.detectCalled)
+	assert.True(t, state.abortCalled)
+	reset(state)
+
+	// 100 continue
+	conn = mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: a/b\r\n\r\n12345")
+	statefulConn.Conn = conn
+	server.Serve(context.Background(), statefulConn)
+	assert.True(t, state.detectCalled)
+	assert.True(t, state.abortCalled)
+	reset(state)
+
+	// 100 continue: error
+	conn = mock.NewConn("POST /foo HTTP/1.1\r\n" +
+		"Host: gle.com\r\n" +
+		"Expect: 100-continue\r\n" +
+		"Content-Length: 40\r\n" +
+		"Content-Type: multipart/form-data; boundary=1\r\n" +
+		"\r\n" +
+		"--1\r\n" +
+		"broken-multipart-body",
+	)
+	statefulConn.Conn = conn
+	server.Serve(context.Background(), statefulConn)
+	assert.False(t, state.detectCalled)
+	assert.False(t, state.abortCalled)
+	reset(state)
+
+	// bodyStream
+	server.StreamRequestBody = true
+	conn = mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 0\r\nContent-Type: a/b\r\n\r\n12345")
+	statefulConn.Conn = conn
+	server.Serve(context.Background(), statefulConn)
+	assert.False(t, state.detectCalled)
+	assert.False(t, state.abortCalled)
+	reset(state)
+	server.StreamRequestBody = false
+
+	// hijacked
+	conn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	statefulConn = &mockStatefulConn{
+		conn,
+		nil,
+		detectFunc,
+		abortFunc,
+	}
+	server.HijackConnHandle = func(c network.Conn, h app.HijackHandler) {
+		h(c)
+	}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		isRunning: true,
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			ctx.SetHijackHandler(func(conn network.Conn) {
+				_ = conn.Len()
+			})
+		},
+	}
+	server.Serve(context.Background(), statefulConn)
+	assert.True(t, state.detectCalled)
+	assert.True(t, state.abortCalled)
+	reset(state)
+	server.HijackConnHandle = nil
+
+	// handler panic
+	conn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
+	statefulConn = &mockStatefulConn{
+		conn,
+		nil,
+		detectFunc,
+		abortFunc,
+	}
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			return reqCtx
+		}},
+		isRunning: true,
+		mockHandler: func(c context.Context, ctx *app.RequestContext) {
+			// panic should be recovered by the recovery middleware, just mock one here.
+			// perform like a normal request
+			defer func() {
+				recover()
+			}()
+			panic("mock panic")
+		},
+	}
+	server.Serve(context.Background(), statefulConn)
+	assert.True(t, state.detectCalled)
+	assert.True(t, state.abortCalled)
+	reset(state)
+}
+
 type mockController struct {
 	FinishTimes int
 }
@@ -452,4 +647,25 @@ func TestShouldRecordInTraceError(t *testing.T) {
 
 	assert.True(t, shouldRecordInTraceError(errTimeout))
 	assert.True(t, shouldRecordInTraceError(errors.New("foo error")))
+}
+
+var _ internalNetwork.StatefulConn = &mockStatefulConn{}
+
+type mockStatefulConn struct {
+	network.Conn
+	Ctx                       context.Context
+	DetectConnectionCloseFunc func()
+	AbortBlockingReadFunc     func()
+}
+
+func (c *mockStatefulConn) DetectConnectionClose() {
+	c.DetectConnectionCloseFunc()
+}
+
+func (c *mockStatefulConn) AbortBlockingRead() {
+	c.AbortBlockingReadFunc()
+}
+
+func (c *mockStatefulConn) Context() context.Context {
+	return c.Ctx
 }

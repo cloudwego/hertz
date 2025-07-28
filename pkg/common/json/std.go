@@ -13,8 +13,7 @@
 // limitations under the License.
 //
 
-//go:build stdjson || !(amd64 && (linux || windows || darwin))
-// +build stdjson !amd64 !linux,!windows,!darwin
+//go:build !(amd64 || arm64) || stdjson
 
 package json
 

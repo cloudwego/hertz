@@ -117,11 +117,11 @@ func TestIfModifiedSince(t *testing.T) {
 	req.Header.Set(string(bytestr.StrIfModifiedSince), "Mon, 02 Jan 2006 15:04:05 MST")
 	req.CopyTo(&ctx.Request)
 	if !ctx.IfModifiedSince(time.Now()) {
-		t.Fatalf("ifModifiedSice error, expected false, but get true")
+		t.Fatalf("ifModifiedSince error, expected false, but get true")
 	}
 	tt, _ := time.Parse(time.RFC3339, "2004-11-12T11:45:26.371Z")
 	if ctx.IfModifiedSince(tt) {
-		t.Fatalf("ifModifiedSice error, expected true, but get false")
+		t.Fatalf("ifModifiedSince error, expected true, but get false")
 	}
 }
 
@@ -150,7 +150,7 @@ func TestSetConnectionClose(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.NotFound()
-	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "404 Page not found" {
+	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "Not Found" {
 		t.Fatalf("unexpected status code or body")
 	}
 }
@@ -367,6 +367,40 @@ hello=world`)
 	}
 }
 
+func TestPostFormArray(t *testing.T) {
+	t.Parallel()
+
+	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Length: 521
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+red
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+green
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+blue
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+
+	ctx = makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Content-Length: 26
+
+tag=red&tag=green&tag=blue
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+}
+
 func TestDefaultPostForm(t *testing.T) {
 	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
 Host: localhost:10000
@@ -508,7 +542,9 @@ func TestContextRenderFileFromFS(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 	assert.DeepEqual(t, "/some/path", string(ctx.Request.URI().Path()))
 }
 
@@ -525,7 +561,9 @@ func TestContextRenderFile(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 }
 
 func TestContextRenderAttachment(t *testing.T) {
@@ -810,32 +848,27 @@ func TestContextContentType(t *testing.T) {
 	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
-type MockIpConn struct {
+type MockConn struct {
 	*mock.Conn
-	RemoteIp string
-	Port     int
+
+	remote net.Addr
 }
 
-func (c *MockIpConn) RemoteAddr() net.Addr {
-	return &net.UDPAddr{
-		IP:   net.ParseIP(c.RemoteIp),
-		Port: c.Port,
-	}
+func (c *MockConn) RemoteAddr() net.Addr {
+	return c.remote
 }
 
 func newContextClientIPTest() *RequestContext {
 	c := NewContext(0)
-	c.conn = &MockIpConn{
-		Conn:     mock.NewConn(""),
-		RemoteIp: "127.0.0.1",
-		Port:     8080,
+	c.conn = &MockConn{
+		remote: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
 	}
 	c.Request.Header.Set("X-Real-IP", " 10.10.10.10  ")
 	c.Request.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
 	return c
 }
 
-func TestClientIp(t *testing.T) {
+func TestClientIP(t *testing.T) {
 	c := newContextClientIPTest()
 	// default X-Forwarded-For and X-Real-IP behaviour
 	assert.DeepEqual(t, "20.20.20.20", c.ClientIP())
@@ -870,6 +903,14 @@ func TestClientIp(t *testing.T) {
 	}
 	c.SetClientIPFunc(ClientIPWithOption(opts))
 	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// UDS
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "unix", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// err: Addr not host:port
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "tcp", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "", c.ClientIP())
 }
 
 func TestSetClientIPFunc(t *testing.T) {
@@ -928,6 +969,14 @@ func TestGetPostForm(t *testing.T) {
 	v, exists := c.GetPostForm("b")
 	assert.DeepEqual(t, "", v)
 	assert.DeepEqual(t, true, exists)
+}
+
+func TestGetPostFormArray(t *testing.T) {
+	c := NewContext(0)
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
+	c.Request.SetBodyString("a=1&b=2&b=3")
+	v, _ := c.GetPostFormArray("b")
+	assert.DeepEqual(t, []string{"2", "3"}, v)
 }
 
 func TestRemoteAddr(t *testing.T) {
@@ -1615,8 +1664,14 @@ func TestSetBinder(t *testing.T) {
 
 func TestRequestContext_SetCookie(t *testing.T) {
 	c := NewContext(0)
-	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteLaxMode, true, true)
-	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax", c.Response.Header.Get("Set-Cookie"))
+	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_SetPartitionedCookie(t *testing.T) {
+	c := NewContext(0)
+	c.SetPartitionedCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None; Partitioned", c.Response.Header.Get("Set-Cookie"))
 }
 
 func TestRequestContext_SetCookiePathEmpty(t *testing.T) {

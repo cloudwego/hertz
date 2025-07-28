@@ -14,7 +14,6 @@
 //
 
 //go:build gjson || !(amd64 && (linux || windows || darwin))
-// +build gjson !amd64 !linux,!windows,!darwin
 
 package decoder
 
@@ -46,4 +45,13 @@ func checkRequireJSON(req *protocol.Request, tagInfo TagInfo) bool {
 		return false
 	}
 	return true
+}
+
+func keyExist(req *protocol.Request, tagInfo TagInfo) bool {
+	ct := bytesconv.B2s(req.Header.ContentType())
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+		return false
+	}
+	result := gjson.GetBytes(req.Body(), tagInfo.JSONName)
+	return result.Exists()
 }

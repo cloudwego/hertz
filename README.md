@@ -12,7 +12,7 @@ English | [中文](README_cn.md)
 ![Forks](https://img.shields.io/github/forks/cloudwego/hertz)
 
 
-Hertz [həːts] is a high-usability, high-performance and high-extensibility Golang HTTP framework that helps developers build microservices. It was designed with reference to other open-source frameworks like [fasthttp](https://github.com/valyala/fasthttp), [gin](https://github.com/gin-gonic/gin), [echo](https://github.com/labstack/echo) and combined with the internal requirements in ByteDance. At present, it has been widely used inside ByteDance. Nowadays, more and more microservices use Golang. If you have requirements for microservice performance and hope that the framework can fully meet the internal customizable requirements, Hertz will be a good choice.
+Hertz [həːts] is a high-usability, high-performance and high-extensibility Golang HTTP framework that helps developers build microservices. It was originally a fork of [fasthttp](https://github.com/valyala/fasthttp) and inspired by [gin](https://github.com/gin-gonic/gin), [echo](https://github.com/labstack/echo) and combined with the internal requirements in ByteDance. At present, it has been widely used inside ByteDance. Nowadays, more and more microservices use Golang. If you have requirements for microservice performance and hope that the framework can fully meet the internal customizable requirements, Hertz will be a good choice.
 ## Basic Features
 - High usability
 
@@ -31,7 +31,7 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
   Hertz adopts a layered design, providing more interfaces and default extension implementations. Users can also extend by themselves. At the same time, thanks to the layered design of the framework, the extensibility of the framework will be much greater. At present, only stable capabilities are open-sourced to the community. More planning refers to [RoadMap](ROADMAP.md).
 - Multi-protocol support
 
-  The Hertz framework provides HTTP/1.1, HTTP/2, HTTP/3, ALPN protocol support natively. In addition, due to the layered design, Hertz even supports custom build protocol resolution logic to meet any needs of protocol layer extensions.
+  The Hertz framework provides HTTP/1.1 and ALPN protocol support natively. In addition, due to the layered design, Hertz even supports custom build protocol resolution logic to meet any needs of protocol layer extensions.
 - Network layer switching capability
 
   Hertz implements the function to switch between Netpoll and Go Net on demand. Users can choose the appropriate network library for different scenarios. And Hertz also supports the extension of network library in the form of plug-ins.
@@ -41,22 +41,22 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
   The Hertz-Examples repository provides code out of the box. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/example/)
 ### Basic Features
   Contains introduction and use of general middleware, context selection, data binding, data rendering, direct access, logging, error handling. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/basic-feature/)
-### Service Governance
-  Contains tracer monitor. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/service-governance/)
+### Observability
+  Contains instrumentation, logging, tracing. [more](https://www.cloudwego.io/docs/hertz/tutorials/observability/)
 ### Framework Extension
-  Contains network library extensions. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
+  Contains network library extensions, protocol extensions, logger extensions, monitoring extensions. [more](https://www.cloudwego.io/zh/docs/hertz/tutorials/framework-exten/)
 ### Reference
-  Apidoc, framework configurable items list. [more](https://www.cloudwego.io/zh/docs/hertz/reference/)
+  Framework configurable items list. [more](https://www.cloudwego.io/zh/docs/hertz/reference/)
 ### FAQ
   Frequently Asked Questions. [more](https://www.cloudwego.io/zh/docs/hertz/faq/)
 ## Performance
   Performance testing can only provide a relative reference. In production, there are many factors that can affect actual performance.
-  We provide the hertz-benchmark project to track and compare the performance of Hertz and other frameworks in different situations for reference.
+  We provide the [hertz-benchmark](https://github.com/cloudwego/hertz-benchmark) project to track and compare the performance of Hertz and other frameworks in different situations for reference.
 ## Related Projects
 - [Netpoll](https://github.com/cloudwego/netpoll): A high-performance network library. Hertz integrated by default.
-- [Hertz-Contrib](https://github.com/hertz-contrib): A partial extension library of Hertz, which users can integrate into Hertz through options according to their needs.
 - [Example](https://github.com/cloudwego/hertz-examples): Use examples of Hertz.
 ## Extensions
+[Hertz-contrib](https://github.com/hertz-contrib) is a partial extension library of Hertz, which users can integrate into Hertz through options according to their needs, built and maintained by the community.
 
 | Extensions                                                                                         | Description                                                                                                                                                                    |
 |----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -92,11 +92,12 @@ Hertz [həːts] is a high-usability, high-performance and high-extensibility Gol
 | [Cache](https://github.com/hertz-contrib/cache)                                                    | Hertz middleware for cache HTTP response with multi-backend support                                                                                                            |
 
 ## Blogs
-- [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2021/10/09/bytedance-practices-on-go-network-library/)
+- [ByteDance Practice on Go Network Library](https://www.cloudwego.io/blog/2020/05/24/bytedance-practices-on-go-network-library/)
 - [Ultra-large-scale Enterprise-level Microservice HTTP Framework — Hertz is Officially Open Source!](https://www.cloudwego.io/zh/blog/2022/06/21/%E8%B6%85%E5%A4%A7%E8%A7%84%E6%A8%A1%E7%9A%84%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%BE%AE%E6%9C%8D%E5%8A%A1-http-%E6%A1%86%E6%9E%B6-hertz-%E6%AD%A3%E5%BC%8F%E5%BC%80%E6%BA%90/)
 - [ByteDance Open Source Go HTTP Framework Hertz Design Practice](https://www.cloudwego.io/zh/blog/2022/06/21/%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E5%BC%80%E6%BA%90-go-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
 - [Help ByteDance Reduce Costs and Increase Efficiency, the Design Practice for Large-scale Enterprise-level HTTP Framework Hertz](https://www.cloudwego.io/zh/blog/2022/09/27/%E5%8A%A9%E5%8A%9B%E5%AD%97%E8%8A%82%E9%99%8D%E6%9C%AC%E5%A2%9E%E6%95%88%E5%A4%A7%E8%A7%84%E6%A8%A1%E4%BC%81%E4%B8%9A%E7%BA%A7-http-%E6%A1%86%E6%9E%B6-hertz-%E8%AE%BE%E8%AE%A1%E5%AE%9E%E8%B7%B5/)
-- [A Practical Introduction to the HTTP Framework Hertz: A Guide to Performance Testing](https://www.cloudwego.io/zh/blog/2022/11/01/http-%E6%A1%86%E6%9E%B6-hertz-%E5%AE%9E%E8%B7%B5%E5%85%A5%E9%97%A8%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%8C%87%E5%8D%97/)
+- [Getting Started with Hertz: Performance Testing Guide](https://www.cloudwego.io/blog/2023/02/24/getting-started-with-hertz-performance-testing-guide/)
+
 ## Contributing
 
 [Contributing](https://github.com/cloudwego/hertz/blob/main/CONTRIBUTING.md)
@@ -120,7 +121,7 @@ Thank you for your contribution to Hertz!
 ## Landscapes
 
 <p align="center">
-<img src="https://landscape.cncf.io/images/left-logo.svg" width="150"/>&nbsp;&nbsp;<img src="https://landscape.cncf.io/images/right-logo.svg" width="200"/>
+<img src="https://landscape.cncf.io/images/cncf-landscape-horizontal-color.svg" width="150"/>&nbsp;&nbsp;<img src="https://www.cncf.io/wp-content/uploads/2023/04/cncf-main-site-logo.svg" width="200"/>
 <br/><br/>
 CloudWeGo enriches the <a href="https://landscape.cncf.io/">CNCF CLOUD NATIVE Landscape</a>.
 </p>

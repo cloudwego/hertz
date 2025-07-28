@@ -69,13 +69,16 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
-			defaultValue = tagInfo.Default
 			if tagInfo.Key == jsonTag {
+				defaultValue = tagInfo.Default
 				found := checkRequireJSON(req, tagInfo)
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request body does not have this parameter '%s'", d.fieldName, tagInfo.JSONName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request body does not have this parameter '%s'", tagInfo.Value, tagInfo.JSONName)
+				}
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
+					defaultValue = ""
 				}
 			}
 			continue
@@ -87,14 +90,14 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {
 		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
-		text = defaultValue
+		text = toDefaultValue(d.fieldType, defaultValue)
 	}
 	if !exist && len(text) == 0 {
 		return nil
@@ -120,6 +123,11 @@ func (d *baseTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Pa
 	}
 
 	// Non-pointer elems
+	if field.CanAddr() {
+		if tryTextUnmarshaler(field.Addr(), text) {
+			return nil
+		}
+	}
 	err = d.decoder.UnmarshalString(text, field, d.config.LooseZeroMode)
 	if err != nil {
 		return fmt.Errorf("unable to decode '%s' as %s: %w", text, d.fieldType.Name(), err)

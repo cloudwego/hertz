@@ -14,7 +14,6 @@
 //
 
 //go:build !windows
-// +build !windows
 
 package netpoll
 
@@ -34,8 +33,8 @@ import (
 
 func TestTransport(t *testing.T) {
 	const nw = "tcp"
-	const addr = "localhost:10103"
 	t.Run("TestDefault", func(t *testing.T) {
+		var addr = "127.0.0.1:0"
 		var onConnFlag, onAcceptFlag, onDataFlag int32
 		transporter := NewTransporter(&config.Options{
 			Addr:    addr,
@@ -57,6 +56,8 @@ func TestTransport(t *testing.T) {
 		defer transporter.Close()
 		time.Sleep(100 * time.Millisecond)
 
+		addr = getListenerAddr(transporter)
+
 		dial := NewDialer()
 		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
 		assert.Nil(t, err)
@@ -69,6 +70,38 @@ func TestTransport(t *testing.T) {
 		assert.Assert(t, atomic.LoadInt32(&onDataFlag) == 1)
 	})
 
+	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
+		var addr = "127.0.0.1:0"
+		var onReqFlag int32
+		transporter := NewTransporter(&config.Options{
+			Addr:                     addr,
+			Network:                  nw,
+			SenseClientDisconnection: true,
+		})
+
+		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+			atomic.StoreInt32(&onReqFlag, 1)
+			time.Sleep(100 * time.Millisecond)
+			assert.DeepEqual(t, context.Canceled, ctx.Err())
+			return nil
+		})
+		defer transporter.Close()
+		time.Sleep(100 * time.Millisecond)
+
+		addr = getListenerAddr(transporter)
+
+		dial := NewDialer()
+		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
+		assert.Nil(t, err)
+		_, err = conn.Write([]byte("123"))
+		assert.Nil(t, err)
+		err = conn.Close()
+		assert.Nil(t, err)
+		time.Sleep(100 * time.Millisecond)
+
+		assert.Assert(t, atomic.LoadInt32(&onReqFlag) == 1)
+	})
+
 	t.Run("TestListenConfig", func(t *testing.T) {
 		listenCfg := &net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
@@ -77,7 +110,7 @@ func TestTransport(t *testing.T) {
 			})
 		}}
 		transporter := NewTransporter(&config.Options{
-			Addr:         addr,
+			Addr:         "127.0.0.1:0",
 			Network:      nw,
 			ListenConfig: listenCfg,
 		})
@@ -90,7 +123,7 @@ func TestTransport(t *testing.T) {
 	t.Run("TestExceptionCase", func(t *testing.T) {
 		assert.Panic(t, func() { // listen err
 			transporter := NewTransporter(&config.Options{
-				Network: "unknow",
+				Network: "unknown",
 			})
 			transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
 				return nil

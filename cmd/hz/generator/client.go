@@ -34,7 +34,12 @@ type ClientMethod struct {
 	FormFileCode     string
 }
 
+type ClientConfig struct {
+	QueryEnumAsInt bool
+}
+
 type ClientFile struct {
+	Config        ClientConfig
 	FilePath      string
 	PackageName   string
 	ServiceName   string
@@ -64,8 +69,9 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			ServiceName:   util.ToCamelCase(s.Name),
 			ClientMethods: s.ClientMethods,
 			BaseDomain:    baseDomain,
+			Config:        ClientConfig{QueryEnumAsInt: pkgGen.QueryEnumAsInt},
 		}
-		if !isExist {
+		if !isExist || pkgGen.ForceUpdateClient {
 			err := pkgGen.TemplateGenerator.Generate(client, hertzClientTplName, hertzClientPath, false)
 			if err != nil {
 				return err

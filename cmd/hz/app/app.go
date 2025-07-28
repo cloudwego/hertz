@@ -178,9 +178,12 @@ func Init() *cli.App {
 	protoPluginsFlag := cli.StringSliceFlag{Name: "protoc-plugins", Usage: "Specify plugins for the protoc. ({plugin_name}:{options}:{out_dir})"}
 	noRecurseFlag := cli.BoolFlag{Name: "no_recurse", Usage: "Generate master model only.", Destination: &globalArgs.NoRecurse}
 	forceNewFlag := cli.BoolFlag{Name: "force", Aliases: []string{"f"}, Usage: "Force new a project, which will overwrite the generated files", Destination: &globalArgs.ForceNew}
+	forceUpdateClientFlag := cli.BoolFlag{Name: "force_client", Usage: "Force update 'hertz_client.go'", Destination: &globalArgs.ForceUpdateClient}
 	enableExtendsFlag := cli.BoolFlag{Name: "enable_extends", Usage: "Parse 'extends' for thrift IDL", Destination: &globalArgs.EnableExtends}
+	sortRouterFlag := cli.BoolFlag{Name: "sort_router", Usage: "Sort router register code, to avoid code difference", Destination: &globalArgs.SortRouter}
 
 	jsonEnumStrFlag := cli.BoolFlag{Name: "json_enumstr", Usage: "Use string instead of num for json enums when idl is thrift.", Destination: &globalArgs.JSONEnumStr}
+	queryEnumIntFlag := cli.BoolFlag{Name: "query_enumint", Usage: "Use num instead of string for query enum parameter.", Destination: &globalArgs.QueryEnumAsInt}
 	unsetOmitemptyFlag := cli.BoolFlag{Name: "unset_omitempty", Usage: "Remove 'omitempty' tag for generated struct.", Destination: &globalArgs.UnsetOmitempty}
 	protoCamelJSONTag := cli.BoolFlag{Name: "pb_camel_json_tag", Usage: "Convert Name style for json tag to camel(Only works protobuf).", Destination: &globalArgs.ProtobufCamelJSONTag}
 	snakeNameFlag := cli.BoolFlag{Name: "snake_tag", Usage: "Use snake_case style naming for tags. (Only works for 'form', 'query', 'json')", Destination: &globalArgs.SnakeName}
@@ -189,6 +192,10 @@ func Init() *cli.App {
 	customLayoutData := cli.StringFlag{Name: "customize_layout_data_path", Usage: "Specify the path for layout template render data.", Destination: &globalArgs.CustomizeLayoutData}
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
+	trimGoPackage := cli.StringFlag{Name: "trim_gopackage", Aliases: []string{"trim_pkg"}, Usage: "Trim the prefix of go_package for protobuf.", Destination: &globalArgs.TrimGoPackage}
+
+	// client flag
+	enableClientOptionalFlag := cli.BoolFlag{Name: "enable_optional", Usage: "Optional field do not transfer for thrift if not set.(Only works for query tag)", Destination: &globalArgs.EnableClientOptional}
 
 	// app
 	app := cli.NewApp()
@@ -223,9 +230,11 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
+				&trimGoPackage,
 				&noRecurseFlag,
 				&forceNewFlag,
 				&enableExtendsFlag,
+				&sortRouterFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -258,8 +267,10 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&optPkgFlag,
+				&trimGoPackage,
 				&noRecurseFlag,
 				&enableExtendsFlag,
+				&sortRouterFlag,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -287,6 +298,7 @@ func Init() *cli.App {
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
+				&trimGoPackage,
 
 				&jsonEnumStrFlag,
 				&unsetOmitemptyFlag,
@@ -308,14 +320,18 @@ func Init() *cli.App {
 				&clientDirFlag,
 				&useFlag,
 				&forceClientDirFlag,
+				&forceUpdateClientFlag,
 
 				&includesFlag,
 				&thriftOptionsFlag,
 				&protoOptionsFlag,
 				&noRecurseFlag,
 				&enableExtendsFlag,
+				&trimGoPackage,
 
 				&jsonEnumStrFlag,
+				&enableClientOptionalFlag,
+				&queryEnumIntFlag,
 				&unsetOmitemptyFlag,
 				&protoCamelJSONTag,
 				&snakeNameFlag,

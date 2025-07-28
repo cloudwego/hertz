@@ -99,43 +99,43 @@ var defaultClientIPOptions = ClientIPOptions{
 	TrustedCIDRs:    defaultTrustedCIDRs,
 }
 
+var loopbackIP = net.ParseIP("127.0.0.1")
+
 // ClientIPWithOption used to generate custom ClientIP function and set by engine.SetClientIPFunc
 func ClientIPWithOption(opts ClientIPOptions) ClientIP {
 	return func(ctx *RequestContext) string {
-		RemoteIPHeaders := opts.RemoteIPHeaders
-		TrustedCIDRs := opts.TrustedCIDRs
-
-		remoteIPStr, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String()))
-		if err != nil {
-			return ""
+		remoteIPStr := ""
+		trustedProxy := false
+		if addr := ctx.RemoteAddr(); strings.HasPrefix(addr.Network(), "unix") {
+			// unix, unixgram, unixpacket is considered same as "127.0.0.1"
+			remoteIPStr = addr.String()
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, loopbackIP)
+		} else {
+			h, _, err := net.SplitHostPort(strings.TrimSpace(addr.String()))
+			if err != nil {
+				return ""
+			}
+			remoteIPStr = h
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, net.ParseIP(h))
 		}
 
-		remoteIP := net.ParseIP(remoteIPStr)
-		if remoteIP == nil {
-			return ""
-		}
-
-		trusted := isTrustedProxy(TrustedCIDRs, remoteIP)
-
-		if trusted {
-			for _, headerName := range RemoteIPHeaders {
-				ip, valid := validateHeader(TrustedCIDRs, ctx.Request.Header.Get(headerName))
+		if trustedProxy {
+			for _, headerName := range opts.RemoteIPHeaders {
+				ip, valid := validateHeader(opts.TrustedCIDRs, ctx.Request.Header.Get(headerName))
 				if valid {
 					return ip
 				}
 			}
 		}
-
 		return remoteIPStr
 	}
 }
 
 // isTrustedProxy will check whether the IP address is included in the trusted list according to trustedCIDRs
 func isTrustedProxy(trustedCIDRs []*net.IPNet, remoteIP net.IP) bool {
-	if trustedCIDRs == nil {
+	if trustedCIDRs == nil || remoteIP == nil {
 		return false
 	}
-
 	for _, cidr := range trustedCIDRs {
 		if cidr.Contains(remoteIP) {
 			return true
@@ -236,6 +236,17 @@ type RequestContext struct {
 
 	binder    binding.Binder
 	validator binding.StructValidator
+	exiled    bool
+}
+
+// Exile marks this RequestContext as not to be recycled.
+// Experimental features: Use with caution, it may have a slight impact on performance.
+func (ctx *RequestContext) Exile() {
+	ctx.exiled = true
+}
+
+func (ctx *RequestContext) IsExiled() bool {
+	return ctx.exiled
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
@@ -681,6 +692,17 @@ func (ctx *RequestContext) multipartFormValue(key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (ctx *RequestContext) multipartFormValueArray(key string) ([]string, bool) {
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		vv := mf.Value[key]
+		if len(vv) > 0 {
+			return vv, true
+		}
+	}
+	return nil, false
 }
 
 func (ctx *RequestContext) RequestBodyStream() io.Reader {
@@ -1227,6 +1249,10 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 //	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
 //	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
 func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, false)
+}
+
+func (ctx *RequestContext) setCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly, partitioned bool) {
 	if path == "" {
 		path = "/"
 	}
@@ -1240,7 +1266,18 @@ func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domai
 	cookie.SetSecure(secure)
 	cookie.SetHTTPOnly(httpOnly)
 	cookie.SetSameSite(sameSite)
+	cookie.SetPartitioned(partitioned)
 	ctx.Response.Header.SetCookie(cookie)
+}
+
+// SetPartitionedCookie adds a partitioned cookie to the Response's headers.
+// Use protocol.CookieSameSiteNoneMode for cross-site cookies to work.
+//
+// Usage: ctx.SetPartitionedCookie("user", "name", 10, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+//
+// This adds the response header: Set-Cookie: user=name; Max-Age=10; Domain=localhost; Path=/; HttpOnly; Secure; SameSite=None; Partitioned
+func (ctx *RequestContext) SetPartitionedCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, true)
 }
 
 // UserAgent returns the value of the request user_agent.
@@ -1268,7 +1305,7 @@ func (ctx *RequestContext) Body() ([]byte, error) {
 	return ctx.Request.BodyE()
 }
 
-// ClientIP tries to parse the headers in [X-Real-Ip, X-Forwarded-For].
+// ClientIP attempts to parse the headers in the order of [X-Forwarded-For, X-Real-IP].
 // It calls RemoteIP() under the hood. If it cannot satisfy the requirements,
 // use engine.SetClientIPFunc to inject your own implementation.
 func (ctx *RequestContext) ClientIP() string {
@@ -1340,6 +1377,13 @@ func (ctx *RequestContext) PostForm(key string) string {
 	return value
 }
 
+// PostFormArray returns the specified key from a POST urlencoded form or multipart form
+// when it exists, otherwise it returns an empty array `([])`.
+func (ctx *RequestContext) PostFormArray(key string) []string {
+	values, _ := ctx.GetPostFormArray(key)
+	return values
+}
+
 // DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns the specified defaultValue string.
 //
@@ -1365,6 +1409,28 @@ func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 		return v, exists
 	}
 	return ctx.multipartFormValue(key)
+}
+
+// GetPostFormArray is like PostFormArray(key). It returns the specified key from a POST urlencoded
+// form or multipart form when it exists `([]string, true)` (even when the value is an empty string),
+// otherwise it returns ([]string(nil), false).
+//
+// For example, during a PATCH request to update the item's tags:
+//
+//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
+//		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
+//	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
+func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
+	vs := ctx.PostArgs().PeekAll(key)
+	values := make([]string, len(vs))
+	for i, v := range vs {
+		values[i] = string(v)
+	}
+	if len(values) == 0 {
+		return ctx.multipartFormValueArray(key)
+	} else {
+		return values, true
+	}
 }
 
 // bodyAllowedForStatus is a copy of http.bodyAllowedForStatus non-exported function.

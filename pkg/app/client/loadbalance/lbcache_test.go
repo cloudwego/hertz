@@ -19,6 +19,7 @@ package loadbalance
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -114,9 +115,11 @@ func TestBalancerRefresh(t *testing.T) {
 		},
 		NameFunc: func() string { return t.Name() },
 	}
+	opts := DefaultLbOpts
+	opts.RefreshInterval = 30 * time.Millisecond
 	blf := NewBalancerFactory(Config{
 		Balancer: NewWeightedBalancer(),
-		LbOpts:   DefaultLbOpts,
+		LbOpts:   opts,
 		Resolver: r,
 	})
 	req := &protocol.Request{}
@@ -128,10 +131,42 @@ func TestBalancerRefresh(t *testing.T) {
 	addr, err = blf.GetInstance(context.Background(), req)
 	assert.Assert(t, err == nil, err)
 	assert.Assert(t, addr.Address().String() == "127.0.0.1:8888")
-	time.Sleep(6 * time.Second)
+	time.Sleep(2 * opts.RefreshInterval)
 	addr, err = blf.GetInstance(context.Background(), req)
 	assert.Assert(t, err == nil, err)
 	assert.Assert(t, addr.Address().String() == "127.0.0.1:8889")
+}
+
+func TestBalancerExpires(t *testing.T) {
+	n := int32(1000)
+	r := &discovery.SynthesizedResolver{
+		TargetFunc: func(ctx context.Context, target *discovery.TargetInfo) string {
+			return target.Host
+		},
+		ResolveFunc: func(ctx context.Context, key string) (discovery.Result, error) {
+			ins := discovery.NewInstance("tcp", "127.0.0.1:"+strconv.Itoa(int(atomic.AddInt32(&n, 1))), 10, nil)
+			return discovery.Result{CacheKey: "svc1", Instances: []discovery.Instance{ins}}, nil
+		},
+		NameFunc: func() string { return t.Name() },
+	}
+	opts := DefaultLbOpts
+	opts.ExpireInterval = 30 * time.Millisecond
+	blf := NewBalancerFactory(Config{
+		Balancer: NewWeightedBalancer(),
+		LbOpts:   opts,
+		Resolver: r,
+	})
+	req := &protocol.Request{}
+	req.SetHost("svc1")
+	addr1, err := blf.GetInstance(context.Background(), req)
+	assert.Assert(t, err == nil, err)
+	addr2, err := blf.GetInstance(context.Background(), req)
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, addr1.Address().String() == addr2.Address().String())
+	time.Sleep(3 * opts.ExpireInterval)
+	addr3, err := blf.GetInstance(context.Background(), req)
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, addr3.Address().String() != addr2.Address().String())
 }
 
 func TestCacheKey(t *testing.T) {

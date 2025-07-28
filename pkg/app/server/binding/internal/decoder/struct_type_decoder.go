@@ -38,13 +38,16 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 	var defaultValue string
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
-			defaultValue = tagInfo.Default
 			if tagInfo.Key == jsonTag {
+				defaultValue = tagInfo.Default
 				found := checkRequireJSON(req, tagInfo)
 				if found {
 					err = nil
 				} else {
-					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
+				}
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
+					defaultValue = ""
 				}
 			}
 			continue
@@ -56,14 +59,14 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 			break
 		}
 		if tagInfo.Required {
-			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", d.fieldName)
+			err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 		}
 	}
 	if err != nil {
 		return err
 	}
 	if len(text) == 0 && len(defaultValue) != 0 {
-		text = defaultValue
+		text = toDefaultValue(d.fieldType, defaultValue)
 	}
 	if !exist && len(text) == 0 {
 		return nil
@@ -80,7 +83,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 		var vv reflect.Value
 		vv, err := stringToValue(t, text, req, params, d.config)
 		if err != nil {
-			hlog.Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
+			hlog.SystemLogger().Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 			return nil
 		}
 		field.Set(ReferenceValue(vv, ptrDepth))
@@ -89,7 +92,7 @@ func (d *structTypeFieldTextDecoder) Decode(req *protocol.Request, params param.
 
 	err = hjson.Unmarshal(bytesconv.S2b(text), field.Addr().Interface())
 	if err != nil {
-		hlog.Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
+		hlog.SystemLogger().Infof("unable to decode '%s' as %s: %v, but it may not affect correctness, so skip it", text, d.fieldType.Name(), err)
 	}
 
 	return nil

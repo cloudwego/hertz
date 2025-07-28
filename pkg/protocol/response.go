@@ -42,6 +42,7 @@
 package protocol
 
 import (
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -295,7 +296,7 @@ func (resp *Response) ResetBody() {
 	resp.bodyRaw = nil
 	resp.CloseBodyStream() //nolint:errcheck
 	if resp.body != nil {
-		if resp.body.Len() <= resp.maxKeepBodySize {
+		if resp.body.Cap() <= resp.maxKeepBodySize {
 			resp.body.Reset()
 			return
 		}
@@ -341,9 +342,28 @@ func (resp *Response) SetBody(body []byte) {
 
 func (resp *Response) BodyStream() io.Reader {
 	if resp.bodyStream == nil {
-		resp.bodyStream = NoResponseBody
+		return NoResponseBody
 	}
 	return resp.bodyStream
+}
+
+// Hijack returns the underlying network.Conn if available.
+//
+// It's only available when StatusCode() == 101 and "Connection: Upgrade",
+// coz Hertz will NOT reuse connection in this case,
+// then make it optional for users to implement their own protocols.
+//
+// The most common scenario is used with github.com/hertz-contrib/websocket
+func (resp *Response) Hijack() (network.Conn, error) {
+	if resp.bodyStream != nil {
+		h, ok := resp.bodyStream.(interface {
+			Hijack() (network.Conn, error)
+		})
+		if ok {
+			return h.Hijack()
+		}
+	}
+	return nil, errors.New("not available")
 }
 
 // AppendBody appends p to response body.
@@ -373,6 +393,10 @@ func (resp *Response) ConnectionClose() bool {
 	return resp.Header.ConnectionClose()
 }
 
+// CloseBodyStream tries call Close() of underlying body stream.
+//
+// NOTE:
+// * MUST NOT call CloseBodyStream() and BodyStream().Read() concurrently to avoid race issue.
 func (resp *Response) CloseBodyStream() error {
 	if resp.bodyStream == nil {
 		return nil

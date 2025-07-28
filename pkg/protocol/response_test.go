@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -52,6 +53,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -170,6 +172,26 @@ func TestResponseResetBody(t *testing.T) {
 	assert.Nil(t, resp.body)
 }
 
+func TestResponseBodyReuse(t *testing.T) {
+	resp := Response{}
+	resp.maxKeepBodySize = 1024
+
+	buf := resp.BodyBuffer()
+	// set a big body
+	buf.Write(make([]byte, resp.maxKeepBodySize+1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+	// NOTICE: bytebufferpool may not get a big enough buffer,
+	// so we just mock a new one here
+	resp.body = &bytebufferpool.ByteBuffer{
+		B: make([]byte, 0, resp.maxKeepBodySize+1),
+	}
+	// set a small body
+	buf.Write(make([]byte, 1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+}
+
 func testResponseCopyTo(t *testing.T, src *Response) {
 	var dst Response
 	src.CopyTo(&dst)
@@ -224,12 +246,17 @@ func TestResponseSwapResponseBody(t *testing.T) {
 
 func TestResponseAcquireResponse(t *testing.T) {
 	t.Parallel()
-	resp1 := AcquireResponse()
-	assert.NotNil(t, resp1)
-	resp1.SetBody([]byte("test"))
-	resp1.SetStatusCode(consts.StatusOK)
-	ReleaseResponse(resp1)
-	assert.Nil(t, resp1.body)
+	for i := 0; i < 10; i++ {
+		resp1 := AcquireResponse()
+		assert.NotNil(t, resp1)
+		assert.Nil(t, resp1.body)
+		assert.Assert(t, resp1.BodyStream() == NoResponseBody)
+		assert.Assert(t, resp1.IsBodyStream() == false)
+
+		resp1.SetBody([]byte("test"))
+		resp1.SetStatusCode(consts.StatusOK)
+		ReleaseResponse(resp1)
+	}
 }
 
 type closeBuffer struct {
@@ -261,6 +288,8 @@ func TestSetBodyStreamNoReset(t *testing.T) {
 
 func TestRespSafeCopy(t *testing.T) {
 	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
 	resp.bodyRaw = make([]byte, 1)
 	resps := make([]*Response, 10)
 	for i := 0; i < 10; i++ {
@@ -276,6 +305,8 @@ func TestRespSafeCopy(t *testing.T) {
 
 func TestResponse_HijackWriter(t *testing.T) {
 	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
 	buf := new(bytes.Buffer)
 	isFinal := false
 	resp.HijackWriter(&mock.ExtWriter{Buf: buf, IsFinal: &isFinal})
@@ -293,4 +324,21 @@ func TestResponse_HijackWriter(t *testing.T) {
 	assert.False(t, isFinal)
 	resp.GetHijackWriter().Finalize()
 	assert.True(t, isFinal)
+}
+
+type HijackerFunc func() (network.Conn, error)
+
+func (h HijackerFunc) Read(_ []byte) (int, error)    { return 0, errors.New("not implemented") }
+func (h HijackerFunc) Hijack() (network.Conn, error) { return h() }
+
+func TestResponse_Hijack(t *testing.T) {
+	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
+	_, err := resp.Hijack()
+	assert.NotNil(t, err)
+
+	resp.SetBodyStream(HijackerFunc(func() (network.Conn, error) { return nil, nil }), -1)
+	_, err = resp.Hijack()
+	assert.Nil(t, err)
 }

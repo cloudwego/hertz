@@ -14,9 +14,6 @@
 //
 
 //go:build (linux || windows || darwin) && amd64 && !gjson
-// +build linux windows darwin
-// +build amd64
-// +build !gjson
 
 package decoder
 
@@ -59,4 +56,13 @@ func stringSliceForInterface(s string) (ret []interface{}) {
 		ret = append(ret, val)
 	}
 	return
+}
+
+func keyExist(req *protocol.Request, tagInfo TagInfo) bool {
+	ct := bytesconv.B2s(req.Header.ContentType())
+	if utils.FilterContentType(ct) != consts.MIMEApplicationJSON {
+		return false
+	}
+	node, _ := sonic.Get(req.Body(), stringSliceForInterface(tagInfo.JSONName)...)
+	return node.Exists()
 }

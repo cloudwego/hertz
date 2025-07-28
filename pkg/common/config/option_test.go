@@ -39,6 +39,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.False(t, options.RemoveExtraSlash)
 	assert.True(t, options.UnescapePathValues)
 	assert.False(t, options.DisablePreParseMultipartForm)
+	assert.False(t, options.SenseClientDisconnection)
 	assert.DeepEqual(t, defaultNetwork, options.Network)
 	assert.DeepEqual(t, defaultAddr, options.Addr)
 	assert.DeepEqual(t, defaultMaxRequestBodySize, options.MaxRequestBodySize)

@@ -18,18 +18,17 @@ package standard
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
-	. "github.com/bytedance/mockey"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -194,6 +193,34 @@ func TestReadBytes(t *testing.T) {
 	}
 }
 
+func TestStatefulConnConnectionCloseDetection(t *testing.T) {
+	cliConn, svrConn := net.Pipe()
+	svrCtx, cancelCtx := context.WithCancel(context.Background())
+	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
+	defer svrStatefulConn.Close()
+
+	// 1. normal request
+	svrStatefulConn.DetectConnectionClose()
+	svrStatefulConn.AbortBlockingRead()
+	select {
+	case <-svrCtx.Done():
+		t.Fatal("ctx should not be canceled")
+	default:
+	}
+
+	// 2. client close conn
+	svrStatefulConn.DetectConnectionClose()
+	cliConn.Close()
+	time.Sleep(100 * time.Millisecond) // wait a while
+
+	select {
+	case <-svrCtx.Done():
+		// expected
+	default:
+		t.Fatal("ctx should be canceled")
+	}
+}
+
 func TestWriteLogic(t *testing.T) {
 	c := mockConn{}
 	conn := newConn(&c, 4096)
@@ -354,34 +381,20 @@ func (m *mockAddr) String() string {
 	return m.address
 }
 
-var release_count uint32 = 0
-
-func mockLinkBufferNodeRelease(b *linkBufferNode) {
-	atomic.AddUint32(&release_count, 1)
-
-	if !b.readOnly {
-		free(b.buf)
-	}
-	b.readOnly = false
-	b.buf = nil
-	b.next = nil
-	b.malloc, b.off = 0, 0
-	bufferPool.Put(b)
-}
-
 func TestConnSetFinalizer(t *testing.T) {
-	runtime.GC()
-	time.Sleep(time.Millisecond * 100)
-
-	Mock((*linkBufferNode).Release).To(mockLinkBufferNodeRelease).Build()
-
-	atomic.StoreUint32(&release_count, 0)
-	_ = newConn(&mockConn{}, 4096)
+	defer func(newfunc func() interface{}) {
+		bufferPool.New = newfunc
+	}(bufferPool.New) // reset
 
 	runtime.GC()
-	time.Sleep(time.Millisecond * 100)
+	runtime.GC()
+	for i := 0; i < 1000; i++ {
+		_ = newConn(&mockConn{}, 4096)
+	}
+	runtime.GC()
+	bufferPool.New = nil
+	assert.NotNil(t, bufferPool.Get())
 
-	assert.DeepEqual(t, uint32(2), atomic.LoadUint32(&release_count))
 }
 
 func TestFillReturnErrAndN(t *testing.T) {

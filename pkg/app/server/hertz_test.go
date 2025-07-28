@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/app/server/binding"
@@ -51,8 +52,16 @@ import (
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
+type routeEngine interface {
+	IsRunning() bool
+}
+
+func waitEngineRunning(e routeEngine) {
+	testutils.WaitEngineRunning(e)
+}
+
 func TestHertz_Run(t *testing.T) {
-	hertz := Default(WithHostPorts("127.0.0.1:6666"))
+	hertz := Default(WithHostPorts("127.0.0.1:0"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(time.Second)
 		path := ctx.Request.URI().PathOriginal()
@@ -67,19 +76,22 @@ func TestHertz_Run(t *testing.T) {
 	assert.Assert(t, len(hertz.Handlers) == 1)
 
 	go hertz.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(hertz)
 
 	hertz.Close()
-	resp, err := http.Get("http://127.0.0.1:6666/test")
+	resp, err := http.Get(testutils.GetURL(hertz, "/test"))
 	assert.NotNil(t, err)
 	assert.Nil(t, resp)
 	assert.DeepEqual(t, uint32(0), atomic.LoadUint32(&testint))
 }
 
 func TestHertz_GracefulShutdown(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:6667"))
+	handling := make(chan struct{})
+	closing := make(chan struct{})
+	engine := New(WithHostPorts("127.0.0.1:0"))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
-		time.Sleep(time.Second * 2)
+		close(handling)
+		<-closing
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
@@ -95,12 +107,11 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 		atomic.StoreUint32(&testint2, 2)
 	})
 	engine.Engine.OnShutdown = append(engine.OnShutdown, func(ctx context.Context) {
-		time.Sleep(2 * time.Second)
 		atomic.StoreUint32(&testint3, 3)
 	})
 
 	go engine.Spin()
-	time.Sleep(time.Millisecond)
+	waitEngineRunning(engine)
 
 	hc := http.Client{Timeout: time.Second}
 	var err error
@@ -108,11 +119,11 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 	ch := make(chan struct{})
 	ch2 := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
+		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
 			t.Logf("[%v]begin listening\n", time.Now())
-			_, err2 := hc.Get("http://127.0.0.1:6667/test2")
+			_, err2 := hc.Get(testutils.GetURL(engine, "/test2"))
 			if err2 != nil {
 				t.Logf("[%v]listening closed: %v", time.Now(), err2)
 				ch2 <- struct{}{}
@@ -122,19 +133,21 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 	}()
 	go func() {
 		t.Logf("[%v]begin request\n", time.Now())
-		resp, err = http.Get("http://127.0.0.1:6667/test")
+		resp, err = http.Get(testutils.GetURL(engine, "/test"))
 		t.Logf("[%v]end request\n", time.Now())
 		ch <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 1)
+	<-handling
+
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	t.Logf("[%v]begin shutdown\n", start)
 	engine.Shutdown(ctx)
 	end := time.Now()
 	t.Logf("[%v]end shutdown\n", end)
 
+	close(closing)
 	<-ch
 	assert.Nil(t, err)
 	assert.NotNil(t, resp)
@@ -149,7 +162,7 @@ func TestHertz_GracefulShutdown(t *testing.T) {
 }
 
 func TestLoadHTMLGlob(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8893"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:0"))
 	engine.Delims("{[{", "}]}")
 	engine.LoadHTMLGlob("../../common/testdata/template/index.tmpl")
 	engine.GET("/index", func(c context.Context, ctx *app.RequestContext) {
@@ -158,8 +171,12 @@ func TestLoadHTMLGlob(t *testing.T) {
 		})
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:8893/index")
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
+
+	resp, _ := http.Get(testutils.GetURL(engine, "/index"))
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
@@ -169,7 +186,7 @@ func TestLoadHTMLGlob(t *testing.T) {
 }
 
 func TestLoadHTMLFiles(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8891"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:0"))
 	engine.Delims("{[{", "}]}")
 	engine.SetFuncMap(template.FuncMap{
 		"formatAsDate": formatAsDate,
@@ -182,8 +199,12 @@ func TestLoadHTMLFiles(t *testing.T) {
 		})
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Millisecond)
-	resp, _ := http.Get("http://127.0.0.1:8891/raw")
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
+
+	resp, _ := http.Get(testutils.GetURL(engine, "/raw"))
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 100)
 	n, _ := resp.Body.Read(b)
@@ -196,7 +217,10 @@ func formatAsDate(t time.Time) string {
 }
 
 // copied from router
-var default400Body = []byte("400 bad request")
+var (
+	default400Body   = []byte("Bad Request")
+	requiredHostBody = []byte("missing required Host header")
+)
 
 func TestServer_Use(t *testing.T) {
 	router := New()
@@ -215,28 +239,29 @@ func Test_getServerName(t *testing.T) {
 }
 
 func TestServer_Run(t *testing.T) {
-	hertz := New(WithHostPorts("127.0.0.1:8888"))
+	hertz := New(WithHostPorts("127.0.0.1:0"))
 	hertz.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		path := ctx.Request.URI().PathOriginal()
 		ctx.SetBodyString(string(path))
 	})
 	hertz.POST("/redirect", func(c context.Context, ctx *app.RequestContext) {
-		ctx.Redirect(consts.StatusMovedPermanently, []byte("http://127.0.0.1:8888/test"))
+		ctx.Redirect(consts.StatusMovedPermanently, []byte(testutils.GetURL(hertz, "/test")))
 	})
 	go hertz.Run()
-	time.Sleep(100 * time.Microsecond)
-	resp, err := http.Get("http://127.0.0.1:8888/test")
+	waitEngineRunning(hertz)
+
+	resp, err := http.Get(testutils.GetURL(hertz, "/test"))
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b := make([]byte, 5)
 	resp.Body.Read(b)
 	assert.DeepEqual(t, "/test", string(b))
 
-	resp, err = http.Get("http://127.0.0.1:8888/foo")
+	resp, err = http.Get(testutils.GetURL(hertz, "/foo"))
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode)
 
-	resp, err = http.Post("http://127.0.0.1:8888/redirect", "", nil)
+	resp, err = http.Post(testutils.GetURL(hertz, "/redirect"), "", nil)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 	b = make([]byte, 5)
@@ -249,7 +274,7 @@ func TestServer_Run(t *testing.T) {
 }
 
 func TestNotAbsolutePath(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:9990"))
+	engine := New(WithHostPorts("127.0.0.1:0"))
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		ctx.Write(ctx.Request.Body())
 	})
@@ -257,7 +282,10 @@ func TestNotAbsolutePath(t *testing.T) {
 		ctx.Write(ctx.Request.Body())
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -283,13 +311,23 @@ func TestNotAbsolutePath(t *testing.T) {
 }
 
 func TestNotAbsolutePathWithRawPath(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:9991"), WithUseRawPath(true))
+	engine := New(WithHostPorts("127.0.0.1:0"), WithUseRawPath(true))
+	const (
+		MiddlewareKey   = "middleware_key"
+		MiddlewareValue = "middleware_value"
+	)
+	engine.Use(func(c context.Context, ctx *app.RequestContext) {
+		ctx.Response.Header.Set(MiddlewareKey, MiddlewareValue)
+	})
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 	})
 	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
 
 	s := "POST ?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
@@ -301,6 +339,8 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine.ServeHTTP(context.Background(), ctx)
 	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
+	gh := ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
 
 	s = "POST a?a=b HTTP/1.1\r\nHost: a.b.c\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr = mock.NewZeroCopyReader(s)
@@ -312,34 +352,85 @@ func TestNotAbsolutePathWithRawPath(t *testing.T) {
 	engine.ServeHTTP(context.Background(), ctx)
 	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
 	assert.DeepEqual(t, default400Body, ctx.Response.Body())
+	gh = ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
+}
+
+func TestNotValidHost(t *testing.T) {
+	engine := New(WithHostPorts("127.0.0.1:0"))
+	const (
+		MiddlewareKey   = "middleware_key"
+		MiddlewareValue = "middleware_value"
+	)
+	engine.Use(func(c context.Context, ctx *app.RequestContext) {
+		ctx.Response.Header.Set(MiddlewareKey, MiddlewareValue)
+	})
+	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
+	})
+	engine.POST("/a", func(c context.Context, ctx *app.RequestContext) {
+	})
+
+	s := "POST ?a=b HTTP/1.1\r\nHost: \r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr := mock.NewZeroCopyReader(s)
+
+	ctx := app.NewContext(0)
+	if err := req.Read(&ctx.Request, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	engine.ServeHTTP(context.Background(), ctx)
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
+	assert.DeepEqual(t, requiredHostBody, ctx.Response.Body())
+	gh := ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
+
+	s = "POST a?a=b HTTP/1.1\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
+	zr = mock.NewZeroCopyReader(s)
+
+	ctx = app.NewContext(0)
+	if err := req.Read(&ctx.Request, zr); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	engine.ServeHTTP(context.Background(), ctx)
+	assert.DeepEqual(t, consts.StatusBadRequest, ctx.Response.StatusCode())
+	assert.DeepEqual(t, requiredHostBody, ctx.Response.Body())
+	gh = ctx.Response.Header.Get(MiddlewareKey)
+	assert.DeepEqual(t, MiddlewareValue, gh)
 }
 
 func TestWithBasePath(t *testing.T) {
-	engine := New(WithBasePath("/hertz"), WithHostPorts("127.0.0.1:19898"))
+	engine := New(WithBasePath("/hertz"), WithHostPorts("127.0.0.1:0"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(500 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, err := http.Post("http://127.0.0.1:19898/hertz/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post(testutils.GetURL(engine, "/hertz/test"), "application/x-www-form-urlencoded", body)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
 func TestNotEnoughBodySize(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(5), WithHostPorts("127.0.0.1:8889"))
+	engine := New(WithMaxRequestBodySize(5), WithHostPorts("127.0.0.1:0"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, err := http.Post("http://127.0.0.1:8889/test", "application/x-www-form-urlencoded", body)
+	resp, err := http.Post(testutils.GetURL(engine, "/test"), "application/x-www-form-urlencoded", body)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, 413, resp.StatusCode)
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
@@ -347,16 +438,20 @@ func TestNotEnoughBodySize(t *testing.T) {
 }
 
 func TestEnoughBodySize(t *testing.T) {
-	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:8892"))
+	engine := New(WithMaxRequestBodySize(15), WithHostPorts("127.0.0.1:0"))
 	engine.POST("/test", func(c context.Context, ctx *app.RequestContext) {
 	})
 	go engine.Run()
-	time.Sleep(200 * time.Microsecond)
+	defer func() {
+		engine.Close()
+	}()
+	waitEngineRunning(engine)
+
 	var r http.Request
 	r.ParseForm()
 	r.Form.Add("xxxxxx", "xxx")
 	body := strings.NewReader(r.Form.Encode())
-	resp, _ := http.Post("http://127.0.0.1:8892/test", "application/x-www-form-urlencoded", body)
+	resp, _ := http.Post(testutils.GetURL(engine, "/test"), "application/x-www-form-urlencoded", body)
 	assert.DeepEqual(t, consts.StatusOK, resp.StatusCode)
 }
 
@@ -463,7 +558,7 @@ func verifyResponseHeader(t *testing.T, h *protocol.ResponseHeader, expectedStat
 
 func TestParamInconsist(t *testing.T) {
 	mapS := sync.Map{}
-	h := New(WithHostPorts("localhost:10091"))
+	h := New(WithHostPorts("127.0.0.1:0"))
 	h.GET("/:label", func(c context.Context, ctx *app.RequestContext) {
 		label := ctx.Param("label")
 		x, _ := mapS.LoadOrStore(label, label)
@@ -473,19 +568,20 @@ func TestParamInconsist(t *testing.T) {
 		}
 	})
 	go h.Run()
-	time.Sleep(time.Millisecond * 50)
+	waitEngineRunning(h)
+
 	client, _ := c.NewClient()
 	wg := sync.WaitGroup{}
 	tr := func() {
 		defer wg.Done()
-		for i := 0; i < 5000; i++ {
-			client.Get(context.Background(), nil, "http://localhost:10091/test1")
+		for i := 0; i < 500; i++ {
+			client.Get(context.Background(), nil, testutils.GetURL(h, "/test1"))
 		}
 	}
 	ti := func() {
 		defer wg.Done()
-		for i := 0; i < 5000; i++ {
-			client.Get(context.Background(), nil, "http://localhost:10091/test2")
+		for i := 0; i < 500; i++ {
+			client.Get(context.Background(), nil, testutils.GetURL(h, "/test2"))
 		}
 	}
 
@@ -498,13 +594,14 @@ func TestParamInconsist(t *testing.T) {
 }
 
 func TestDuplicateReleaseBodyStream(t *testing.T) {
-	h := New(WithStreamBody(true), WithHostPorts("localhost:10092"))
+	h := New(WithStreamBody(true), WithHostPorts("127.0.0.1:0"))
 	h.POST("/test", func(ctx context.Context, c *app.RequestContext) {
 		stream := c.RequestBodyStream()
 		c.Response.SetBodyStream(stream, -1)
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	client, _ := c.NewClient(c.WithMaxConnsPerHost(1000000), c.WithDialTimeout(time.Minute))
 	bodyBytes := make([]byte, 102388)
 	index := 0
@@ -520,7 +617,7 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 	wg := sync.WaitGroup{}
 	testFunc := func() {
 		defer wg.Done()
-		r := protocol.NewRequest("POST", "http://localhost:10092/test", nil)
+		r := protocol.NewRequest("POST", testutils.GetURL(h, "/test"), nil)
 		r.SetBodyString(body)
 		resp := protocol.AcquireResponse()
 		err := client.Do(context.Background(), r, resp)
@@ -540,6 +637,8 @@ func TestDuplicateReleaseBodyStream(t *testing.T) {
 }
 
 func TestServiceRegisterFailed(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	mockRegErr := errors.New("mock register error")
 	var rCount int32
 	var drCount int32
@@ -555,42 +654,53 @@ func TestServiceRegisterFailed(t *testing.T) {
 	}
 	var opts []config.Option
 	opts = append(opts, WithRegistry(mockRegistry, nil))
-	opts = append(opts, WithHostPorts("127.0.0.1:9222"))
+	opts = append(opts, WithHostPorts("127.0.0.1:0"))
 	srv := New(opts...)
 	srv.Spin()
-	time.Sleep(2 * time.Second)
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 }
 
 func TestServiceDeregisterFailed(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	mockDeregErr := errors.New("mock deregister error")
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			atomic.AddInt32(&drCount, 1)
 			return mockDeregErr
 		},
 	}
+
 	var opts []config.Option
 	opts = append(opts, WithRegistry(mockRegistry, nil))
-	opts = append(opts, WithHostPorts("127.0.0.1:9223"))
+	opts = append(opts, WithHostPorts("127.0.0.1:0"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(1 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(1 * time.Second)
+
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
 
 func TestServiceRegistryInfo(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	registryInfo := &registry.Info{
 		Weight:      100,
 		Tags:        map[string]string{"aa": "bb"},
@@ -602,15 +712,20 @@ func TestServiceRegistryInfo(t *testing.T) {
 		assert.Assert(t, len(info.Tags) == len(registryInfo.Tags), info.Tags)
 		assert.Assert(t, info.Tags["aa"] == registryInfo.Tags["aa"], info.Tags)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&drCount, 1)
 			return nil
@@ -618,31 +733,39 @@ func TestServiceRegistryInfo(t *testing.T) {
 	}
 	var opts []config.Option
 	opts = append(opts, WithRegistry(mockRegistry, registryInfo))
-	opts = append(opts, WithHostPorts("127.0.0.1:9225"))
+	opts = append(opts, WithHostPorts("127.0.0.1:0"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(2 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
 
 func TestServiceRegistryNoInitInfo(t *testing.T) {
+	t.Parallel() // slow test, make it parallel
+
 	checkInfo := func(info *registry.Info) {
 		assert.Assert(t, info == nil)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(2) // RegisterFunc && DeregisterFunc
 	var rCount int32
 	var drCount int32
 	mockRegistry := MockRegistry{
 		RegisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&rCount, 1)
 			return nil
 		},
 		DeregisterFunc: func(info *registry.Info) error {
+			defer wg.Done()
 			checkInfo(info)
 			atomic.AddInt32(&drCount, 1)
 			return nil
@@ -650,14 +773,15 @@ func TestServiceRegistryNoInitInfo(t *testing.T) {
 	}
 	var opts []config.Option
 	opts = append(opts, WithRegistry(mockRegistry, nil))
-	opts = append(opts, WithHostPorts("127.0.0.1:9227"))
+	opts = append(opts, WithHostPorts("127.0.0.1:0"))
 	srv := New(opts...)
 	go srv.Spin()
-	time.Sleep(2 * time.Second)
+	waitEngineRunning(srv)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 	assert.Assert(t, atomic.LoadInt32(&rCount) == 1)
 	assert.Assert(t, atomic.LoadInt32(&drCount) == 1)
 }
@@ -670,21 +794,23 @@ func (t testTracer) Start(ctx context.Context, c *app.RequestContext) context.Co
 		value = v.(int)
 		value++
 	}
+	//nolint:staticcheck // SA1029 no built-in type string as key
 	return context.WithValue(ctx, "testKey", value)
 }
 
 func (t testTracer) Finish(ctx context.Context, c *app.RequestContext) {}
 
 func TestReuseCtx(t *testing.T) {
-	h := New(WithTracer(testTracer{}), WithHostPorts("localhost:9228"))
+	h := New(WithTracer(testTracer{}), WithHostPorts("127.0.0.1:0"))
 	h.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		assert.DeepEqual(t, 0, ctx.Value("testKey").(int))
 	})
 
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
+
 	for i := 0; i < 1000; i++ {
-		_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9228/ping")
+		_, _, err := c.Get(context.Background(), nil, testutils.GetURL(h, "/ping"))
 		assert.Nil(t, err)
 	}
 }
@@ -695,7 +821,7 @@ type CloseWithoutResetBuffer interface {
 
 func TestOnprepare(t *testing.T) {
 	h1 := New(
-		WithHostPorts("localhost:9333"),
+		WithHostPorts("127.0.0.1:0"),
 		WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
@@ -712,8 +838,9 @@ func TestOnprepare(t *testing.T) {
 	})
 
 	go h1.Spin()
-	time.Sleep(time.Second)
-	_, _, err := c.Get(context.Background(), nil, "http://127.0.0.1:9333/ping")
+	waitEngineRunning(h1)
+
+	_, _, err := c.Get(context.Background(), nil, testutils.GetURL(h1, "/ping"))
 	assert.DeepEqual(t, "the server closed connection before returning the first response byte. Make sure the server returns 'Connection: close' response header before closing the connection", err.Error())
 
 	h2 := New(
@@ -721,30 +848,33 @@ func TestOnprepare(t *testing.T) {
 			conn.Close()
 			return context.Background()
 		}),
-		WithHostPorts("localhost:9331"))
+		WithHostPorts("127.0.0.1:0"))
 	h2.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go h2.Spin()
-	time.Sleep(time.Second)
-	_, _, err = c.Get(context.Background(), nil, "http://127.0.0.1:9331/ping")
+	waitEngineRunning(h2)
+
+	_, _, err = c.Get(context.Background(), nil, testutils.GetURL(h2, "/ping"))
 	if err == nil {
 		t.Fatalf("err should not be nil")
 	}
 
-	h3 := New(
+	var h3 *Hertz
+	h3 = New(
 		WithOnAccept(func(conn net.Conn) context.Context {
-			assert.DeepEqual(t, conn.LocalAddr().String(), "127.0.0.1:9231")
+			assert.DeepEqual(t, conn.LocalAddr().String(), testutils.GetListenerAddr(h3))
 			return context.Background()
 		}),
-		WithHostPorts("localhost:9231"),
+		WithHostPorts("127.0.0.1:0"),
 		WithTransport(standard.NewTransporter))
 	h3.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 	go h3.Spin()
-	time.Sleep(time.Second)
-	c.Get(context.Background(), nil, "http://127.0.0.1:9231/ping")
+	waitEngineRunning(h3)
+
+	c.Get(context.Background(), nil, testutils.GetURL(h3, "/ping"))
 }
 
 type lockBuffer struct {
@@ -770,15 +900,15 @@ func TestSilentMode(t *testing.T) {
 
 	hlog.SetOutput(b)
 
-	h := New(WithHostPorts("localhost:9232"), WithTransport(standard.NewTransporter))
+	h := New(WithHostPorts("127.0.0.1:0"), WithTransport(standard.NewTransporter))
 	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
 		ctx.Write([]byte("hello, world"))
 	})
 	go h.Spin()
-	time.Sleep(time.Second)
+	waitEngineRunning(h)
 
 	d := standard.NewDialer()
-	conn, _ := d.DialConnection("tcp", "127.0.0.1:9232", 0, nil)
+	conn, _ := d.DialConnection("tcp", testutils.GetListenerAddr(h), 0, nil)
 	conn.Write([]byte("aaa"))
 	conn.Close()
 
@@ -789,7 +919,7 @@ func TestSilentMode(t *testing.T) {
 
 func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
 	h := New(
-		WithHostPorts("localhost:9212"),
+		WithHostPorts("127.0.0.1:0"),
 		WithDisableHeaderNamesNormalizing(true),
 	)
 	headerName := "CASE-senSITive-HEAder-NAME"
@@ -810,11 +940,11 @@ func TestHertzDisableHeaderNamesNormalizing(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
 
 	cli, _ := c.NewClient(c.WithDisableHeaderNamesNormalizing(true))
 
-	r := protocol.NewRequest("GET", "http://localhost:9212/test", nil)
+	r := protocol.NewRequest("GET", testutils.GetURL(h, "/test"), nil)
 	r.Header.DisableNormalizing()
 	r.Header.Set(headerName, headerValue)
 	res := protocol.AcquireResponse()
@@ -830,7 +960,7 @@ func TestBindConfig(t *testing.T) {
 	bindConfig := binding.NewBindConfig()
 	bindConfig.LooseZeroMode = true
 	h := New(
-		WithHostPorts("localhost:9332"),
+		WithHostPorts("127.0.0.1:0"),
 		WithBindConfig(bindConfig))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -841,15 +971,16 @@ func TestBindConfig(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9332/bind?a=")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?a="))
 	assert.Nil(t, err)
 
 	bindConfig = binding.NewBindConfig()
 	bindConfig.LooseZeroMode = false
 	h2 := New(
-		WithHostPorts("localhost:9448"),
+		WithHostPorts("127.0.0.1:0"),
 		WithBindConfig(bindConfig))
 	h2.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -860,9 +991,9 @@ func TestBindConfig(t *testing.T) {
 	})
 
 	go h2.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h2)
 
-	_, err = hc.Get("http://127.0.0.1:9448/bind?a=")
+	_, err = hc.Get(testutils.GetURL(h2, "/bind?a="))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -910,7 +1041,7 @@ func TestCustomBinder(t *testing.T) {
 		A int `query:"a"`
 	}
 	h := New(
-		WithHostPorts("localhost:9334"),
+		WithHostPorts("127.0.0.1:0"),
 		WithCustomBinder(&mockBinder{}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -922,9 +1053,10 @@ func TestCustomBinder(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9334/bind?a=")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?a="))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -937,8 +1069,7 @@ func TestValidateConfigRegValidateFunc(t *testing.T) {
 	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
 		return fmt.Errorf("test validator")
 	})
-	h := New(
-		WithHostPorts("localhost:9229"))
+	h := New(WithHostPorts("127.0.0.1:0"))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -949,9 +1080,10 @@ func TestValidateConfigRegValidateFunc(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9229/bind?a=2")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?a=2"))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -975,7 +1107,7 @@ func TestCustomValidator(t *testing.T) {
 		A int `query:"a" vd:"f($)"`
 	}
 	h := New(
-		WithHostPorts("localhost:9555"),
+		WithHostPorts("127.0.0.1:0"),
 		WithCustomValidator(&mockValidator{}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -989,7 +1121,7 @@ func TestCustomValidator(t *testing.T) {
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9555/bind?a=2")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?a=2"))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -1022,7 +1154,7 @@ func TestValidateConfigSetSetErrorFactory(t *testing.T) {
 	validateConfig := binding.NewValidateConfig()
 	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
 	h := New(
-		WithHostPorts("localhost:9666"),
+		WithHostPorts("127.0.0.1:0"),
 		WithValidateConfig(validateConfig))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req TestValidate
@@ -1034,9 +1166,10 @@ func TestValidateConfigSetSetErrorFactory(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9666/bind?b=1")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?b=1"))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
@@ -1048,7 +1181,7 @@ func TestValidateConfigAndBindConfig(t *testing.T) {
 	validateConfig := binding.NewValidateConfig()
 	validateConfig.ValidateTag = "vt"
 	h := New(
-		WithHostPorts("localhost:9876"),
+		WithHostPorts("127.0.0.1:0"),
 		WithValidateConfig(validateConfig))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -1060,35 +1193,94 @@ func TestValidateConfigAndBindConfig(t *testing.T) {
 	})
 
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	_, err := hc.Get("http://127.0.0.1:9876/bind?a=135")
+	_, err := hc.Get(testutils.GetURL(h, "/bind?a=135"))
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
 }
 
 func TestWithDisableDefaultDate(t *testing.T) {
 	h := New(
-		WithHostPorts("localhost:8321"),
+		WithHostPorts("127.0.0.1:0"),
 		WithDisableDefaultDate(true),
 	)
 	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	r, _ := hc.Get("http://127.0.0.1:8321") //nolint:errcheck
+	r, _ := hc.Get(testutils.GetURL(h, "")) //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Date"))
 }
 
 func TestWithDisableDefaultContentType(t *testing.T) {
 	h := New(
-		WithHostPorts("localhost:8324"),
+		WithHostPorts("127.0.0.1:0"),
 		WithDisableDefaultContentType(true),
 	)
 	h.GET("/", func(_ context.Context, c *app.RequestContext) {})
 	go h.Spin()
-	time.Sleep(100 * time.Millisecond)
+	waitEngineRunning(h)
+
 	hc := http.Client{Timeout: time.Second}
-	r, _ := hc.Get("http://127.0.0.1:8324") //nolint:errcheck
+	r, _ := hc.Get(testutils.GetURL(h, "")) //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
+}
+
+func TestWithSenseClientDisconnection(t *testing.T) {
+	var closeFlag int32
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true))
+	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, "aa", string(ctx.Host()))
+		ch := make(chan struct{})
+		select {
+		case <-c.Done():
+			atomic.StoreInt32(&closeFlag, 1)
+			assert.DeepEqual(t, context.Canceled, c.Err())
+		case <-ch:
+		}
+	})
+	go h.Spin()
+	waitEngineRunning(h)
+
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
+	assert.Nil(t, err)
+	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
+	assert.Nil(t, err)
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
+	assert.Nil(t, con.Close())
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
+}
+
+func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
+	var closeFlag int32
+	h := New(WithHostPorts("127.0.0.1:0"), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
+		return ctx
+	}))
+	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, "aa", string(ctx.Host()))
+		ch := make(chan struct{})
+		select {
+		case <-c.Done():
+			atomic.StoreInt32(&closeFlag, 1)
+			assert.DeepEqual(t, context.Canceled, c.Err())
+		case <-ch:
+		}
+	})
+	go h.Spin()
+	waitEngineRunning(h)
+
+	con, err := net.Dial("tcp", testutils.GetListenerAddr(h))
+	assert.Nil(t, err)
+	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
+	assert.Nil(t, err)
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
+	assert.Nil(t, con.Close())
+	time.Sleep(20 * time.Millisecond)
+	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }

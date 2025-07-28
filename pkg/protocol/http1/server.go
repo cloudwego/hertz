@@ -26,12 +26,15 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -40,6 +43,12 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
+
+func init() {
+	if b, err := utils.GetBoolFromEnv("HERTZ_DISABLE_REQUEST_CONTEXT_POOL"); err == nil {
+		disabaleRequestContextPool = b
+	}
+}
 
 // NextProtoTLS is the NPN/ALPN protocol negotiated during
 // HTTP/1.1's TLS setup.
@@ -51,6 +60,8 @@ var (
 	errIdleTimeout     = errs.New(errs.ErrIdleTimeout, errs.ErrorTypePrivate, nil)
 	errShortConnection = errs.New(errs.ErrShortConnection, errs.ErrorTypePublic, "server is going to close the connection")
 	errUnexpectedEOF   = errs.NewPublic(io.ErrUnexpectedEOF.Error() + " when reading request")
+
+	disabaleRequestContextPool = false
 )
 
 type Option struct {
@@ -80,6 +91,21 @@ type Server struct {
 	eventStackPool *sync.Pool
 }
 
+func (s Server) getRequestContext() *app.RequestContext {
+	if disabaleRequestContextPool {
+		return &app.RequestContext{}
+	}
+	return s.Core.GetCtxPool().Get().(*app.RequestContext)
+}
+
+func (s Server) putRequestContext(ctx *app.RequestContext) {
+	if disabaleRequestContextPool {
+		return
+	}
+	ctx.Reset()
+	s.Core.GetCtxPool().Put(ctx)
+}
+
 func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 	var (
 		zr network.Reader
@@ -97,8 +123,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// 1. Get a request context
 		// 2. Prepare it
 		// 3. Process it
-		// 4. Reset and recycle
-		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
+		// 4. Reset and recycle(in pooled mode)
+		ctx = s.getRequestContext()
 
 		traceCtl        = s.Core.GetTracer()
 		eventsToTrigger *eventStack
@@ -108,15 +134,16 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		cc = c
 	)
 
+	// for sensing connection close
+	// only if `conn` is internalNetwork.StatefulConn
+	statefulConn, configuredSenseConnClose := conn.(internalNetwork.StatefulConn)
+
 	if s.EnableTrace {
 		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
 	}
 
 	defer func() {
 		if s.EnableTrace {
-			if shouldRecordInTraceError(err) {
-				ctx.GetTraceInfo().Stats().SetError(err)
-			}
 			// in case of error, we need to trigger all events
 			if eventsToTrigger != nil {
 				for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
@@ -124,8 +151,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				}
 				s.eventStackPool.Put(eventsToTrigger)
 			}
-
-			traceCtl.DoFinish(cc, ctx, err)
+			if shouldRecordInTraceError(err) {
+				traceCtl.DoFinish(cc, ctx, err)
+			} else {
+				traceCtl.DoFinish(cc, ctx, nil)
+			}
 		}
 
 		// Hijack may release and close the connection already
@@ -133,12 +163,17 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			zr.Release() //nolint:errcheck
 			zr = nil
 		}
-		ctx.Reset()
-		s.Core.GetCtxPool().Put(ctx)
+
+		if ctx.IsExiled() {
+			return
+		}
+
+		s.putRequestContext(ctx)
 	}()
 
 	ctx.HTMLRender = s.HTMLRender
 	ctx.SetConn(conn)
+
 	ctx.Request.SetIsTLS(s.TLS != nil)
 	ctx.SetEnableTrace(s.EnableTrace)
 
@@ -150,6 +185,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	for {
 		connRequestNum++
+		senseConnClose := configuredSenseConnClose // use to check if senseConnClose logic should be triggered for each request
 
 		if zr == nil {
 			zr = ctx.GetReader()
@@ -266,6 +302,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				} else {
 					err = req.ContinueReadBody(&ctx.Request, zr, s.MaxRequestBodySize, !s.DisablePreParseMultipartForm)
 				}
+
 				if err != nil {
 					writeErrorResponse(zw, ctx, serverName, err)
 					return
@@ -285,6 +322,25 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				internalStats.Record(ti, stats.ServerHandleFinish, err)
 			})
 		}
+
+		// If request sets BodyStream, we don't start connection close detection logic to prevent concurrent Read.
+		senseConnClose = senseConnClose && !ctx.Request.IsBodyStream()
+		if senseConnClose {
+			statefulConn.DetectConnectionClose()
+		}
+
+		if ctx.Request.IsURIParsed() {
+			// ctx.Request.URI() must not be called before ServeHTTP
+			// The only case is concurrency issue when parsing a new request,
+			// and user is reading the old request in background.
+			hlog.SystemLogger().Warnf("%s\n%s\n%s\n%s",
+				"Race detected.",
+				"Please be aware that the protocol.Request passed to handler is only valid before the handler returns.",
+				"DO NOT attempt to keep and access protocol.Request after the handler returns.",
+				"Try build with -race to check the race issue.")
+			return errors.New("race detected")
+		}
+
 		// Handle the request
 		//
 		// NOTE: All middlewares and business handler will be executed in this. And at this point, the request has been parsed
@@ -337,6 +393,13 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			}
 		}
 
+		// Abort the blocking read in DetectConnectionClose
+		if senseConnClose {
+			// this should be sync to wait the blocking read return.
+			// we should make sure the read is not affected by other SetReadDeadline.
+			statefulConn.AbortBlockingRead()
+		}
+
 		// Release the zeroCopyReader before flush to prevent data race
 		if zr != nil {
 			zr.Release() //nolint:errcheck
@@ -379,12 +442,17 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 		// Back to network layer to trigger.
 		// For now, only netpoll network mode has this feature.
+		// FIXME: check
 		if s.IdleTimeout == 0 {
 			return
 		}
 		// general case
 		if s.EnableTrace {
-			traceCtl.DoFinish(cc, ctx, err)
+			if shouldRecordInTraceError(err) {
+				traceCtl.DoFinish(cc, ctx, err)
+			} else {
+				traceCtl.DoFinish(cc, ctx, nil)
+			}
 		}
 
 		ctx.ResetWithoutConn()

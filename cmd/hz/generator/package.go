@@ -63,11 +63,14 @@ type HttpPackageGenerator struct {
 	IdlClientDir   string // client dir for "client" command
 	ForceClientDir string // client dir without namespace for "client" command
 	BaseDomain     string // request domain for "client" command
+	QueryEnumAsInt bool   // client code use number for query parameter
 	ServiceGenDir  string
 
 	NeedModel            bool
 	HandlerByMethod      bool // generate handler files with method dimension
 	SnakeStyleMiddleware bool // use snake name style for middleware
+	SortRouter           bool
+	ForceUpdateClient    bool // force update 'hertz_client.go'
 
 	loadedBackend   Backend
 	curModel        *model.Model

@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/standard"
 )
 
-var defaultDialer network.Dialer
+// will be netpoll.NewDialer() if available, see netpoll.go
+var defaultDialer network.Dialer = standard.NewDialer()
 
 // SetDialer is used to set the global default dialer.
 // Deprecated: use WithDialer instead.

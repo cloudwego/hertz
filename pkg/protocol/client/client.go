@@ -184,7 +184,7 @@ func GetURLDeadline(ctx context.Context, dst []byte, url string, deadline time.T
 func PostURL(ctx context.Context, dst []byte, url string, postArgs *protocol.Args, c Doer, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
 	req := protocol.AcquireRequest()
 	req.Header.SetMethodBytes(bytestr.StrPost)
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 	req.SetOptions(requestOptions...)
 
 	if postArgs != nil {
@@ -242,6 +242,9 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 			break
 		}
 		url = getRedirectURL(url, location)
+
+		// Remove the former host header.
+		req.Header.Del(consts.HeaderHost)
 	}
 
 	return statusCode, body, err

@@ -17,6 +17,7 @@
 package standard
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -636,5 +638,57 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 			outputBuffer: outputBuffer,
 			maxSize:      maxSize,
 		},
+	}
+}
+
+var earliestTime = time.Unix(1, 0)
+
+var _ internalNetwork.StatefulConn = &statefulConn{}
+
+func NewStatefulConn(c network.Conn, onReadError func(err error)) internalNetwork.StatefulConn {
+	return &statefulConn{
+		Conn:        c,
+		onReadError: onReadError,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type statefulConn struct {
+	network.Conn
+	onReadError func(err error)
+	ch          chan struct{}
+}
+
+// DetectConnectionClose starts a blocking read to detect connection error
+func (c *statefulConn) DetectConnectionClose() {
+	c.Conn.SetReadDeadline(time.Time{}) // blocking read
+	go func() {
+		// start a blocking read, if return
+		// 1. n != 0, err == nil: pipeline request
+		// 2. err != nil: execute onReadError
+		_, err := c.Conn.Peek(1) // peek 1 byte to trigger Read Syscall
+		if err != nil {
+			c.onReadError(err)
+		}
+		c.ch <- struct{}{}
+	}()
+}
+
+// AbortBlockingRead cancels the blocking read and waits for the DetectConnectionClose exit.
+// Only call AbortBlockingRead if already called DetectConnectionClose.
+func (c *statefulConn) AbortBlockingRead() {
+	c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
+	<-c.ch                               // wait until the blocking read returns
+}
+
+func newOnReadErrorFunc(cancelCtx context.CancelFunc) func(err error) {
+	return func(err error) {
+		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
+		// 2. other connection error (e.g. EOF), cancel the context
+		if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
+		} else {
+			cancelCtx()
+		}
 	}
 }

@@ -121,7 +121,7 @@ func TestGetBody(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'E' field is a 'required' parameter, but the request body does not have this parameter 'X.e'")
+	assert.DeepEqual(t, err.Error(), "'e' field is a 'required' parameter, but the request body does not have this parameter 'X.e'")
 }
 
 func TestQueryNum(t *testing.T) {
@@ -431,7 +431,7 @@ func TestJSON(t *testing.T) {
 	if err == nil {
 		t.Error("expected an error, but get nil")
 	}
-	assert.DeepEqual(t, err.Error(), "'Y' field is a 'required' parameter, but the request body does not have this parameter 'y'")
+	assert.DeepEqual(t, err.Error(), "'y' field is a 'required' parameter, but the request body does not have this parameter 'y'")
 	assert.DeepEqual(t, []string{"a1", "a2"}, (**recv.X).A)
 	assert.DeepEqual(t, int32(21), (**recv.X).B)
 	assert.DeepEqual(t, &[]uint16{31, 32}, (**recv.X).C)
@@ -539,38 +539,37 @@ func TestPath(t *testing.T) {
 	assert.DeepEqual(t, (*int64)(nil), recv.Z)
 }
 
-// FIXME: 复杂类型的默认值，暂时先不做，低优
 func TestDefault(t *testing.T) {
-	//type S struct {
-	//	SS string `json:"ss"`
-	//}
+	type S struct {
+		SS string `json:"ss"`
+	}
 	type Recv struct {
 		X **struct {
-			A []string `path:"a" json:"a"`
-			B int32    `path:"b" default:"32"`
-			C bool     `json:"c" default:"true"`
-			D *float32 `default:"123.4"`
-			// E          *[]string          `default:"['a','b','c','d,e,f']"`
-			// F          map[string]string  `default:"{'a':'\"\\'1','\"b':'c','c':'2'}"`
-			// G          map[string]int64   `default:"{'a':1,'b':2,'c':3}"`
-			// H          map[string]float64 `default:"{'a':0.1,'b':1.2,'c':2.3}"`
-			// I          map[string]float64 `default:"{'\"a\"':0.1,'b':1.2,'c':2.3}"`
-			Empty      string `default:""`
-			Null       string `default:""`
-			CommaSpace string `default:",a:c "`
-			Dash       string `default:"-"`
+			A          []string           `path:"a" json:"a"`
+			B          int32              `path:"b" default:"32"`
+			C          bool               `json:"c" default:"true"`
+			D          *float32           `default:"123.4"`
+			E          *[]string          `default:"['a','b','c','d,e,f']"`
+			F          map[string]string  `default:"{'a':'\"\\'1','\"b':'c','c':'2'}"`
+			G          map[string]int64   `default:"{'a':1,'b':2,'c':3}"`
+			H          map[string]float64 `default:"{'a':0.1,'b':1.2,'c':2.3}"`
+			I          map[string]float64 `default:"{'\"a\"':0.1,'b':1.2,'c':2.3}"`
+			Empty      string             `default:""`
+			Null       string             `default:""`
+			CommaSpace string             `default:",a:c "`
+			Dash       string             `default:"-"`
 			// InvalidInt int                `default:"abc"`
 			// InvalidMap map[string]string  `default:"abc"`
 		}
-		Y string `json:"y" default:"y1"`
-		Z int64
-		W string `json:"w"`
-		// V []int64   `json:"u" default:"[1,2,3]"`
-		// U []float32 `json:"u" default:"[1.1,2,3]"`
-		T *string `json:"t" default:"t1"`
-		// S S         `default:"{'ss':'test'}"`
-		// O *S        `default:"{'ss':'test2'}"`
-		// Complex map[string][]map[string][]int64 `default:"{'a':[{'aa':[1,2,3], 'bb':[4,5]}],'b':[{}]}"`
+		Y       string `json:"y" default:"y1"`
+		Z       int64
+		W       string                          `json:"w"`
+		V       []int64                         `json:"v" default:"[1,2,3]"`
+		U       []float32                       `json:"u" default:"[1.1,2,3]"`
+		T       *string                         `json:"t" default:"t1"`
+		S       S                               `default:"{'ss':'test'}"`
+		O       *S                              `default:"{'ss':'test2'}"`
+		Complex map[string][]map[string][]int64 `default:"{'a':[{'aa':[1,2,3], 'bb':[4,5]}],'b':[{}]}"`
 	}
 
 	bodyReader := strings.NewReader(`{
@@ -601,11 +600,11 @@ func TestDefault(t *testing.T) {
 	assert.DeepEqual(t, int32(32), (**recv.X).B)
 	assert.DeepEqual(t, true, (**recv.X).C)
 	assert.DeepEqual(t, float32(123.4), *(**recv.X).D)
-	// assert.DeepEqual(t, []string{"a", "b", "c", "d,e,f"}, *(**recv.X).E)
-	// assert.DeepEqual(t, map[string]string{"a": "\"'1", "\"b": "c", "c": "2"}, (**recv.X).F)
-	// assert.DeepEqual(t, map[string]int64{"a": 1, "b": 2, "c": 3}, (**recv.X).G)
-	// assert.DeepEqual(t, map[string]float64{"a": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).H)
-	// assert.DeepEqual(t, map[string]float64{"\"a\"": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).I)
+	assert.DeepEqual(t, []string{"a", "b", "c", "d,e,f"}, *(**recv.X).E)
+	assert.DeepEqual(t, map[string]string{"a": "\"'1", "\"b": "c", "c": "2"}, (**recv.X).F)
+	assert.DeepEqual(t, map[string]int64{"a": 1, "b": 2, "c": 3}, (**recv.X).G)
+	assert.DeepEqual(t, map[string]float64{"a": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).H)
+	assert.DeepEqual(t, map[string]float64{"\"a\"": 0.1, "b": 1.2, "c": 2.3}, (**recv.X).I)
 	assert.DeepEqual(t, "", (**recv.X).Empty)
 	assert.DeepEqual(t, "", (**recv.X).Null)
 	assert.DeepEqual(t, ",a:c ", (**recv.X).CommaSpace)
@@ -615,11 +614,11 @@ func TestDefault(t *testing.T) {
 	assert.DeepEqual(t, "y1", recv.Y)
 	assert.DeepEqual(t, "t1", *recv.T)
 	assert.DeepEqual(t, int64(6), recv.Z)
-	// assert.DeepEqual(t, []int64{1, 2, 3}, recv.V)
-	// assert.DeepEqual(t, []float32{1.1, 2, 3}, recv.U)
-	// assert.DeepEqual(t, S{SS: "test"}, recv.S)
-	// assert.DeepEqual(t, &S{SS: "test2"}, recv.O)
-	// assert.DeepEqual(t, map[string][]map[string][]int64{"a": {{"aa": {1, 2, 3}, "bb": []int64{4, 5}}}, "b": {map[string][]int64{}}}, recv.Complex)
+	assert.DeepEqual(t, []int64{1, 2, 3}, recv.V)
+	assert.DeepEqual(t, []float32{1.1, 2, 3}, recv.U)
+	assert.DeepEqual(t, S{SS: "test"}, recv.S)
+	assert.DeepEqual(t, &S{SS: "test2"}, recv.O)
+	assert.DeepEqual(t, map[string][]map[string][]int64{"a": {{"aa": {1, 2, 3}, "bb": []int64{4, 5}}}, "b": {map[string][]int64{}}}, recv.Complex)
 }
 
 func TestAuto(t *testing.T) {
@@ -754,7 +753,7 @@ func TestOption(t *testing.T) {
 	req = newRequest("", header, nil, bodyReader)
 	recv = new(Recv)
 	err = DefaultBinder().Bind(req.Req, recv, nil)
-	assert.DeepEqual(t, err.Error(), "'C' field is a 'required' parameter, but the request body does not have this parameter 'X.c'")
+	assert.DeepEqual(t, err.Error(), "'c' field is a 'required' parameter, but the request body does not have this parameter 'X.c'")
 	assert.DeepEqual(t, 0, recv.X.C)
 	assert.DeepEqual(t, 0, recv.X.D)
 	assert.DeepEqual(t, "y1", recv.Y)
@@ -1196,29 +1195,29 @@ func TestIssue26(t *testing.T) {
 	assert.DeepEqual(t, recv, recv2)
 }
 
-// FIXME: after 'json unmarshal', the default value will change it
-//func TestDefault2(t *testing.T) {
-//	type Recv struct {
-//		X **struct {
-//			Dash string `default:"xxxx"`
-//		}
-//	}
-//	bodyReader := strings.NewReader(`{
-//		"X": {
-//			"Dash": "hello Dash"
-//		}
-//	}`)
-//	header := make(http.Header)
-//	header.Set("Content-Type", consts.MIMEApplicationJSON)
-//	req := newRequest("", header, nil, bodyReader)
-//	recv := new(Recv)
-//
-//	err := DefaultBinder().Bind(req.Req, nil, recv)
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	assert.DeepEqual(t, "hello Dash", (**recv.X).Dash)
-//}
+// BUGFIX: after 'json unmarshal', the default value will change it
+func TestDefault2(t *testing.T) {
+	type Recv struct {
+		X **struct {
+			Dash string `default:"xxxx"`
+		}
+	}
+	bodyReader := strings.NewReader(`{
+		"X": {
+			"Dash": "hello Dash"
+		}
+	}`)
+	header := make(http.Header)
+	header.Set("Content-Type", consts.MIMEApplicationJSON)
+	req := newRequest("", header, nil, bodyReader)
+	recv := new(Recv)
+
+	err := DefaultBinder().Bind(req.Req, recv, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.DeepEqual(t, "hello Dash", (**recv.X).Dash)
+}
 
 type (
 	files map[string][]file

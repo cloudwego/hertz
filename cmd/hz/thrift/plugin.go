@@ -150,7 +150,10 @@ func (plugin *Plugin) Run() int {
 		IdlClientDir:         util.SubDir(modelDir, pkgInfo.Package),
 		ForceClientDir:       args.ForceClientDir,
 		BaseDomain:           args.BaseDomain,
+		QueryEnumAsInt:       args.QueryEnumAsInt,
 		SnakeStyleMiddleware: args.SnakeStyleMiddleware,
+		SortRouter:           args.SortRouter,
+		ForceUpdateClient:    args.ForceUpdateClient,
 	}
 	if args.ModelBackend != "" {
 		sg.Backend = meta.Backend(args.ModelBackend)

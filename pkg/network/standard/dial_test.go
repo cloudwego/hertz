@@ -31,11 +31,16 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/network"
 )
+
+func getListenerAddr(trans network.Transporter) string {
+	return trans.(*transport).Listener().Addr().String()
+}
 
 func TestDial(t *testing.T) {
 	const nw = "tcp"
-	const addr = "localhost:10104"
+	addr := "127.0.0.1:0"
 	transporter := NewTransporter(&config.Options{
 		Addr:    addr,
 		Network: nw,
@@ -46,6 +51,8 @@ func TestDial(t *testing.T) {
 	})
 	defer transporter.Close()
 	time.Sleep(time.Millisecond * 100)
+
+	addr = getListenerAddr(transporter)
 
 	dial := NewDialer()
 	_, err := dial.DialConnection(nw, addr, time.Second, nil)
@@ -58,9 +65,9 @@ func TestDial(t *testing.T) {
 
 func TestDialTLS(t *testing.T) {
 	const nw = "tcp"
-	const addr = "localhost:10105"
+	addr := "127.0.0.1:0"
 	data := []byte("abcdefg")
-	listened := make(chan struct{})
+	listened := make(chan net.Listener)
 	go func() {
 		mockTLSServe(nw, addr, func(conn net.Conn) {
 			defer conn.Close()
@@ -70,7 +77,8 @@ func TestDialTLS(t *testing.T) {
 	}()
 
 	select {
-	case <-listened:
+	case ln := <-listened:
+		addr = ln.Addr().String()
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout")
 	}
@@ -99,7 +107,7 @@ func TestDialTLS(t *testing.T) {
 	assert.DeepEqual(t, string(data), string(buf))
 }
 
-func mockTLSServe(nw, addr string, handle func(conn net.Conn), listened chan struct{}) (err error) {
+func mockTLSServe(nw, addr string, handle func(conn net.Conn), listened chan net.Listener) (err error) {
 	certData, keyData, err := generateTestCertificate("")
 	if err != nil {
 		return
@@ -119,7 +127,7 @@ func mockTLSServe(nw, addr string, handle func(conn net.Conn), listened chan str
 	}
 	defer ln.Close()
 
-	listened <- struct{}{}
+	listened <- ln
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

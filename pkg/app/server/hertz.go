@@ -25,7 +25,6 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/route"
 )
@@ -74,12 +73,7 @@ func (h *Hertz) Spin() {
 		return
 	}
 
-	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), h.GetOptions().ExitWaitTimeout)
-	defer cancel()
-
-	if err := h.Shutdown(ctx); err != nil {
+	if err := h.Shutdown(context.Background()); err != nil {
 		hlog.SystemLogger().Errorf("Shutdown error=%v", err)
 	}
 }
@@ -92,8 +86,7 @@ func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
 }
 
 // Default implementation for signal waiter.
-// SIGTERM triggers immediately close.
-// SIGHUP|SIGINT triggers graceful shutdown.
+// SIGHUP|SIGINT|SIGTERM triggers graceful shutdown.
 func waitSignal(errCh chan error) error {
 	signalToNotify := []os.Signal{syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM}
 	if signal.Ignored(syscall.SIGHUP) {
@@ -106,10 +99,7 @@ func waitSignal(errCh chan error) error {
 	select {
 	case sig := <-signals:
 		switch sig {
-		case syscall.SIGTERM:
-			// force exit
-			return errors.NewPublic(sig.String()) // nolint
-		case syscall.SIGHUP, syscall.SIGINT:
+		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
 			hlog.SystemLogger().Infof("Received signal: %s\n", sig)
 			// graceful shutdown
 			return nil
