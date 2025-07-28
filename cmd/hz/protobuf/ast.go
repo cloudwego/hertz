@@ -166,7 +166,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			if !exist {
 				return nil, fmt.Errorf("file(%s) can not exist", ast.GetName())
 			}
-			methodGoInfo, err := getMethod(protoGoInfo, m)
+			methodGoInfo, err := getMethod(protoGoInfo, s, m)
 			if err != nil {
 				return nil, err
 			}
@@ -255,7 +255,7 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			if cmdType == meta.CmdClient {
 				clientMethod := &generator.ClientMethod{}
 				clientMethod.HttpMethod = method
-				err := parseAnnotationToClient(clientMethod, gen, ast, m)
+				err := parseAnnotationToClient(clientMethod, gen, ast, s, m)
 				if err != nil {
 					return nil, err
 				}
@@ -281,12 +281,12 @@ func getCompatibleAnnotation(options proto.Message, anno, compatibleAnno *protoi
 	return nil
 }
 
-func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
+func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen.Plugin, ast *descriptorpb.FileDescriptorProto, s *descriptorpb.ServiceDescriptorProto, m *descriptorpb.MethodDescriptorProto) error {
 	file, exist := gen.FilesByPath[ast.GetName()]
 	if !exist {
 		return fmt.Errorf("file(%s) can not exist", ast.GetName())
 	}
-	method, err := getMethod(file, m)
+	method, err := getMethod(file, s, m)
 	if err != nil {
 		return err
 	}
@@ -373,11 +373,13 @@ func parseAnnotationToClient(clientMethod *generator.ClientMethod, gen *protogen
 	return nil
 }
 
-func getMethod(file *protogen.File, m *descriptorpb.MethodDescriptorProto) (*protogen.Method, error) {
+func getMethod(file *protogen.File, s *descriptorpb.ServiceDescriptorProto, m *descriptorpb.MethodDescriptorProto) (*protogen.Method, error) {
 	for _, f := range file.Services {
-		for _, method := range f.Methods {
-			if string(method.Desc.Name()) == m.GetName() {
-				return method, nil
+		if f.Desc.Name() == protoreflect.Name(s.GetName()) {
+			for _, method := range f.Methods {
+				if string(method.Desc.Name()) == m.GetName() {
+					return method, nil
+				}
 			}
 		}
 	}
