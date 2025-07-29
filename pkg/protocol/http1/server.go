@@ -91,7 +91,11 @@ type Server struct {
 
 func (s Server) getRequestContext() *app.RequestContext {
 	if disabaleRequestContextPool {
-		return &app.RequestContext{}
+		ctx := &app.RequestContext{}
+		if s.EnableTrace {
+			ctx.SetTraceInfo(traceinfo.NewTraceInfo())
+		}
+		return ctx
 	}
 	return s.Core.GetCtxPool().Get().(*app.RequestContext)
 }
