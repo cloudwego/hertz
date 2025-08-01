@@ -325,6 +325,8 @@ func (c childrenRouterInfo) Swap(i, j int) {
 var (
 	regRegisterV3 = regexp.MustCompile(insertPointPatternNew)
 	regImport     = regexp.MustCompile(`import \(\n`)
+	// Add regex for exact router registration line matching
+	regRouterRegister = regexp.MustCompile(`^\s*[a-zA-Z_][a-zA-Z0-9_]*\.Register\(r\)\s*$`)
 )
 
 func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) error {
@@ -357,7 +359,9 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		}
 
 		insertReg := register.DepPkgAlias + ".Register(r)\n"
-		if bytes.Contains(file, []byte(insertReg)) {
+		
+		// Check if router registration already exists
+		if hasRouterRegistration(string(file), register.DepPkgAlias) {
 			return fmt.Errorf("the router(%s) has been registered", insertReg)
 		}
 
@@ -394,6 +398,17 @@ func appendMw(mws []string, mw string) ([]string, string) {
 func stringsIncludes(strs []string, str string) bool {
 	for _, s := range strs {
 		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+// hasRouterRegistration checks if a router registration for the given package alias already exists in the file content
+func hasRouterRegistration(fileContent, depPkgAlias string) bool {
+	lines := strings.Split(fileContent, "\n")
+	for _, line := range lines {
+		if regRouterRegister.MatchString(line) && strings.TrimSpace(line) == strings.TrimSpace(depPkgAlias+".Register(r)") {
 			return true
 		}
 	}
