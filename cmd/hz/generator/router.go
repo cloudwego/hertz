@@ -351,7 +351,8 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	}
 
 	insertReg := register.DepPkgAlias + ".Register(r)\n"
-	if !bytes.Contains(file, []byte(insertReg)) {
+
+	if !checkDupRegister(file, insertReg) {
 		file, err = util.AddImport(registerPath, register.DepPkgAlias, register.DepPkg)
 		if err != nil {
 			return err
@@ -371,6 +372,10 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	}
 
 	return nil
+}
+
+func checkDupRegister(file []byte, insertReg string) bool {
+	return bytes.Contains(file, []byte("\t"+insertReg)) || bytes.Contains(file, []byte(" "+insertReg))
 }
 
 func appendMw(mws []string, mw string) ([]string, string) {
