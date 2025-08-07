@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -377,17 +378,17 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 }
 
 func appendMw(mws []string, mw string) ([]string, string) {
-	base := mw
-	for i := 0; ; i++ {
-		candidate := base
-		if i > 0 {
-			candidate = base + strconv.Itoa(i)
+	for i := 0; true; i++ {
+		if i == math.MaxInt {
+			break
 		}
-		if !stringsIncludes(mws, candidate) {
-			mws = append(mws, candidate)
-			return mws, candidate
+		if !stringsIncludes(mws, mw) {
+			mws = append(mws, mw)
+			break
 		}
+		mw += strconv.Itoa(i)
 	}
+	return mws, mw
 }
 
 func stringsIncludes(strs []string, str string) bool {
