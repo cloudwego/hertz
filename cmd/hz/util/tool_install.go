@@ -149,3 +149,18 @@ func CheckAndUpdateThriftgo() error {
 
 	return nil
 }
+
+// RunCmd executes an external command and handles its output.
+func RunCmd(dir, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	logs.Infof("Executing: %s %s", name, strings.Join(args, " "))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("'%s %s' failed with error: %v\nOutput:\n%s", name, strings.Join(args, " "), err, string(out))
+	}
+	logs.Debugf(string(out))
+	return nil
+}

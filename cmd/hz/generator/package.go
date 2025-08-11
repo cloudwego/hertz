@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"text/template"
@@ -84,12 +85,27 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 	customConfig := TemplateConfig{}
 	// unmarshal from user-defined config file if it exists
 	if pkgGen.ConfigPath != "" {
-		cdata, err := ioutil.ReadFile(pkgGen.ConfigPath)
+		configPath := pkgGen.ConfigPath // 使用局部变量以避免修改原始结构体字段
+		info, err := os.Stat(configPath)
 		if err != nil {
-			return fmt.Errorf("read layout config from  %s failed, err: %v", pkgGen.ConfigPath, err.Error())
+			return fmt.Errorf("invalid custom package path '%s': %v", configPath, err)
+		}
+
+		// 如果它是一个目录，则自动附加约定的配置文件名
+		if info.IsDir() {
+			// 假设用于包模板的约定文件名为 'package.yaml'
+			configPath = filepath.Join(configPath, "package.yaml")
+		}
+
+		cdata, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("package config file '%s' not found inside the provided path", configPath)
+			}
+			return fmt.Errorf("read package config from '%s' failed, err: %v", configPath, err.Error())
 		}
 		if err = yaml.Unmarshal(cdata, &customConfig); err != nil {
-			return fmt.Errorf("unmarshal layout config failed, err: %v", err.Error())
+			return fmt.Errorf("unmarshal package config failed, err: %v", err.Error())
 		}
 		if reflect.DeepEqual(customConfig, TemplateConfig{}) {
 			return errors.New("empty config")

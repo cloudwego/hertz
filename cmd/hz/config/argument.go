@@ -57,6 +57,8 @@ type Argument struct {
 	Use         string
 	NeedGoMod   bool
 
+	Branch string
+
 	JSONEnumStr          bool
 	QueryEnumAsInt       bool
 	UnsetOmitempty       bool

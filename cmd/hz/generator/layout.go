@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -61,15 +62,30 @@ func SetDefaultTemplateConfig() {
 
 func (lg *LayoutGenerator) Init() error {
 	config := layoutConfig
+	configPath := lg.ConfigPath
+
 	// unmarshal from user-defined config file if it exists
-	if lg.ConfigPath != "" {
-		cdata, err := ioutil.ReadFile(lg.ConfigPath)
+	if configPath != "" {
+		info, err := os.Stat(configPath)
 		if err != nil {
-			return fmt.Errorf("read layout config from  %s failed, err: %v", lg.ConfigPath, err.Error())
+			return fmt.Errorf("invalid custom layout path '%s': %v", configPath, err)
+		}
+
+		// If it's a directory, automatically append the conventional config file name
+		if info.IsDir() {
+			configPath = filepath.Join(configPath, "layout.yaml")
+		}
+
+		cdata, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("layout config file '%s' not found inside the provided path", configPath)
+			}
+			return fmt.Errorf("read layout config from '%s' failed: %v", configPath, err)
 		}
 		config = TemplateConfig{}
 		if err = yaml.Unmarshal(cdata, &config); err != nil {
-			return fmt.Errorf("unmarshal layout config failed, err: %v", err.Error())
+			return fmt.Errorf("unmarshal layout config failed: %v", err)
 		}
 	}
 

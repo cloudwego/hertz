@@ -17,7 +17,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -43,6 +42,13 @@ func New(c *cli.Context) error {
 	}
 	setLogVerbose(args.Verbose)
 	logs.Debugf("args: %#v\n", args)
+
+	cleanup, err := processRemoteTemplates(args)
+	if err != nil {
+		cleanup()
+		return cli.Exit(err, meta.GenerateLayoutError)
+	}
+	defer cleanup()
 
 	exist, err := util.PathExist(filepath.Join(args.OutDir, meta.ManifestFile))
 	if err != nil {
@@ -84,6 +90,13 @@ func Update(c *cli.Context) error {
 	}
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
+
+	cleanup, err := processRemoteTemplates(args)
+	if err != nil {
+		cleanup()
+		return cli.Exit(err, meta.GenerateLayoutError)
+	}
+	defer cleanup()
 
 	manifest := new(meta.Manifest)
 	err = manifest.InitAndValidate(args.OutDir)
@@ -130,6 +143,13 @@ func Client(c *cli.Context) error {
 	}
 	setLogVerbose(args.Verbose)
 	logs.Debugf("Args: %#v\n", args)
+
+	cleanup, err := processRemoteTemplates(args)
+	if err != nil {
+		cleanup()
+		return cli.Exit(err, meta.GenerateLayoutError)
+	}
+	defer cleanup()
 
 	err = TriggerPlugin(args)
 	if err != nil {
@@ -193,6 +213,7 @@ func Init() *cli.App {
 	customPackage := cli.StringFlag{Name: "customize_package", Usage: "Specify the path for package template.", Destination: &globalArgs.CustomizePackage}
 	handlerByMethod := cli.BoolFlag{Name: "handler_by_method", Usage: "Generate a separate handler file for each method.", Destination: &globalArgs.HandlerByMethod}
 	trimGoPackage := cli.StringFlag{Name: "trim_gopackage", Aliases: []string{"trim_pkg"}, Usage: "Trim the prefix of go_package for protobuf.", Destination: &globalArgs.TrimGoPackage}
+	branchFlag := cli.StringFlag{Name: "branch", Usage: "Specify the branch for a remote layout template.", Destination: &globalArgs.Branch}
 
 	// client flag
 	enableClientOptionalFlag := cli.BoolFlag{Name: "enable_optional", Usage: "Optional field do not transfer for thrift if not set.(Only works for query tag)", Destination: &globalArgs.EnableClientOptional}
@@ -248,6 +269,7 @@ func Init() *cli.App {
 				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
+				&branchFlag,
 			},
 			Action: New,
 		},
@@ -282,6 +304,7 @@ func Init() *cli.App {
 				&handlerByMethod,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
+				&branchFlag,
 			},
 			Action: Update,
 		},
@@ -340,6 +363,7 @@ func Init() *cli.App {
 				&customPackage,
 				&protoPluginsFlag,
 				&thriftPluginsFlag,
+				&branchFlag,
 			},
 			Action: Client,
 		},
@@ -384,12 +408,22 @@ func GenerateLayout(args *config.Argument) error {
 		// generate by customized layout
 		configPath, dataPath := args.CustomizeLayout, args.CustomizeLayoutData
 		logs.Infof("get customized layout info, layout_config_path: %s, template_data_path: %s", configPath, dataPath)
+
+		info, err := os.Stat(configPath)
+		if err != nil {
+			return fmt.Errorf("check customized layout path '%s' failed: %v", configPath, err)
+		}
+		if info.IsDir() {
+			configPath = filepath.Join(configPath, "layout.yaml")
+			logs.Infof("detected directory for layout, using default config file: %s", configPath)
+		}
+
 		exist, err := util.PathExist(configPath)
 		if err != nil {
 			return fmt.Errorf("check customized layout config file exist failed: %v", err)
 		}
 		if !exist {
-			return errors.New("layout_config_path doesn't exist")
+			return fmt.Errorf("layout config file '%s' not found inside the provided path", configPath)
 		}
 		lg.ConfigPath = configPath
 		// generate by service info
@@ -399,8 +433,22 @@ func GenerateLayout(args *config.Argument) error {
 				return fmt.Errorf("generating layout failed: %v", err)
 			}
 		} else {
+			dataInfo, err := os.Stat(dataPath)
+			if err != nil {
+				return fmt.Errorf("check customized layout data path '%s' failed: %v", dataPath, err)
+			}
+			if dataInfo.IsDir() {
+				dataPath = filepath.Join(dataPath, "data.json")
+				logs.Infof("detected directory for layout data, using default data file: %s", dataPath)
+			}
+
+			exist, err := util.PathExist(dataPath)
+			if err != nil || !exist {
+				return fmt.Errorf("layout data file '%s' does not exist: %v", dataPath, err)
+			}
+
 			// generate by customized data
-			err := lg.GenerateByConfig(dataPath)
+			err = lg.GenerateByConfig(dataPath)
 			if err != nil {
 				return fmt.Errorf("generating layout failed: %v", err)
 			}
@@ -443,4 +491,98 @@ func TriggerPlugin(args *config.Argument) error {
 	}
 	logs.Debugf("end run plugin %s_gen_hertz", compiler)
 	return nil
+}
+
+// handleRemoteTemplate checks if a template path is a git repository.
+// If so, it clones the repo to a temporary directory and returns the new local path.
+// It also returns a cleanup function to remove the temporary directory.
+func handleRemoteTemplate(templatePath, branch string) (newPath string, cleanup func(), err error) {
+	cleanup = func() {} // No-op cleanup by default
+	if templatePath == "" {
+		return templatePath, cleanup, nil
+	}
+
+	isRemote := strings.HasPrefix(templatePath, "https://") ||
+		strings.HasPrefix(templatePath, "http://") ||
+		strings.HasPrefix(templatePath, "git@")
+
+	if !isRemote {
+		return templatePath, cleanup, nil
+	}
+
+	logs.Infof("Detected remote template: %s", templatePath)
+
+	repoURL := templatePath
+	subPath := ""
+	if idx := strings.Index(repoURL, ".git/"); idx != -1 && idx+5 < len(repoURL) {
+		repoURL = templatePath[:idx+4]
+		subPath = templatePath[idx+5:]
+	}
+
+	tmpDir, err := os.MkdirTemp("", "hz-template-*")
+	if err != nil {
+		return "", cleanup, fmt.Errorf("failed to create temporary directory for template: %v", err)
+	}
+	cleanup = func() { os.RemoveAll(tmpDir) }
+	logs.Infof("Cloning template to temporary directory: %s", tmpDir)
+
+	gitArgs := []string{"clone", "--depth", "1"}
+	if branch != "" {
+		logs.Infof("Using branch: %s", branch)
+		gitArgs = append(gitArgs, "--branch", branch)
+	}
+	gitArgs = append(gitArgs, repoURL, tmpDir)
+
+	if err := util.RunCmd("", "git", gitArgs...); err != nil {
+		return "", cleanup, fmt.Errorf("failed to clone remote template '%s': %v", repoURL, err)
+	}
+
+	newPath = filepath.Join(tmpDir, subPath)
+	logs.Infof("Using template from local path: %s", newPath)
+
+	return newPath, cleanup, nil
+}
+
+// processRemoteTemplates handles all remote template arguments for a command.
+func processRemoteTemplates(args *config.Argument) (cleanup func(), err error) {
+	var cleanups []func()
+	cleanup = func() {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+	}
+
+	// Process Layout template
+	newLayoutPath, layoutCleanup, err := handleRemoteTemplate(args.CustomizeLayout, args.Branch)
+	if err != nil {
+		layoutCleanup()
+		return cleanup, fmt.Errorf("failed to handle remote layout template: %v", err)
+	}
+	args.CustomizeLayout = newLayoutPath
+	if layoutCleanup != nil {
+		cleanups = append(cleanups, layoutCleanup)
+	}
+
+	// Process Package template
+	newPackagePath, packageCleanup, err := handleRemoteTemplate(args.CustomizePackage, args.Branch)
+	if err != nil {
+		packageCleanup()
+		return cleanup, fmt.Errorf("failed to handle remote package template: %v", err)
+	}
+	args.CustomizePackage = newPackagePath
+	if packageCleanup != nil {
+		cleanups = append(cleanups, packageCleanup)
+	}
+
+	newLayoutDataPath, layoutDataCleanup, err := handleRemoteTemplate(args.CustomizeLayoutData, args.Branch)
+	if err != nil {
+		layoutDataCleanup()
+		return cleanup, fmt.Errorf("failed to handle remote layout data path: %v", err)
+	}
+	args.CustomizeLayoutData = newLayoutDataPath
+	if layoutDataCleanup != nil {
+		cleanups = append(cleanups, layoutDataCleanup)
+	}
+
+	return cleanup, nil
 }
