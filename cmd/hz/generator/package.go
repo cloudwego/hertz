@@ -85,15 +85,13 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 	customConfig := TemplateConfig{}
 	// unmarshal from user-defined config file if it exists
 	if pkgGen.ConfigPath != "" {
-		configPath := pkgGen.ConfigPath // 使用局部变量以避免修改原始结构体字段
+		configPath := pkgGen.ConfigPath
 		info, err := os.Stat(configPath)
 		if err != nil {
 			return fmt.Errorf("invalid custom package path '%s': %v", configPath, err)
 		}
 
-		// 如果它是一个目录，则自动附加约定的配置文件名
 		if info.IsDir() {
-			// 假设用于包模板的约定文件名为 'package.yaml'
 			configPath = filepath.Join(configPath, "package.yaml")
 		}
 
