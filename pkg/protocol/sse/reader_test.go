@@ -17,6 +17,7 @@
 package sse
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -342,4 +343,60 @@ func TestReader_ForEach(t *testing.T) {
 		panic("must not called")
 	})
 	assert.Assert(t, err == ctx.Err())
+}
+
+func TestReader_SetMaxBufferSize(t *testing.T) {
+	// Test that default buffer size fails for events > 64KB
+	t.Run("default buffer size fails for large events", func(t *testing.T) {
+		// Create a response with a large event (65KB) - just over default 64KB
+		largeData := strings.Repeat("x", 65*1024)
+		input := "event: large\ndata: " + largeData + "\n\n"
+
+		resp := &protocol.Response{}
+		resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+		resp.SetBody([]byte(input))
+
+		r, err := NewReader(resp)
+		assert.Assert(t, err == nil)
+
+		// Don't call SetMaxBufferSize, use default (64KB)
+		// Reading should fail because the line is too long
+		e := NewEvent()
+		err = r.Read(e)
+		assert.Assert(t, errors.Is(err, bufio.ErrTooLong))
+		e.Release()
+	})
+
+	// Test with custom buffer size for large events
+	t.Run("custom buffer size", func(t *testing.T) {
+		// Create a response with a large event (65KB) - just over default 64KB
+		largeData := strings.Repeat("x", 65*1024)
+		input := "event: large\ndata: " + largeData + "\n\n"
+
+		resp := &protocol.Response{}
+		resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+		resp.SetBody([]byte(input))
+
+		r, err := NewReader(resp)
+		assert.Assert(t, err == nil)
+
+		// Set max buffer size to 70KB to handle the large event
+		r.SetMaxBufferSize(70 * 1024)
+
+		// Should be able to read the large event
+		e := NewEvent()
+		err = r.Read(e)
+		assert.Assert(t, err == nil)
+		assert.DeepEqual(t, "large", e.Type)
+		assert.DeepEqual(t, largeData, string(e.Data))
+		e.Release()
+
+		// Test panic when SetMaxBufferSize is called after reading
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("SetMaxBufferSize should panic after reading has started")
+			}
+		}()
+		r.SetMaxBufferSize(80 * 1024)
+	})
 }
