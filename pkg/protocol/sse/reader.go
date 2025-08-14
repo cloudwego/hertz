@@ -63,6 +63,18 @@ func NewReader(resp *protocol.Response) (*Reader, error) {
 	return r, nil
 }
 
+// SetMaxBufferSize sets the maximum buffer size for the scanner.
+//
+// The scanner will allocate its own buffer as needed, up to max bytes.
+// The default max size without calling this method is bufio.MaxScanTokenSize (64KB).
+//
+// It panics if it is called after reading event has started.
+func (r *Reader) SetMaxBufferSize(max int) {
+	// NOTE: Consider using bytebufferpool if GC becomes an issue.
+	// Currently using nil to let scanner manage its own buffer internally.
+	r.s.Buffer(nil, max)
+}
+
 type forceCloseIf interface {
 	ForceClose() error // implemented by *clientRespStream
 }
@@ -70,13 +82,14 @@ type forceCloseIf interface {
 // ForEach iterates over all SSE events in the response body,
 // invoking the provided handler function for each event.
 //
-// `f` MUST NOT keep the Event reference after the func returns.
-// Use (*Event).Clone to create a copy instead.
+// The handler MUST NOT keep the Event reference after returning.
+// Use (*Event).Clone to create a copy if needed.
 //
-// Iteration stops if the handler returns an error or if reading fails.
-// `ctx` is used to cancel the iteration if ctx.Done() != nil
-//
-// It returns nil if all events are processed successfully.
+// Iteration stops when:
+//   - The handler returns an error
+//   - Reading fails (e.g., bufio.ErrTooLong for events exceeding buffer size)
+//   - Context is cancelled (if ctx.Done() != nil)
+//   - All events are processed (returns nil)
 func (r *Reader) ForEach(ctx context.Context, f func(e *Event) error) error {
 	if ctx.Done() != nil {
 		ch := make(chan struct{})
@@ -130,7 +143,9 @@ func (r *Reader) onEventRead(e *Event) {
 // Read reads a single SSE event from the response body.
 //
 // It populates the provided Event struct with the parsed data.
-// Returns nil if an event was successfully read, or an error otherwise.
+// Returns nil on success, io.EOF when no more events, or an error
+// (e.g., bufio.ErrTooLong if an event line exceeds the buffer size).
+// Use SetMaxBufferSize to handle larger events.
 func (r *Reader) Read(e *Event) error {
 	e.Reset()
 	for i := 0; r.s.Scan(); i++ {
