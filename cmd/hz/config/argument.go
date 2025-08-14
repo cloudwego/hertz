@@ -247,7 +247,7 @@ func (arg *Argument) checkPackage() error {
 			arg.Gomod = arg.Gopkg
 			arg.NeedGoMod = true
 		}
-		arg.Gomod = util.PathToImport(arg.Gomod, "")
+		arg.Gomod = filepath.ToSlash(arg.Gomod)
 	} else { // specified "go module"
 		// search go.mod in current path
 		module, path, ok := util.SearchGoMod(arg.Cwd, false)
@@ -344,7 +344,7 @@ func (arg *Argument) ModelPackagePrefix() (string, error) {
 		}
 		ret += "/" + path
 	}
-	return strings.ReplaceAll(ret, string(filepath.Separator), "/"), nil
+	return filepath.ToSlash(ret), nil
 }
 
 func (arg *Argument) ModelOutDir() string {
