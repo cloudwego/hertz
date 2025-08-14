@@ -384,6 +384,10 @@ func (plugin *Plugin) GenerateFile(gen *protogen.Plugin, f *protogen.File) error
 	if strings.HasPrefix(impt, plugin.Package) {
 		impt = impt[len(plugin.Package):]
 	}
+	// The file name must be the relative path, reference https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/compiler/plugin.proto#L122
+	if strings.HasPrefix(impt, "/") {
+		impt = impt[1:]
+	}
 	f.GeneratedFilenamePrefix = filepath.Join(util.ImportToPath(impt, ""), util.BaseName(f.Proto.GetName(), ".proto"))
 	f.Generate = true
 	// if use third-party model, no model code is generated within the project
