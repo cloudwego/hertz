@@ -16,7 +16,10 @@
 
 package meta
 
-import "runtime"
+import (
+	"path/filepath"
+	"runtime"
+)
 
 // Version hz version
 const Version = "v0.9.7"
@@ -69,9 +72,9 @@ const (
 
 // Package Dir
 const (
-	ModelDir   = "biz/model"
-	RouterDir  = "biz/router"
-	HandlerDir = "biz/handler"
+	ModelDir   = "biz" + string(filepath.Separator) + "model"
+	RouterDir  = "biz" + string(filepath.Separator) + "router"
+	HandlerDir = "biz" + string(filepath.Separator) + "handler"
 )
 
 // Backend Model Backends

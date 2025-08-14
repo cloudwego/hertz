@@ -17,6 +17,7 @@
 package generator
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -89,11 +90,11 @@ func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string
 			}
 		}
 		if len(pkgGen.UseDir) != 0 {
-			oldModelDir := filepath.Clean(filepath.Join(pkgGen.ProjPackage, pkgGen.ModelDir))
-			newModelDir := filepath.Clean(pkgGen.UseDir)
+			oldModelPkg := util.SubPackage(pkgGen.ProjPackage, filepath.Clean(pkgGen.ModelDir))
+			newModelPkg := path.Clean(pkgGen.UseDir)
 			for _, m := range client.ClientMethods {
 				for _, mm := range m.Models {
-					mm.Package = strings.Replace(mm.Package, oldModelDir, newModelDir, 1)
+					mm.Package = strings.Replace(mm.Package, oldModelPkg, newModelPkg, 1)
 				}
 			}
 		}

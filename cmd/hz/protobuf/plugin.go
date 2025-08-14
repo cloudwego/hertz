@@ -52,6 +52,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -323,32 +324,31 @@ func (plugin *Plugin) fixGoPackage(req *pluginpb.CodeGeneratorRequest, pkgMap ma
 				opt = gopkg + "/" + opt
 			}
 		}
-		impt, _ := plugin.fixModelPathAndPackage(opt)
+		impt := plugin.fixModelPathAndPackage(opt)
 		*f.Options.GoPackage = impt
 	}
 }
 
 // fixModelPathAndPackage will modify the go_package to adapt the go_package of the hz,
 // for example adding the go module and model dir.
-func (plugin *Plugin) fixModelPathAndPackage(pkg string) (impt, path string) {
+func (plugin *Plugin) fixModelPathAndPackage(pkg string) (impt string) {
 	if strings.HasPrefix(pkg, plugin.Package) {
-		impt = util.ImportToPathAndConcat(pkg[len(plugin.Package):], "")
+		// NOTE: no idea why we need util.ImportToSanitizedPath
+		// it seems like we only need to convert the last part of a package from /a.b.c -> /a_b_c
+		// "cloudwego/hertz/biz/model/a/b/c" -> "/biz/model/a/b/c"
+		impt = util.ImportToSanitizedPath(pkg[len(plugin.Package):])
+		impt = filepath.ToSlash(impt) // we always use package path instead of filepath in this func
+
+		// "/biz/model/a/b/c" -> "biz/model/a/b/c"
+		impt = strings.TrimPrefix(impt, "/")
 	}
 	if plugin.ModelDir != "" && plugin.ModelDir != "." {
-		modelImpt := util.PathToImport(string(filepath.Separator)+plugin.ModelDir, "")
-		// trim model dir for go package
-		if strings.HasPrefix(impt, modelImpt) {
-			impt = impt[len(modelImpt):]
+		modelPkg := filepath.ToSlash(plugin.ModelDir)
+		if !strings.HasPrefix(impt, modelPkg) {
+			impt = path.Join(modelPkg, impt) // make sure all models under plugin.ModelDir
 		}
-		impt = util.PathToImport(plugin.ModelDir, "") + impt
 	}
-	path = util.ImportToPath(impt, "")
-	// bugfix: impt may have "/" suffix
-	//impt = plugin.Package + "/" + impt
-	impt = filepath.Join(plugin.Package, impt)
-	if util.IsWindows() {
-		impt = util.PathToImport(impt, "")
-	}
+	impt = path.Join(plugin.Package, impt)
 	return
 }
 
@@ -384,7 +384,7 @@ func (plugin *Plugin) GenerateFile(gen *protogen.Plugin, f *protogen.File) error
 	if strings.HasPrefix(impt, plugin.Package) {
 		impt = impt[len(plugin.Package):]
 	}
-	f.GeneratedFilenamePrefix = filepath.Join(util.ImportToPath(impt, ""), util.BaseName(f.Proto.GetName(), ".proto"))
+	f.GeneratedFilenamePrefix = filepath.Join(filepath.FromSlash(impt), util.BaseName(f.Proto.GetName(), ".proto"))
 	f.Generate = true
 	// if use third-party model, no model code is generated within the project
 	if len(plugin.UseDir) != 0 {
