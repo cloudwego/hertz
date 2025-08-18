@@ -15,6 +15,7 @@
 package tagexpr_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/internal/tagexpr"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func assertEqual(t *testing.T, v1, v2 interface{}, msgs ...interface{}) {
@@ -850,6 +852,20 @@ func TestIssue5(t *testing.T) {
 		return nil
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHertzIssue1410(t *testing.T) {
+	type HelloReq struct {
+		Meta *structpb.Struct `protobuf:"bytes,2,opt,name=meta,proto3" form:"meta" json:"meta,omitempty"`
+	}
+	x := &HelloReq{}
+	if err := json.Unmarshal([]byte(`{"meta": {"test": "value"}}`), x); err != nil {
+		t.Fatal(err)
+	}
+	te := tagexpr.New("test").MustRun(x)
+	if err := te.Range(func(eh *tagexpr.ExprHandler) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 }

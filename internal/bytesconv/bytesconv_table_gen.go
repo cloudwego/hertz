@@ -46,6 +46,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"go/format"
 	"io/ioutil"
 	"log"
 )
@@ -177,18 +178,6 @@ func main() {
 		return a
 	}()
 
-	newlineToSpaceTable := func() [256]byte {
-		var a [256]byte
-		for i := 0; i < 256; i++ {
-			c := byte(i)
-			if c == '\r' || c == '\n' {
-				c = ' '
-			}
-			a[i] = c
-		}
-		return a
-	}()
-
 	validHeaderFieldNameTable := func() [256]byte {
 		// The implementation here is equal to httpguts ValidHeaderFieldName(string)
 		// see https://datatracker.ietf.org/doc/html/rfc7230#section-3.2
@@ -246,11 +235,14 @@ func main() {
 	fmt.Fprintf(w, "\tQuotedPathShouldEscapeTable = %q\n", quotedPathShouldEscapeTable)
 	fmt.Fprintf(w, "\tValidCookieValueTable = %q\n", validCookieValueTable)
 	fmt.Fprintf(w, "\tValidHeaderFieldValueTable = %q\n", validHeaderFieldValueTable)
-	fmt.Fprintf(w, "\tNewlineToSpaceTable = %q\n", newlineToSpaceTable)
 	fmt.Fprintf(w, "\tValidHeaderFieldNameTable = %q\n", validHeaderFieldNameTable)
 	fmt.Fprintf(w, ")\n")
 
-	if err := ioutil.WriteFile("bytesconv_table.go", w.Bytes(), 0o660); err != nil {
+	source, err := format.Source(w.Bytes())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := ioutil.WriteFile("bytesconv_table.go", source, 0o660); err != nil {
 		log.Fatal(err)
 	}
 }

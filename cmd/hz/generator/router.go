@@ -350,15 +350,12 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 		return fmt.Errorf("read register '%s' failed, err: %v", registerPath, err.Error())
 	}
 
-	if !bytes.Contains(file, []byte(register.DepPkg)) {
+	insertReg := register.DepPkgAlias + ".Register(r)\n"
+
+	if !checkDupRegister(file, insertReg) {
 		file, err = util.AddImport(registerPath, register.DepPkgAlias, register.DepPkg)
 		if err != nil {
 			return err
-		}
-
-		insertReg := register.DepPkgAlias + ".Register(r)\n"
-		if bytes.Contains(file, []byte(insertReg)) {
-			return fmt.Errorf("the router(%s) has been registered", insertReg)
 		}
 
 		subIndexReg := regRegisterV3.FindSubmatchIndex(file)
@@ -375,6 +372,10 @@ func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) er
 	}
 
 	return nil
+}
+
+func checkDupRegister(file []byte, insertReg string) bool {
+	return bytes.Contains(file, []byte("\t"+insertReg)) || bytes.Contains(file, []byte(" "+insertReg))
 }
 
 func appendMw(mws []string, mw string) ([]string, string) {

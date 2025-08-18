@@ -56,6 +56,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/netpoll"
+
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -69,7 +71,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
-	"github.com/cloudwego/netpoll"
 )
 
 var errDialTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "dial timeout")
@@ -862,4 +863,36 @@ func TestCalcimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockConnClosed struct {
+	closed bool
+	network.Conn
+}
+
+func (m *mockConnClosed) Close() error {
+	m.closed = true
+	return m.Conn.Close()
+}
+
+// mock CRLF attacking
+func TestDoNonNilReqResp_releaseConn(t *testing.T) {
+	respStr := "HTTP/1.1 400 OK\nContent-Length: 6\n\n123456"
+	conn := &mockConnClosed{Conn: mock.NewConn(respStr + respStr)}
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				return conn, nil
+			}),
+		},
+	}
+	req := protocol.AcquireRequest()
+	resp := protocol.AcquireResponse()
+	req.SetHost("foobar")
+	retry, err := c.doNonNilReqResp(req, resp)
+	assert.False(t, retry)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, resp.StatusCode(), 400)
+	assert.DeepEqual(t, resp.Body(), []byte("123456"))
+	assert.True(t, conn.closed)
 }

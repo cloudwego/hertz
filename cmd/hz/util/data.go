@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -277,20 +278,11 @@ func SplitPackage(pkg, subFixToTrim string) string {
 	return strings.ReplaceAll(last, ".", "/")
 }
 
-func PathToImport(path, subFix string) string {
-	path = strings.TrimSuffix(path, subFix)
-	// path = RelativePath(path)
-	return strings.ReplaceAll(path, string(filepath.Separator), "/")
-}
-
-func ImportToPath(path, subFix string) string {
-	// path = RelativePath(path)
-	return strings.ReplaceAll(path, "/", string(filepath.Separator)) + subFix
-}
-
-func ImportToPathAndConcat(path, subFix string) string {
-	path = strings.TrimSuffix(path, subFix)
-	path = strings.ReplaceAll(path, "/", string(filepath.Separator))
+// ImportToSanitizedPath converts import path to file system path and replaces dots with underscores in the last component.
+// For example: "github.com/example/v1.2" becomes "github.com/example/v1_2" on Unix systems.
+// NOTE: no idea about the background, it might caused go import package issues before?
+func ImportToSanitizedPath(path string) string {
+	path = filepath.FromSlash(path)
 	if i := strings.LastIndex(path, string(filepath.Separator)); i >= 0 && i < len(path)-1 && strings.Contains(path[i+1:], ".") {
 		base := strings.ReplaceAll(path[i+1:], ".", "_")
 		dir := path[:i]
@@ -348,14 +340,11 @@ func SubPackage(mod, dir string) string {
 	if dir == "" {
 		return mod
 	}
-	return mod + "/" + PathToImport(dir, "")
+	return path.Join(mod, filepath.ToSlash(dir))
 }
 
 func SubDir(root, subPkg string) string {
-	if root == "" {
-		return ImportToPath(subPkg, "")
-	}
-	return filepath.Join(root, ImportToPath(subPkg, ""))
+	return filepath.Join(root, filepath.FromSlash(subPkg))
 }
 
 var (
@@ -412,14 +401,6 @@ func getUniqueName(name string, uniqueNameSet map[string]bool) (string, error) {
 	uniqueNameSet[uniqueName] = true
 
 	return uniqueName, nil
-}
-
-func SubPackageDir(path string) string {
-	index := strings.LastIndex(path, "/")
-	if index == -1 {
-		return ""
-	}
-	return path[:index]
 }
 
 var validFuncReg = regexp.MustCompile("[_0-9a-zA-Z]")

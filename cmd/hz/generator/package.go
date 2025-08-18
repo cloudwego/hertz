@@ -57,8 +57,8 @@ type HttpPackageGenerator struct {
 	ProjPackage    string // go module for project
 	HandlerDir     string
 	RouterDir      string
-	ModelDir       string
-	UseDir         string // model dir for third repo
+	ModelDir       string // like: biz/model or biz\model (Windows)
+	UseDir         string // XXX: should be UsePkg, not a filepath?
 	ClientDir      string // client dir for "new"/"update" command
 	IdlClientDir   string // client dir for "client" command
 	ForceClientDir string // client dir without namespace for "client" command

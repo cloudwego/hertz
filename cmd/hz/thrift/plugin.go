@@ -17,6 +17,7 @@
 package thrift
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -44,6 +45,17 @@ type Plugin struct {
 	rmTags []string
 }
 
+var debugPlugin = os.Getenv("HERTZ_DEBUG_PLUGIN") != ""
+
+func NewPlugin(args *config.Argument, req *thriftgo_plugin.Request) *Plugin {
+	ret := &Plugin{
+		args: args,
+		req:  req,
+	}
+	ret.setLogger()
+	return ret
+}
+
 func (plugin *Plugin) Run() int {
 	plugin.setLogger()
 	args := &config.Argument{}
@@ -64,7 +76,7 @@ func (plugin *Plugin) Run() int {
 		}
 	}()
 
-	err := plugin.handleRequest()
+	in, err := plugin.handleRequest()
 	if err != nil {
 		logs.Errorf("handle request failed: %s", err.Error())
 		return meta.PluginError
@@ -75,6 +87,34 @@ func (plugin *Plugin) Run() int {
 		logs.Errorf("parse args failed: %s", err.Error())
 		return meta.PluginError
 	}
+
+	if debugPlugin {
+		os.WriteFile("./req.tf", in, 0644)
+		js, err := json.Marshal(args)
+		if err != nil {
+			logs.Errorf("marshal request failed: %s\n", err.Error())
+			return meta.PluginError
+		}
+		os.WriteFile("./args.json", js, 0644)
+	}
+
+	res, err := plugin.Handle(args)
+	if err != nil {
+		logs.Errorf("handle failed: %s", err.Error())
+		return meta.PluginError
+	}
+
+	if res != nil {
+		if err = plugin.response(res); err != nil {
+			logs.Errorf("response failed: %s", err.Error())
+			return meta.PluginError
+		}
+	}
+
+	return 0
+}
+
+func (plugin *Plugin) Handle(args *config.Argument) (*thriftgo_plugin.Response, error) {
 	plugin.rmTags = args.RmTags
 	if args.CmdType == meta.CmdModel {
 		// check tag options for model mode
@@ -82,20 +122,19 @@ func (plugin *Plugin) Run() int {
 		res, err := plugin.GetResponse(nil, args.OutDir)
 		if err != nil {
 			logs.Errorf("get response failed: %s", err.Error())
-			return meta.PluginError
+			return nil, err
 		}
-		plugin.response(res)
-		if err != nil {
+		if err := plugin.response(res); err != nil {
 			logs.Errorf("response failed: %s", err.Error())
-			return meta.PluginError
+			return nil, err
 		}
-		return 0
+		return nil, nil
 	}
 
-	err = plugin.initNameStyle()
+	err := plugin.initNameStyle()
 	if err != nil {
 		logs.Errorf("init naming style failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 
 	options := CheckTagOption(plugin.args)
@@ -103,34 +142,34 @@ func (plugin *Plugin) Run() int {
 	pkgInfo, err := plugin.getPackageInfo()
 	if err != nil {
 		logs.Errorf("get http package info failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 
 	customPackageTemplate := args.CustomizePackage
 	pkg, err := args.GetGoPackage()
 	if err != nil {
 		logs.Errorf("get go package failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	handlerDir, err := args.GetHandlerDir()
 	if err != nil {
 		logs.Errorf("get handler dir failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	routerDir, err := args.GetRouterDir()
 	if err != nil {
 		logs.Errorf("get router dir failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	modelDir, err := args.GetModelDir()
 	if err != nil {
 		logs.Errorf("get model dir failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	clientDir, err := args.GetClientDir()
 	if err != nil {
 		logs.Errorf("get client dir failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	sg := generator.HttpPackageGenerator{
 		ConfigPath: customPackageTemplate,
@@ -163,38 +202,34 @@ func (plugin *Plugin) Run() int {
 	err = sg.Generate(pkgInfo)
 	if err != nil {
 		logs.Errorf("generate package failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	if len(args.Use) != 0 {
 		err = sg.Persist()
 		if err != nil {
 			logs.Errorf("persist file failed within '-use' option: %s", err.Error())
-			return meta.PluginError
+			return nil, err
 		}
 		res := thriftgo_plugin.BuildErrorResponse(errors.New(meta.TheUseOptionMessage).Error())
 		err = plugin.response(res)
 		if err != nil {
 			logs.Errorf("response failed: %s", err.Error())
-			return meta.PluginError
+			return nil, err
 		}
-		return 0
+		return nil, nil
 	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
 		logs.Errorf("format file failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
 	res, err := plugin.GetResponse(files, sg.OutputDir)
 	if err != nil {
 		logs.Errorf("get response failed: %s", err.Error())
-		return meta.PluginError
+		return nil, err
 	}
-	err = plugin.response(res)
-	if err != nil {
-		logs.Errorf("response failed: %s", err.Error())
-		return meta.PluginError
-	}
-	return 0
+
+	return res, nil
 }
 
 func (plugin *Plugin) setLogger() {
@@ -220,21 +255,21 @@ func (plugin *Plugin) recvVerboseLogger() string {
 	return verboseLog
 }
 
-func (plugin *Plugin) handleRequest() error {
+func (plugin *Plugin) handleRequest() ([]byte, error) {
 	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		return fmt.Errorf("read request failed: %s", err.Error())
+		return nil, fmt.Errorf("read request failed: %s", err.Error())
 	}
 	req, err := thriftgo_plugin.UnmarshalRequest(data)
 	if err != nil {
-		return fmt.Errorf("unmarshal request failed: %s", err.Error())
+		return data, fmt.Errorf("unmarshal request failed: %s", err.Error())
 	}
 	plugin.req = req
 	// init thriftgo utils
 	thriftgoUtil = golang.NewCodeUtils(backend.DummyLogFunc())
 	thriftgoUtil.HandleOptions(req.GeneratorParameters)
 
-	return nil
+	return data, nil
 }
 
 func (plugin *Plugin) parseArgs() (*config.Argument, error) {
@@ -260,7 +295,7 @@ func (plugin *Plugin) initNameStyle() error {
 		if len(parts) == 2 && parts[0] == "naming_style" {
 			NameStyle = styles.NewNamingStyle(parts[1])
 			if NameStyle == nil {
-				return fmt.Errorf(fmt.Sprintf("do not support \"%s\" naming style", parts[1]))
+				return fmt.Errorf("do not support \"%s\" naming style", parts[1])
 			}
 			break
 		}
