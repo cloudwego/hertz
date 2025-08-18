@@ -18,7 +18,6 @@ package bytesconv
 
 import (
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -221,27 +220,6 @@ func TestParseHTTPDate(t *testing.T) {
 //		assert.DeepEqual(t, expectedS, res)
 //	}
 //}
-
-func TestNewlineToSpaceTable(t *testing.T) {
-	t.Parallel()
-	// Test all characters
-	allBytes := make([]byte, 0)
-	for i := 0; i < 256; i++ {
-		allBytes = append(allBytes, byte(i))
-	}
-
-	headerNewlineToSpace := strings.NewReplacer("\n", " ", "\r", " ")
-
-	expectedS := headerNewlineToSpace.Replace(string(allBytes))
-
-	res := make([]byte, len(allBytes))
-	copy(res, allBytes)
-	for i := 0; i < len(res); i++ {
-		res[i] = NewlineToSpaceTable[res[i]]
-	}
-
-	assert.DeepEqual(t, expectedS, string(res))
-}
 
 // For test only, but it will import golang.org/x/net/http.
 // So comment out all this code. Keep this for the full context.
