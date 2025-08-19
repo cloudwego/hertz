@@ -193,15 +193,23 @@ func (c *Cookie) AppendBytes(dst []byte) []byte {
 	}
 	dst = append(dst, c.value...)
 
-	if c.maxAge > 0 {
+	if c.maxAge != 0 {
 		dst = append(dst, ';', ' ')
 		dst = append(dst, bytestr.StrCookieMaxAge...)
 		dst = append(dst, '=')
-		dst = bytesconv.AppendUint(dst, c.maxAge)
-	} else if !c.expire.IsZero() {
-		c.bufKV.value = bytesconv.AppendHTTPDate(c.bufKV.value[:0], c.expire)
-		dst = appendCookiePart(dst, bytestr.StrCookieExpires, c.bufKV.value)
+		if c.maxAge < 0 {
+			dst = append(dst, '0')
+		} else {
+			dst = bytesconv.AppendUint(dst, c.maxAge)
+		}
 	}
+	if !c.expire.IsZero() {
+		dst = append(dst, ';', ' ')
+		dst = append(dst, bytestr.StrCookieExpires...)
+		dst = append(dst, '=')
+		dst = bytesconv.AppendHTTPDate(dst, c.expire)
+	}
+
 	if len(c.domain) > 0 {
 		dst = appendCookiePart(dst, bytestr.StrCookieDomain, c.domain)
 	}
@@ -467,10 +475,13 @@ func (c *Cookie) MaxAge() int {
 	return c.maxAge
 }
 
-// SetMaxAge sets cookie expiration time based on seconds. This takes precedence
-// over any absolute expiry set on the cookie
+// SetMaxAge sets cookie expiration time based on seconds.
 //
-// Set max age to 0 to unset
+// Values:
+//
+//	> 0: Set max-age to the specified number of seconds
+//	= 0: Unset the max-age attribute (no max-age appears in the cookie)
+//	< 0: Set max-age=0 to instruct the browser to immediately delete the cookie
 func (c *Cookie) SetMaxAge(seconds int) {
 	c.maxAge = seconds
 }

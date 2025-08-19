@@ -285,7 +285,7 @@ func TestCookiePartitioned(t *testing.T) {
 	}
 }
 
-func TestCookieMaxAge(t *testing.T) {
+func TestCookieMaxAgeExpires(t *testing.T) {
 	t.Parallel()
 
 	var c Cookie
@@ -308,16 +308,28 @@ func TestCookieMaxAge(t *testing.T) {
 	if maxAge != c.MaxAge() {
 		t.Fatalf("max-age ignored")
 	}
+	expectedExpires := time.Date(2009, 11, 10, 23, 0, 0, 0, time.UTC)
+	if !c.Expire().Equal(expectedExpires) {
+		t.Fatalf("expires not parsed correctly. Got %v, expected %v", c.Expire(), expectedExpires)
+	}
+
+	c.SetExpire(time.Time{})
 	s = c.String()
 	if s != "foo=bar; max-age=100" {
 		t.Fatalf("missing max-age in cookie %q", s)
 	}
 
+	c.SetMaxAge(-1)
+	s = c.String()
+	if s != "foo=bar; max-age=0" {
+		t.Fatalf("negative max-age should output 0: %q", s)
+	}
+
 	expires := time.Unix(100, 0)
 	c.SetExpire(expires)
 	s = c.String()
-	if s != "foo=bar; max-age=100" {
-		t.Fatalf("expires should be ignored due to max-age: %q", s)
+	if s != "foo=bar; max-age=0; expires=Thu, 01 Jan 1970 00:01:40 GMT" {
+		t.Fatalf("expires should be included along with negative max-age (output as 0): %q", s)
 	}
 
 	c.SetMaxAge(0)
@@ -364,7 +376,7 @@ func TestCookieParse(t *testing.T) {
 	testCookieParse(t, `foo="bar"`, "foo=bar")
 	testCookieParse(t, `"foo"=bar`, `"foo"=bar`)
 	testCookieParse(t, "foo=bar; Domain=aaa.com; PATH=/foo/bar", "foo=bar; domain=aaa.com; path=/foo/bar")
-	testCookieParse(t, "foo=bar; max-age= 101 ; expires= Tue, 10 Nov 2009 23:00:00 GMT", "foo=bar; max-age=101")
+	testCookieParse(t, "foo=bar; max-age= 101 ; expires= Tue, 10 Nov 2009 23:00:00 GMT", "foo=bar; max-age=101; expires=Tue, 10 Nov 2009 23:00:00 GMT")
 	testCookieParse(t, " xxx = yyy  ; path=/a/b;;;domain=foobar.com ; expires= Tue, 10 Nov 2009 23:00:00 GMT ; ;;",
 		"xxx=yyy; expires=Tue, 10 Nov 2009 23:00:00 GMT; domain=foobar.com; path=/a/b")
 }
