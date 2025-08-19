@@ -40,8 +40,84 @@
 
 package binding
 
+import (
+	"reflect"
+	"sync"
+
+	"github.com/cloudwego/hertz/pkg/protocol"
+)
+
+// ValidatorFunc defines a validation function that can access request context.
+// It takes a request and the object to validate, returning an error if validation fails.
+type ValidatorFunc func(*protocol.Request, interface{}) error
+
+// StructValidator defines the interface for struct validation.
+//
+// Deprecated: Use ValidatorFunc in BindConfig instead. You can create a ValidatorFunc
+// from a StructValidator using MakeValidatorFunc().
 type StructValidator interface {
 	ValidateStruct(interface{}) error
 	Engine() interface{}
 	ValidateTag() string
+}
+
+// hasValidateTagCache caches whether a type has validation tags to avoid
+// redundant reflection-based tag analysis on repeated validations
+var hasValidateTagCache sync.Map
+
+// MakeValidatorFunc creates a validation function from a StructValidator.
+// It optimizes validation by caching tag analysis results and skipping
+// validation entirely for types that don't have validation tags.
+func MakeValidatorFunc(s StructValidator) ValidatorFunc {
+	if s == nil {
+		return nil
+	}
+	return func(_ *protocol.Request, v any) error {
+		rv, typeID := valueAndTypeID(v)
+		c, ok := hasValidateTagCache.Load(typeID)
+		if ok {
+			if !c.(bool) {
+				return nil
+			}
+			return s.ValidateStruct(rv)
+		}
+		tag := s.ValidateTag()
+		if tag == "" {
+			tag = defaultValidateTag
+		}
+		hasTag := containsStructTag(rv.Type(), tag, nil)
+		hasValidateTagCache.Store(typeID, hasTag)
+		if !hasTag {
+			return nil
+		}
+		return s.ValidateStruct(rv)
+	}
+}
+
+// containsStructTag recursively checks if a struct type contains any field with the specified tag.
+// It uses a checking map to prevent infinite recursion in self-referential struct types.
+func containsStructTag(rt reflect.Type, tag string, checking map[reflect.Type]bool) bool {
+	rt = dereferenceType(rt)
+	if rt.Kind() != reflect.Struct {
+		return false
+	}
+	if checking == nil {
+		checking = map[reflect.Type]bool{}
+	}
+	checking[rt] = true
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
+		_, ok := f.Tag.Lookup(tag)
+		if ok {
+			return true
+		}
+		ft := dereferenceType(f.Type)
+		if checking[ft] {
+			continue
+		}
+		if containsStructTag(ft, tag, checking) {
+			return true
+		}
+	}
+	return false
 }

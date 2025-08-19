@@ -68,20 +68,14 @@ func TestReflect_CheckPointer(t *testing.T) {
 	}
 }
 
-func TestReflect_DereferPointer(t *testing.T) {
+func TestReflect_DereferenceType(t *testing.T) {
 	var foo1 ****foo
 	foo1Val := reflect.ValueOf(foo1)
-	rt := dereferPointer(foo1Val)
-	if rt.Kind() == reflect.Ptr {
-		t.Errorf("expect non-pointer type, but get pointer")
-	}
+	rt := dereferenceType(foo1Val.Type())
 	assert.DeepEqual(t, "foo", rt.Name())
 
 	var foo2 foo
 	foo2Val := reflect.ValueOf(foo2)
-	rt2 := dereferPointer(foo2Val)
-	if rt2.Kind() == reflect.Ptr {
-		t.Errorf("expect non-pointer type, but get pointer")
-	}
+	rt2 := dereferenceType(foo2Val.Type())
 	assert.DeepEqual(t, "foo", rt2.Name())
 }

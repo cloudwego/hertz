@@ -18,6 +18,8 @@ package binding
 
 import (
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func Test_ValidateStruct(t *testing.T) {
@@ -57,8 +59,8 @@ func Test_ValidateTag(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?age=135").
 		SetHeaders("h", "header")
-	err = binder.BindAndValidate(req.Req, user, nil)
-	if err == nil {
-		t.Fatalf("expected an error, but got nil")
-	}
+	err = binder.Bind(req.Req, user, nil)
+	assert.Nil(t, err)
+	err = binder.Validate(req.Req, user)
+	assert.NotNil(t, err)
 }

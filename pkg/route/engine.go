@@ -199,9 +199,8 @@ type Engine struct {
 	clientIPFunc  app.ClientIP
 	formValueFunc app.FormValueFunc
 
-	// Custom Binder and Validator
-	binder    binding.Binder
-	validator binding.StructValidator
+	// Custom Binder
+	binder binding.Binder
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -568,50 +567,72 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 }
 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
-	var isCustomValidator bool
-	// init validator
-	if opt.CustomValidator != nil {
-		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
-		if !ok {
-			panic("customized validator does not implement binding.StructValidator")
-		}
-		engine.validator = customValidator
-		isCustomValidator = true
-	} else {
-		engine.validator = binding.NewValidator(binding.NewValidateConfig())
-		if opt.ValidateConfig != nil {
-			vConf, ok := opt.ValidateConfig.(*binding.ValidateConfig)
-			if !ok {
-				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
-			}
-			engine.validator = binding.NewValidator(vConf)
-			isCustomValidator = true
-		}
-	}
-
 	if opt.CustomBinder != nil {
-		customBinder, ok := opt.CustomBinder.(binding.Binder)
-		if !ok {
-			panic("customized binder can not implement binding.Binder")
-		}
-		engine.binder = customBinder
+		engine.initCustomBinder(opt.CustomBinder)
 		return
 	}
-	// Init binder. Due to the existence of the "BindAndValidate" interface, the Validator needs to be injected here.
-	defaultBindConfig := binding.NewBindConfig()
-	defaultBindConfig.Validator = engine.validator
-	engine.binder = binding.NewDefaultBinder(defaultBindConfig)
-	if opt.BindConfig != nil {
-		bConf, ok := opt.BindConfig.(*binding.BindConfig)
-		if !ok {
-			panic("opt.BindConfig is not the '*binding.BindConfig' type")
-		}
-		// optimize: user customized validator has the highest priority
-		if isCustomValidator || bConf.Validator == nil {
-			bConf.Validator = engine.validator
-		}
-		engine.binder = binding.NewDefaultBinder(bConf)
+	vf := engine.initValidatorFunc(opt)
+	if opt.BindConfig == nil {
+		c := binding.NewBindConfig()
+		c.ValidatorFunc = vf
+		engine.binder = binding.NewDefaultBinder(c)
+		return
 	}
+	engine.initDefaultBinder(opt.BindConfig, vf)
+}
+
+// initValidator initializes the validator function and returns whether a custom validator was used
+func (engine *Engine) initValidatorFunc(opt *config.Options) binding.ValidatorFunc {
+	customValidator := opt.CustomValidator
+	if customValidator == nil {
+		conf := opt.ValidateConfig               //nolint:staticcheck // Deprecated
+		vc, ok := conf.(*binding.ValidateConfig) //nolint:staticcheck // Deprecated
+		if !ok && conf != nil {
+			panic(fmt.Errorf("ValidateConfig type err: %T", conf))
+		}
+		if vc == nil {
+			return nil
+		}
+		customValidator = binding.NewValidator(vc) //nolint:staticcheck // Deprecated
+	}
+	switch v := customValidator.(type) {
+	case binding.ValidatorFunc:
+		// ValidatorFunc (preferred approach)
+		return v
+
+	case func(*protocol.Request, interface{}) error:
+		// Function with correct signature, convert to ValidatorFunc
+		return binding.ValidatorFunc(v)
+
+	case binding.StructValidator: //nolint:staticcheck // Deprecated
+		// StructValidator (backwards compatibility)
+		return binding.MakeValidatorFunc(v)
+
+	default:
+		panic(fmt.Errorf("customized validator type err: %T", v))
+	}
+}
+
+// initCustomBinder handles custom binder initialization
+func (engine *Engine) initCustomBinder(customBinder interface{}) {
+	binder, ok := customBinder.(binding.Binder)
+	if !ok {
+		panic("customized binder does not implement binding.Binder")
+	}
+	engine.binder = binder
+}
+
+// initDefaultBinder initializes the default binder with optional custom config
+func (engine *Engine) initDefaultBinder(bindConfig interface{}, vf binding.ValidatorFunc) {
+	bConf, ok := bindConfig.(*binding.BindConfig)
+	if !ok {
+		panic("opt.BindConfig is not the '*binding.BindConfig' type")
+	}
+	// User customized validator has the highest priority
+	if vf != nil {
+		bConf.ValidatorFunc = vf
+	}
+	engine.binder = binding.NewDefaultBinder(bConf)
 }
 
 func NewEngine(opt *config.Options) *Engine {
@@ -730,7 +751,6 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	ctx.SetBinder(engine.binder)
-	ctx.SetValidator(engine.validator)
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}

@@ -54,6 +54,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/test/mock/binder"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
@@ -630,58 +631,6 @@ func (f *fakeTransporter) ListenAndServe(onData network.OnData) error {
 	panic("implement me")
 }
 
-type mockBinder struct{}
-
-func (m *mockBinder) Name() string {
-	return "test binder"
-}
-
-func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-type mockValidator struct{}
-
-func (m *mockValidator) ValidateStruct(interface{}) error {
-	return fmt.Errorf("test mock")
-}
-
-func (m *mockValidator) Engine() interface{} {
-	return nil
-}
-
-func (m *mockValidator) ValidateTag() string {
-	return "vd"
-}
-
 type mockNonValidator struct{}
 
 func (m *mockNonValidator) ValidateStruct(interface{}) error {
@@ -698,10 +647,11 @@ func TestInitBinderAndValidator(t *testing.T) {
 	bindConfig := binding.NewBindConfig()
 	bindConfig.LooseZeroMode = true
 	opt.BindConfig = bindConfig
-	binder := &mockBinder{}
-	opt.CustomBinder = binder
-	validator := &mockValidator{}
-	opt.CustomValidator = validator
+	opt.CustomBinder = binder.NewBinder()
+	mockValidatorFunc := binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+		return errors.New("test mock")
+	})
+	opt.CustomValidator = mockValidatorFunc
 	NewEngine(opt)
 	validateConfig := binding.NewValidateConfig()
 	opt.ValidateConfig = validateConfig
@@ -709,7 +659,7 @@ func TestInitBinderAndValidator(t *testing.T) {
 	NewEngine(opt)
 }
 
-func TestInitBinderAndValidatorForPanic(t *testing.T) {
+func TestInitValidatorPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("expect a panic, but get nil")
@@ -719,10 +669,7 @@ func TestInitBinderAndValidatorForPanic(t *testing.T) {
 	bindConfig := binding.NewBindConfig()
 	bindConfig.LooseZeroMode = true
 	opt.BindConfig = bindConfig
-	binder := &mockBinder{}
-	opt.CustomBinder = binder
-	nonValidator := &mockNonValidator{}
-	opt.CustomValidator = nonValidator
+	opt.CustomValidator = &mockNonValidator{}
 	NewEngine(opt)
 }
 
@@ -837,7 +784,7 @@ func TestCustomBinder(t *testing.T) {
 		A int `query:"a"`
 	}
 	opt := config.NewOptions([]config.Option{})
-	opt.CustomBinder = &mockBinder{}
+	opt.CustomBinder = binder.NewBinder()
 	e := NewEngine(opt)
 	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
@@ -878,7 +825,87 @@ func TestCustomValidator(t *testing.T) {
 	validateConfig.MustRegValidateFunc("d", func(args ...interface{}) error {
 		return fmt.Errorf("test error")
 	})
-	opt.CustomValidator = &mockValidator{}
+	opt.CustomValidator = binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+		return errors.New("test mock")
+	})
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test mock", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidatorFunc(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	validatorFunc := func(req *protocol.Request, v any) error {
+		return fmt.Errorf("test validator func")
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = validatorFunc
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test validator func", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestWithCustomValidatorFunc(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	validatorFunc := func(req *protocol.Request, v any) error {
+		return fmt.Errorf("test with custom validator func")
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = validatorFunc
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test with custom validator func", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidatorInvalidType(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for invalid validator type")
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = "invalid validator type"
+	NewEngine(opt)
+}
+
+func TestWithCustomValidatorConversion(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	// Create a config using the deprecated WithCustomValidator function
+	opt := config.NewOptions([]config.Option{})
+
+	// Simulate using the WithCustomValidator function
+	withValidatorOpt := config.Option{F: func(o *config.Options) {
+		o.CustomValidator = binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+			return errors.New("test mock")
+		})
+	}}
+	withValidatorOpt.F(opt)
+
+	// Verify it was converted to ValidatorFunc
+	_, isValidatorFunc := opt.CustomValidator.(binding.ValidatorFunc)
+	assert.True(t, isValidatorFunc)
+
 	e := NewEngine(opt)
 	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
 		var req Req

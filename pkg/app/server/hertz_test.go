@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/test/mock/binder"
 	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
@@ -49,7 +50,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
-	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type routeEngine interface {
@@ -998,51 +998,13 @@ func TestBindConfig(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-type mockBinder struct{}
-
-func (m *mockBinder) Name() string {
-	return "test binder"
-}
-
-func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
-	return fmt.Errorf("test binder")
-}
-
-func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
 func TestCustomBinder(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
 	}
 	h := New(
 		WithHostPorts("127.0.0.1:0"),
-		WithCustomBinder(&mockBinder{}))
+		WithCustomBinder(binder.NewBinderWithValidateError(errors.New("test binder"))))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -1088,27 +1050,15 @@ func TestValidateConfigRegValidateFunc(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-type mockValidator struct{}
-
-func (m *mockValidator) ValidateStruct(interface{}) error {
-	return fmt.Errorf("test mock validator")
-}
-
-func (m *mockValidator) Engine() interface{} {
-	return nil
-}
-
-func (m *mockValidator) ValidateTag() string {
-	return "vd"
-}
-
 func TestCustomValidator(t *testing.T) {
 	type Req struct {
 		A int `query:"a" vd:"f($)"`
 	}
 	h := New(
 		WithHostPorts("127.0.0.1:0"),
-		WithCustomValidator(&mockValidator{}))
+		WithCustomValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+			return errors.New("test mock validator")
+		}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)

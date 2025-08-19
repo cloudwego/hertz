@@ -90,11 +90,10 @@ const (
 )
 
 type decoderInfo struct {
-	decoder      inDecoder.Decoder
-	needValidate bool
+	decoder inDecoder.Decoder
 }
 
-var defaultBind = NewDefaultBinder(nil)
+var defaultBind = (NewDefaultBinder(nil).(*defaultBinder))
 
 func DefaultBinder() Binder {
 	return defaultBind
@@ -111,15 +110,15 @@ type defaultBinder struct {
 
 func NewDefaultBinder(config *BindConfig) Binder {
 	if config == nil {
-		bindConfig := NewBindConfig()
-		bindConfig.initTypeUnmarshal()
-		return &defaultBinder{
-			config: bindConfig,
-		}
+		config = NewBindConfig()
 	}
 	config.initTypeUnmarshal()
 	if config.Validator == nil {
 		config.Validator = DefaultValidator()
+	}
+	// Initialize ValidatorFunc if not set, using the legacy Validator
+	if config.ValidatorFunc == nil {
+		config.ValidatorFunc = MakeValidatorFunc(config.Validator)
 	}
 	return &defaultBinder{
 		config: config,
@@ -131,7 +130,10 @@ func NewDefaultBinder(config *BindConfig) Binder {
 //
 //	obj should be a pointer.
 func BindAndValidate(req *protocol.Request, obj interface{}, pathParams param.Params) error {
-	return DefaultBinder().BindAndValidate(req, obj, pathParams)
+	if err := defaultBind.Bind(req, obj, pathParams); err != nil {
+		return err
+	}
+	return defaultBind.Validate(req, obj)
 }
 
 // Bind binds data from *protocol.Request to obj.
@@ -139,7 +141,7 @@ func BindAndValidate(req *protocol.Request, obj interface{}, pathParams param.Pa
 //
 //	obj should be a pointer.
 func Bind(req *protocol.Request, obj interface{}, pathParams param.Params) error {
-	return DefaultBinder().Bind(req, obj, pathParams)
+	return defaultBind.Bind(req, obj, pathParams)
 }
 
 // Validate validates obj with "vd" tag
@@ -148,7 +150,7 @@ func Bind(req *protocol.Request, obj interface{}, pathParams param.Params) error
 //	obj should be a pointer.
 //	Validate should be called after Bind.
 func Validate(obj interface{}) error {
-	return DefaultValidator().ValidateStruct(obj)
+	return defaultBind.Validate(nil, obj)
 }
 
 func (b *defaultBinder) tagCache(tag string) *sync.Map {
@@ -171,7 +173,7 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 	if err := checkPointer(rv); err != nil {
 		return err
 	}
-	rt := dereferPointer(rv)
+	rt := dereferenceType(rv.Type())
 	if rt.Kind() != reflect.Struct {
 		return b.bindNonStruct(req, v)
 	}
@@ -189,83 +191,21 @@ func (b *defaultBinder) bindTag(req *protocol.Request, v interface{}, params par
 		decoder := cached.(decoderInfo)
 		return decoder.decoder(req, params, rv.Elem())
 	}
-	validateTag := defaultValidateTag
-	if len(b.config.Validator.ValidateTag()) != 0 {
-		validateTag = b.config.Validator.ValidateTag()
-	}
 	decodeConfig := &inDecoder.DecodeConfig{
 		LooseZeroMode:                      b.config.LooseZeroMode,
 		DisableDefaultTag:                  b.config.DisableDefaultTag,
 		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
 		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
 		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        validateTag,
 		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
 	}
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
+	decoder, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
 	if err != nil {
 		return err
 	}
 
-	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
+	cache.Store(typeID, decoderInfo{decoder: decoder})
 	return decoder(req, params, rv.Elem())
-}
-
-func (b *defaultBinder) bindTagWithValidate(req *protocol.Request, v interface{}, params param.Params, tag string) error {
-	rv, typeID := valueAndTypeID(v)
-	if err := checkPointer(rv); err != nil {
-		return err
-	}
-	rt := dereferPointer(rv)
-	if rt.Kind() != reflect.Struct {
-		return b.bindNonStruct(req, v)
-	}
-
-	err := b.preBindBody(req, v)
-	if err != nil {
-		return fmt.Errorf("bind body failed, err=%v", err)
-	}
-	cache := b.tagCache(tag)
-	cached, ok := cache.Load(typeID)
-	if ok {
-		// cached fieldDecoder, fast path
-		decoder := cached.(decoderInfo)
-		err = decoder.decoder(req, params, rv.Elem())
-		if err != nil {
-			return err
-		}
-		if decoder.needValidate {
-			err = b.config.Validator.ValidateStruct(rv.Elem())
-		}
-		return err
-	}
-	validateTag := defaultValidateTag
-	if len(b.config.Validator.ValidateTag()) != 0 {
-		validateTag = b.config.Validator.ValidateTag()
-	}
-	decodeConfig := &inDecoder.DecodeConfig{
-		LooseZeroMode:                      b.config.LooseZeroMode,
-		DisableDefaultTag:                  b.config.DisableDefaultTag,
-		DisableStructFieldResolve:          b.config.DisableStructFieldResolve,
-		EnableDecoderUseNumber:             b.config.EnableDecoderUseNumber,
-		EnableDecoderDisallowUnknownFields: b.config.EnableDecoderDisallowUnknownFields,
-		ValidateTag:                        validateTag,
-		TypeUnmarshalFuncs:                 b.config.TypeUnmarshalFuncs,
-	}
-	decoder, needValidate, err := inDecoder.GetReqDecoder(rv.Type(), tag, decodeConfig)
-	if err != nil {
-		return err
-	}
-
-	cache.Store(typeID, decoderInfo{decoder: decoder, needValidate: needValidate})
-	err = decoder(req, params, rv.Elem())
-	if err != nil {
-		return err
-	}
-	if needValidate {
-		err = b.config.Validator.ValidateStruct(rv.Elem())
-	}
-	return err
 }
 
 func (b *defaultBinder) BindQuery(req *protocol.Request, v interface{}) error {
@@ -312,12 +252,12 @@ func (b *defaultBinder) Name() string {
 	return "hertz"
 }
 
-func (b *defaultBinder) BindAndValidate(req *protocol.Request, v interface{}, params param.Params) error {
-	return b.bindTagWithValidate(req, v, params, "")
-}
-
 func (b *defaultBinder) Bind(req *protocol.Request, v interface{}, params param.Params) error {
 	return b.bindTag(req, v, params, "")
+}
+
+func (b *defaultBinder) Validate(req *protocol.Request, v interface{}) error {
+	return b.config.ValidatorFunc(req, v)
 }
 
 // best effort binding
@@ -389,6 +329,10 @@ type validator struct {
 	validate    *exprValidator.Validator
 }
 
+// NewValidator creates a new StructValidator with the given configuration.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
+// You can convert the returned StructValidator to a ValidatorFunc using MakeValidatorFunc().
 func NewValidator(config *ValidateConfig) StructValidator {
 	validateTag := defaultValidateTag
 	if config != nil && len(config.ValidateTag) != 0 {
@@ -443,6 +387,21 @@ func (v *validator) ValidateTag() string {
 
 var defaultValidate = NewValidator(NewValidateConfig())
 
+// DefaultValidator returns the default StructValidator instance that uses tagexpr validation.
+// The validator uses the "vd" tag for validation expressions and provides comprehensive
+// struct field validation capabilities.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
+// For migration: convert this StructValidator to a ValidatorFunc using MakeValidatorFunc().
+//
+// Example migration:
+//
+//	// Old way (deprecated)
+//	validator := binding.DefaultValidator()
+//
+//	// New way (recommended)
+//	validatorFunc := binding.MakeValidatorFunc(binding.DefaultValidator())
+//	server.WithCustomValidatorFunc(validatorFunc)
 func DefaultValidator() StructValidator {
 	return defaultValidate
 }

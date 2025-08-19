@@ -76,9 +76,11 @@ type Options struct {
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
 	BindConfig                   interface{}
-	ValidateConfig               interface{}
 	CustomBinder                 interface{}
 	CustomValidator              interface{}
+
+	// Deprecated: Use CustomValidator with a ValidatorFunc instead
+	ValidateConfig interface{}
 
 	// TransporterNewer is the function to create a transporter.
 	TransporterNewer    func(opt *Options) network.Transporter
