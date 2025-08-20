@@ -47,6 +47,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -298,7 +299,7 @@ func TestReadTimeoutPriority(t *testing.T) {
 	}
 }
 
-func TestDoNonNilReqResp(t *testing.T) {
+func TestDo(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
@@ -309,14 +310,14 @@ func TestDoNonNilReqResp(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.do(context.Background(), req, resp)
 	assert.False(t, retry)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, resp.StatusCode(), 400)
 	assert.DeepEqual(t, resp.Body(), []byte("123456"))
 }
 
-func TestDoNonNilReqResp_WriteErr(t *testing.T) {
+func TestDo_WriteErr(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{},
 	}
@@ -329,7 +330,7 @@ func TestDoNonNilReqResp_WriteErr(t *testing.T) {
 	c.ClientOptions.Dialer = dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 		return &writeErrConn{mock.NewConn("HTTP/1.1 200 OK\nContent-Length: 6\n\n123456")}, nil
 	})
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.do(context.Background(), req, resp)
 	assert.True(t, retry)
 	assert.NotNil(t, err)
 
@@ -345,14 +346,14 @@ func TestDoNonNilReqResp_WriteErr(t *testing.T) {
 	c.ClientOptions.Dialer = dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
 		return &writeErrConn{mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456")}, nil
 	})
-	retry, err = c.doNonNilReqResp(req, resp)
+	retry, err = c.do(context.Background(), req, resp)
 	assert.False(t, retry)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, resp.StatusCode(), 400)
 	assert.DeepEqual(t, resp.Body(), []byte("123456"))
 }
 
-func TestDoNonNilReqResp_TLS(t *testing.T) {
+func TestDo_TLS(t *testing.T) {
 	const (
 		dialTimeout = 123 * time.Millisecond
 		dev         = 10 * time.Millisecond
@@ -374,7 +375,7 @@ func TestDoNonNilReqResp_TLS(t *testing.T) {
 
 	// HandshakeErr != nil
 	tlsconn.HandshakeErr = errors.New("testerr")
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.do(context.Background(), req, resp)
 	assert.True(t, retry)
 	assert.True(t, err == tlsconn.HandshakeErr)
 	if diff := conn.GetReadTimeout() - dialTimeout; diff < -dev || diff > dev {
@@ -384,14 +385,14 @@ func TestDoNonNilReqResp_TLS(t *testing.T) {
 
 	// HandshakeErr == nil
 	tlsconn.HandshakeErr = nil
-	retry, err = c.doNonNilReqResp(req, resp)
+	retry, err = c.do(context.Background(), req, resp)
 	assert.False(t, retry)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, resp.StatusCode(), 200)
 	assert.DeepEqual(t, resp.Body(), []byte("54321"))
 }
 
-func TestDoNonNilReqResp_Err(t *testing.T) {
+func TestDo_Err(t *testing.T) {
 	c := &HostClient{
 		ClientOptions: &ClientOptions{
 			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
@@ -402,10 +403,78 @@ func TestDoNonNilReqResp_Err(t *testing.T) {
 	req := protocol.AcquireRequest()
 	resp := protocol.AcquireResponse()
 	req.SetHost("foobar")
-	retry, err := c.doNonNilReqResp(req, resp)
+	retry, err := c.do(context.Background(), req, resp)
 	assert.True(t, retry)
 	assert.NotNil(t, err)
 	assert.Assert(t, err == errs.ErrConnectionClosed, err) // returned by writeErrConn
+}
+
+func TestDo_ContextCancel(t *testing.T) {
+	t.Run("not inject context with cancel", func(t *testing.T) {
+		c := &HostClient{
+			ClientOptions: &ClientOptions{
+				Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+					return mock.NewConn("HTTP/1.1 400 OK\nContent-Length: 6\n\n123456"), nil
+				}),
+				SenseContextCancel: true,
+			},
+		}
+		req := protocol.AcquireRequest()
+		resp := protocol.AcquireResponse()
+		req.SetHost("foobar")
+		retry, err := c.do(context.Background(), req, resp)
+		assert.False(t, retry)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, resp.StatusCode(), 400)
+		assert.DeepEqual(t, resp.Body(), []byte("123456"))
+	})
+	t.Run("inject context with cancel, cancel before Peek", func(t *testing.T) {
+		ln, _ := net.Listen("tcp", "localhost:0")
+		defer ln.Close()
+		srvFinished := make(chan struct{})
+		svr := http.Server{}
+		svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			buf := make([]byte, 1024)
+			num, err := io.ReadFull(r.Body, buf)
+			assert.True(t, num == 0)
+			assert.NotNil(t, err)
+			close(srvFinished)
+		})
+		go svr.Serve(ln)
+		peekCh := make(chan struct{})
+		addr := ln.Addr().String()
+		c := &HostClient{
+			Addr: addr,
+			ClientOptions: &ClientOptions{
+				Dialer: dialerFunc(func(n, addr string, timeout time.Duration) (network.Conn, error) {
+					conn, err := dialer.DefaultDialer().DialConnection(n, addr, timeout, nil)
+					//conn, err := standard.NewDialer().DialConnection(n, addr, timeout, nil)
+					if err != nil {
+						return nil, err
+					}
+					return waitSignalConn{
+						peekSignal: peekCh,
+						Conn:       conn,
+					}, nil
+				}),
+				SenseContextCancel: true,
+			},
+		}
+		req := protocol.AcquireRequest()
+		req.SetRequestURI("http://" + addr + "/")
+		resp := protocol.AcquireResponse()
+		req.SetHost("foobar")
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			cancel()
+			close(peekCh)
+		}()
+		retry, err := c.do(ctx, req, resp)
+		assert.False(t, retry)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, err, context.Canceled)
+		<-srvFinished
+	})
 }
 
 func doGET(t *testing.T, addr string, path string) *protocol.Response {
@@ -681,6 +750,18 @@ type retryConn struct {
 
 func (w retryConn) SetWriteTimeout(t time.Duration) error {
 	return errors.New("should retry")
+}
+
+type waitSignalConn struct {
+	network.Conn
+	peekSignal chan struct{}
+}
+
+func (c waitSignalConn) Peek(i int) ([]byte, error) {
+	if c.peekSignal != nil {
+		<-c.peekSignal
+	}
+	return c.Conn.Peek(i)
 }
 
 func TestConnInPoolRetry(t *testing.T) {

@@ -29,8 +29,9 @@ type RequestOptions struct {
 	writeTimeout time.Duration
 	// Request timeout. Usually set by DoDeadline or DoTimeout
 	// if <= 0, means not set
-	requestTimeout time.Duration
-	start          time.Time
+	requestTimeout     time.Duration
+	start              time.Time
+	senseContextCancel bool
 }
 
 // RequestOption is the only struct to set request-level options.
@@ -109,6 +110,16 @@ func WithRequestTimeout(t time.Duration) RequestOption {
 	}}
 }
 
+// WithSenseContextCancel is used to set whether the ctx passed into Do control the lifecycle of the request,
+// so that when the ctx is canceled, the corresponding request will also be finished.
+//
+// This is the request level configuration.
+func WithSenseContextCancel(b bool) RequestOption {
+	return RequestOption{F: func(o *RequestOptions) {
+		o.senseContextCancel = b
+	}}
+}
+
 func (o *RequestOptions) Apply(opts []RequestOption) {
 	for _, op := range opts {
 		op.F(o)
@@ -143,6 +154,10 @@ func (o *RequestOptions) RequestTimeout() time.Duration {
 	return o.requestTimeout
 }
 
+func (o *RequestOptions) SenseContextCancel() bool {
+	return o.senseContextCancel
+}
+
 // StartRequest records the start time of the request.
 //
 // Note: Users should not call this method.
@@ -171,6 +186,7 @@ func (o *RequestOptions) CopyTo(dst *RequestOptions) {
 	dst.dialTimeout = o.dialTimeout
 	dst.requestTimeout = o.requestTimeout
 	dst.start = o.start
+	dst.senseContextCancel = o.senseContextCancel
 }
 
 // SetPreDefinedOpts Pre define some RequestOption here
