@@ -866,7 +866,7 @@ func parseResponseBody(c *cli, res *response) (err error) {
 			if jsonErr != nil {
 				return jsonErr
 			}
-			err = fmt.Errorf(string(jsonByte))
+			err = fmt.Errorf("%s",string(jsonByte))
 		}
 	} else if res.request.result != nil {
 		if isJSONType(ct) || isXMLType(ct) {
