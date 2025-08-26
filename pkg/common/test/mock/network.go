@@ -269,7 +269,6 @@ func NewSlowWriteConn(source string) *SlowWriteConn {
 
 func (m *SlowWriteConn) Flush() error {
 	err := m.zw.Flush()
-	time.Sleep(100 * time.Millisecond)
 	if err == nil {
 		time.Sleep(m.writeTimeout)
 		return ErrWriteTimeout
