@@ -268,33 +268,146 @@ func (s *slowDialer) DialConnection(network, address string, timeout time.Durati
 	return nil, errDialTimeout
 }
 
-func TestReadTimeoutPriority(t *testing.T) {
-	c := &HostClient{
-		ClientOptions: &ClientOptions{
-			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
-				return mock.SlowReadDialer(addr)
-			}),
-			MaxConns:           1,
-			MaxConnWaitTimeout: 50 * time.Millisecond,
-			ReadTimeout:        time.Second * 3,
+func TestTimeoutPriority(t *testing.T) {
+	rtimeoutDialer := dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+		return mock.SlowReadDialer(addr)
+	})
+	wtimeoutDialer := dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+		return mock.SlowWriteDialer(addr)
+	})
+
+	noopRequestOpt := config.RequestOption{F: func(o *config.RequestOptions) {}}
+
+	tests := []struct {
+		name        string
+		dialer      network.Dialer
+		clientOpts  *ClientOptions
+		reqOpt      config.RequestOption
+		expectDelay time.Duration
+		expectedErr error
+	}{
+		// ReadTimeout cases
+		{
+			"ReadTimeout_cli_60ms_req_100ms",
+			rtimeoutDialer,
+			&ClientOptions{ReadTimeout: 60 * time.Millisecond},
+			config.WithReadTimeout(100 * time.Millisecond),
+			100 * time.Millisecond,
+			mock.ErrReadTimeout,
 		},
-		Addr: "foobar",
+		{
+			"ReadTimeout_cli_100ms_req_60ms",
+			rtimeoutDialer,
+			&ClientOptions{ReadTimeout: 100 * time.Millisecond},
+			config.WithReadTimeout(60 * time.Millisecond),
+			60 * time.Millisecond,
+			mock.ErrReadTimeout,
+		},
+		{
+			"ReadTimeout_cli_unset_req_60ms",
+			rtimeoutDialer,
+			&ClientOptions{},
+			config.WithReadTimeout(60 * time.Millisecond),
+			60 * time.Millisecond,
+			mock.ErrReadTimeout,
+		},
+		{
+			"ReadTimeout_cli_60ms_req_unset",
+			rtimeoutDialer,
+			&ClientOptions{ReadTimeout: 60 * time.Millisecond},
+			noopRequestOpt,
+			60 * time.Millisecond,
+			mock.ErrReadTimeout,
+		},
+		// WriteTimeout cases
+		{
+			"WriteTimeout_cli_100ms_req_150ms",
+			wtimeoutDialer,
+			&ClientOptions{WriteTimeout: 100 * time.Millisecond},
+			config.WithWriteTimeout(150 * time.Millisecond),
+			150 * time.Millisecond,
+			mock.ErrWriteTimeout,
+		},
+		{
+			"WriteTimeout_cli_150ms_req_100ms",
+			wtimeoutDialer,
+			&ClientOptions{WriteTimeout: 150 * time.Millisecond},
+			config.WithWriteTimeout(100 * time.Millisecond),
+			100 * time.Millisecond,
+			mock.ErrWriteTimeout,
+		},
+		{
+			"WriteTimeout_cli_unset_req_120ms",
+			wtimeoutDialer,
+			&ClientOptions{},
+			config.WithWriteTimeout(120 * time.Millisecond),
+			120 * time.Millisecond,
+			mock.ErrWriteTimeout,
+		},
+		{
+			"WriteTimeout_cli_120ms_req_unset",
+			wtimeoutDialer,
+			&ClientOptions{WriteTimeout: 120 * time.Millisecond},
+			noopRequestOpt,
+			120 * time.Millisecond,
+			mock.ErrWriteTimeout,
+		},
+		// DialTimeout cases
+		{
+			"DialTimeout_cli_60ms_req_100ms",
+			&slowDialer{},
+			&ClientOptions{DialTimeout: 60 * time.Millisecond},
+			config.WithDialTimeout(100 * time.Millisecond),
+			100 * time.Millisecond,
+			errDialTimeout,
+		},
+		{
+			"DialTimeout_cli_100ms_req_60ms",
+			&slowDialer{},
+			&ClientOptions{DialTimeout: 100 * time.Millisecond},
+			config.WithDialTimeout(60 * time.Millisecond),
+			60 * time.Millisecond,
+			errDialTimeout,
+		},
+		{
+			"DialTimeout_cli_unset_req_60ms",
+			&slowDialer{},
+			&ClientOptions{},
+			config.WithDialTimeout(60 * time.Millisecond),
+			60 * time.Millisecond,
+			errDialTimeout,
+		},
+		{
+			"DialTimeout_cli_60ms_req_unset",
+			&slowDialer{},
+			&ClientOptions{DialTimeout: 60 * time.Millisecond},
+			noopRequestOpt,
+			60 * time.Millisecond,
+			errDialTimeout,
+		},
 	}
 
-	req := protocol.AcquireRequest()
-	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithReadTimeout(200 * time.Millisecond))
-	resp := protocol.AcquireResponse()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.clientOpts.Dialer = tt.dialer
+			c := &HostClient{ClientOptions: tt.clientOpts, Addr: "foobar"}
 
-	ch := make(chan error, 1)
-	go func() {
-		ch <- c.Do(context.Background(), req, resp)
-	}()
-	select {
-	case <-time.After(time.Second * 2):
-		t.Fatalf("should use readTimeout in request options")
-	case err := <-ch:
-		assert.DeepEqual(t, mock.ErrReadTimeout, err)
+			req := protocol.AcquireRequest()
+			req.SetRequestURI("http://foobar/baz")
+			req.SetOptions(tt.reqOpt)
+
+			start := time.Now()
+			err := c.Do(context.Background(), req, protocol.AcquireResponse())
+			duration := time.Since(start)
+
+			assert.DeepEqual(t, tt.expectedErr, err)
+
+			// Check if duration is within expected delay ±30ms
+			tolerance := 30 * time.Millisecond
+			if !(duration >= tt.expectDelay-tolerance && duration <= tt.expectDelay+tolerance) {
+				t.Errorf("Duration %v not within expected %v ±%v", duration, tt.expectDelay, tolerance)
+			}
+		})
 	}
 }
 
@@ -501,64 +614,6 @@ func TestStreamResponse_ConnUpgrade(t *testing.T) {
 	n, err := s.Read(b) // same as conn.Read
 	assert.Nil(t, err)
 	assert.DeepEqual(t, string(b[:n]), "echo:hello")
-}
-
-func TestWriteTimeoutPriority(t *testing.T) {
-	c := &HostClient{
-		ClientOptions: &ClientOptions{
-			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
-				return mock.SlowWriteDialer(addr)
-			}),
-			MaxConns:           1,
-			MaxConnWaitTimeout: 50 * time.Millisecond,
-			WriteTimeout:       time.Second * 3,
-		},
-		Addr: "foobar",
-	}
-
-	req := protocol.AcquireRequest()
-	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithWriteTimeout(200 * time.Millisecond))
-	resp := protocol.AcquireResponse()
-
-	ch := make(chan error, 1)
-	go func() {
-		ch <- c.Do(context.Background(), req, resp)
-	}()
-	select {
-	case <-time.After(time.Second * 2):
-		t.Fatalf("should use writeTimeout in request options")
-	case err := <-ch:
-		assert.DeepEqual(t, mock.ErrWriteTimeout, err)
-	}
-}
-
-func TestDialTimeoutPriority(t *testing.T) {
-	c := &HostClient{
-		ClientOptions: &ClientOptions{
-			Dialer:             &slowDialer{},
-			MaxConns:           1,
-			MaxConnWaitTimeout: 50 * time.Millisecond,
-			DialTimeout:        time.Second * 3,
-		},
-		Addr: "foobar",
-	}
-
-	req := protocol.AcquireRequest()
-	req.SetRequestURI("http://foobar/baz")
-	req.SetOptions(config.WithDialTimeout(200 * time.Millisecond))
-	resp := protocol.AcquireResponse()
-
-	ch := make(chan error, 1)
-	go func() {
-		ch <- c.Do(context.Background(), req, resp)
-	}()
-	select {
-	case <-time.After(time.Second * 2):
-		t.Fatalf("should use dialTimeout in request options")
-	case err := <-ch:
-		assert.DeepEqual(t, errDialTimeout, err)
-	}
 }
 
 func TestStateObserve(t *testing.T) {
@@ -804,34 +859,6 @@ func TestContextNil(t *testing.T) {
 	}()
 	c := &HostClient{}
 	c.Do(nil, nil, nil) //nolint:staticcheck // SA1012: do not pass a nil Context
-}
-
-func TestMinTimeout(t *testing.T) {
-	tests := []struct {
-		name     string
-		d0       time.Duration
-		d1       time.Duration
-		expected time.Duration
-	}{
-		{"both positive, d0 < d1", 1 * time.Second, 2 * time.Second, 1 * time.Second},
-		{"both positive, d0 > d1", 3 * time.Second, 1 * time.Second, 1 * time.Second},
-		{"both positive, d0 = d1", 2 * time.Second, 2 * time.Second, 2 * time.Second},
-		{"d0 zero, d1 positive", 0, 2 * time.Second, 2 * time.Second},
-		{"d0 negative, d1 positive", -1 * time.Second, 2 * time.Second, 2 * time.Second},
-		{"d0 positive, d1 zero", 2 * time.Second, 0, 2 * time.Second},
-		{"d0 positive, d1 negative", 2 * time.Second, -1 * time.Second, 2 * time.Second},
-		{"both zero", 0, 0, 0},
-		{"both negative", -1 * time.Second, -2 * time.Second, 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := minTimeout(tt.d0, tt.d1)
-			if result != tt.expected {
-				t.Errorf("minTimeout(%v, %v) = %v, expected %v", tt.d0, tt.d1, result, tt.expected)
-			}
-		})
-	}
 }
 
 func TestCalcimeout(t *testing.T) {
