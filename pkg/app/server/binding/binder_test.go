@@ -969,7 +969,7 @@ func TestValidate_MultipleValidate(t *testing.T) {
 	req := newMockRequest().
 		SetRequestURI("http://foobar.com?a=9")
 	var result Test1
-	err := DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	err := BindAndValidate(req.Req, &result, nil)
 	if err == nil {
 		t.Fatalf("expected an error, but get nil")
 	}
@@ -1040,7 +1040,7 @@ func TestBind_NonStruct(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = DefaultBinder().BindAndValidate(req.Req, &id, nil)
+	err = BindAndValidate(req.Req, &id, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1211,7 +1211,7 @@ func TestBind_PreBind(t *testing.T) {
 	if err == nil {
 		t.Error("expect an error, but get nil")
 	}
-	err = DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	err = BindAndValidate(req.Req, &result, nil)
 	if err == nil {
 		t.Error("expect an error, but get nil")
 	}
@@ -1229,7 +1229,7 @@ func TestBind_BindProtobuf(t *testing.T) {
 		SetBody(body)
 
 	result := testdata.HertzReq{}
-	err = DefaultBinder().BindAndValidate(req.Req, &result, nil)
+	err = BindAndValidate(req.Req, &result, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1549,14 +1549,14 @@ func Test_Issue964(t *testing.T) {
 	}
 	r := newMockRequest().SetBody([]byte("{\n  \"startAt\": \"2006-01-02T15:04:05+07:00\"\n}")).SetJSONContentType()
 	var req CreateReq
-	err := DefaultBinder().BindAndValidate(r.Req, &req, nil)
+	err := BindAndValidate(r.Req, &req, nil)
 	if err != nil {
 		t.Error(err)
 	}
 	assert.DeepEqual(t, "2006-01-02 15:04:05 +0700 +0700", req.StartAt.String())
 	r = newMockRequest()
 	req = CreateReq{}
-	err = DefaultBinder().BindAndValidate(r.Req, &req, nil)
+	err = BindAndValidate(r.Req, &req, nil)
 	if err != nil {
 		t.Error(err)
 	}

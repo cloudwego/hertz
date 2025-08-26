@@ -64,10 +64,10 @@ func checkPointer(rv reflect.Value) error {
 	return nil
 }
 
-func dereferPointer(rv reflect.Value) reflect.Type {
-	rt := rv.Type()
-	for rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
+// dereferenceType recursively dereferences pointer types to get the underlying type.
+func dereferenceType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
 	}
-	return rt
+	return t
 }

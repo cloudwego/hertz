@@ -234,9 +234,8 @@ type RequestContext struct {
 	// clientIPFunc get form value by use custom function.
 	formValueFunc FormValueFunc
 
-	binder    binding.Binder
-	validator binding.StructValidator
-	exiled    bool
+	binder binding.Binder
+	exiled bool
 }
 
 // Exile marks this RequestContext as not to be recycled.
@@ -268,10 +267,6 @@ func (ctx *RequestContext) SetFormValueFunc(f FormValueFunc) {
 
 func (ctx *RequestContext) SetBinder(binder binding.Binder) {
 	ctx.binder = binder
-}
-
-func (ctx *RequestContext) SetValidator(validator binding.StructValidator) {
-	ctx.validator = validator
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -821,7 +816,6 @@ func (ctx *RequestContext) Copy() *RequestContext {
 	cp.clientIPFunc = ctx.clientIPFunc
 	cp.formValueFunc = ctx.formValueFunc
 	cp.binder = ctx.binder
-	cp.validator = ctx.validator
 	return cp
 }
 
@@ -1453,17 +1447,14 @@ func (ctx *RequestContext) getBinder() binding.Binder {
 	return binding.DefaultBinder()
 }
 
-func (ctx *RequestContext) getValidator() binding.StructValidator {
-	if ctx.validator != nil {
-		return ctx.validator
-	}
-	return binding.DefaultValidator()
-}
-
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return ctx.getBinder().BindAndValidate(&ctx.Request, obj, ctx.Params)
+	bi := ctx.getBinder()
+	if err := bi.Bind(&ctx.Request, obj, ctx.Params); err != nil {
+		return err
+	}
+	return bi.Validate(&ctx.Request, obj)
 }
 
 // Bind binds data from *RequestContext to obj.
@@ -1472,10 +1463,10 @@ func (ctx *RequestContext) Bind(obj interface{}) error {
 	return ctx.getBinder().Bind(&ctx.Request, obj, ctx.Params)
 }
 
-// Validate validates obj with "vd" tag
+// Validate validates obj
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return ctx.getValidator().ValidateStruct(obj)
+	return ctx.getBinder().Validate(&ctx.Request, obj)
 }
 
 // BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.
