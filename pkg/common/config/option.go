@@ -88,19 +88,25 @@ type Options struct {
 
 	// In netpoll library, OnAccept is called after connection accepted
 	// but before adding it to epoll. OnConnect is called after adding it to epoll.
-	// The difference is that onConnect can get data but OnAccept cannot.
+	// The difference is that OnConnect can get data but OnAccept cannot.
 	// If you'd like to check whether the peer IP is in the blacklist, you can use OnAccept.
+	//
 	// In go net, OnAccept is executed after connection accepted but before establishing
-	// tls connection. OnConnect is executed after establishing tls connection.
-	OnAccept  func(conn net.Conn) context.Context
+	// tls connection.
+	OnAccept func(conn net.Conn) context.Context
+	// In netpoll library, OnConnect is called after adding it to epoll,
+	// OnAccept is called after connection accepted but before adding it to epoll.
+	// The difference is that OnConnect can get data but OnAccept cannot.
+	//
+	// In go net, OnConnect is executed after establishing tls connection.
 	OnConnect func(ctx context.Context, conn network.Conn) context.Context
 
 	// Registry is used for service registry.
 	Registry registry.Registry
 	// RegistryInfo is base info used for service registry.
 	RegistryInfo *registry.Info
-	// Enable automatically HTML template reloading mechanism.
 
+	// Enable automatically HTML template reloading mechanism.
 	AutoReloadRender bool
 	// If AutoReloadInterval is set to 0(default).
 	// The HTML template will reload according to files' changing event
