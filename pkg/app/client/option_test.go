@@ -20,13 +20,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestClientOptions(t *testing.T) {
-	opt := config.NewClientOptions([]config.ClientOption{
+	// default
+	opt := config.NewClientOptions(nil)
+	assert.DeepEqual(t, 0, opt.MaxConnsPerHost)
+	assert.DeepEqual(t, consts.DefaultDialTimeout, opt.DialTimeout)
+	assert.DeepEqual(t, consts.DefaultMaxIdleConnDuration, opt.MaxIdleConnDuration)
+	assert.DeepEqual(t, true, opt.KeepAlive)
+	assert.DeepEqual(t, 5*time.Second, opt.ObservationInterval)
+
+	// config
+	opt = config.NewClientOptions([]config.ClientOption{
 		WithDialTimeout(100 * time.Millisecond),
 		WithMaxConnsPerHost(128),
 		WithMaxIdleConnDuration(5 * time.Second),

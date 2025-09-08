@@ -34,7 +34,7 @@ type ConnPoolState struct {
 	WaitConnNum int
 	// HostClient Addr
 	Addr string
-	// Maximum number of connections
+	// Maximum number of connections, <= 0 means no limit.
 	MaxConns int
 }
 
@@ -52,7 +52,7 @@ type ClientOption struct {
 type ClientOptions struct {
 	// Timeout for establishing a connection to server
 	DialTimeout time.Duration
-	// The max connection nums for each host
+	// The max connection nums for each host, <= 0 means no limit
 	MaxConnsPerHost int
 
 	MaxIdleConnDuration time.Duration
@@ -139,7 +139,6 @@ type ClientOptions struct {
 func NewClientOptions(opts []ClientOption) *ClientOptions {
 	options := &ClientOptions{
 		DialTimeout:         consts.DefaultDialTimeout,
-		MaxConnsPerHost:     consts.DefaultMaxConnsPerHost,
 		MaxIdleConnDuration: consts.DefaultMaxIdleConnDuration,
 		KeepAlive:           true,
 		ObservationInterval: time.Second * 5,
