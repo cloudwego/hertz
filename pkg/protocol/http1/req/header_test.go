@@ -46,6 +46,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -410,8 +411,28 @@ func TestTryRead(t *testing.T) {
 	rh := protocol.RequestHeader{}
 	s := "P"
 	zr := mock.NewZeroCopyReader(s)
-	err := tryRead(&rh, zr, 0)
+	err := tryReadWithLimit(&rh, zr, 0, 0)
 	assert.Nil(t, err)
+}
+
+func TestReadHeaderWithLimit(t *testing.T) {
+	validRequest := "GET /path HTTP/1.1\r\nHost: example.com\r\n\r\n"
+	zr := mock.NewZeroCopyReader(validRequest)
+	h := &protocol.RequestHeader{}
+
+	err := ReadHeaderWithLimit(h, zr, 0)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(h.Method()), "GET")
+}
+
+func TestReadHeaderWithLimitExceeded(t *testing.T) {
+	largeRequest := "GET /path HTTP/1.1\r\nHost: example.com\r\nLarge-Header: " +
+		strings.Repeat("x", 100) + "\r\n\r\n"
+	zr := mock.NewZeroCopyReader(largeRequest)
+	h := &protocol.RequestHeader{}
+
+	err := ReadHeaderWithLimit(h, zr, 50)
+	assert.NotNil(t, err)
 }
 
 func TestParseFirstLine(t *testing.T) {

@@ -521,7 +521,7 @@ func TestDoNonNilReqResp_Err(t *testing.T) {
 	assert.Assert(t, err == errs.ErrConnectionClosed, err) // returned by writeErrConn
 }
 
-func doGET(t *testing.T, addr string, path string) *protocol.Response {
+func doGET(t *testing.T, addr, path string) *protocol.Response {
 	req := protocol.AcquireRequest()
 	defer protocol.ReleaseRequest(req)
 	req.SetRequestURI("http://" + addr + path)

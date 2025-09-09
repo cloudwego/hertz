@@ -77,6 +77,7 @@ func TestOptions(t *testing.T) {
 		WithListenConfig(cfg),
 		WithAltTransport(transporter),
 		WithDisableHeaderNamesNormalizing(true),
+		WithMaxHeaderBytes(1024),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
 	assert.DeepEqual(t, opt.WriteTimeout, time.Second)
@@ -111,6 +112,7 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.ListenConfig, cfg)
 	assert.Assert(t, reflect.TypeOf(opt.AltTransporterNewer) == reflect.TypeOf(transporter))
 	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, true)
+	assert.DeepEqual(t, opt.MaxHeaderBytes, 1024)
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -145,6 +147,7 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.AutoReloadRender, false)
 	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
 	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, false)
+	assert.DeepEqual(t, opt.MaxHeaderBytes, 1<<20)
 }
 
 type mockTransporter struct{}

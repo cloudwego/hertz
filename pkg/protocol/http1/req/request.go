@@ -62,6 +62,7 @@ var (
 	errRequestHostRequired = errs.NewPublic("missing required Host header in request")
 	errGetOnly             = errs.NewPublic("non-GET request received")
 	errBodyTooLarge        = errs.New(errs.ErrBodyTooLarge, errs.ErrorTypePublic, "http1/req")
+	errHeaderTooLarge      = errs.New(errs.ErrHeaderTooLarge, errs.ErrorTypePublic, "http1/req")
 )
 
 type h1Request struct {
