@@ -1234,3 +1234,43 @@ func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }
+
+func TestServerReturns413And431OnSizeLimits(t *testing.T) {
+	h := Default(WithHostPorts("127.0.0.1:0"), WithMaxHeaderBytes(500), WithMaxRequestBodySize(1000))
+
+	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "success")
+	})
+	h.POST("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "success")
+	})
+
+	go h.Spin()
+	waitEngineRunning(h)
+	defer h.Shutdown(context.Background())
+
+	addr := testutils.GetListenerAddr(h)
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	// Test 431 - Request Header Fields Too Large
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/test", addr), nil)
+	req.Header.Set("Large-Header", strings.Repeat("x", 501)) // Exceeds 500 byte limit
+
+	resp, err := client.Do(req)
+	assert.Nil(t, err)
+	resp.Body.Close()
+
+	// If we get a response, it should be 431
+	assert.DeepEqual(t, resp.StatusCode, 431)
+
+	// Test 413 - Request Entity Too Large
+	largeBody := strings.NewReader(strings.Repeat("x", 1001)) // Exceeds 1000 byte limit
+	req2, _ := http.NewRequest("POST", fmt.Sprintf("http://%s/test", addr), largeBody)
+
+	resp2, err2 := client.Do(req2)
+	assert.Nil(t, err2)
+	resp2.Body.Close()
+
+	// Should return 413
+	assert.DeepEqual(t, resp2.StatusCode, 413)
+}

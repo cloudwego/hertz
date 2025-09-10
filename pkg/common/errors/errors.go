@@ -52,6 +52,7 @@ var (
 	ErrNeedMore           = errors.New("need more data")
 	ErrChunkedStream      = errors.New("chunked stream")
 	ErrBodyTooLarge       = errors.New("body size exceeds the given limit")
+	ErrHeaderTooLarge     = errors.New("header size exceeds the given limit")
 	ErrHijacked           = errors.New("connection has been hijacked")
 	ErrTimeout            = errors.New("timeout")
 	ErrIdleTimeout        = errors.New("idle timeout")

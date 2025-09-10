@@ -67,9 +67,13 @@ func WriteHeader(h *protocol.RequestHeader, w network.Writer) error {
 }
 
 func ReadHeader(h *protocol.RequestHeader, r network.Reader) error {
+	return ReadHeaderWithLimit(h, r, 0)
+}
+
+func ReadHeaderWithLimit(h *protocol.RequestHeader, r network.Reader, maxHeaderBytes int) error {
 	n := 1
 	for {
-		err := tryRead(h, r, n)
+		err := tryReadWithLimit(h, r, n, maxHeaderBytes)
 		if err == nil {
 			return nil
 		}
@@ -87,7 +91,7 @@ func ReadHeader(h *protocol.RequestHeader, r network.Reader) error {
 	}
 }
 
-func tryRead(h *protocol.RequestHeader, r network.Reader, n int) error {
+func tryReadWithLimit(h *protocol.RequestHeader, r network.Reader, n, maxHeaderBytes int) error {
 	h.ResetSkipNormalize()
 	b, err := r.Peek(n)
 	if len(b) == 0 {
@@ -104,8 +108,14 @@ func tryRead(h *protocol.RequestHeader, r network.Reader, n int) error {
 		return errEOFReadHeader
 	}
 	b = ext.MustPeekBuffered(r)
+	if maxHeaderBytes > 0 && len(b) > maxHeaderBytes {
+		b = b[:maxHeaderBytes]
+	}
 	headersLen, errParse := parse(h, b)
 	if errParse != nil {
+		if maxHeaderBytes > 0 && len(b) >= maxHeaderBytes && errors.Is(errParse, errs.ErrNeedMore) {
+			return errHeaderTooLarge
+		}
 		return ext.HeaderError("request", err, errParse, b)
 	}
 	ext.MustDiscard(r, headersLen)
@@ -117,14 +127,12 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	rawHeaders, _, err := ext.ReadRawHeaders(h.RawHeaders()[:0], buf[m:])
 	h.SetRawHeaders(rawHeaders)
 	if err != nil {
 		return 0, err
 	}
-	var n int
-	n, err = parseHeaders(h, buf[m:])
+	n, err := parseHeaders(h, buf[m:])
 	if err != nil {
 		return 0, err
 	}
@@ -132,7 +140,6 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 }
 
 const (
-	maxFirstLineLen   = 8 << 10
 	maxCheckMethodLen = 10
 
 	// reuse ValidHeaderFieldNameTable for Method, both are `token`
@@ -150,13 +157,6 @@ func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	if err != nil {
 		// errs.ErrNeedMore?
 		// check malformed HTTP request before reading more data
-
-		// check len
-		if len(buf) > maxFirstLineLen {
-			return 0, errMalformedHTTPRequest
-		}
-
-		// check method bytes
 		// NOTE:
 		//  only check method bytes if errs.ErrNeedMore for closing malformed connections.
 		//  for performance concern, it won't be checked in the hot path.

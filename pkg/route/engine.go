@@ -1097,6 +1097,7 @@ func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
 		DisableKeepalive:              engine.options.DisableKeepalive,
 		NoDefaultServerHeader:         engine.options.NoDefaultServerHeader,
 		MaxRequestBodySize:            engine.options.MaxRequestBodySize,
+		MaxHeaderBytes:                engine.options.MaxHeaderBytes,
 		IdleTimeout:                   engine.options.IdleTimeout,
 		ReadTimeout:                   engine.options.ReadTimeout,
 		ServerName:                    engine.GetServerName(),

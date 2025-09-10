@@ -185,6 +185,18 @@ func WithMaxRequestBodySize(bs int) config.Option {
 	}}
 }
 
+// WithMaxHeaderBytes sets the limitation of request header size. Unit: byte
+//
+// If the header size exceeds this value, an ErrHeaderTooLarge error will be returned
+// and the server will respond with HTTP 431 Request Header Fields Too Large.
+//
+// Default: 1MB (1 << 20 bytes)
+func WithMaxHeaderBytes(size int) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.MaxHeaderBytes = size
+	}}
+}
+
 // WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.

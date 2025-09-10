@@ -38,6 +38,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
 )
 
@@ -668,4 +669,23 @@ func (c *mockStatefulConn) AbortBlockingRead() {
 
 func (c *mockStatefulConn) Context() context.Context {
 	return c.Ctx
+}
+
+func TestServerMaxHeaderBytes(t *testing.T) {
+	s := &Server{Option: Option{MaxHeaderBytes: 50}}
+
+	largeHeaderReq := "GET / HTTP/1.1\r\nHost: example.com\r\nVery-Long-Header-Name: " +
+		strings.Repeat("x", 200) + "\r\n\r\n"
+
+	reader := mock.NewZeroCopyReader(largeHeaderReq)
+	h := &protocol.RequestHeader{}
+
+	err := req.ReadHeaderWithLimit(h, reader, s.MaxHeaderBytes)
+	assert.NotNil(t, err)
+}
+
+func TestDefaultErrorHandlerHeaderTooLarge(t *testing.T) {
+	ctx := app.NewContext(0)
+	defaultErrorHandler(ctx, errs.ErrHeaderTooLarge)
+	assert.DeepEqual(t, ctx.Response.StatusCode(), consts.StatusRequestHeaderFieldsTooLarge)
 }
