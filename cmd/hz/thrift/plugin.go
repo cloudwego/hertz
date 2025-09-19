@@ -422,7 +422,10 @@ func (plugin *Plugin) InsertTag() ([]*thriftgo_plugin.Generated, error) {
 func (plugin *Plugin) GetResponse(files []generator.File, outputDir string) (*thriftgo_plugin.Response, error) {
 	var contents []*thriftgo_plugin.Generated
 	for _, file := range files {
-		filePath := filepath.Join(outputDir, file.Path)
+		filePath := file.Path
+		if !filepath.IsAbs(file.Path) {
+			filePath = filepath.Join(outputDir, file.Path)
+		}
 		content := &thriftgo_plugin.Generated{
 			Content: file.Content,
 			Name:    &filePath,

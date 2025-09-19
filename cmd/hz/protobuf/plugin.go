@@ -288,6 +288,13 @@ func (plugin *Plugin) Handle(req *pluginpb.CodeGeneratorRequest, args *config.Ar
 	// all files that need to be generated are returned to protoc
 	for _, pkgFile := range pkgFiles {
 		filePath := pkgFile.Path
+		if filepath.IsAbs(filePath) {
+			rel, err := filepath.Rel(plugin.OutDir, filePath)
+			if err != nil {
+				return err
+			}
+			filePath = rel
+		}
 		content := pkgFile.Content
 		renderFile := &pluginpb.CodeGeneratorResponse_File{
 			Name:    &filePath,
