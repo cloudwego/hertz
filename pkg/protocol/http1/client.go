@@ -824,11 +824,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inP
 	c.connsLock.Lock()
 	n = len(c.conns)
 	if n == 0 {
-		maxConns := c.MaxConns
-		if maxConns <= 0 {
-			maxConns = consts.DefaultMaxConnsPerHost
-		}
-		if c.connsCount < maxConns {
+		if c.MaxConns <= 0 || c.connsCount < c.MaxConns {
 			c.connsCount++
 			createConn = true
 			if !c.connsCleanerRun {
@@ -1389,7 +1385,7 @@ type ClientOptions struct {
 	// You can change this value while the HostClient is being used
 	// using HostClient.SetMaxConns(value)
 	//
-	// DefaultMaxConnsPerHost is used if not set.
+	// no limit if <= 0.
 	MaxConns int
 
 	// Keep-alive connections are closed after this duration.
