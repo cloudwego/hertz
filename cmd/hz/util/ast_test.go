@@ -87,7 +87,7 @@ import (
 			t.Fatalf("can add import for file")
 		}
 		if buffer.String() != file[1] {
-			t.Fatalf("insert import fialed")
+			t.Fatalf("insert import failed")
 		}
 	}
 }

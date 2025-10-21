@@ -2373,14 +2373,14 @@ func TestClientState(t *testing.T) {
 			case int32(0):
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 1, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().MaxConns)
 				assert.DeepEqual(t, opt.Addr, hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(1))
 				wg.Done()
 			case int32(1):
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().TotalConnNum)
 				assert.DeepEqual(t, 0, hcs.ConnPoolState().PoolConnNum)
-				assert.DeepEqual(t, consts.DefaultMaxConnsPerHost, hcs.ConnPoolState().MaxConns)
+				assert.DeepEqual(t, 0, hcs.ConnPoolState().MaxConns)
 				assert.DeepEqual(t, opt.Addr, hcs.ConnPoolState().Addr)
 				atomic.StoreInt32(&state, int32(2))
 				wg.Done()

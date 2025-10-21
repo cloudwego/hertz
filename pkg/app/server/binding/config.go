@@ -67,8 +67,19 @@ type BindConfig struct {
 	// NOTE:
 	// time.Time is registered by default
 	TypeUnmarshalFuncs map[reflect.Type]inDecoder.CustomizeDecodeFunc
+
 	// Validator is used to validate for BindAndValidate()
+	//
+	// Deprecated: use ValidatorFunc instead. You can create a ValidatorFunc
+	// from a StructValidator using MakeValidatorFunc()
 	Validator StructValidator
+
+	// ValidatorFunc is used to validate structs with custom validation logic.
+	// It replaces the deprecated Validator field and provides request context.
+	// NOTE:
+	//   The default is nil. If set, this takes precedence over the Validator field.
+	//   The function signature allows access to the request for context-aware validation.
+	ValidatorFunc func(req *protocol.Request, v any) error
 }
 
 func NewBindConfig() *BindConfig {
@@ -142,11 +153,17 @@ func (config *BindConfig) UseStdJSONUnmarshaler() {
 
 type ValidateErrFactory func(fieldSelector, msg string) error
 
+// ValidateConfig configures validation behavior for the built-in StructValidator.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 type ValidateConfig struct {
 	ValidateTag string
 	ErrFactory  ValidateErrFactory
 }
 
+// NewValidateConfig creates a new ValidateConfig.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 func NewValidateConfig() *ValidateConfig {
 	return &ValidateConfig{}
 }
@@ -156,16 +173,22 @@ func NewValidateConfig() *ValidateConfig {
 //
 //	If force=true, allow to cover the existed same funcName.
 //	MustRegValidateFunc will remain in effect once it has been called.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 func (config *ValidateConfig) MustRegValidateFunc(funcName string, fn func(args ...interface{}) error, force ...bool) {
 	exprValidator.MustRegFunc(funcName, fn, force...)
 }
 
 // SetValidatorErrorFactory customizes the factory of validation error.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 func (config *ValidateConfig) SetValidatorErrorFactory(errFactory ValidateErrFactory) {
 	config.ErrFactory = errFactory
 }
 
-// SetValidatorTag customizes the factory of validation error.
+// SetValidatorTag customizes the validation tag.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 func (config *ValidateConfig) SetValidatorTag(tag string) {
 	config.ValidateTag = tag
 }

@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/test/mock/binder"
 	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	c "github.com/cloudwego/hertz/pkg/app/client"
@@ -49,7 +50,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/resp"
-	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 type routeEngine interface {
@@ -998,51 +998,13 @@ func TestBindConfig(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-type mockBinder struct{}
-
-func (m *mockBinder) Name() string {
-	return "test binder"
-}
-
-func (m *mockBinder) Bind(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindAndValidate(request *protocol.Request, i interface{}, params param.Params) error {
-	return fmt.Errorf("test binder")
-}
-
-func (m *mockBinder) BindQuery(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindHeader(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindPath(request *protocol.Request, i interface{}, params param.Params) error {
-	return nil
-}
-
-func (m *mockBinder) BindForm(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindJSON(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
-func (m *mockBinder) BindProtobuf(request *protocol.Request, i interface{}) error {
-	return nil
-}
-
 func TestCustomBinder(t *testing.T) {
 	type Req struct {
 		A int `query:"a"`
 	}
 	h := New(
 		WithHostPorts("127.0.0.1:0"),
-		WithCustomBinder(&mockBinder{}))
+		WithCustomBinder(binder.NewBinderWithValidateError(errors.New("test binder"))))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -1088,27 +1050,15 @@ func TestValidateConfigRegValidateFunc(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-type mockValidator struct{}
-
-func (m *mockValidator) ValidateStruct(interface{}) error {
-	return fmt.Errorf("test mock validator")
-}
-
-func (m *mockValidator) Engine() interface{} {
-	return nil
-}
-
-func (m *mockValidator) ValidateTag() string {
-	return "vd"
-}
-
 func TestCustomValidator(t *testing.T) {
 	type Req struct {
 		A int `query:"a" vd:"f($)"`
 	}
 	h := New(
 		WithHostPorts("127.0.0.1:0"),
-		WithCustomValidator(&mockValidator{}))
+		WithCustomValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+			return errors.New("test mock validator")
+		}))
 	h.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
 		var req Req
 		err := ctx.BindAndValidate(&req)
@@ -1283,4 +1233,44 @@ func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
 	assert.Nil(t, con.Close())
 	time.Sleep(20 * time.Millisecond)
 	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
+}
+
+func TestServerReturns413And431OnSizeLimits(t *testing.T) {
+	h := Default(WithHostPorts("127.0.0.1:0"), WithMaxHeaderBytes(500), WithMaxRequestBodySize(1000))
+
+	h.GET("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "success")
+	})
+	h.POST("/test", func(c context.Context, ctx *app.RequestContext) {
+		ctx.String(consts.StatusOK, "success")
+	})
+
+	go h.Spin()
+	waitEngineRunning(h)
+	defer h.Shutdown(context.Background())
+
+	addr := testutils.GetListenerAddr(h)
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	// Test 431 - Request Header Fields Too Large
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/test", addr), nil)
+	req.Header.Set("Large-Header", strings.Repeat("x", 501)) // Exceeds 500 byte limit
+
+	resp, err := client.Do(req)
+	assert.Nil(t, err)
+	resp.Body.Close()
+
+	// If we get a response, it should be 431
+	assert.DeepEqual(t, resp.StatusCode, 431)
+
+	// Test 413 - Request Entity Too Large
+	largeBody := strings.NewReader(strings.Repeat("x", 1001)) // Exceeds 1000 byte limit
+	req2, _ := http.NewRequest("POST", fmt.Sprintf("http://%s/test", addr), largeBody)
+
+	resp2, err2 := client.Do(req2)
+	assert.Nil(t, err2)
+	resp2.Body.Close()
+
+	// Should return 413
+	assert.DeepEqual(t, resp2.StatusCode, 413)
 }

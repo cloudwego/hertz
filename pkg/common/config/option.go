@@ -37,7 +37,8 @@ const (
 	defaultAddr               = ":8888"
 	defaultNetwork            = "tcp"
 	defaultBasePath           = "/"
-	defaultMaxRequestBodySize = 4 * 1024 * 1024
+	defaultMaxRequestBodySize = 4 << 20 // 4MB
+	defaultMaxHeaderBytes     = 1 << 20 // 1MB
 	defaultWaitExitTimeout    = time.Second * 5
 	defaultReadBufferSize     = 4 * 1024
 )
@@ -49,6 +50,7 @@ type Options struct {
 	IdleTimeout                  time.Duration
 	RedirectTrailingSlash        bool
 	MaxRequestBodySize           int
+	MaxHeaderBytes               int
 	MaxKeepBodySize              int
 	GetOnly                      bool
 	DisableKeepalive             bool
@@ -76,9 +78,11 @@ type Options struct {
 	TraceLevel                   interface{}
 	ListenConfig                 *net.ListenConfig
 	BindConfig                   interface{}
-	ValidateConfig               interface{}
 	CustomBinder                 interface{}
 	CustomValidator              interface{}
+
+	// Deprecated: Use CustomValidator with a ValidatorFunc instead
+	ValidateConfig interface{}
 
 	// TransporterNewer is the function to create a transporter.
 	TransporterNewer    func(opt *Options) network.Transporter
@@ -219,6 +223,10 @@ func NewOptions(opts []Option) *Options {
 		// Define the max request body size. If the body Size exceeds this value,
 		// an error will be returned
 		MaxRequestBodySize: defaultMaxRequestBodySize,
+
+		// Define the max request header size. If the header size exceeds this value,
+		// an error will be returned
+		MaxHeaderBytes: defaultMaxHeaderBytes,
 
 		// max reserved body buffer size when reset Request & Response
 		// If the body size exceeds this value, then the buffer will be put to

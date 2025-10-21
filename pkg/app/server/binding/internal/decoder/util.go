@@ -81,7 +81,6 @@ func stringToValue(elemType reflect.Type, text string, req *protocol.Request, pa
 		}
 		return v, nil
 	}
-
 }
 
 func tryTextUnmarshaler(v reflect.Value, s string) bool {

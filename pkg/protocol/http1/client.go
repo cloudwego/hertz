@@ -472,22 +472,6 @@ func (c *HostClient) do(req *protocol.Request, resp *protocol.Response) (bool, e
 	return canIdempotentRetry, err
 }
 
-func minTimeout(d0, d1 time.Duration) time.Duration {
-	if d0 <= 0 {
-		if d1 <= 0 {
-			return 0
-		}
-		return d1
-	}
-	if d1 <= 0 {
-		return d0
-	}
-	if d0 < d1 {
-		return d0
-	}
-	return d1
-}
-
 func timeUntil(deadline time.Time) time.Duration {
 	timeout := time.Until(deadline)
 	if timeout <= 0 {
@@ -514,6 +498,22 @@ func calcTimeout(deadline time.Time, timeout time.Duration) time.Duration {
 		return d
 	}
 	return timeout
+}
+
+func (c *HostClient) getTimeouts(o *config.RequestOptions) (dtimeout, rtimeout, wtimeout time.Duration) {
+	dtimeout = c.DialTimeout
+	if v := o.DialTimeout(); v > 0 {
+		dtimeout = v
+	}
+	rtimeout = c.ReadTimeout
+	if v := o.ReadTimeout(); v > 0 {
+		rtimeout = v
+	}
+	wtimeout = c.WriteTimeout
+	if v := o.WriteTimeout(); v > 0 {
+		wtimeout = v
+	}
+	return
 }
 
 func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Response) (bool, error) {
@@ -543,9 +543,11 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 		deadline = o.StartTime().Add(v)
 	}
 
+	dtimeout, rtimeout, wtimeout := c.getTimeouts(o)
+
 	// dial starts
 
-	timeout := calcTimeout(deadline, minTimeout(c.DialTimeout, o.DialTimeout()))
+	timeout := calcTimeout(deadline, dtimeout)
 	if timeout < 0 {
 		return false, errTimeout
 	}
@@ -585,7 +587,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	// write starts
 
-	timeout = calcTimeout(deadline, minTimeout(c.WriteTimeout, o.WriteTimeout()))
+	timeout = calcTimeout(deadline, wtimeout)
 	if timeout < 0 {
 		c.closeConn(cc)
 		return false, errTimeout
@@ -633,7 +635,10 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 		// short period of time (50ms) is enough for this case
 		// NOTE: can't use deadline since it likely already exceeded deadline when write
-		timeout = minTimeout(50*time.Millisecond, minTimeout(c.ReadTimeout, o.ReadTimeout()))
+		timeout = 50 * time.Millisecond
+		if rtimeout > 0 && timeout > rtimeout {
+			timeout = rtimeout
+		}
 		if conn.SetReadTimeout(timeout) != nil {
 			return true, err
 		}
@@ -655,7 +660,7 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 
 	// read starts
 
-	timeout = calcTimeout(deadline, minTimeout(c.ReadTimeout, o.ReadTimeout()))
+	timeout = calcTimeout(deadline, rtimeout)
 	if timeout < 0 {
 		c.closeConn(cc)
 		return false, errTimeout
@@ -819,11 +824,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inP
 	c.connsLock.Lock()
 	n = len(c.conns)
 	if n == 0 {
-		maxConns := c.MaxConns
-		if maxConns <= 0 {
-			maxConns = consts.DefaultMaxConnsPerHost
-		}
-		if c.connsCount < maxConns {
+		if c.MaxConns <= 0 || c.connsCount < c.MaxConns {
 			c.connsCount++
 			createConn = true
 			if !c.connsCleanerRun {
@@ -1384,7 +1385,7 @@ type ClientOptions struct {
 	// You can change this value while the HostClient is being used
 	// using HostClient.SetMaxConns(value)
 	//
-	// DefaultMaxConnsPerHost is used if not set.
+	// no limit if <= 0.
 	MaxConns int
 
 	// Keep-alive connections are closed after this duration.

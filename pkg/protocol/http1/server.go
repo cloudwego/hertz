@@ -74,6 +74,7 @@ type Option struct {
 	NoDefaultServerHeader         bool
 	DisableHeaderNamesNormalizing bool
 	MaxRequestBodySize            int
+	MaxHeaderBytes                int
 	IdleTimeout                   time.Duration
 	ReadTimeout                   time.Duration
 	ServerName                    []byte
@@ -228,7 +229,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		}
 
 		// Read Headers
-		if err = req.ReadHeader(&ctx.Request.Header, zr); err == nil {
+		if err = req.ReadHeaderWithLimit(&ctx.Request.Header, zr, s.MaxHeaderBytes); err == nil {
 			if s.EnableTrace {
 				// read header finished
 				if last := eventsToTrigger.pop(); last != nil {
@@ -505,6 +506,8 @@ func defaultErrorHandler(ctx *app.RequestContext, err error) {
 		ctx.AbortWithMsg("Request timeout", consts.StatusRequestTimeout)
 	} else if errors.Is(err, errs.ErrBodyTooLarge) {
 		ctx.AbortWithMsg("Request Entity Too Large", consts.StatusRequestEntityTooLarge)
+	} else if errors.Is(err, errs.ErrHeaderTooLarge) {
+		ctx.AbortWithMsg("Request Header Fields Too Large", consts.StatusRequestHeaderFieldsTooLarge)
 	} else {
 		ctx.AbortWithMsg("Error when parsing request", consts.StatusBadRequest)
 	}

@@ -185,6 +185,18 @@ func WithMaxRequestBodySize(bs int) config.Option {
 	}}
 }
 
+// WithMaxHeaderBytes sets the limitation of request header size. Unit: byte
+//
+// If the header size exceeds this value, an ErrHeaderTooLarge error will be returned
+// and the server will respond with HTTP 431 Request Header Fields Too Large.
+//
+// Default: 1MB (1 << 20 bytes)
+func WithMaxHeaderBytes(size int) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.MaxHeaderBytes = size
+	}}
+}
+
 // WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
@@ -358,6 +370,8 @@ func WithBindConfig(bc *binding.BindConfig) config.Option {
 }
 
 // WithValidateConfig sets validate config.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 func WithValidateConfig(vc *binding.ValidateConfig) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ValidateConfig = vc
@@ -365,16 +379,37 @@ func WithValidateConfig(vc *binding.ValidateConfig) config.Option {
 }
 
 // WithCustomBinder sets customized Binder.
+//
+// Priority: CustomBinder has the highest priority and will override any BindConfig
+// and CustomValidator settings when present. If CustomBinder is set, both the default
+// binder initialization and validator initialization are completely bypassed.
+//
+// Priority order (highest to lowest):
+//  1. CustomBinder (this option) - completely overrides all binding and validation logic
+//  2. CustomValidator/WithCustomValidatorFunc - sets custom validation for default binder
+//  3. BindConfig - configures the default binder behavior
+//  4. ValidateConfig - legacy validation configuration (deprecated)
+//  5. Default binding and validation behavior
+//
+// Note: When CustomBinder is used, validation logic must be implemented within the
+// custom binder's BindAndValidate method, as CustomValidator is ignored.
 func WithCustomBinder(b binding.Binder) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.CustomBinder = b
 	}}
 }
 
-// WithCustomValidator sets customized Binder.
+// WithCustomValidator sets customized StructValidator.
+//
+// Deprecated: Use WithCustomValidatorFunc instead.
 func WithCustomValidator(b binding.StructValidator) config.Option {
+	return WithCustomValidatorFunc(binding.MakeValidatorFunc(b))
+}
+
+// WithCustomValidatorFunc sets customized validator function.
+func WithCustomValidatorFunc(vf binding.ValidatorFunc) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		o.CustomValidator = b
+		o.CustomValidator = vf
 	}}
 }
 
