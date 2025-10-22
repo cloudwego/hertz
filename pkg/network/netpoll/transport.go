@@ -70,6 +70,7 @@ func NewTransporter(options *config.Options) network.Transporter {
 		keepAliveTimeout:         options.KeepAliveTimeout,
 		readTimeout:              options.ReadTimeout,
 		writeTimeout:             options.WriteTimeout,
+		ln:                       options.Listener,
 		listenConfig:             options.ListenConfig,
 		OnAccept:                 options.OnAccept,
 		OnConnect:                options.OnConnect,
@@ -88,17 +89,19 @@ func (t *transporter) ListenAndServe(onReq network.OnData) (err error) {
 	network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 
 	t.mu.Lock()
-	if t.listenConfig != nil {
-		t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
-	} else {
-		t.ln, err = net.Listen(t.network, t.addr)
+	if t.ln == nil {
+		if t.listenConfig != nil {
+			t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
+		} else {
+			t.ln, err = net.Listen(t.network, t.addr)
+		}
+		if err != nil {
+			t.mu.Unlock()
+			panic("create netpoll listener fail: " + err.Error())
+		}
 	}
 	ln := t.ln
 	t.mu.Unlock()
-
-	if err != nil {
-		panic("create netpoll listener fail: " + err.Error())
-	}
 
 	// Initialize custom option for EventLoop
 	opts := []netpoll.Option{

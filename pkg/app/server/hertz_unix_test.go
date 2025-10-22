@@ -81,7 +81,10 @@ func TestReusePorts(t *testing.T) {
 }
 
 func TestHertz_Spin(t *testing.T) {
-	engine := New(WithHostPorts("127.0.0.1:0"))
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
+	engine := New(WithListener(ln))
 	engine.GET("/test", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(40 * time.Millisecond)
 		path := ctx.Request.URI().PathOriginal()
@@ -106,7 +109,7 @@ func TestHertz_Spin(t *testing.T) {
 		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			_, err := hc.Get(testutils.GetURL(engine, "/test2"))
+			_, err := hc.Get(fullURL(ln, "/test2"))
 			t.Logf("[%v]begin listening\n", time.Now())
 			if err != nil {
 				t.Logf("[%v]listening closed: %v", time.Now(), err)
@@ -117,7 +120,7 @@ func TestHertz_Spin(t *testing.T) {
 	}()
 	go func() {
 		t.Logf("[%v]begin request\n", time.Now())
-		resp, err = http.Get(testutils.GetURL(engine, "/test"))
+		resp, err = http.Get(fullURL(ln, "/test"))
 		t.Logf("[%v]end request\n", time.Now())
 		ch <- struct{}{}
 	}()

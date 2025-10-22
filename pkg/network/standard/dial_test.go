@@ -29,21 +29,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
-	"github.com/cloudwego/hertz/pkg/network"
 )
-
-func getListenerAddr(trans network.Transporter) string {
-	return trans.(*transport).Listener().Addr().String()
-}
 
 func TestDial(t *testing.T) {
 	const nw = "tcp"
-	addr := "127.0.0.1:0"
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	transporter := NewTransporter(&config.Options{
-		Addr:    addr,
-		Network: nw,
+		Listener: ln,
+		Network:  nw,
 	})
 
 	go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
@@ -52,7 +50,7 @@ func TestDial(t *testing.T) {
 	defer transporter.Close()
 	time.Sleep(time.Millisecond * 100)
 
-	addr = getListenerAddr(transporter)
+	addr := ln.Addr().String()
 
 	dial := NewDialer()
 	_, err := dial.DialConnection(nw, addr, time.Second, nil)

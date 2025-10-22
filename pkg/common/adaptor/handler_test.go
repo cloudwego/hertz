@@ -41,13 +41,14 @@ import (
 var adaptorFiles embed.FS
 
 func runEngine(onCreate func(*route.Engine)) (string, *route.Engine) {
+	ln := testutils.NewTestListener(&testing.T{})
 	opt := config.NewOptions(nil)
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	onCreate(engine)
 	go engine.Run()
 	testutils.WaitEngineRunning(engine)
-	return testutils.GetListenerAddr(engine), engine
+	return ln.Addr().String(), engine
 }
 
 func TestHertzHandler_BodyStream(t *testing.T) {

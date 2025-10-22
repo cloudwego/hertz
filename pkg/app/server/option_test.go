@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
@@ -148,6 +149,29 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
 	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, false)
 	assert.DeepEqual(t, opt.MaxHeaderBytes, 1<<20)
+}
+
+func TestWithListener(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
+	cfg := &net.ListenConfig{}
+	opt := config.NewOptions([]config.Option{
+		WithHostPorts("127.0.0.1:8888"),
+		WithNetwork("udp"),
+		WithListenConfig(cfg),
+		WithListener(ln),
+	})
+
+	// Listener should be set
+	assert.DeepEqual(t, opt.Listener, ln)
+
+	// Network and Addr should be updated from listener
+	assert.DeepEqual(t, opt.Network, ln.Addr().Network())
+	assert.DeepEqual(t, opt.Addr, ln.Addr().String())
+
+	// ListenConfig should be reset
+	assert.Assert(t, opt.ListenConfig == nil)
 }
 
 type mockTransporter struct{}
