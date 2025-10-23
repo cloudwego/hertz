@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -32,13 +33,13 @@ import (
 )
 
 func TestTransport(t *testing.T) {
-	const nw = "tcp"
 	t.Run("TestDefault", func(t *testing.T) {
-		var addr = "127.0.0.1:0"
+		ln := testutils.NewTestListener(t)
+		defer ln.Close()
+
 		var onConnFlag, onAcceptFlag, onDataFlag int32
 		transporter := NewTransporter(&config.Options{
-			Addr:    addr,
-			Network: nw,
+			Listener: ln,
 			OnConnect: func(ctx context.Context, conn network.Conn) context.Context {
 				atomic.StoreInt32(&onConnFlag, 1)
 				return ctx
@@ -56,7 +57,8 @@ func TestTransport(t *testing.T) {
 		defer transporter.Close()
 		time.Sleep(100 * time.Millisecond)
 
-		addr = getListenerAddr(transporter)
+		addr := ln.Addr().String()
+		nw := ln.Addr().Network()
 
 		dial := NewDialer()
 		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
@@ -71,11 +73,12 @@ func TestTransport(t *testing.T) {
 	})
 
 	t.Run("TestSenseClientDisconnection", func(t *testing.T) {
-		var addr = "127.0.0.1:0"
+		ln := testutils.NewTestListener(t)
+		defer ln.Close()
+
 		var onReqFlag int32
 		transporter := NewTransporter(&config.Options{
-			Addr:                     addr,
-			Network:                  nw,
+			Listener:                 ln,
 			SenseClientDisconnection: true,
 		})
 
@@ -88,7 +91,8 @@ func TestTransport(t *testing.T) {
 		defer transporter.Close()
 		time.Sleep(100 * time.Millisecond)
 
-		addr = getListenerAddr(transporter)
+		addr := ln.Addr().String()
+		nw := ln.Addr().Network()
 
 		dial := NewDialer()
 		conn, err := dial.DialConnection(nw, addr, time.Second, nil)
@@ -110,8 +114,8 @@ func TestTransport(t *testing.T) {
 			})
 		}}
 		transporter := NewTransporter(&config.Options{
+			Network:      "tcp",
 			Addr:         "127.0.0.1:0",
-			Network:      nw,
 			ListenConfig: listenCfg,
 		})
 		go transporter.ListenAndServe(func(ctx context.Context, conn interface{}) error {
@@ -129,5 +133,36 @@ func TestTransport(t *testing.T) {
 				return nil
 			})
 		})
+	})
+
+	t.Run("TestWithListener", func(t *testing.T) {
+		ln := testutils.NewTestListener(t)
+		defer ln.Close()
+
+		var onDataFlag int32
+		trans := NewTransporter(&config.Options{
+			Listener: ln,
+		}).(*transporter)
+		go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+			atomic.StoreInt32(&onDataFlag, 1)
+			return nil
+		})
+		defer trans.Close()
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify listener is used
+		assert.DeepEqual(t, ln.Addr().String(), trans.Listener().Addr().String())
+
+		nw := ln.Addr().Network()
+
+		// Connect and send data
+		dial := NewDialer()
+		conn, err := dial.DialConnection(nw, ln.Addr().String(), time.Second, nil)
+		assert.Nil(t, err)
+		_, err = conn.Write([]byte("test"))
+		assert.Nil(t, err)
+		time.Sleep(100 * time.Millisecond)
+
+		assert.Assert(t, atomic.LoadInt32(&onDataFlag) == 1)
 	})
 }

@@ -17,50 +17,15 @@
 package testutils
 
 import (
-	"context"
-	"io"
-	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/route"
 )
 
-func TestGetListener(t *testing.T) {
-	msg := "world"
-	e := route.NewEngine(&config.Options{Network: "tcp", Addr: "127.0.0.1:0"})
-	e.GET("/hello", func(ctx context.Context, c *app.RequestContext) {
-		c.String(consts.StatusOK, msg)
-	})
-	defer e.Shutdown(context.Background())
-
-	go e.Run()
-	time.Sleep(20 * time.Millisecond)
-
-	type AppServer struct {
-		*route.Engine
-	}
-	if GetURL(e, "") != GetURL(&AppServer{e}, "") {
-		t.Fatal("ne")
-	}
-
-	resp, err := http.Get(GetURL(e, "/hello"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := string(body); s != msg {
-		t.Fatal(s, "!=", msg)
-	}
+func TestNewTestListener(t *testing.T) {
+	ln := NewTestListener(t)
+	defer ln.Close()
+	t.Log(ln.Addr())
 }
 
 type routeEngine struct {

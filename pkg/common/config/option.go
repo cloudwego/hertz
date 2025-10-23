@@ -76,6 +76,7 @@ type Options struct {
 	ALPN                         bool
 	Tracers                      []interface{}
 	TraceLevel                   interface{}
+	Listener                     net.Listener
 	ListenConfig                 *net.ListenConfig
 	BindConfig                   interface{}
 	CustomBinder                 interface{}

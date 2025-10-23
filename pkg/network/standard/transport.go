@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,7 +47,8 @@ type transport struct {
 	OnConnect                func(ctx context.Context, conn network.Conn) context.Context
 
 	// active connections. it +1 after accept and -1 after handler returns
-	active int32
+	active       int32
+	shuttingDown int32
 
 	mu sync.RWMutex
 	ln net.Listener
@@ -61,24 +63,33 @@ func (t *transport) Listener() net.Listener {
 func (t *transport) serve() (err error) {
 	network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	t.mu.Lock()
-	if t.listenConfig != nil {
-		t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
-	} else {
-		t.ln, err = net.Listen(t.network, t.addr)
+	if t.ln == nil {
+		if t.listenConfig != nil {
+			t.ln, err = t.listenConfig.Listen(context.Background(), t.network, t.addr)
+		} else {
+			t.ln, err = net.Listen(t.network, t.addr)
+		}
+		if err != nil {
+			t.mu.Unlock()
+			return err
+		}
 	}
 	// fix concurrency issue
 	// normally listener must not be changed during serve()
 	ln := t.ln
 	t.mu.Unlock()
-	if err != nil {
-		return err
-	}
 	hlog.SystemLogger().Infof("HTTP server listening on address=%s", ln.Addr().String())
 	for {
 		ctx := context.Background()
 		conn, err := ln.Accept()
 		if err != nil {
-			hlog.SystemLogger().Errorf("Error=%s", err.Error())
+			if atomic.LoadInt32(&t.shuttingDown) > 0 {
+				return nil
+			}
+			if strings.Contains(err.Error(), "closed") {
+				return nil
+			}
+			hlog.SystemLogger().Errorf("Accept err: %v", err)
 			return err
 		}
 		t.updateActive(1)
@@ -135,6 +146,8 @@ var (
 )
 
 func (t *transport) Shutdown(ctx context.Context) error {
+	atomic.StoreInt32(&t.shuttingDown, 1)
+
 	defer func() {
 		network.UnlinkUdsFile(t.network, t.addr) //nolint:errcheck
 	}()
@@ -180,6 +193,7 @@ func NewTransporter(options *config.Options) network.Transporter {
 		readTimeout:              options.ReadTimeout,
 		senseClientDisconnection: options.SenseClientDisconnection,
 		tls:                      options.TLS,
+		ln:                       options.Listener,
 		listenConfig:             options.ListenConfig,
 		OnAccept:                 options.OnAccept,
 		OnConnect:                options.OnConnect,

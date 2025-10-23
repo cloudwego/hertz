@@ -19,7 +19,6 @@ package http1
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -27,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/network/netpoll"
@@ -35,8 +35,7 @@ import (
 )
 
 func TestGcBodyStream(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	ln := testutils.NewTestListener(t)
 	defer ln.Close()
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		for range [1024]int{} {
@@ -72,8 +71,7 @@ func TestGcBodyStream(t *testing.T) {
 }
 
 func TestMaxConn(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
+	ln := testutils.NewTestListener(t)
 	defer ln.Close()
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("hello world\n"))
