@@ -56,9 +56,7 @@ const (
 	// for establishing TCP connections.
 	DefaultDialTimeout = time.Second
 
-	// DefaultMaxConnsPerHost is the maximum number of concurrent connections
-	// http client may establish per host by default (i.e. if
-	// Client.MaxConnsPerHost isn't set).
+	// Deprecated: no default max connections per host by default.
 	DefaultMaxConnsPerHost = 512
 
 	// DefaultMaxIdleConnDuration is the default duration before idle keep-alive

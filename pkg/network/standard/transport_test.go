@@ -24,6 +24,7 @@ import (
 	"time"
 
 	internalNetwork "github.com/cloudwego/hertz/internal/network"
+	"github.com/cloudwego/hertz/internal/testutils"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -111,4 +112,23 @@ func TestTransporter(t *testing.T) {
 	close(handlerExit)                // signal handler to return
 	time.Sleep(10 * time.Millisecond) // wait handler returns, and active conn to be updated.
 	checkActiveConn(0)
+}
+
+func TestAcceptError(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
+	trans := NewTransporter(&config.Options{Listener: ln}).(*transport)
+	errCh := make(chan error, 1)
+	go func() { errCh <- trans.ListenAndServe(func(context.Context, interface{}) error { return nil }) }()
+
+	time.Sleep(10 * time.Millisecond) // Wait for serve to start
+
+	// Close listener to trigger error
+	ln.Close()
+
+	// Wait for serve to exit with error
+	if err := <-errCh; err != nil {
+		t.Fatal("expected nil after listener close")
+	}
 }

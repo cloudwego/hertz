@@ -162,6 +162,26 @@ func WithHostPorts(hp string) config.Option {
 	}}
 }
 
+// WithListener sets the listener to use.
+//
+// If set, the server will use this listener instead of creating a new one.
+// This is useful for custom listener implementations or testing.
+// Note: This will update Network and Addr based on the listener's address,
+// and reset ListenConfig since it's not needed when a listener is provided.
+//
+// WARNING: Custom net.Listener implementations may not be supported by cloudwego/netpoll.
+// If your custom listener doesn't support netpoll, you need to explicitly set the transporter to the standard library:
+//
+//	WithListener(customListener), WithTransport(standard.NewTransporter)
+func WithListener(ln net.Listener) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.Listener = ln
+		o.Network = ln.Addr().Network()
+		o.Addr = ln.Addr().String()
+		o.ListenConfig = nil
+	}}
+}
+
 // WithBasePath sets basePath.Must be "/" prefix and suffix,If not the default concatenate "/"
 func WithBasePath(basePath string) config.Option {
 	return config.Option{F: func(o *config.Options) {

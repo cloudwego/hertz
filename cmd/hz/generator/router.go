@@ -300,7 +300,7 @@ func (c childrenRouterInfo) Less(i, j int) bool {
 	ci := removeNonLetterPrefix(c[i].Path)
 	cj := removeNonLetterPrefix(c[j].Path)
 
-	// if ci == cj, use HTTP mothod for sort, preventing sorting inconsistencies
+	// if ci == cj, use HTTP method for sort, preventing sorting inconsistencies
 	if ci == cj {
 		return c[i].HttpMethod < c[j].HttpMethod
 	}
