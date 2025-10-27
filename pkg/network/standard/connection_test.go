@@ -35,7 +35,7 @@ import (
 
 func TestRead(t *testing.T) {
 	c := mockConn{}
-	conn := newConn(&c, 4096)
+	conn := NewConn(&c, 4096)
 	// test read small data
 	b := make([]byte, 1)
 	conn.Read(b)
@@ -69,7 +69,7 @@ func TestReadFromHasBufferAvailable(t *testing.T) {
 	tailData := []byte("tail data")
 	data := strings.NewReader(rawData)
 	c := &mockConn{}
-	conn := newConn(c, 4096)
+	conn := NewConn(c, 4096)
 
 	// WriteBinary will malloc a buffer if no buffer available.
 	_, err0 := conn.WriteBinary(preData)
@@ -95,7 +95,7 @@ func TestReadFromNoBufferAvailable(t *testing.T) {
 	tailData := []byte("tail data")
 	data := strings.NewReader(rawData)
 	c := &mockConn{}
-	conn := newConn(c, 4096)
+	conn := NewConn(c, 4096)
 	reader, ok := conn.(io.ReaderFrom)
 	assert.True(t, ok)
 
@@ -114,7 +114,7 @@ func TestReadFromNoBufferAvailable(t *testing.T) {
 
 func TestPeekRelease(t *testing.T) {
 	c := mockConn{}
-	conn := newConn(&c, 4096)
+	conn := NewConn(&c, 4096)
 	b, _ := conn.Peek(1)
 	if len(b) != 1 {
 		t.Errorf("unexpected len(b): %v, expected 1", len(b))
@@ -163,7 +163,7 @@ func TestPeekRelease(t *testing.T) {
 
 func TestReadBytes(t *testing.T) {
 	c := mockConn{}
-	conn := newConn(&c, 4096)
+	conn := NewConn(&c, 4096)
 	b, _ := conn.Peek(1)
 	if len(b) != 1 {
 		t.Errorf("unexpected len(b): %v, expected 1", len(b))
@@ -196,7 +196,7 @@ func TestReadBytes(t *testing.T) {
 
 func TestWriteLogic(t *testing.T) {
 	c := mockConn{}
-	conn := newConn(&c, 4096)
+	conn := NewConn(&c, 4096)
 	conn.Malloc(8190)
 	connection := conn.(*Conn)
 	// test left buffer
@@ -248,7 +248,7 @@ func TestInitializeConn(t *testing.T) {
 			address: "192.168.0.20:80",
 		},
 	}
-	conn := newConn(&c, 8192)
+	conn := NewConn(&c, 8192)
 	// check the assignment
 	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetDeadline(time.Time{}))
 	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadDeadline(time.Time{}))
@@ -376,7 +376,7 @@ func TestConnSetFinalizer(t *testing.T) {
 	Mock((*linkBufferNode).Release).To(mockLinkBufferNodeRelease).Build()
 
 	atomic.StoreUint32(&release_count, 0)
-	_ = newConn(&mockConn{}, 4096)
+	_ = NewConn(&mockConn{}, 4096)
 
 	runtime.GC()
 	time.Sleep(time.Millisecond * 100)
@@ -388,7 +388,7 @@ func TestFillReturnErrAndN(t *testing.T) {
 	c := &mockConn{
 		readReturnErr: true,
 	}
-	conn := newConn(c, 4099)
+	conn := NewConn(c, 4099)
 	b, err := conn.Peek(4099)
 	assert.Nil(t, err)
 	assert.DeepEqual(t, len(b), 4099)

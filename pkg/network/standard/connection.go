@@ -579,7 +579,7 @@ func (c *TLSConn) ConnectionState() tls.ConnectionState {
 	return c.c.(network.ConnTLSer).ConnectionState()
 }
 
-func newConn(c net.Conn, size int) network.Conn {
+func NewConn(c net.Conn, size int) network.Conn {
 	maxSize := defaultMallocSize
 	if size > maxSize {
 		maxSize = size

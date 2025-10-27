@@ -79,7 +79,7 @@ func (t *transport) serve() (err error) {
 		if t.tls != nil {
 			c = newTLSConn(tls.Server(conn, t.tls), t.readBufferSize)
 		} else {
-			c = newConn(conn, t.readBufferSize)
+			c = NewConn(conn, t.readBufferSize)
 		}
 
 		if t.OnConnect != nil {

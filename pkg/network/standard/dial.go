@@ -33,7 +33,7 @@ func (d *dialer) DialConnection(n, address string, timeout time.Duration, tlsCon
 		conn = newTLSConn(cTLS, defaultMallocSize)
 		return
 	}
-	conn = newConn(c, defaultMallocSize)
+	conn = NewConn(c, defaultMallocSize)
 	return
 }
 
