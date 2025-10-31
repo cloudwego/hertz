@@ -821,7 +821,7 @@ func FakeBool(v interface{}) bool {
 		return bol
 	default:
 		vv := dereferenceValue(reflect.ValueOf(v))
-		if vv.IsValid() || vv.IsZero() {
+		if !vv.IsValid() || vv.IsZero() {
 			return false
 		}
 		return true
