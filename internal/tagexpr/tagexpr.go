@@ -820,11 +820,10 @@ func FakeBool(v interface{}) bool {
 		}
 		return bol
 	default:
-		vv := dereferenceValue(reflect.ValueOf(v))
-		if vv.IsValid() || vv.IsZero() {
-			return false
-		}
-		return true
+		// https://github.com/bytedance/go-tagexpr/blob/v2.9.2/tagexpr.go#L801
+		// the original implementation either returns false or panics for default case
+		// we always return false for unsupported types to avoid introducing new behavior
+		return false
 	}
 }
 
