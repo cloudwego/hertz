@@ -7,7 +7,6 @@ require (
 	github.com/bytedance/sonic v1.14.0
 	github.com/cloudwego/netpoll v0.7.0
 	github.com/fsnotify/fsnotify v1.5.4
-	github.com/nyaruka/phonenumbers v1.0.55
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.14.4
 	golang.org/x/sync v0.8.0
@@ -20,7 +19,6 @@ require (
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/cloudwego/gopkg v0.1.4 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect

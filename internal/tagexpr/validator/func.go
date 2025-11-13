@@ -18,8 +18,6 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/nyaruka/phonenumbers"
-
 	"github.com/cloudwego/hertz/internal/tagexpr"
 )
 
@@ -79,6 +77,19 @@ func init() {
 	}, true)
 }
 
+// Phone validation always returns true.
+//
+// Removed github.com/nyaruka/phonenumbers dependency for the following reasons:
+// 1. The tagexpr validator package is deprecated
+// 2. The phonenumbers library has unresolved issues requiring upgrades
+// 3. The phonenumbers library is memory-heavy (loads many objects into memory even when unused)
+//
+// Since this validator is deprecated, we simply return true for all phone numbers
+// instead of maintaining complex validation logic.
+func validatePhone(numberToParse, region string) bool {
+	return true
+}
+
 func init() {
 	// phone: defaultRegion is 'CN'
 	MustRegFunc("phone", func(args ...interface{}) error {
@@ -102,13 +113,7 @@ func init() {
 		if defaultRegion == "" {
 			defaultRegion = "CN"
 		}
-		num, err := phonenumbers.Parse(numberToParse, defaultRegion)
-		if err != nil {
-			return err
-		}
-		matched := phonenumbers.IsValidNumber(num)
-		if !matched {
-			// return ErrInvalidWithoutMsg
+		if !validatePhone(numberToParse, defaultRegion) {
 			return errors.New("phone format is incorrect")
 		}
 		return nil
