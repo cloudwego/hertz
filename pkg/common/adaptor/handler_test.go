@@ -115,6 +115,33 @@ func TestHertzHandler_Chunked(t *testing.T) {
 	}
 }
 
+func TestHertzHandler_WriteHeader(t *testing.T) {
+	h := HertzHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "0")
+		w.WriteHeader(500)
+		w.(http.Flusher).Flush()
+		time.Sleep(time.Second) // Simulate long-running handler
+	}))
+	addr, e := runEngine(func(e *route.Engine) {
+		e.GET("/test", h)
+	})
+	defer e.Close()
+
+	conn, err := net.Dial("tcp", addr)
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	_, err = conn.Write([]byte("GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n"))
+	assert.Nil(t, err)
+
+	// Set a short read deadline to verify headers arrive quickly after WriteHeader()
+	conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+	b := make([]byte, 200)
+	n, err := conn.Read(b)
+	assert.Nil(t, err)
+	assert.Assert(t, strings.HasPrefix(string(b[:n]), "HTTP/1.1 500 "))
+}
+
 func TestHertzHandler_Hijack(t *testing.T) {
 	h := HertzHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, rw, err := w.(http.Hijacker).Hijack()
@@ -152,6 +179,49 @@ func TestHertzHandler_Hijack(t *testing.T) {
 	n, err = conn.Read(b) // Keep-Alive will not work if hijacked
 	assert.Assert(t, err == io.EOF)
 	assert.Assert(t, n == 0)
+}
+
+// TestHertzHandler_WriteHeader_Hijack verifies that headers are properly flushed
+// before hijacking the connection. This test ensures that when WriteHeader is called
+// before Hijack, the headers are correctly sent and the connection can be taken over.
+func TestHertzHandler_WriteHeader_Hijack(t *testing.T) {
+	h := HertzHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Custom-Header", "test-value")
+		w.WriteHeader(200)
+
+		conn, rw, err := w.(http.Hijacker).Hijack()
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		_, err = rw.WriteString("hijacked response body")
+		assert.Nil(t, err)
+		assert.Nil(t, rw.Flush())
+	}))
+	addr, e := runEngine(func(e *route.Engine) {
+		e.GET("/test", h)
+	})
+	defer e.Close()
+
+	conn, err := net.Dial("tcp", addr)
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	_, err = conn.Write([]byte("GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n"))
+	assert.Nil(t, err)
+
+	// Wait briefly for server to process and send response
+	time.Sleep(50 * time.Millisecond)
+	conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+
+	b := make([]byte, 1024)
+	n, err := conn.Read(b)
+	assert.Nil(t, err)
+
+	response := string(b[:n])
+	t.Logf("Response: %q", response)
+	assert.Assert(t, strings.Contains(response, "HTTP/1.1 200 OK"), response)
+	assert.Assert(t, strings.Contains(response, "X-Custom-Header: test-value"), response)
+	assert.Assert(t, strings.Contains(response, "hijacked response body"), response)
 }
 
 func TestHertzHandler_FSEmbed(t *testing.T) {
