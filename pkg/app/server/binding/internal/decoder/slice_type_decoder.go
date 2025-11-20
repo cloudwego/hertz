@@ -62,6 +62,8 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 	var defaultValue string
 	var bindRawBody bool
 	var isDefault bool
+	var defaultDisabled bool // Flag to prevent default value from overriding JSON-provided values
+
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			if tagInfo.Key == jsonTag {
@@ -72,8 +74,10 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 				} else {
 					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 				}
-				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) { //
+				// If field exists in JSON body, disable default value to prevent override
+				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
 					defaultValue = ""
+					defaultDisabled = true
 				}
 			}
 			continue
@@ -82,7 +86,10 @@ func (d *sliceTypeFieldTextDecoder) Decode(req *protocol.Request, params param.P
 			bindRawBody = true
 		}
 		texts = tagInfo.SliceGetter(req, params, tagInfo.Value)
-		defaultValue = tagInfo.Default
+		// Only set defaultValue if not disabled by JSON tag and not already set
+		if !defaultDisabled && len(defaultValue) == 0 {
+			defaultValue = tagInfo.Default
+		}
 		if len(texts) != 0 {
 			err = nil
 			break

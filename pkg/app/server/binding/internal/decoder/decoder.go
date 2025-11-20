@@ -183,7 +183,11 @@ func getFieldDecoder(pInfo parentInfos, field reflect.StructField, index int, by
 			idxes = append(idxes, index)
 			pInfo.Indexes = idxes
 			pInfo.Types = append(pInfo.Types, el)
-			pInfo.JSONName = newParentJSONName
+			// For anonymous embedded structs, keep the parent JSONName at the same level
+			// because Go's JSON marshaling flattens anonymous struct fields to the parent level
+			if !field.Anonymous {
+				pInfo.JSONName = newParentJSONName
+			}
 			dec, err := getFieldDecoder(pInfo, el.Field(i), i, byTag, config)
 			if err != nil {
 				return nil, err

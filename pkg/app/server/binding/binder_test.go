@@ -1743,3 +1743,77 @@ func Benchmark_Binding(b *testing.B) {
 		}
 	}
 }
+
+// TestBind_AnonymousFieldWithDefaultTag tests that default tag values don't override
+// JSON-provided values when using anonymous struct embedding with multiple tags
+func TestBind_AnonymousFieldWithDefaultTag(t *testing.T) {
+	type PageInfo struct {
+		Page  int `json:"page" form:"page" query:"page" default:"1"`
+		Limit int `json:"limit" form:"limit" query:"limit" default:"15"`
+	}
+	type Req struct {
+		Keyword string `json:"keyword"`
+		PageInfo
+	}
+
+	// Test 1: JSON values should override defaults
+	req := protocol.NewRequest("POST", "/search", nil)
+	req.SetBody([]byte(`{"keyword":"test","page":2,"limit":5}`))
+	req.Header.SetContentTypeBytes([]byte("application/json"))
+	req.Header.SetContentLength(37)
+
+	var r Req
+	err := DefaultBinder().Bind(req, &r, nil)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "test", r.Keyword)
+	assert.DeepEqual(t, 2, r.Page)  // Should use JSON value, not default
+	assert.DeepEqual(t, 5, r.Limit) // Should use JSON value, not default
+
+	// Test 2: Empty JSON should use defaults
+	req2 := protocol.NewRequest("POST", "/search", nil)
+	req2.SetBody([]byte(`{"keyword":"test"}`))
+	req2.Header.SetContentTypeBytes([]byte("application/json"))
+	req2.Header.SetContentLength(20)
+
+	var r2 Req
+	err2 := DefaultBinder().Bind(req2, &r2, nil)
+	assert.Nil(t, err2)
+	assert.DeepEqual(t, "test", r2.Keyword)
+	assert.DeepEqual(t, 1, r2.Page)   // Should use default value
+	assert.DeepEqual(t, 15, r2.Limit) // Should use default value
+
+	// Test 3: Query values should work
+	req3 := protocol.NewRequest("POST", "/search?page=3&limit=4", nil)
+	req3.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+
+	var r3 Req
+	err3 := DefaultBinder().Bind(req3, &r3, nil)
+	assert.Nil(t, err3)
+	assert.DeepEqual(t, 3, r3.Page)  // Should use query value
+	assert.DeepEqual(t, 4, r3.Limit) // Should use query value
+
+	// Test 4: Nested anonymous structs (multi-level)
+	type BaseInfo struct {
+		Page int `json:"page" form:"page" default:"1"`
+	}
+	type ExtInfo struct {
+		BaseInfo
+		Limit int `json:"limit" form:"limit" default:"20"`
+	}
+	type Req2 struct {
+		Keyword string `json:"keyword"`
+		ExtInfo
+	}
+
+	req4 := protocol.NewRequest("POST", "/search", nil)
+	req4.SetBody([]byte(`{"keyword":"nested","page":10,"limit":30}`))
+	req4.Header.SetContentTypeBytes([]byte("application/json"))
+	req4.Header.SetContentLength(44)
+
+	var r4 Req2
+	err4 := DefaultBinder().Bind(req4, &r4, nil)
+	assert.Nil(t, err4)
+	assert.DeepEqual(t, "nested", r4.Keyword)
+	assert.DeepEqual(t, 10, r4.Page)  // Should use JSON value from nested struct
+	assert.DeepEqual(t, 30, r4.Limit) // Should use JSON value, not default
+}
