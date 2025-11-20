@@ -20,9 +20,12 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // WithDialTimeout sets dial timeout.
@@ -67,13 +70,6 @@ func WithKeepAlive(b bool) config.ClientOption {
 	}}
 }
 
-// WithMaxIdempotentCallAttempts sets maximum number of attempts for idempotent calls.
-func WithMaxIdempotentCallAttempts(n int) config.ClientOption {
-	return config.ClientOption{F: func(o *config.ClientOptions) {
-		o.MaxIdempotentCallAttempts = n
-	}}
-}
-
 // WithClientReadTimeout sets maximum duration for full response reading (including body).
 func WithClientReadTimeout(t time.Duration) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
@@ -103,6 +99,13 @@ func WithResponseBodyStream(b bool) config.ClientOption {
 	}}
 }
 
+// WithHostClientConfigHook is used to set the function hook for re-configure the host client.
+func WithHostClientConfigHook(h func(hc interface{}) error) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.HostClientConfigHook = h
+	}}
+}
+
 // WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
 func WithDisableHeaderNamesNormalizing(disable bool) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {
@@ -129,4 +132,71 @@ func WithDisablePathNormalizing(isDisablePathNormalizing bool) config.ClientOpti
 	return config.ClientOption{F: func(o *config.ClientOptions) {
 		o.DisablePathNormalizing = isDisablePathNormalizing
 	}}
+}
+
+func WithRetryConfig(opts ...retry.Option) config.ClientOption {
+	retryCfg := &retry.Config{
+		MaxAttemptTimes: consts.DefaultMaxRetryTimes,
+		Delay:           1 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		MaxJitter:       20 * time.Millisecond,
+		DelayPolicy:     retry.CombineDelay(retry.DefaultDelayPolicy),
+	}
+	retryCfg.Apply(opts)
+
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.RetryConfig = retryCfg
+	}}
+}
+
+// WithWriteTimeout sets write timeout.
+func WithWriteTimeout(t time.Duration) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.WriteTimeout = t
+	}}
+}
+
+// WithConnStateObserve sets the connection state observation function.
+// The first param is used to set hostclient state func.
+// The second param is used to set observation interval, default value is 5 seconds.
+// Warn: Do not start go routine in HostClientStateFunc.
+func WithConnStateObserve(hs config.HostClientStateFunc, interval ...time.Duration) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.HostClientStateObserve = hs
+		if len(interval) > 0 {
+			o.ObservationInterval = interval[0]
+		}
+	}}
+}
+
+// WithDialFunc is used to set dialer function.
+// Note: WithDialFunc will overwrite custom dialer.
+func WithDialFunc(f network.DialFunc, dialers ...network.Dialer) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		d := dialer.DefaultDialer()
+		if len(dialers) != 0 {
+			d = dialers[0]
+		}
+		o.Dialer = newCustomDialerWithDialFunc(d, f)
+	}}
+}
+
+// customDialer set customDialerFunc and params to set dailFunc
+type customDialer struct {
+	network.Dialer
+	dialFunc network.DialFunc
+}
+
+func (m *customDialer) DialConnection(network, address string, timeout time.Duration, tlsConfig *tls.Config) (conn network.Conn, err error) {
+	if m.dialFunc != nil {
+		return m.dialFunc(address)
+	}
+	return m.Dialer.DialConnection(network, address, timeout, tlsConfig)
+}
+
+func newCustomDialerWithDialFunc(dialer network.Dialer, dialFunc network.DialFunc) network.Dialer {
+	return &customDialer{
+		Dialer:   dialer,
+		dialFunc: dialFunc,
+	}
 }

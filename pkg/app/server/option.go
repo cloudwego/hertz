@@ -17,17 +17,19 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/tracer"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
-	"github.com/cloudwego/hertz/pkg/route"
 )
 
 // WithKeepAliveTimeout sets keep-alive timeout.
@@ -45,6 +47,15 @@ func WithKeepAliveTimeout(t time.Duration) config.Option {
 func WithReadTimeout(t time.Duration) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ReadTimeout = t
+	}}
+}
+
+// WithWriteTimeout sets write timeout.
+//
+// Connection will be closed when write request timeout.
+func WithWriteTimeout(t time.Duration) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.WriteTimeout = t
 	}}
 }
 
@@ -151,6 +162,40 @@ func WithHostPorts(hp string) config.Option {
 	}}
 }
 
+// WithListener sets the listener to use.
+//
+// If set, the server will use this listener instead of creating a new one.
+// This is useful for custom listener implementations or testing.
+// Note: This will update Network and Addr based on the listener's address,
+// and reset ListenConfig since it's not needed when a listener is provided.
+//
+// WARNING: Custom net.Listener implementations may not be supported by cloudwego/netpoll.
+// If your custom listener doesn't support netpoll, you need to explicitly set the transporter to the standard library:
+//
+//	WithListener(customListener), WithTransport(standard.NewTransporter)
+func WithListener(ln net.Listener) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.Listener = ln
+		o.Network = ln.Addr().Network()
+		o.Addr = ln.Addr().String()
+		o.ListenConfig = nil
+	}}
+}
+
+// WithBasePath sets basePath.Must be "/" prefix and suffix,If not the default concatenate "/"
+func WithBasePath(basePath string) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		// Must be "/" prefix and suffix,If not the default concatenate "/"
+		if !strings.HasPrefix(basePath, "/") {
+			basePath = "/" + basePath
+		}
+		if !strings.HasSuffix(basePath, "/") {
+			basePath = basePath + "/"
+		}
+		o.BasePath = basePath
+	}}
+}
+
 // WithMaxRequestBodySize sets the limitation of request body size. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
@@ -160,9 +205,22 @@ func WithMaxRequestBodySize(bs int) config.Option {
 	}}
 }
 
+// WithMaxHeaderBytes sets the limitation of request header size. Unit: byte
+//
+// If the header size exceeds this value, an ErrHeaderTooLarge error will be returned
+// and the server will respond with HTTP 431 Request Header Fields Too Large.
+//
+// Default: 1MB (1 << 20 bytes)
+func WithMaxHeaderBytes(size int) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.MaxHeaderBytes = size
+	}}
+}
+
 // WithMaxKeepBodySize sets max size of request/response body to keep when recycled. Unit: byte
 //
 // Body buffer which larger than this size will be put back into buffer poll.
+// Note: If memory pressure is high, try setting the value to 0.
 func WithMaxKeepBodySize(bs int) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.MaxKeepBodySize = bs
@@ -216,7 +274,10 @@ func WithExitWaitTime(timeout time.Duration) config.Option {
 // NOTE: If a tls server is started, it won't accept non-tls request.
 func WithTLS(cfg *tls.Config) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		route.SetTransporter(standard.NewTransporter)
+		// If there is no explicit transporter, change it to standard one. Netpoll do not support tls yet.
+		if o.TransporterNewer == nil {
+			o.TransporterNewer = standard.NewTransporter
+		}
 		o.TLS = cfg
 	}}
 }
@@ -231,7 +292,14 @@ func WithListenConfig(l *net.ListenConfig) config.Option {
 // WithTransport sets which network library to use.
 func WithTransport(transporter func(options *config.Options) network.Transporter) config.Option {
 	return config.Option{F: func(o *config.Options) {
-		route.SetTransporter(transporter)
+		o.TransporterNewer = transporter
+	}}
+}
+
+// WithAltTransport sets which network library to use as an alternative transporter(need to be implemented by specific transporter).
+func WithAltTransport(transporter func(options *config.Options) network.Transporter) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AltTransporterNewer = transporter
 	}}
 }
 
@@ -242,7 +310,8 @@ func WithH2C(enable bool) config.Option {
 	}}
 }
 
-// WithReadBufferSize sets the read buffer size which also limit the header size.
+// WithReadBufferSize sets the size of each read buffer node in standard transport.
+// NOTE: this cannot limit the header size.
 func WithReadBufferSize(size int) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.ReadBufferSize = size
@@ -275,5 +344,126 @@ func WithRegistry(r registry.Registry, info *registry.Info) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.Registry = r
 		o.RegistryInfo = info
+	}}
+}
+
+// WithAutoReloadRender sets the config of auto reload render.
+// If auto reload render is enabled:
+// 1. interval = 0 means reload render according to file watch mechanism.(recommended)
+// 2. interval > 0 means reload render every interval.
+func WithAutoReloadRender(b bool, interval time.Duration) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.AutoReloadRender = b
+		o.AutoReloadInterval = interval
+	}}
+}
+
+// WithDisablePrintRoute sets whether disable debugPrintRoute
+// If we don't set it, it will default to false
+func WithDisablePrintRoute(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisablePrintRoute = b
+	}}
+}
+
+// WithOnAccept sets the callback function when a new connection is accepted but cannot
+// receive data in netpoll. In go net, it will be called before converting tls connection
+func WithOnAccept(fn func(conn net.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnAccept = fn
+	}}
+}
+
+// WithOnConnect sets the onConnect function. It can received data from connection in netpoll.
+// In go net, it will be called after converting tls connection.
+func WithOnConnect(fn func(ctx context.Context, conn network.Conn) context.Context) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.OnConnect = fn
+	}}
+}
+
+// WithBindConfig sets bind config.
+func WithBindConfig(bc *binding.BindConfig) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.BindConfig = bc
+	}}
+}
+
+// WithValidateConfig sets validate config.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
+func WithValidateConfig(vc *binding.ValidateConfig) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.ValidateConfig = vc
+	}}
+}
+
+// WithCustomBinder sets customized Binder.
+//
+// Priority: CustomBinder has the highest priority and will override any BindConfig
+// and CustomValidator settings when present. If CustomBinder is set, both the default
+// binder initialization and validator initialization are completely bypassed.
+//
+// Priority order (highest to lowest):
+//  1. CustomBinder (this option) - completely overrides all binding and validation logic
+//  2. CustomValidator/WithCustomValidatorFunc - sets custom validation for default binder
+//  3. BindConfig - configures the default binder behavior
+//  4. ValidateConfig - legacy validation configuration (deprecated)
+//  5. Default binding and validation behavior
+//
+// Note: When CustomBinder is used, validation logic must be implemented within the
+// custom binder's BindAndValidate method, as CustomValidator is ignored.
+func WithCustomBinder(b binding.Binder) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomBinder = b
+	}}
+}
+
+// WithCustomValidator sets customized StructValidator.
+//
+// Deprecated: Use WithCustomValidatorFunc instead.
+func WithCustomValidator(b binding.StructValidator) config.Option {
+	return WithCustomValidatorFunc(binding.MakeValidatorFunc(b))
+}
+
+// WithCustomValidatorFunc sets customized validator function.
+func WithCustomValidatorFunc(vf binding.ValidatorFunc) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.CustomValidator = vf
+	}}
+}
+
+// WithDisableHeaderNamesNormalizing is used to set whether disable header names normalizing.
+func WithDisableHeaderNamesNormalizing(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.DisableHeaderNamesNormalizing = disable
+	}}
+}
+
+func WithDisableDefaultDate(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.NoDefaultDate = disable
+	}}
+}
+
+func WithDisableDefaultContentType(disable bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.NoDefaultContentType = disable
+	}}
+}
+
+// WithSenseClientDisconnection sets the ability to sense client disconnections.
+// If we don't set it, it will default to false.
+// There are two issues to note when using this option:
+// 1. Warning: It only applies to netpoll.
+// 2. After opening, the context.Context in the request will be cancelled.
+//
+//	Example:
+//	server.Default(
+//	server.WithSenseClientDisconnection(true),
+//	)
+func WithSenseClientDisconnection(b bool) config.Option {
+	return config.Option{F: func(o *config.Options) {
+		o.SenseClientDisconnection = b
 	}}
 }

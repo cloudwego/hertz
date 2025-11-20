@@ -65,9 +65,9 @@ func ParseChunkSize(r network.Reader) (int, error) {
 	return n, nil
 }
 
+// SkipCRLF will only skip the next CRLF("\r\n"), otherwise, error will be returned.
 func SkipCRLF(reader network.Reader) error {
 	p, err := reader.Peek(len(bytestr.StrCRLF))
-	reader.Skip(len(p)) // nolint: errcheck
 	if err != nil {
 		return err
 	}
@@ -75,5 +75,6 @@ func SkipCRLF(reader network.Reader) error {
 		return errBrokenChunk
 	}
 
+	reader.Skip(len(p)) // nolint: errcheck
 	return nil
 }

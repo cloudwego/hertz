@@ -24,6 +24,8 @@ import (
 )
 
 // GetCompatRequest only support basic function of Request, not for all.
+//
+// Deprecated: use HertzHandler instead
 func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
 	r, err := http.NewRequest(string(req.Method()), req.URI().String(), bytes.NewReader(req.Body()))
 	if err != nil {
@@ -37,4 +39,21 @@ func GetCompatRequest(req *protocol.Request) (*http.Request, error) {
 
 	r.Header = h
 	return r, nil
+}
+
+// CopyToHertzRequest copy uri, host, method, protocol, header, but share body reader from http.Request to protocol.Request.
+func CopyToHertzRequest(req *http.Request, hreq *protocol.Request) error {
+	hreq.Header.SetRequestURI(req.RequestURI)
+	hreq.Header.SetHost(req.Host)
+	hreq.Header.SetMethod(req.Method)
+	hreq.Header.SetProtocol(req.Proto)
+	for k, v := range req.Header {
+		for _, vv := range v {
+			hreq.Header.Add(k, vv)
+		}
+	}
+	if req.Body != nil {
+		hreq.SetBodyStream(req.Body, hreq.Header.ContentLength())
+	}
+	return nil
 }

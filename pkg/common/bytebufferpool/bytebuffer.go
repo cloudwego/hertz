@@ -51,7 +51,6 @@ import "io"
 //
 // Use Get for obtaining an empty byte buffer.
 type ByteBuffer struct {
-
 	// B is a byte buffer to use in append-like workloads.
 	// See example code for details.
 	B []byte
@@ -60,6 +59,10 @@ type ByteBuffer struct {
 // Len returns the size of the byte buffer.
 func (b *ByteBuffer) Len() int {
 	return len(b.B)
+}
+
+func (b *ByteBuffer) Cap() int {
+	return cap(b.B)
 }
 
 // ReadFrom implements io.ReaderFrom.

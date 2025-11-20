@@ -20,9 +20,7 @@ package ut
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
-	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -40,7 +38,7 @@ type Body struct {
 
 // PerformRequest send a constructed request to given engine without network transporting
 //
-// Url can be a standard relative URI or a simple absolute path
+// # Url can be a standard relative URI or a simple absolute path
 //
 // If engine.streamRequestBody is true, it sets body as bodyStream
 // if not, it sets body as bodyBytes
@@ -49,34 +47,7 @@ type Body struct {
 //
 // See ./request_test.go for more examples
 func PerformRequest(engine *route.Engine, method, url string, body *Body, headers ...Header) *ResponseRecorder {
-	ctx := engine.NewContext()
-
-	var r *protocol.Request
-	if body != nil && body.Body != nil {
-		r = protocol.NewRequest(method, url, body.Body)
-		r.CopyTo(&ctx.Request)
-		if engine.IsStreamRequestBody() || body.Len == -1 {
-			ctx.Request.SetBodyStream(body.Body, body.Len)
-		} else {
-			buf, err := ioutil.ReadAll(&io.LimitedReader{R: body.Body, N: int64(body.Len)})
-			ctx.Request.SetBody(buf)
-			if err != nil && err != io.EOF {
-				panic(err)
-			}
-		}
-	} else {
-		r = protocol.NewRequest(method, url, nil)
-		r.CopyTo(&ctx.Request)
-	}
-
-	for _, v := range headers {
-		if ctx.Request.Header.Get(v.Key) != "" {
-			ctx.Request.Header.Add(v.Key, v.Value)
-		} else {
-			ctx.Request.Header.Set(v.Key, v.Value)
-		}
-	}
-
+	ctx := createUtRequestContext(engine, method, url, body, headers...)
 	engine.ServeHTTP(context.Background(), ctx)
 
 	w := NewRecorder()

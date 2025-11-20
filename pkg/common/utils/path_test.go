@@ -42,76 +42,61 @@ package utils
 
 import (
 	"testing"
+
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
 func TestPathCleanPath(t *testing.T) {
 	normalPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go"
 	expectedNormalPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go"
 	cleanNormalPath := CleanPath(normalPath)
-	if cleanNormalPath != expectedNormalPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanNormalPath, expectedNormalPath)
-	}
+	assert.DeepEqual(t, expectedNormalPath, cleanNormalPath)
 
 	singleDotPath := "/Foo/Bar/./././go/src"
 	expectedSingleDotPath := "/Foo/Bar/go/src"
 	cleanSingleDotPath := CleanPath(singleDotPath)
-	if cleanSingleDotPath != expectedSingleDotPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanSingleDotPath, expectedSingleDotPath)
-	}
+	assert.DeepEqual(t, expectedSingleDotPath, cleanSingleDotPath)
 
 	doubleDotPath := "../../.."
 	expectedDoubleDotPath := "/"
 	cleanDoublePotPath := CleanPath(doubleDotPath)
-	if cleanDoublePotPath != expectedDoubleDotPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanDoublePotPath, expectedDoubleDotPath)
-	}
+	assert.DeepEqual(t, expectedDoubleDotPath, cleanDoublePotPath)
 
 	// MultiDot can be treated as a file name
 	multiDotPath := "/../...."
 	expectedMultiDotPath := "/...."
 	cleanMultiDotPath := CleanPath(multiDotPath)
-	if cleanMultiDotPath != expectedMultiDotPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanMultiDotPath, expectedMultiDotPath)
-	}
+	assert.DeepEqual(t, expectedMultiDotPath, cleanMultiDotPath)
 
 	nullPath := ""
 	expectedNullPath := "/"
 	cleanNullPath := CleanPath(nullPath)
-	if cleanNullPath != expectedNullPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanDoublePotPath, expectedDoubleDotPath)
-	}
+	assert.DeepEqual(t, expectedNullPath, cleanNullPath)
 
 	relativePath := "/Foo/Bar/../go/src/../../github.com/cloudwego/hertz"
 	expectedRelativePath := "/Foo/github.com/cloudwego/hertz"
 	cleanRelativePath := CleanPath(relativePath)
-	if cleanRelativePath != expectedRelativePath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanRelativePath, expectedRelativePath)
-	}
+	assert.DeepEqual(t, expectedRelativePath, cleanRelativePath)
 
 	multiSlashPath := "///////Foo//Bar////go//src/github.com/cloudwego/hertz//.."
 	expectedMultiSlashPath := "/Foo/Bar/go/src/github.com/cloudwego"
 	cleanMultiSlashPath := CleanPath(multiSlashPath)
-	if cleanMultiSlashPath != expectedMultiSlashPath {
-		t.Fatalf("Unexpected path: %s. Excepting path: %s", cleanMultiSlashPath, expectedMultiSlashPath)
-	}
+	assert.DeepEqual(t, expectedMultiSlashPath, cleanMultiSlashPath)
+
+	inputPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go/."
+	expectedPath := "/Foo/Bar/go/src/github.com/cloudwego/hertz/pkg/common/utils/path_test.go/"
+	cleanedPath := CleanPath(inputPath)
+	assert.DeepEqual(t, expectedPath, cleanedPath)
 }
 
 // The Function AddMissingPort can only add the missed port, don't consider the other error case.
 func TestPathAddMissingPort(t *testing.T) {
 	ipList := []string{"127.0.0.1", "111.111.1.1", "[0:0:0:0:0:ffff:192.1.56.10]", "[0:0:0:0:0:ffff:c0a8:101]", "www.foobar.com"}
 	for _, ip := range ipList {
-		if AddMissingPort(ip, true) != ip+":443" {
-			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip, true), ip+":443")
-		}
-		if AddMissingPort(ip, false) != ip+":80" {
-			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip, false), ip+":80")
-		}
+		assert.DeepEqual(t, ip+":443", AddMissingPort(ip, true))
+		assert.DeepEqual(t, ip+":80", AddMissingPort(ip, false))
 		customizedPort := ":8080"
-		if AddMissingPort(ip+customizedPort, true) != ip+customizedPort {
-			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip+customizedPort, false), ip+customizedPort)
-		}
-		if AddMissingPort(ip+customizedPort, false) != ip+customizedPort {
-			t.Fatalf("Unexpected address: %s. Expecting address: %s", AddMissingPort(ip+customizedPort, true), ip+customizedPort)
-		}
+		assert.DeepEqual(t, ip+customizedPort, AddMissingPort(ip+customizedPort, true))
+		assert.DeepEqual(t, ip+customizedPort, AddMissingPort(ip+customizedPort, false))
 	}
 }

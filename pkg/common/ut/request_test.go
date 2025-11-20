@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route"
 )
 
@@ -40,12 +41,12 @@ func TestPerformRequest(t *testing.T) {
 		if string(c.Request.Body()) == "1" {
 			assert.DeepEqual(t, "close", c.Request.Header.Get("Connection"))
 			c.Response.SetConnectionClose()
-			c.JSON(201, map[string]string{"hi": user})
+			c.JSON(consts.StatusCreated, map[string]string{"hi": user})
 		} else if string(c.Request.Body()) == "" {
-			c.AbortWithMsg("unauthorized", 401)
+			c.AbortWithMsg("unauthorized", consts.StatusUnauthorized)
 		} else {
 			assert.DeepEqual(t, "PUT /hey/dy HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nTransfer-Encoding: chunked\r\n\r\n", string(c.Request.Header.Header()))
-			c.String(202, "body:%v", string(c.Request.Body()))
+			c.String(consts.StatusAccepted, "body:%v", string(c.Request.Body()))
 		}
 	})
 	router.GET("/her/header", func(ctx context.Context, c *app.RequestContext) {
@@ -58,7 +59,7 @@ func TestPerformRequest(t *testing.T) {
 	w := PerformRequest(router, "PUT", "/hey/dy", &Body{bytes.NewBufferString("1"), 1},
 		Header{"Connection", "close"})
 	resp := w.Result()
-	assert.DeepEqual(t, 201, resp.StatusCode())
+	assert.DeepEqual(t, consts.StatusCreated, resp.StatusCode())
 	assert.DeepEqual(t, "{\"hi\":\"dy\"}", string(resp.Body()))
 	assert.DeepEqual(t, "application/json; charset=utf-8", string(resp.Header.ContentType()))
 	assert.DeepEqual(t, true, resp.Header.ConnectionClose())
@@ -67,7 +68,7 @@ func TestPerformRequest(t *testing.T) {
 	w = PerformRequest(router, "PUT", "/hey/dy", nil)
 	_ = w.Result()
 	resp = w.Result()
-	assert.DeepEqual(t, 401, resp.StatusCode())
+	assert.DeepEqual(t, consts.StatusUnauthorized, resp.StatusCode())
 	assert.DeepEqual(t, "unauthorized", string(resp.Body()))
 	assert.DeepEqual(t, "text/plain; charset=utf-8", string(resp.Header.ContentType()))
 	assert.DeepEqual(t, 12, resp.Header.ContentLength())
@@ -83,21 +84,21 @@ func TestPerformRequest(t *testing.T) {
 	// not found
 	w = PerformRequest(router, "GET", "/hey", nil)
 	resp = w.Result()
-	assert.DeepEqual(t, 404, resp.StatusCode())
+	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode())
 
 	// fake body
 	w = PerformRequest(router, "GET", "/hey", nil)
 	_, err := w.WriteString(", faker")
 	resp = w.Result()
 	assert.Nil(t, err)
-	assert.DeepEqual(t, 404, resp.StatusCode())
-	assert.DeepEqual(t, "404 page not found, faker", string(resp.Body()))
+	assert.DeepEqual(t, consts.StatusNotFound, resp.StatusCode())
+	assert.DeepEqual(t, "Not Found, faker", string(resp.Body()))
 
 	// chunked body
 	body := bytes.NewReader(createChunkedBody([]byte("hello world!")))
 	w = PerformRequest(router, "PUT", "/hey/dy", &Body{body, -1})
 	resp = w.Result()
-	assert.DeepEqual(t, 202, resp.StatusCode())
+	assert.DeepEqual(t, consts.StatusAccepted, resp.StatusCode())
 	assert.DeepEqual(t, "body:1\r\nh\r\n2\r\nel\r\n3\r\nlo \r\n4\r\nworl\r\n2\r\nd!\r\n0\r\n\r\n", string(resp.Body()))
 }
 

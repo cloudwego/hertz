@@ -85,14 +85,16 @@ func ReadHeader(h *protocol.ResponseHeader, r network.Reader) error {
 	}
 }
 
-// Write writes response header to w.
+// WriteHeader writes response header to w.
 func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
+	// Data may become invalid after the next call of ResponseHeader.
+	// copy before WriteHeader returns
 	header := h.Header()
-	h.SetHeaderLength(len(header))
-	_, err := w.WriteBinary(header)
+	b, err := w.Malloc(len(header))
 	if err != nil {
 		return err
 	}
+	h.SetHeaderLength(copy(b, header))
 	return nil
 }
 
@@ -141,6 +143,10 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					h.SetContentTypeBytes(s.Value)
 					continue
 				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentEncoding) {
+					h.SetContentEncodingBytes(s.Value)
+					continue
+				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentLength) {
 					var contentLength int
 					if h.ContentLength() != -1 {
@@ -179,6 +185,10 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 					}
 					continue
 				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
+					err = h.Trailer().SetTrailers(s.Value)
+					continue
+				}
 			}
 			h.AddArgBytes(s.Key, s.Value, protocol.ArgsHasValue)
 		}
@@ -201,7 +211,7 @@ func parseHeaders(h *protocol.ResponseHeader, buf []byte) (int, error) {
 		h.SetConnectionClose(!ext.HasHeaderValue(v, bytestr.StrKeepAlive))
 	}
 
-	return len(buf) - len(s.B), nil
+	return len(buf) - len(s.B), err
 }
 
 func parse(h *protocol.ResponseHeader, buf []byte) (int, error) {
@@ -231,7 +241,14 @@ func parseFirstLine(h *protocol.ResponseHeader, buf []byte) (int, error) {
 	if n < 0 {
 		return 0, fmt.Errorf("cannot find whitespace in the first line of response %q", buf)
 	}
-	h.SetNoHTTP11(!bytes.Equal(b[:n], bytestr.StrHTTP11))
+
+	isHTTP11 := bytes.Equal(b[:n], bytestr.StrHTTP11)
+	if !isHTTP11 {
+		h.SetProtocol(consts.HTTP10)
+	} else {
+		h.SetProtocol(consts.HTTP11)
+	}
+
 	b = b[n+1:]
 
 	// parse status code

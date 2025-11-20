@@ -28,11 +28,11 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -81,13 +81,11 @@ func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfi
 			defer close(didReadResponse)
 
 			err = reqI.Write(connectReq, conn)
-
 			if err != nil {
 				return
 			}
 
 			err = conn.Flush()
-
 			if err != nil {
 				return
 			}
@@ -111,7 +109,7 @@ func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfi
 		if connectResp.StatusCode() != consts.StatusOK {
 			conn.Close()
 
-			return nil, errors.New(consts.StatusMessage(connectResp.StatusCode()))
+			return nil, errors.NewPublic(consts.StatusMessage(connectResp.StatusCode()))
 		}
 	}
 

@@ -41,8 +41,12 @@
 package basic_auth
 
 import (
+	"context"
+	"encoding/base64"
 	"testing"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -62,4 +66,33 @@ func TestPairs(t *testing.T) {
 	assert.DeepEqual(t, "test2", u2)
 	assert.False(t, ok3)
 	assert.False(t, ok4)
+}
+
+func TestBasicAuth(t *testing.T) {
+	userName1 := "user1"
+	password1 := "value1"
+	userName2 := "user2"
+	password2 := "value2"
+
+	c1 := app.RequestContext{}
+	encodeStr := "Basic " + base64.StdEncoding.EncodeToString(bytesconv.S2b(userName1+":"+password1))
+	c1.Request.Header.Add("Authorization", encodeStr)
+
+	t1 := Accounts{userName1: password1}
+	handler := BasicAuth(t1)
+	handler(context.TODO(), &c1)
+
+	user, ok := c1.Get("user")
+	assert.DeepEqual(t, userName1, user)
+	assert.True(t, ok)
+
+	c2 := app.RequestContext{}
+	encodeStr = "Basic " + base64.StdEncoding.EncodeToString(bytesconv.S2b(userName2+":"+password2))
+	c2.Request.Header.Add("Authorization", encodeStr)
+
+	handler(context.TODO(), &c2)
+
+	user, ok = c2.Get("user")
+	assert.Nil(t, user)
+	assert.False(t, ok)
 }

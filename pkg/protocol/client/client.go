@@ -43,7 +43,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"sync"
 	"time"
 
@@ -63,8 +62,6 @@ var (
 	errTooManyRedirects = errors.NewPublic("too many redirects detected when doing the request")
 
 	clientURLResponseChPool sync.Pool
-
-	errorChPool sync.Pool
 )
 
 type HostClient interface {
@@ -79,32 +76,28 @@ type Doer interface {
 	Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) error
 }
 
-type HostClientConfig struct {
-	DynamicConfig
+// DefaultRetryIf Default retry condition, mainly used for idempotent requests.
+// If this cannot be satisfied, you can implement your own retry condition.
+func DefaultRetryIf(req *protocol.Request, resp *protocol.Response, err error) bool {
+	// cannot retry if the request body is not rewindable
+	if req.IsBodyStream() {
+		return false
+	}
 
-	Name string
+	if isIdempotent(req, resp, err) {
+		return true
+	}
 
-	NoDefaultUserAgentHeader      bool
-	DialDualStack                 bool
-	DisableHeaderNamesNormalizing bool
-	DisablePathNormalizing        bool
-	IsTLS                         bool
+	return false
+}
 
-	TLSConfig *tls.Config
-
-	MaxConns                  int
-	MaxIdempotentCallAttempts int
-	MaxResponseBodySize       int
-
-	RetryIf            RetryIfFunc
-	ResponseBodyStream bool
-
-	DialTimeout         time.Duration
-	MaxIdleConnDuration time.Duration
-	MaxConnDuration     time.Duration
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	MaxConnWaitTimeout  time.Duration
+func isIdempotent(req *protocol.Request, resp *protocol.Response, err error) bool {
+	return req.Header.IsGet() ||
+		req.Header.IsHead() ||
+		req.Header.IsPut() ||
+		req.Header.IsDelete() ||
+		req.Header.IsOptions() ||
+		req.Header.IsTrace()
 }
 
 // DynamicConfig is config set which will be confirmed when starts a request.
@@ -115,9 +108,8 @@ type DynamicConfig struct {
 }
 
 // RetryIfFunc signature of retry if function
-//
-// Request argument passed to RetryIfFunc, if there are any request errors.
-type RetryIfFunc func(request *protocol.Request) bool
+// Judge whether to retry by request,response or error , return true is retry
+type RetryIfFunc func(req *protocol.Request, resp *protocol.Response, err error) bool
 
 type clientURLResponse struct {
 	statusCode int
@@ -192,7 +184,7 @@ func GetURLDeadline(ctx context.Context, dst []byte, url string, deadline time.T
 func PostURL(ctx context.Context, dst []byte, url string, postArgs *protocol.Args, c Doer, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
 	req := protocol.AcquireRequest()
 	req.Header.SetMethodBytes(bytestr.StrPost)
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 	req.SetOptions(requestOptions...)
 
 	if postArgs != nil {
@@ -215,7 +207,9 @@ func doRequestFollowRedirectsBuffer(ctx context.Context, req *protocol.Request, 
 
 	statusCode, _, err = DoRequestFollowRedirects(ctx, req, resp, url, defaultMaxRedirectsCount, c)
 
-	body = bodyBuf.B
+	// In HTTP2 scenario, client use stream mode to create a request and its body is in body stream.
+	// In HTTP1, only client recv body exceed max body size and client is in stream mode can trig it.
+	body = resp.Body()
 	bodyBuf.B = oldBody
 	protocol.ReleaseResponse(resp)
 
@@ -248,6 +242,9 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 			break
 		}
 		url = getRedirectURL(url, location)
+
+		// Remove the former host header.
+		req.Header.Del(consts.HeaderHost)
 	}
 
 	return statusCode, body, err
@@ -272,76 +269,20 @@ func getRedirectURL(baseURL string, location []byte) string {
 }
 
 func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration, c Doer) error {
-	deadline := time.Now().Add(timeout)
-	return DoDeadline(ctx, req, resp, deadline, c)
-}
-
-func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time, c Doer) error {
-	timeout := -time.Since(deadline)
 	if timeout <= 0 {
 		return errTimeout
 	}
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
+	return c.Do(ctx, req, resp)
+}
 
-	var ch chan error
-	chv := errorChPool.Get()
-	if chv == nil {
-		chv = make(chan error, 1)
+func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time, c Doer) error {
+	timeout := time.Until(deadline)
+	if timeout <= 0 {
+		return errTimeout
 	}
-	ch = chv.(chan error)
-
-	// Make req and resp copies, since on timeout they no longer
-	// may be accessed.
-	reqCopy := protocol.AcquireRequest()
-	req.CopyToSkipBody(reqCopy)
-	protocol.SwapRequestBody(req, reqCopy)
-	respCopy := protocol.AcquireResponse()
-	if resp != nil {
-		// Not calling resp.copyToSkipBody(respCopy) here to avoid
-		// unexpected messing with headers
-		respCopy.SkipBody = resp.SkipBody
-	}
-
-	// Note that the request continues execution on errTimeout until
-	// client-specific ReadTimeout exceeds. This helps limiting load
-	// on slow hosts by MaxConns* concurrent requests.
-	//
-	// Without this 'hack' the load on slow host could exceed MaxConns*
-	// concurrent requests, since timed out requests on client side
-	// usually continue execution on the host.
-
-	var mu sync.Mutex
-	var timedout bool
-
-	go func() {
-		errDo := c.Do(ctx, reqCopy, respCopy)
-		mu.Lock()
-		if !timedout {
-			if resp != nil {
-				respCopy.CopyToSkipBody(resp)
-				protocol.SwapResponseBody(resp, respCopy)
-			}
-			protocol.SwapRequestBody(reqCopy, req)
-			ch <- errDo
-		}
-		mu.Unlock()
-
-		protocol.ReleaseResponse(respCopy)
-		protocol.ReleaseRequest(reqCopy)
-	}()
-
-	tc := timer.AcquireTimer(timeout)
-	var err error
-	select {
-	case err = <-ch:
-	case <-tc.C:
-		mu.Lock()
-		timedout = true
-		err = errTimeout
-		mu.Unlock()
-	}
-	timer.ReleaseTimer(tc)
-
-	errorChPool.Put(chv)
-
-	return err
+	// Note: it will overwrite the reqTimeout.
+	req.SetOptions(config.WithRequestTimeout(timeout))
+	return c.Do(ctx, req, resp)
 }

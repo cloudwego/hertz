@@ -45,6 +45,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +55,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -62,7 +66,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
 )
 
-var errorInvalidURI = errors.NewPublic("invalid uri")
+var (
+	errorInvalidURI          = errors.NewPublic("invalid uri")
+	errorLastMiddlewareExist = errors.NewPublic("last middleware already set")
+)
 
 // Do performs the given http request and fills the given http response.
 //
@@ -114,7 +121,8 @@ func Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) err
 // Warning: DoTimeout does not terminate the request itself. The request will
 // continue in the background and the response will be discarded.
 // If requests take too long and the connection pool gets filled up please
-// try using a Client and setting a ReadTimeout.
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration) error {
 	return defaultClient.DoTimeout(ctx, req, resp, timeout)
 }
@@ -142,6 +150,12 @@ func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Respon
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
+//
+// Warning: DoDeadline does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Response, deadline time.Time) error {
 	return defaultClient.DoDeadline(ctx, req, resp, deadline)
 }
@@ -176,8 +190,8 @@ func DoRedirects(ctx context.Context, req *protocol.Request, resp *protocol.Resp
 // is too small a new slice will be allocated.
 //
 // The function follows redirects. Use Do* for manually handling redirects.
-func Get(ctx context.Context, dst []byte, url string) (statusCode int, body []byte, err error) {
-	return defaultClient.Get(ctx, dst, url)
+func Get(ctx context.Context, dst []byte, url string, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.Get(ctx, dst, url, requestOptions...)
 }
 
 // GetTimeout returns the status code and body of url.
@@ -189,8 +203,14 @@ func Get(ctx context.Context, dst []byte, url string) (statusCode int, body []by
 //
 // errTimeout error is returned if url contents couldn't be fetched
 // during the given timeout.
-func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Duration) (statusCode int, body []byte, err error) {
-	return defaultClient.GetTimeout(ctx, dst, url, timeout)
+//
+// Warning: GetTimeout does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `GetTimeout(ctx, dst, url, timeout, config.WithReadTimeout(1 * time.Second))`
+func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Duration, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.GetTimeout(ctx, dst, url, timeout, requestOptions...)
 }
 
 // GetDeadline returns the status code and body of url.
@@ -202,8 +222,14 @@ func GetTimeout(ctx context.Context, dst []byte, url string, timeout time.Durati
 //
 // errTimeout error is returned if url contents couldn't be fetched
 // until the given deadline.
-func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time) (statusCode int, body []byte, err error) {
-	return defaultClient.GetDeadline(ctx, dst, url, deadline)
+//
+// Warning: GetDeadline does not terminate the request itself. The request will
+// continue in the background and the response will be discarded.
+// If requests take too long and the connection pool gets filled up please
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `GetDeadline(ctx, dst, url, timeout, config.WithReadTimeout(1 * time.Second))`
+func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.GetDeadline(ctx, dst, url, deadline, requestOptions...)
 }
 
 // Post sends POST request to the given url with the given POST arguments.
@@ -214,8 +240,8 @@ func GetDeadline(ctx context.Context, dst []byte, url string, deadline time.Time
 // The function follows redirects. Use Do* for manually handling redirects.
 //
 // Empty POST body is sent if postArgs is nil.
-func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args) (statusCode int, body []byte, err error) {
-	return defaultClient.Post(ctx, dst, url, postArgs)
+func Post(ctx context.Context, dst []byte, url string, postArgs *protocol.Args, requestOptions ...config.RequestOption) (statusCode int, body []byte, err error) {
+	return defaultClient.Post(ctx, dst, url, postArgs, requestOptions...)
 }
 
 var defaultClient, _ = NewClient(WithDialTimeout(consts.DefaultDialTimeout))
@@ -241,21 +267,32 @@ type Client struct {
 	// If Proxy is nil or returns a nil *URL, no proxy is used.
 	Proxy protocol.Proxy
 
-	// RetryIf controls whether a retry should be attempted after an error.
-	//
-	// By default will use isIdempotent function
-	RetryIf func(request *protocol.Request) bool
+	// RetryIfFunc sets the retry decision function. If nil, the client.DefaultRetryIf will be applied.
+	RetryIfFunc client.RetryIfFunc
 
 	clientFactory suite.ClientFactory
 
-	mLock sync.Mutex
-	m     map[string]client.HostClient
-	ms    map[string]client.HostClient
-	mws   Middleware
+	mLock          sync.Mutex
+	m              map[string]client.HostClient
+	ms             map[string]client.HostClient
+	mws            Middleware
+	lastMiddleware Middleware
 }
 
 func (c *Client) GetOptions() *config.ClientOptions {
 	return c.options
+}
+
+func (c *Client) SetRetryIfFunc(retryIf client.RetryIfFunc) {
+	c.RetryIfFunc = retryIf
+}
+
+// Deprecated: use SetRetryIfFunc instead of SetRetryIf
+func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
+	f := func(req *protocol.Request, resp *protocol.Response, err error) bool {
+		return fn(req)
+	}
+	c.SetRetryIfFunc(f)
 }
 
 // SetProxy is used to set client proxy.
@@ -264,11 +301,6 @@ func (c *Client) GetOptions() *config.ClientOptions {
 // If you want to use another proxy, please create another client and set proxy to it.
 func (c *Client) SetProxy(p protocol.Proxy) {
 	c.Proxy = p
-}
-
-// SetRetryIf is used to set RetryIf func.
-func (c *Client) SetRetryIf(fn func(request *protocol.Request) bool) {
-	c.RetryIf = fn
 }
 
 // Get returns the status code and body of url.
@@ -346,7 +378,8 @@ func (c *Client) Post(ctx context.Context, dst []byte, url string, postArgs *pro
 // Warning: DoTimeout does not terminate the request itself. The request will
 // continue in the background and the response will be discarded.
 // If requests take too long and the connection pool gets filled up please
-// try setting a ReadTimeout.
+// try using a customized Client instance with a ReadTimeout config or set the request level read timeout like:
+// `req.SetOptions(config.WithReadTimeout(1 * time.Second))`
 func (c *Client) DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Response, timeout time.Duration) error {
 	return client.DoTimeout(ctx, req, resp, timeout, c)
 }
@@ -425,6 +458,9 @@ func (c *Client) Do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if c.mws == nil {
 		return c.do(ctx, req, resp)
 	}
+	if c.lastMiddleware != nil {
+		return c.mws(c.lastMiddleware(c.do))(ctx, req, resp)
+	}
 	return c.mws(c.do)(ctx, req, resp)
 }
 
@@ -458,18 +494,10 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	startCleaner := false
 
 	c.mLock.Lock()
+
 	m := c.m
 	if isTLS {
 		m = c.ms
-	}
-
-	if m == nil {
-		m = make(map[string]client.HostClient)
-		if isTLS {
-			c.ms = m
-		} else {
-			c.m = m
-		}
 	}
 
 	h := string(host)
@@ -485,6 +513,16 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 			ProxyURI: proxyURI,
 			IsTLS:    isTLS,
 		})
+
+		// re-configure hook
+		if c.options.HostClientConfigHook != nil {
+			err = c.options.HostClientConfigHook(hc)
+			if err != nil {
+				c.mLock.Unlock()
+				return err
+			}
+		}
+
 		m[h] = hc
 		if len(m) == 1 {
 			startCleaner = true
@@ -494,7 +532,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	c.mLock.Unlock()
 
 	if startCleaner {
-		go c.mCleaner()
+		go c.cleaner(isTLS)
 	}
 
 	return hc.Do(ctx, req, resp)
@@ -512,32 +550,62 @@ func (c *Client) CloseIdleConnections() {
 	c.mLock.Unlock()
 }
 
-func (c *Client) mCleaner() {
-	mustStop := false
-
+func (c *Client) cleaner(isTLS bool) {
 	for {
-		c.mLock.Lock()
-		for k, v := range c.m {
-			shouldRemove := v.ShouldRemove()
-
-			if shouldRemove {
-				delete(c.m, k)
-			}
-		}
-		if len(c.m) == 0 {
-			mustStop = true
-		}
-		c.mLock.Unlock()
-
-		if mustStop {
+		time.Sleep(10 * time.Second)
+		if c.cleanHostClients(isTLS) {
 			break
 		}
-		time.Sleep(10 * time.Second)
 	}
+}
+
+func (c *Client) cleanHostClients(isTLS bool) bool {
+	c.mLock.Lock()
+	defer c.mLock.Unlock()
+	m := c.m
+	if isTLS {
+		m = c.ms
+	}
+	for k, v := range m {
+		if v.ShouldRemove() {
+			delete(m, k)
+			if f, ok := v.(io.Closer); ok {
+				err := f.Close()
+				if err != nil {
+					hlog.Warnf("clean hostclient error, addr: %s, err: %s", k, err.Error())
+				}
+			}
+		}
+	}
+	return len(m) == 0
 }
 
 func (c *Client) SetClientFactory(cf suite.ClientFactory) {
 	c.clientFactory = cf
+}
+
+// GetDialerName returns the name of the dialer
+func (c *Client) GetDialerName() (dName string, err error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			dName = "unknown"
+		}
+	}()
+
+	opt := c.GetOptions()
+	if opt == nil || opt.Dialer == nil {
+		return "", fmt.Errorf("abnormal process: there is no client options or dialer")
+	}
+
+	dName = reflect.TypeOf(opt.Dialer).String()
+	dSlice := strings.Split(dName, ".")
+	dName = dSlice[0]
+	if dName[0] == '*' {
+		dName = dName[1:]
+	}
+
+	return
 }
 
 // NewClient return a client with options
@@ -548,6 +616,8 @@ func NewClient(opts ...config.ClientOption) (*Client, error) {
 	}
 	c := &Client{
 		options: opt,
+		m:       make(map[string]client.HostClient),
+		ms:      make(map[string]client.HostClient),
 	}
 
 	return c, nil
@@ -563,6 +633,28 @@ func (c *Client) Use(mws ...Middleware) {
 	c.mws = chain(middlewares...)
 }
 
+// UseAsLast is used to add middleware to the end of the middleware chain.
+//
+// Will return an error if last middleware has been set before, to ensure all middleware has the change to work,
+// Please use `TakeOutLastMiddleware` to take out the already set middleware.
+// Chain the middleware after or before is both Okay - but remember to put it back.
+func (c *Client) UseAsLast(mw Middleware) error {
+	if c.lastMiddleware != nil {
+		return errorLastMiddlewareExist
+	}
+	c.lastMiddleware = mw
+	return nil
+}
+
+// TakeOutLastMiddleware will return the set middleware and remove it from client.
+//
+// Remember to set it back after chain it with other middleware.
+func (c *Client) TakeOutLastMiddleware() Middleware {
+	last := c.lastMiddleware
+	c.lastMiddleware = nil
+	return last
+}
+
 func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 	return &http1.ClientOptions{
 		Name:                          c.options.Name,
@@ -574,14 +666,16 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		MaxConns:                      c.options.MaxConnsPerHost,
 		MaxConnDuration:               c.options.MaxConnDuration,
 		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
-		MaxIdempotentCallAttempts:     c.options.MaxIdempotentCallAttempts,
 		ReadTimeout:                   c.options.ReadTimeout,
 		WriteTimeout:                  c.options.WriteTimeout,
 		MaxResponseBodySize:           c.options.MaxResponseBodySize,
 		DisableHeaderNamesNormalizing: c.options.DisableHeaderNamesNormalizing,
 		DisablePathNormalizing:        c.options.DisablePathNormalizing,
 		MaxConnWaitTimeout:            c.options.MaxConnWaitTimeout,
-		RetryIf:                       c.RetryIf,
 		ResponseBodyStream:            c.options.ResponseBodyStream,
+		RetryConfig:                   c.options.RetryConfig,
+		RetryIfFunc:                   c.RetryIfFunc,
+		StateObserve:                  c.options.HostClientStateObserve,
+		ObservationInterval:           c.options.ObservationInterval,
 	}
 }

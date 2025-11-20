@@ -20,9 +20,29 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/app/client/retry"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
+
+type ConnPoolState struct {
+	// The conn num of conn pool. These conns are idle connections.
+	PoolConnNum int
+	// Total conn num.
+	TotalConnNum int
+	// Number of pending connections
+	WaitConnNum int
+	// HostClient Addr
+	Addr string
+	// Maximum number of connections, <= 0 means no limit.
+	MaxConns int
+}
+
+type HostClientState interface {
+	ConnPoolState() ConnPoolState
+}
+
+type HostClientStateFunc func(HostClientState)
 
 // ClientOption is the only struct that can be used to set ClientOptions.
 type ClientOption struct {
@@ -32,17 +52,16 @@ type ClientOption struct {
 type ClientOptions struct {
 	// Timeout for establishing a connection to server
 	DialTimeout time.Duration
-	// The max connection nums for each host
+	// The max connection nums for each host, <= 0 means no limit
 	MaxConnsPerHost int
 
-	MaxIdleConnDuration       time.Duration
-	MaxConnDuration           time.Duration
-	MaxConnWaitTimeout        time.Duration
-	MaxIdempotentCallAttempts int
-	KeepAlive                 bool
-	ReadTimeout               time.Duration
-	TLSConfig                 *tls.Config
-	ResponseBodyStream        bool
+	MaxIdleConnDuration time.Duration
+	MaxConnDuration     time.Duration
+	MaxConnWaitTimeout  time.Duration
+	KeepAlive           bool
+	ReadTimeout         time.Duration
+	TLSConfig           *tls.Config
+	ResponseBodyStream  bool
 
 	// Client name. Used in User-Agent request header.
 	//
@@ -103,15 +122,26 @@ type ClientOptions struct {
 	// By default path values are normalized, i.e.
 	// extra slashes are removed, special characters are encoded.
 	DisablePathNormalizing bool
+
+	// all configurations related to retry
+	RetryConfig *retry.Config
+
+	HostClientStateObserve HostClientStateFunc
+
+	// StateObserve execution interval
+	ObservationInterval time.Duration
+
+	// Callback hook for re-configuring host client
+	// If an error is returned, the request will be terminated.
+	HostClientConfigHook func(hc interface{}) error
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {
 	options := &ClientOptions{
-		DialTimeout:               consts.DefaultDialTimeout,
-		MaxConnsPerHost:           consts.DefaultMaxConnsPerHost,
-		MaxIdleConnDuration:       consts.DefaultMaxIdleConnDuration,
-		MaxIdempotentCallAttempts: consts.DefaultMaxIdempotentCallAttempts,
-		KeepAlive:                 true,
+		DialTimeout:         consts.DefaultDialTimeout,
+		MaxIdleConnDuration: consts.DefaultMaxIdleConnDuration,
+		KeepAlive:           true,
+		ObservationInterval: time.Second * 5,
 	}
 	options.Apply(opts)
 

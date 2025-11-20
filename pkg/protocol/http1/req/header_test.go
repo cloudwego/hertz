@@ -44,11 +44,12 @@ package req
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -78,34 +79,6 @@ func TestRequestHeader_Read(t *testing.T) {
 	assert.DeepEqual(t, []byte("foo"), rh.UserAgent())
 	assert.DeepEqual(t, []byte("127.0.0.1"), rh.Host())
 	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
-}
-
-func TestRequestHeaderMultiLineValue(t *testing.T) {
-	s := "HTTP/1.1 200 OK\r\n" +
-		"EmptyValue1:\r\n" +
-		"Content-Type: foo/bar;\r\n\tnewline;\r\n another/newline\r\n" +
-		"Foo: Bar\r\n" +
-		"Multi-Line: one;\r\n two\r\n" +
-		"Values: v1;\r\n v2; v3;\r\n v4;\tv5\r\n" +
-		"\r\n"
-
-	header := new(protocol.RequestHeader)
-	if _, err := parse(header, []byte(s)); err != nil {
-		t.Fatalf("parse headers with multi-line values failed, %s", err)
-	}
-	response, err := http.ReadResponse(bufio.NewReader(strings.NewReader(s)), nil)
-	if err != nil {
-		t.Fatalf("parse response using net/http failed, %s", err)
-	}
-
-	for name, vals := range response.Header {
-		got := string(header.Peek(name))
-		want := vals[0]
-
-		if got != want {
-			t.Errorf("unexpected %s got: %q want: %q", name, got, want)
-		}
-	}
 }
 
 func TestRequestHeader_Peek(t *testing.T) {
@@ -404,9 +377,178 @@ func expectRequestHeaderGet(t *testing.T, h *protocol.RequestHeader, key, expect
 
 func TestRequestHeader_PeekIfExists(t *testing.T) {
 	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nexists: \r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
-	zr := mock.NewZeroCopyReader(s)
 	rh := protocol.RequestHeader{}
-	ReadHeader(&rh, zr)
+	err := ReadHeader(&rh, mock.NewZeroCopyReader(s))
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.DeepEqual(t, []byte{}, rh.Peek("exists"))
 	assert.DeepEqual(t, []byte(nil), rh.Peek("non-exists"))
+}
+
+func TestRequestHeaderError(t *testing.T) {
+	er := mock.EOFReader{}
+	rh := protocol.RequestHeader{}
+	err := ReadHeader(&rh, &er)
+	assert.True(t, errors.Is(err, errs.ErrNothingRead))
+}
+
+func TestReadHeader(t *testing.T) {
+	s := "P"
+	zr := mock.NewZeroCopyReader(s)
+	rh := protocol.RequestHeader{}
+	err := ReadHeader(&rh, zr)
+	assert.NotNil(t, err)
+}
+
+func TestParseHeaders(t *testing.T) {
+	rh := protocol.RequestHeader{}
+	_, err := parseHeaders(&rh, []byte{' '})
+	assert.NotNil(t, err)
+}
+
+func TestTryRead(t *testing.T) {
+	rh := protocol.RequestHeader{}
+	s := "P"
+	zr := mock.NewZeroCopyReader(s)
+	err := tryReadWithLimit(&rh, zr, 0, 0)
+	assert.Nil(t, err)
+}
+
+func TestReadHeaderWithLimit(t *testing.T) {
+	validRequest := "GET /path HTTP/1.1\r\nHost: example.com\r\n\r\n"
+	zr := mock.NewZeroCopyReader(validRequest)
+	h := &protocol.RequestHeader{}
+
+	err := ReadHeaderWithLimit(h, zr, 0)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(h.Method()), "GET")
+}
+
+func TestReadHeaderWithLimitExceeded(t *testing.T) {
+	largeRequest := "GET /path HTTP/1.1\r\nHost: example.com\r\nLarge-Header: " +
+		strings.Repeat("x", 100) + "\r\n\r\n"
+	zr := mock.NewZeroCopyReader(largeRequest)
+	h := &protocol.RequestHeader{}
+
+	err := ReadHeaderWithLimit(h, zr, 50)
+	assert.NotNil(t, err)
+}
+
+func TestParseFirstLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		method   string
+		uri      string
+		protocol string
+		err      error
+	}{
+		{
+			name:     "case: normal",
+			input:    []byte("GET /path/to/resource HTTP/1.0\r\n"),
+			method:   "GET",
+			uri:      "/path/to/resource",
+			protocol: "HTTP/1.0",
+		},
+		{
+			name:  "case: empty uri",
+			input: []byte("GET  HTTP/1.1\r\n"),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:     "case: unknown protocol should use HTTP/1.0",
+			input:    []byte("POST /path/to/resource HTTP/1.2\r\n"),
+			method:   "POST",
+			uri:      "/path/to/resource",
+			protocol: "HTTP/1.0",
+		},
+		{
+			name:  "case: invalid protocol",
+			input: []byte("POST /path/to/resource XTTP/1.1\r\n"),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: input too large",
+			input: make([]byte, 9<<10),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: method invalid",
+			input: []byte("< / HTTP/1."),
+			err:   errMalformedHTTPRequest,
+		},
+		{
+			name:  "case: need more err",
+			input: []byte("GET / HTTP/1."),
+			err:   errs.ErrNeedMore,
+		},
+	}
+
+	for _, tc := range tests {
+		h := &protocol.RequestHeader{}
+		_, err := parseFirstLine(h, tc.input)
+		if tc.err != nil {
+			assert.Assert(t, errors.Is(err, tc.err), tc.name, err)
+			continue
+		}
+		assert.Assert(t, err == nil, tc.name, err)
+		if string(h.Method()) != tc.method ||
+			string(h.RequestURI()) != tc.uri ||
+			h.GetProtocol() != tc.protocol {
+			t.Fatal(tc.name, "got", h.String())
+		}
+
+	}
+}
+
+func TestParse(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		expected int
+		wantErr  bool
+	}{
+		// normal test
+		{
+			name:     "normal",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n"),
+			expected: len([]byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\n\r\n")),
+			wantErr:  false,
+		},
+		// parseFirstLine error
+		{
+			name:     "parseFirstLine error",
+			input:    []byte("INVALID_LINE\r\nHost: example.com\r\n\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+		// ext.ReadRawHeaders error
+		{
+			name:     "ext.ReadRawHeaders error",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nINVALID_HEADER\r\n\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+		// parseHeaders error
+		{
+			name:     "parseHeaders error",
+			input:    []byte("GET /path/to/resource HTTP/1.1\r\nHost: example.com\r\nINVALID_HEADER\r\n"),
+			expected: 0,
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			header := &protocol.RequestHeader{}
+			bytesRead, err := parse(header, tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Expected error: %v, but got: %v", tc.wantErr, err)
+			}
+			if bytesRead != tc.expected {
+				t.Errorf("Expected bytes read: %d, but got: %d", tc.expected, bytesRead)
+			}
+		})
+	}
 }

@@ -17,22 +17,31 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
+	"net"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
+	"github.com/cloudwego/hertz/internal/test/mock/binder"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/common/testdata/proto"
+	"github.com/cloudwego/hertz/pkg/common/tracer/traceinfo"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/req"
@@ -44,7 +53,7 @@ import (
 func TestProtobuf(t *testing.T) {
 	ctx := NewContext(0)
 	body := proto.TestStruct{Body: []byte("Hello World")}
-	ctx.ProtoBuf(200, &body)
+	ctx.ProtoBuf(consts.StatusOK, &body)
 
 	assert.DeepEqual(t, string(ctx.Response.Body()), "\n\vHello World")
 }
@@ -59,6 +68,17 @@ func TestPureJson(t *testing.T) {
 	}
 }
 
+func TestIndentedJSON(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.IndentedJSON(consts.StatusOK, utils.H{
+		"foo":  "bar",
+		"html": "h1",
+	})
+	if string(ctx.Response.Body()) != "{\n    \"foo\": \"bar\",\n    \"html\": \"h1\"\n}" {
+		t.Fatalf("unexpected purejson: %#v, expected: %#v", string(ctx.Response.Body()), "{\n    \"foo\": \"bar\",\n    \"html\": \"<b>\"\n}")
+	}
+}
+
 func TestContext(t *testing.T) {
 	reqContext := NewContext(0)
 	reqContext.Set("testContextKey", "testValue")
@@ -66,6 +86,17 @@ func TestContext(t *testing.T) {
 	if ctx.Value("testContextKey") != "testValue" {
 		t.Fatalf("unexpected value: %#v, expected: %#v", ctx.Value("testContextKey"), "testValue")
 	}
+}
+
+func TestValue(t *testing.T) {
+	ctx := NewContext(0)
+
+	v := ctx.Value("testContextKey")
+	assert.Nil(t, v)
+
+	ctx.Set("testContextKey", "testValue")
+	v = ctx.Value("testContextKey")
+	assert.DeepEqual(t, "testValue", v)
 }
 
 func TestContextNotModified(t *testing.T) {
@@ -86,11 +117,11 @@ func TestIfModifiedSince(t *testing.T) {
 	req.Header.Set(string(bytestr.StrIfModifiedSince), "Mon, 02 Jan 2006 15:04:05 MST")
 	req.CopyTo(&ctx.Request)
 	if !ctx.IfModifiedSince(time.Now()) {
-		t.Fatalf("ifModifiedSice error, expected false, but get true")
+		t.Fatalf("ifModifiedSince error, expected false, but get true")
 	}
 	tt, _ := time.Parse(time.RFC3339, "2004-11-12T11:45:26.371Z")
 	if ctx.IfModifiedSince(tt) {
-		t.Fatalf("ifModifiedSice error, expected true, but get false")
+		t.Fatalf("ifModifiedSince error, expected true, but get false")
 	}
 }
 
@@ -119,9 +150,26 @@ func TestSetConnectionClose(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.NotFound()
-	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "404 Page not found" {
+	if ctx.Response.StatusCode() != consts.StatusNotFound || string(ctx.Response.BodyBytes()) != "Not Found" {
 		t.Fatalf("unexpected status code or body")
 	}
+}
+
+func TestRedirect(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Redirect(consts.StatusFound, []byte("/hello"))
+	assert.DeepEqual(t, consts.StatusFound, ctx.Response.StatusCode())
+
+	ctx.redirect([]byte("/hello"), consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, ctx.Response.StatusCode())
+}
+
+func TestGetRedirectStatusCode(t *testing.T) {
+	val := getRedirectStatusCode(consts.StatusMovedPermanently)
+	assert.DeepEqual(t, consts.StatusMovedPermanently, val)
+
+	val = getRedirectStatusCode(consts.StatusNotFound)
+	assert.DeepEqual(t, consts.StatusFound, val)
 }
 
 func TestCookie(t *testing.T) {
@@ -160,9 +208,19 @@ func TestPost(t *testing.T) {
 	}
 }
 
+func TestGet(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Request.Header.SetMethod(consts.MethodPost)
+	assert.False(t, ctx.IsGet())
+
+	ctx.Request.Header.SetMethod(consts.MethodGet)
+	assert.True(t, ctx.IsGet())
+}
+
 func TestCopy(t *testing.T) {
 	t.Parallel()
 	ctx := NewContext(0)
+	ctx.fullPath = "full_path"
 	ctx.Request.Header.Add("header_a", "header_value_a")
 	ctx.Response.Header.Add("header_b", "header_value_b")
 	ctx.Params = param.Params{
@@ -184,6 +242,11 @@ func TestCopy(t *testing.T) {
 			str, _ := context.Params.Get("key_a")
 			if str != "value_a" {
 				t.Errorf("unexpected value: %#v, expected: %#v", str, "value_a")
+				return
+			}
+
+			if c.fullPath != "full_path" {
+				t.Errorf("unexpected value: %#v, expected: %#v", c.fullPath, "full_path")
 				return
 			}
 
@@ -230,6 +293,10 @@ func TestQuery(t *testing.T) {
 	}
 	r.CopyTo(&ctx.Request)
 	if ctx.Query("name") != "menu" {
+		t.Fatalf("unexpected query: %#v, expected menu", ctx.Query("name"))
+	}
+
+	if ctx.DefaultQuery("name", "default value") != "menu" {
 		t.Fatalf("unexpected query: %#v, expected menu", ctx.Query("name"))
 	}
 
@@ -300,6 +367,70 @@ hello=world`)
 	}
 }
 
+func TestPostFormArray(t *testing.T) {
+	t.Parallel()
+
+	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Length: 521
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+red
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+green
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="tag"
+
+blue
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+
+	ctx = makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Content-Length: 26
+
+tag=red&tag=green&tag=blue
+`)
+	assert.DeepEqual(t, []string{"red", "green", "blue"}, ctx.PostFormArray("tag"))
+}
+
+func TestDefaultPostForm(t *testing.T) {
+	ctx := makeCtxByReqString(t, `POST /upload HTTP/1.1
+Host: localhost:10000
+Content-Length: 521
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="f1"
+
+value1
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="fileaaa"; filename="TODO"
+Content-Type: application/octet-stream
+
+- SessionClient with referer and cookies support.
+- Client with requests' pipelining support.
+- ProxyHandler similar to FSHandler.
+- WebSockets. See https://tools.ietf.org/html/rfc6455 .
+- HTTP/2.0. See https://tools.ietf.org/html/rfc7540 .
+
+------WebKitFormBoundaryJwfATyF8tmxSJnLg--
+`)
+
+	val := ctx.DefaultPostForm("f1", "no val")
+	assert.DeepEqual(t, "value1", val)
+
+	val = ctx.DefaultPostForm("f99", "no val")
+	assert.DeepEqual(t, "no val", val)
+}
+
 func TestRequestContext_FormFile(t *testing.T) {
 	t.Parallel()
 
@@ -361,10 +492,19 @@ tailfoobar`
 			t.Fatalf("unexpected filename %q. Expecting %q", v.Filename, "TODO")
 		}
 		ct := v.Header.Get("Content-Type")
-		if ct != "application/octet-stream" {
+		if ct != consts.MIMEApplicationOctetStream {
 			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
 		}
 	}
+
+	err = ctx.SaveUploadedFile(f.File["fileaaa"][0], "TODO")
+	assert.Nil(t, err)
+	fileInfo, err := os.Stat("TODO")
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "TODO", fileInfo.Name())
+	assert.DeepEqual(t, f.File["fileaaa"][0].Size, fileInfo.Size())
+	err = os.Remove("TODO")
+	assert.Nil(t, err)
 
 	ff, err := ctx.FormFile("fileaaa")
 	if err != nil || ff == nil {
@@ -402,7 +542,9 @@ func TestContextRenderFileFromFS(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 	assert.DeepEqual(t, "/some/path", string(ctx.Request.URI().Path()))
 }
 
@@ -419,7 +561,9 @@ func TestContextRenderFile(t *testing.T) {
 
 	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(), "func (fs *FS) initRequestHandler() {"))
-	assert.DeepEqual(t, "text/plain; charset=utf-8", string(ctx.Response.Header.Peek("Content-Type")))
+	// when Go version <= 1.16, mime.TypeByExtension will return Content-Type='text/plain; charset=utf-8',
+	// otherwise it will return Content-Type='text/x-go; charset=utf-8'
+	assert.NotEqual(t, "", string(ctx.Response.Header.Peek("Content-Type")))
 }
 
 func TestContextRenderAttachment(t *testing.T) {
@@ -434,7 +578,7 @@ func TestContextRenderAttachment(t *testing.T) {
 
 	ctx.FileAttachment("./context.go", newFilename)
 
-	assert.DeepEqual(t, 200, ctx.Response.StatusCode())
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
 	assert.True(t, strings.Contains(resp.GetHTTP1Response(&ctx.Response).String(),
 		"func (ctx *RequestContext) FileAttachment(filepath, filename string) {"))
 	assert.DeepEqual(t, fmt.Sprintf("attachment; filename=\"%s\"", newFilename),
@@ -452,6 +596,13 @@ func TestRequestContext_Header(t *testing.T) {
 
 	c.Response.Header.Del("header_key")
 	val = string(c.Response.Header.Peek("header_key"))
+	if val != "" {
+		t.Fatalf("unexpected %q. Expecting %q", val, "")
+	}
+
+	c.Header("header_key1", "header_val1")
+	c.Header("header_key1", "")
+	val = string(c.Response.Header.Peek("header_key1"))
 	if val != "" {
 		t.Fatalf("unexpected %q. Expecting %q", val, "")
 	}
@@ -484,6 +635,21 @@ func TestRequestContext_Handler(t *testing.T) {
 	if val != "123" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "123")
 	}
+
+	c.handlers = nil
+	handler := c.Handler()
+	assert.Nil(t, handler)
+}
+
+func TestRequestContext_Handlers(t *testing.T) {
+	c := NewContext(0)
+	hc := HandlersChain{testFunc, testFunc2}
+	c.SetHandlers(hc)
+	c.Handlers()[1](context.Background(), c)
+	val := c.GetString("key")
+	if val != "123" {
+		t.Fatalf("unexpected %v. Expecting %v", val, "123")
+	}
 }
 
 func TestRequestContext_HandlerName(t *testing.T) {
@@ -493,6 +659,24 @@ func TestRequestContext_HandlerName(t *testing.T) {
 	if val != "github.com/cloudwego/hertz/pkg/app.testFunc2" {
 		t.Fatalf("unexpected %v. Expecting %v", val, "github.com/cloudwego/hertz.testFunc2")
 	}
+}
+
+func TestNext(t *testing.T) {
+	c := NewContext(0)
+	a := 0
+
+	testFunc1 := func(c context.Context, ctx *RequestContext) {
+		a = 1
+	}
+	testFunc3 := func(c context.Context, ctx *RequestContext) {
+		a = 3
+	}
+	c.handlers = HandlersChain{testFunc1, testFunc3}
+
+	c.Next(context.Background())
+
+	assert.True(t, c.index == 2)
+	assert.DeepEqual(t, 3, a)
 }
 
 func TestContextError(t *testing.T) {
@@ -544,12 +728,83 @@ func TestRender(t *testing.T) {
 	c := NewContext(0)
 
 	c.Render(consts.StatusOK, &render.Data{
-		ContentType: "application/json; charset=utf-8",
+		ContentType: consts.MIMEApplicationJSONUTF8,
 		Data:        []byte("{\"test\":1}"),
 	})
 
 	assert.DeepEqual(t, consts.StatusOK, c.Response.StatusCode())
 	assert.True(t, strings.Contains(string(c.Response.Body()), "test"))
+
+	c.Reset()
+	c.Render(110, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+
+	c.Reset()
+	c.Render(consts.StatusNoContent, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+
+	c.Reset()
+	c.Render(consts.StatusNotModified, &render.Data{
+		ContentType: "application/json; charset=utf-8",
+		Data:        []byte("{\"test\":1}"),
+	})
+	assert.DeepEqual(t, "application/json; charset=utf-8", string(c.Response.Header.ContentType()))
+	assert.DeepEqual(t, "", string(c.Response.Body()))
+}
+
+func TestHTML(t *testing.T) {
+	c := NewContext(0)
+
+	tmpl := template.Must(template.New("").
+		Delims("{[{", "}]}").
+		Funcs(template.FuncMap{}).
+		ParseFiles("../common/testdata/template/index.tmpl"))
+
+	r := &render.HTMLProduction{Template: tmpl}
+	c.HTMLRender = r
+	c.HTML(consts.StatusOK, "index.tmpl", utils.H{"title": "Main website"})
+
+	assert.DeepEqual(t, []byte("text/html; charset=utf-8"), c.Response.Header.Peek("Content-Type"))
+	assert.DeepEqual(t, []byte("<html><h1>Main website</h1></html>"), c.Response.Body())
+}
+
+type xmlmap map[string]interface{}
+
+// Allows type H to be used with xml.Marshal
+func (h xmlmap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name = xml.Name{
+		Space: "",
+		Local: "map",
+	}
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+	for key, value := range h {
+		elem := xml.StartElement{
+			Name: xml.Name{Space: "", Local: key},
+			Attr: []xml.Attr{},
+		}
+		if err := e.EncodeElement(value, elem); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
+}
+
+func TestXML(t *testing.T) {
+	c := NewContext(0)
+	c.XML(consts.StatusOK, xmlmap{"foo": "bar"})
+	assert.DeepEqual(t, []byte("<map><foo>bar</foo></map>"), c.Response.Body())
+	assert.DeepEqual(t, []byte("application/xml; charset=utf-8"), c.Response.Header.Peek("Content-Type"))
 }
 
 func TestJSON(t *testing.T) {
@@ -573,37 +828,97 @@ func TestContextReset(t *testing.T) {
 	c.Params = param.Params{param.Param{}}
 	c.Error(errors.New("test")) // nolint: errcheck
 	c.Set("foo", "bar")
+	c.Finished()
+	c.Request.SetIsTLS(true)
 	c.ResetWithoutConn()
-
+	c.Request.URI()
+	assert.DeepEqual(t, "https", string(c.Request.Scheme()))
 	assert.False(t, c.IsAborted())
 	assert.DeepEqual(t, 0, len(c.Errors))
 	assert.Nil(t, c.Errors.Errors())
 	assert.Nil(t, c.Errors.ByType(errs.ErrorTypeAny))
 	assert.DeepEqual(t, 0, len(c.Params))
 	assert.DeepEqual(t, int8(-1), c.index)
+	assert.Nil(t, c.finished)
 }
 
 func TestContextContentType(t *testing.T) {
 	c := NewContext(0)
-	c.Request.Header.Set("Content-Type", "application/json; charset=utf-8")
-	assert.DeepEqual(t, "application/json; charset=utf-8", bytesconv.B2s(c.ContentType()))
+	c.Request.Header.Set("Content-Type", consts.MIMEApplicationJSONUTF8)
+	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, bytesconv.B2s(c.ContentType()))
 }
 
-func TestClientIp(t *testing.T) {
+type MockConn struct {
+	*mock.Conn
+
+	remote net.Addr
+}
+
+func (c *MockConn) RemoteAddr() net.Addr {
+	return c.remote
+}
+
+func newContextClientIPTest() *RequestContext {
 	c := NewContext(0)
-	c.conn = mock.NewConn("")
-	// Case 1
-	c.Request.Header.Set("X-Forwarded-For", "126.0.0.2")
-	val := c.ClientIP()
-	if val != "126.0.0.2" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.2")
+	c.conn = &MockConn{
+		remote: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
 	}
-	// Case 2
-	c.Request.Header.Set("X-Real-Ip", "126.0.0.1")
-	val = c.ClientIP()
-	if val != "126.0.0.1" {
-		t.Fatalf("unexpected %v. Expecting %v", val, "126.0.0.1")
+	c.Request.Header.Set("X-Real-IP", " 10.10.10.10  ")
+	c.Request.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
+	return c
+}
+
+func TestClientIP(t *testing.T) {
+	c := newContextClientIPTest()
+	// default X-Forwarded-For and X-Real-IP behaviour
+	assert.DeepEqual(t, "20.20.20.20", c.ClientIP())
+
+	c.Request.Header.DelBytes([]byte("X-Forwarded-For"))
+	assert.DeepEqual(t, "10.10.10.10", c.ClientIP())
+
+	c.Request.Header.Set("X-Forwarded-For", "30.30.30.30  ")
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// No trusted CIDRS
+	c = newContextClientIPTest()
+	opts := ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedCIDRs:    nil,
 	}
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ := net.ParseCIDR("30.30.30.30/32")
+	opts = ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedCIDRs:    []*net.IPNet{cidr},
+	}
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	assert.DeepEqual(t, "127.0.0.1", c.ClientIP())
+
+	_, cidr, _ = net.ParseCIDR("127.0.0.1/32")
+	opts = ClientIPOptions{
+		RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+		TrustedCIDRs:    []*net.IPNet{cidr},
+	}
+	c.SetClientIPFunc(ClientIPWithOption(opts))
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// UDS
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "unix", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "30.30.30.30", c.ClientIP())
+
+	// err: Addr not host:port
+	c.conn = &MockConn{remote: &net.UnixAddr{Net: "tcp", Name: "/tmp/test.sock"}}
+	assert.DeepEqual(t, "", c.ClientIP())
+}
+
+func TestSetClientIPFunc(t *testing.T) {
+	fn := func(ctx *RequestContext) string {
+		return ""
+	}
+	SetClientIPFunc(fn)
+	assert.DeepEqual(t, reflect.ValueOf(fn).Pointer(), reflect.ValueOf(defaultClientIP).Pointer())
 }
 
 func TestGetQuery(t *testing.T) {
@@ -616,11 +931,19 @@ func TestGetQuery(t *testing.T) {
 
 func TestGetPostForm(t *testing.T) {
 	c := NewContext(0)
-	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	c.Request.SetBodyString("a=1&b=")
 	v, exists := c.GetPostForm("b")
 	assert.DeepEqual(t, "", v)
 	assert.DeepEqual(t, true, exists)
+}
+
+func TestGetPostFormArray(t *testing.T) {
+	c := NewContext(0)
+	c.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
+	c.Request.SetBodyString("a=1&b=2&b=3")
+	v, _ := c.GetPostFormArray("b")
+	assert.DeepEqual(t, []string{"2", "3"}, v)
 }
 
 func TestRemoteAddr(t *testing.T) {
@@ -628,6 +951,16 @@ func TestRemoteAddr(t *testing.T) {
 	c.Request.SetRequestURI("http://aaa.com?a=1&b=")
 	addr := c.RemoteAddr().String()
 	assert.DeepEqual(t, "0.0.0.0:0", addr)
+}
+
+func TestRequestBodyStream(t *testing.T) {
+	c := NewContext(0)
+	s := "testRequestBodyStream"
+	mr := bytes.NewBufferString(s)
+	c.Request.SetBodyStream(mr, -1)
+	data, err := ioutil.ReadAll(c.RequestBodyStream())
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "testRequestBodyStream", string(data))
 }
 
 func TestContextIsAborted(t *testing.T) {
@@ -675,7 +1008,7 @@ func TestContextAbortWithStatusJSON(t *testing.T) {
 	assert.True(t, c.IsAborted())
 
 	contentType := c.Response.Header.Peek("Content-Type")
-	assert.DeepEqual(t, "application/json; charset=utf-8", string(contentType))
+	assert.DeepEqual(t, consts.MIMEApplicationJSONUTF8, string(contentType))
 
 	jsonStringBody := c.Response.Body()
 	assert.DeepEqual(t, "{\"foo\":\"fooValue\",\"bar\":\"barValue\"}", string(jsonStringBody))
@@ -684,7 +1017,7 @@ func TestContextAbortWithStatusJSON(t *testing.T) {
 func TestRequestCtxFormValue(t *testing.T) {
 	ctx := NewContext(0)
 	ctx.Request.SetRequestURI("/foo/bar?baz=123&aaa=bbb")
-	ctx.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
 	ctx.Request.SetBodyString("qqq=port&mmm=sddd")
 
 	v := ctx.FormValue("baz")
@@ -706,6 +1039,54 @@ func TestRequestCtxFormValue(t *testing.T) {
 	v = ctx.FormValue("a")
 	if string(v) != "1" {
 		t.Fatalf("unexpected value %q. Expecting %q", v, "1")
+	}
+
+	ctx.Request.Reset()
+	s := `------WebKitFormBoundaryJwfATyF8tmxSJnLg
+Content-Disposition: form-data; name="f"
+
+fff
+------WebKitFormBoundaryJwfATyF8tmxSJnLg
+`
+	mr := bytes.NewBufferString(s)
+	ctx.Request.SetBodyStream(mr, -1)
+	ctx.Request.Header.SetContentLength(len(s))
+	ctx.Request.Header.SetContentTypeBytes([]byte("multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg"))
+
+	v = ctx.FormValue("f")
+	if string(v) != "fff" {
+		t.Fatalf("unexpected value %q. Expecting %q", v, "fff")
+	}
+}
+
+func TestSetCustomFormValueFunc(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Request.SetRequestURI("/foo/bar?aaa=bbb")
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMEApplicationHTMLForm))
+	ctx.Request.SetBodyString("aaa=port")
+
+	ctx.SetFormValueFunc(func(ctx *RequestContext, key string) []byte {
+		v := ctx.PostArgs().Peek(key)
+		if len(v) > 0 {
+			return v
+		}
+		mf, err := ctx.MultipartForm()
+		if err == nil && mf.Value != nil {
+			vv := mf.Value[key]
+			if len(vv) > 0 {
+				return []byte(vv[0])
+			}
+		}
+		v = ctx.QueryArgs().Peek(key)
+		if len(v) > 0 {
+			return v
+		}
+		return nil
+	})
+
+	v := ctx.FormValue("aaa")
+	if string(v) != "port" {
+		t.Fatalf("unexpected value %q. Expecting %q", v, "port")
 	}
 }
 
@@ -730,7 +1111,8 @@ func TestContextSetGetValues(t *testing.T) {
 	c.Set("string", "this is a string")
 	c.Set("int32", int32(-42))
 	c.Set("int64", int64(42424242424242))
-	c.Set("uint64", uint64(42))
+	c.Set("uint32", uint32(42))
+	c.Set("uint64", uint64(42424242424242))
 	c.Set("float32", float32(4.2))
 	c.Set("float64", 4.2)
 	var a interface{} = 1
@@ -739,7 +1121,8 @@ func TestContextSetGetValues(t *testing.T) {
 	assert.DeepEqual(t, c.MustGet("string").(string), "this is a string")
 	assert.DeepEqual(t, c.MustGet("int32").(int32), int32(-42))
 	assert.DeepEqual(t, c.MustGet("int64").(int64), int64(42424242424242))
-	assert.DeepEqual(t, c.MustGet("uint64").(uint64), uint64(42))
+	assert.DeepEqual(t, c.MustGet("uint32").(uint32), uint32(42))
+	assert.DeepEqual(t, c.MustGet("uint64").(uint64), uint64(42424242424242))
 	assert.DeepEqual(t, c.MustGet("float32").(float32), float32(4.2))
 	assert.DeepEqual(t, c.MustGet("float64").(float64), 4.2)
 	assert.DeepEqual(t, c.MustGet("intInterface").(int), 1)
@@ -769,12 +1152,52 @@ func TestContextGetInt(t *testing.T) {
 	assert.DeepEqual(t, 0, c.GetInt("string"))
 }
 
+func TestContextGetInt32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("int32", int32(-42))
+	assert.DeepEqual(t, int32(-42), c.GetInt32("int32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, int32(0), c.GetInt32("string"))
+}
+
 func TestContextGetInt64(t *testing.T) {
 	c := &RequestContext{}
 	c.Set("int64", int64(42424242424242))
 	assert.DeepEqual(t, int64(42424242424242), c.GetInt64("int64"))
 	c.Set("string", "this is a string")
 	assert.DeepEqual(t, int64(0), c.GetInt64("string"))
+}
+
+func TestContextGetUint(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint", uint(1))
+	assert.DeepEqual(t, uint(1), c.GetUint("uint"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint(0), c.GetUint("string"))
+}
+
+func TestContextGetUint32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint32", uint32(42))
+	assert.DeepEqual(t, uint32(42), c.GetUint32("uint32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint32(0), c.GetUint32("string"))
+}
+
+func TestContextGetUint64(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("uint64", uint64(42424242424242))
+	assert.DeepEqual(t, uint64(42424242424242), c.GetUint64("uint64"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, uint64(0), c.GetUint64("string"))
+}
+
+func TestContextGetFloat32(t *testing.T) {
+	c := &RequestContext{}
+	c.Set("float32", float32(4.2))
+	assert.DeepEqual(t, float32(4.2), c.GetFloat32("float32"))
+	c.Set("string", "this is a string")
+	assert.DeepEqual(t, float32(0.0), c.GetFloat32("string"))
 }
 
 func TestContextGetFloat64(t *testing.T) {
@@ -853,6 +1276,204 @@ func TestContextGetStringMapStringSlice(t *testing.T) {
 	assert.DeepEqual(t, expected, c.GetStringMapStringSlice("string"))
 }
 
+func TestContextTraceInfo(t *testing.T) {
+	ctx := NewContext(0)
+	traceIn := traceinfo.NewTraceInfo()
+	ctx.SetTraceInfo(traceIn)
+	traceOut := ctx.GetTraceInfo()
+
+	assert.DeepEqual(t, traceIn, traceOut)
+}
+
+func TestEnableTrace(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.SetEnableTrace(true)
+	trace := ctx.IsEnableTrace()
+	assert.True(t, trace)
+}
+
+func TestForEachKey(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Set("1", "2")
+	handle := func(k string, v interface{}) {
+		res := k + v.(string)
+		assert.DeepEqual(t, res, "12")
+	}
+	ctx.ForEachKey(handle)
+	val, ok := ctx.Get("1")
+	assert.DeepEqual(t, val, "2")
+	assert.True(t, ok)
+}
+
+func TestFlush(t *testing.T) {
+	ctx := NewContext(0)
+	err := ctx.Flush()
+	assert.Nil(t, err)
+}
+
+func TestConn(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetConn()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestHijackHandler(t *testing.T) {
+	ctx := NewContext(0)
+	handle := func(c network.Conn) {
+		c.SetReadTimeout(time.Duration(1) * time.Second)
+	}
+	ctx.SetHijackHandler(handle)
+	handleRes := ctx.GetHijackHandler()
+
+	val1 := reflect.ValueOf(handle).Pointer()
+	val2 := reflect.ValueOf(handleRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestGetReader(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetReader()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestGetWriter(t *testing.T) {
+	ctx := NewContext(0)
+
+	conn := mock.NewConn("")
+
+	ctx.SetConn(conn)
+	connRes := ctx.GetWriter()
+
+	val1 := reflect.ValueOf(conn).Pointer()
+	val2 := reflect.ValueOf(connRes).Pointer()
+	assert.DeepEqual(t, val1, val2)
+}
+
+func TestIndex(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.ResetWithoutConn()
+	exc := int8(-1)
+	res := ctx.GetIndex()
+	assert.DeepEqual(t, exc, res)
+	ctx.SetIndex(int8(1))
+	res = ctx.GetIndex()
+	exc = int8(1)
+	assert.DeepEqual(t, exc, res)
+}
+
+func TestConcurrentHandlerName(t *testing.T) {
+	SetConcurrentHandlerNameOperator()
+	defer SetHandlerNameOperator(&inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+	h := func(c context.Context, ctx *RequestContext) {}
+	SetHandlerName(h, "test1")
+	for i := 0; i < 50; i++ {
+		go func() {
+			name := GetHandlerName(h)
+			assert.DeepEqual(t, "test1", name)
+		}()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	go func() {
+		SetHandlerName(h, "test2")
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	name := GetHandlerName(h)
+	assert.DeepEqual(t, "test2", name)
+}
+
+func TestHandlerName(t *testing.T) {
+	h := func(c context.Context, ctx *RequestContext) {}
+	SetHandlerName(h, "test1")
+	name := GetHandlerName(h)
+	assert.DeepEqual(t, "test1", name)
+}
+
+func TestHijack(t *testing.T) {
+	ctx := NewContext(0)
+	h := func(c network.Conn) {}
+	ctx.Hijack(h)
+	assert.True(t, ctx.Hijacked())
+}
+
+func TestFinished(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Finished()
+
+	ch := make(chan struct{})
+	ctx.finished = ch
+	chRes := ctx.Finished()
+
+	send := func() {
+		time.Sleep(time.Duration(1) * time.Millisecond)
+		ch <- struct{}{}
+	}
+	go send()
+	val := <-chRes
+	assert.DeepEqual(t, struct{}{}, val)
+}
+
+func TestString(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.String(consts.StatusOK, "ok")
+	assert.DeepEqual(t, consts.StatusOK, ctx.Response.StatusCode())
+}
+
+func TestFullPath(t *testing.T) {
+	ctx := NewContext(0)
+	str := "/hello"
+	ctx.SetFullPath(str)
+	val := ctx.FullPath()
+	assert.DeepEqual(t, str, val)
+}
+
+func TestReset(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Reset()
+	assert.DeepEqual(t, nil, ctx.conn)
+}
+
+// func TestParam(t *testing.T) {
+// 	ctx := NewContext(0)
+// 	val := ctx.Param("/user/john")
+// 	assert.DeepEqual(t, "john", val)
+// }
+
+func TestGetHeader(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Request.Header.SetContentTypeBytes([]byte(consts.MIMETextPlainUTF8))
+	val := ctx.GetHeader("Content-Type")
+	assert.DeepEqual(t, consts.MIMETextPlainUTF8, string(val))
+}
+
+func TestGetRawData(t *testing.T) {
+	ctx := NewContext(0)
+	ctx.Request.SetBody([]byte("hello"))
+	val := ctx.GetRawData()
+	assert.DeepEqual(t, "hello", string(val))
+
+	val2, err := ctx.Body()
+	assert.DeepEqual(t, val, val2)
+	assert.Nil(t, err)
+}
+
 func TestRequestContext_GetRequest(t *testing.T) {
 	c := &RequestContext{}
 	c.Request.Header.Set("key1", "value1")
@@ -917,5 +1538,147 @@ func TestBindAndValidate(t *testing.T) {
 	err = c.Validate(&req)
 	if err == nil {
 		t.Fatalf("unexpected nil, expected an error")
+	}
+}
+
+func TestBindForm(t *testing.T) {
+	type Test struct {
+		A string
+		B int
+	}
+
+	c := &RequestContext{}
+	c.Request.SetRequestURI("/foo/bar?a=123&b=11")
+	c.Request.SetBody([]byte("A=123&B=11"))
+	c.Request.Header.SetContentTypeBytes([]byte("application/x-www-form-urlencoded"))
+
+	var req Test
+	err := c.BindForm(&req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.DeepEqual(t, "123", req.A)
+	assert.DeepEqual(t, 11, req.B)
+
+	c.Request.SetBody([]byte(""))
+	err = c.BindForm(&req)
+	if err == nil {
+		t.Fatalf("expected error, but get nil")
+	}
+}
+
+func TestSetBinder(t *testing.T) {
+	c := NewContext(0)
+	c.SetBinder(binder.NewBinderWithValidateError(errors.New("test binder")))
+	type T struct{}
+	req := T{}
+	err := c.Bind(&req)
+	assert.Nil(t, err)
+	err = c.Validate(&req)
+	assert.NotNil(t, err)
+	assert.DeepEqual(t, "test binder", err.Error())
+	err = c.BindProtobuf(&req)
+	assert.Nil(t, err)
+	err = c.BindJSON(&req)
+	assert.Nil(t, err)
+	err = c.BindForm(&req)
+	assert.NotNil(t, err)
+	err = c.BindPath(&req)
+	assert.Nil(t, err)
+	err = c.BindQuery(&req)
+	assert.Nil(t, err)
+	err = c.BindHeader(&req)
+	assert.Nil(t, err)
+}
+
+func TestRequestContext_SetCookie(t *testing.T) {
+	c := NewContext(0)
+	c.SetCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_SetPartitionedCookie(t *testing.T) {
+	c := NewContext(0)
+	c.SetPartitionedCookie("user", "hertz", 1, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=None; Partitioned", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_SetCookiePathEmpty(t *testing.T) {
+	c := NewContext(0)
+	c.SetCookie("user", "hertz", 1, "", "localhost", protocol.CookieSameSiteDisabled, true, true)
+	assert.DeepEqual(t, "user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure", c.Response.Header.Get("Set-Cookie"))
+}
+
+func TestRequestContext_VisitAll(t *testing.T) {
+	t.Run("VisitAllQueryArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.QueryArgs().Add("cloudwego", "hertz")
+		c.QueryArgs().Add("hello", "world")
+		c.VisitAllQueryArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllPostArgs", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.PostArgs().Add("cloudwego", "hertz")
+		c.PostArgs().Add("hello", "world")
+		c.VisitAllPostArgs(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"cloudwego", "hertz", "hello", "world"}, s)
+	})
+
+	t.Run("VisitAllCookie", func(t *testing.T) {
+		c := NewContext(0)
+		var s []string
+		c.Request.Header.Set("Cookie", "aaa=bbb;ccc=ddd")
+		c.VisitAllCookie(func(key, value []byte) {
+			s = append(s, string(key), string(value))
+		})
+		assert.DeepEqual(t, []string{"aaa", "bbb", "ccc", "ddd"}, s)
+	})
+
+	t.Run("VisitAllHeaders", func(t *testing.T) {
+		c := NewContext(0)
+		c.Request.Header.Set("xxx", "yyy")
+		c.Request.Header.Set("xxx2", "yyy2")
+		c.VisitAllHeaders(
+			func(k, v []byte) {
+				key := string(k)
+				value := string(v)
+				if key != "Xxx" && key != "Xxx2" {
+					t.Fatalf("Unexpected %v. Expected %v", key, "xxx or yyy")
+				}
+				if key == "Xxx" && value != "yyy" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy")
+				}
+				if key == "Xxx2" && value != "yyy2" {
+					t.Fatalf("Unexpected %v. Expected %v", value, "yyy2")
+				}
+			})
+	})
+}
+
+func BenchmarkInbuiltHandlerNameOperator(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		fn := func(c context.Context, ctx *RequestContext) {
+		}
+		SetHandlerName(fn, fmt.Sprintf("%d", n))
+		GetHandlerName(fn)
+	}
+}
+
+func BenchmarkConcurrentHandlerNameOperator(b *testing.B) {
+	SetConcurrentHandlerNameOperator()
+	defer SetHandlerNameOperator(&inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+	for n := 0; n < b.N; n++ {
+		fn := func(c context.Context, ctx *RequestContext) {
+		}
+		SetHandlerName(fn, fmt.Sprintf("%d", n))
+		GetHandlerName(fn)
 	}
 }

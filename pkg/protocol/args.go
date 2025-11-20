@@ -54,8 +54,6 @@ const (
 	ArgsHasValue = false
 )
 
-var nilByteSlice = []byte{}
-
 type argsScanner struct {
 	b []byte
 }
@@ -167,14 +165,33 @@ func allocArg(h []argsKV) ([]argsKV, *argsKV) {
 	n := len(h)
 	if cap(h) > n {
 		h = h[:n+1]
-	} else {
-		h = append(h, argsKV{})
+		kv := &h[n]
+		if kv.value == nil {
+			// bytes in value would be reused, and it's not always nil
+			// only set to empty when it's nil
+			kv.value = []byte{}
+		}
+		return h, kv
 	}
+	h = append(h, argsKV{value: []byte{}})
 	return h, &h[n]
 }
 
 func releaseArg(h []argsKV) []argsKV {
 	return h[:len(h)-1]
+}
+
+func updateArgBytes(h []argsKV, key, value []byte) []argsKV {
+	n := len(h)
+	for i := 0; i < n; i++ {
+		kv := &h[i]
+		if kv.noValue && bytes.Equal(key, kv.key) {
+			kv.value = append(kv.value[:0], value...)
+			kv.noValue = ArgsHasValue
+			return h
+		}
+	}
+	return h
 }
 
 func setArgBytes(h []argsKV, key, value []byte, noValue bool) []argsKV {
@@ -215,13 +232,20 @@ func peekArgBytes(h []argsKV, k []byte) []byte {
 	for i, n := 0, len(h); i < n; i++ {
 		kv := &h[i]
 		if bytes.Equal(kv.key, k) {
-			if kv.value != nil {
-				return kv.value
-			}
-			return nilByteSlice
+			return kv.value
 		}
 	}
 	return nil
+}
+
+func peekAllArgBytesToDst(dst [][]byte, h []argsKV, k []byte) [][]byte {
+	for i, n := 0, len(h); i < n; i++ {
+		kv := &h[i]
+		if bytes.Equal(kv.key, k) {
+			dst = append(dst, kv.value)
+		}
+	}
+	return dst
 }
 
 func delAllArgsBytes(args []argsKV, key []byte) []argsKV {
@@ -354,6 +378,17 @@ func (a *Args) Peek(key string) []byte {
 
 func (a *Args) PeekExists(key string) (string, bool) {
 	return peekArgStrExists(a.args, key)
+}
+
+// PeekAll returns all the arg values for the given key.
+func (a *Args) PeekAll(key string) [][]byte {
+	var values [][]byte
+	a.VisitAll(func(k, v []byte) {
+		if bytesconv.B2s(k) == key {
+			values = append(values, v)
+		}
+	})
+	return values
 }
 
 func visitArgs(args []argsKV, f func(k, v []byte)) {

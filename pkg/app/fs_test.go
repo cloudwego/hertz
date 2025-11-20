@@ -53,6 +53,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -160,7 +161,7 @@ func TestServeFileHead(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if len(ce) > 0 {
 		t.Fatalf("Unexpected 'Content-Encoding' %q", ce)
 	}
@@ -223,6 +224,32 @@ func TestServeFileSmallNoReadFrom(t *testing.T) {
 	if body != teststr {
 		t.Fatalf("expected '%s'", teststr)
 	}
+
+	data := make([]byte, len([]byte(teststr)))
+	nn, err := reader.Read(data)
+	assert.DeepEqual(t, len([]byte(teststr)), nn)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, teststr, string(data))
+	assert.DeepEqual(t, reader.startPos, len([]byte(teststr)))
+
+	nn, err = reader.Read(data)
+	assert.DeepEqual(t, 0, nn)
+	assert.DeepEqual(t, io.EOF, err)
+
+	data1 := make([]byte, 2)
+	reader.startPos = len([]byte(teststr)) - 1
+	nn, err = reader.Read(data1)
+	assert.DeepEqual(t, []byte("!"), []byte{data1[0]})
+	assert.DeepEqual(t, 1, nn)
+	assert.DeepEqual(t, nil, err)
+
+	reader.startPos = 0
+	reader.ff.f = nil
+	buf = bytes.NewBuffer(nil)
+	reader.ff.dirIndex = make([]byte, len([]byte(teststr)))
+	n, err = reader.WriteTo(pureWriter{buf})
+	assert.DeepEqual(t, int64(len(teststr)), n)
+	assert.Nil(t, err)
 }
 
 type pureWriter struct {
@@ -250,8 +277,7 @@ func TestServeFileCompressed(t *testing.T) {
 	if err := resp.Read(&r, zr); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if string(ce) != "gzip" {
 		t.Fatalf("Unexpected 'Content-Encoding' %q. Expecting %q", ce, "gzip")
 	}
@@ -287,7 +313,7 @@ func TestServeFileUncompressed(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if len(ce) > 0 {
 		t.Fatalf("Unexpected 'Content-Encoding' %q", ce)
 	}
@@ -534,7 +560,7 @@ func testFSCompress(t *testing.T, h HandlerFunc, filePath string) {
 	if r.StatusCode() != consts.StatusOK {
 		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusOK, filePath)
 	}
-	ce := r.Header.Peek(consts.HeaderContentEncoding)
+	ce := r.Header.ContentEncoding()
 	if string(ce) != "" {
 		t.Fatalf("unexpected content-encoding %q. Expecting empty string. filePath=%q", ce, filePath)
 	}
@@ -553,7 +579,7 @@ func testFSCompress(t *testing.T, h HandlerFunc, filePath string) {
 	if r.StatusCode() != consts.StatusOK {
 		t.Fatalf("unexpected status code: %d. Expecting %d. filePath=%q", r.StatusCode(), consts.StatusOK, filePath)
 	}
-	ce = r.Header.Peek(consts.HeaderContentEncoding)
+	ce = r.Header.ContentEncoding()
 	if string(ce) != "gzip" {
 		t.Fatalf("unexpected content-encoding %q. Expecting %q. filePath=%q", ce, "gzip", filePath)
 	}
@@ -656,8 +682,16 @@ func TestServeFileContentType(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	expected := []byte("image/png")
+	expected := []byte(consts.MIMEImagePNG)
 	if !bytes.Equal(r.Header.ContentType(), expected) {
 		t.Fatalf("Unexpected Content-Type, expected: %q got %q", expected, r.Header.ContentType())
 	}
+}
+
+func TestFileSmallUpdateByteRange(t *testing.T) {
+	r := &fsSmallFileReader{}
+	err := r.UpdateByteRange(1, 1)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 1, r.startPos)
+	assert.DeepEqual(t, 2, r.endPos)
 }

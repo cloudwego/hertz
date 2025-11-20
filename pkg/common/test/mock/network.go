@@ -18,7 +18,8 @@ package mock
 
 import (
 	"bytes"
-	"errors"
+	"crypto/tls"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -28,18 +29,49 @@ import (
 	"github.com/cloudwego/netpoll"
 )
 
+var (
+	ErrReadTimeout  = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "read timeout")
+	ErrWriteTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "write timeout")
+)
+
 type Conn struct {
-	readTimeout time.Duration
-	zr          network.Reader
-	zw          network.ReadWriter
+	zr       network.Reader
+	zw       network.ReadWriter
+	wroteLen int
+
+	rtimeout time.Duration
+	wtimeout time.Duration
+}
+
+type Recorder interface {
+	network.Reader
+	WroteLen() int
+}
+
+func (m *Conn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	return nil
 }
 
 type SlowReadConn struct {
 	*Conn
 }
 
+func (m *SlowReadConn) SetWriteTimeout(t time.Duration) error {
+	return nil
+}
+
+func (m *SlowReadConn) SetReadTimeout(t time.Duration) error {
+	m.Conn.rtimeout = t
+	return nil
+}
+
 func SlowReadDialer(addr string) (network.Conn, error) {
 	return NewSlowReadConn(""), nil
+}
+
+func SlowWriteDialer(addr string) (network.Conn, error) {
+	return NewSlowWriteConn(""), nil
 }
 
 func (m *Conn) ReadBinary(n int) (p []byte, err error) {
@@ -61,7 +93,11 @@ func (m *Conn) Release() error {
 func (m *Conn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
 	if err != nil || len(b) != i {
-		time.Sleep(m.readTimeout)
+		if m.rtimeout <= 0 {
+			// simulate timeout forever
+			select {}
+		}
+		time.Sleep(m.rtimeout)
 		return nil, errs.ErrTimeout
 	}
 	return b, err
@@ -80,27 +116,50 @@ func (m *Conn) Len() int {
 }
 
 func (m *Conn) Malloc(n int) (buf []byte, err error) {
+	m.wroteLen += n
 	return m.zw.Malloc(n)
 }
 
 func (m *Conn) WriteBinary(b []byte) (n int, err error) {
-	return m.zw.WriteBinary(b)
+	n, err = m.zw.WriteBinary(b)
+	m.wroteLen += n
+	return n, err
 }
 
 func (m *Conn) Flush() error {
 	return m.zw.Flush()
 }
 
-func (m *Conn) WriterRecorder() network.Reader {
-	return m.zw
+func (m *Conn) WriterRecorder() Recorder {
+	return &recorder{c: m, Reader: m.zw}
+}
+
+func (m *Conn) GetReadTimeout() time.Duration {
+	return m.rtimeout
+}
+
+func (m *Conn) GetWriteTimeout() time.Duration {
+	return m.wtimeout
+}
+
+type recorder struct {
+	c *Conn
+	network.Reader
+}
+
+func (r *recorder) WroteLen() int {
+	return r.c.wroteLen
 }
 
 func (m *SlowReadConn) Peek(i int) ([]byte, error) {
 	b, err := m.zr.Peek(i)
-	time.Sleep(100 * time.Millisecond)
+	if m.rtimeout > 0 {
+		time.Sleep(m.rtimeout)
+	} else {
+		time.Sleep(100 * time.Millisecond)
+	}
 	if err != nil || len(b) != i {
-		time.Sleep(m.readTimeout)
-		return nil, errs.ErrTimeout
+		return nil, ErrReadTimeout
 	}
 	return b, err
 }
@@ -115,8 +174,106 @@ func NewConn(source string) *Conn {
 	}
 }
 
+type BrokenConn struct {
+	*Conn
+}
+
+func (o *BrokenConn) Peek(i int) ([]byte, error) {
+	return nil, io.ErrUnexpectedEOF
+}
+
+func (o *BrokenConn) Read(b []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (o *BrokenConn) Flush() error {
+	return errs.ErrConnectionClosed
+}
+
+func NewBrokenConn(source string) *BrokenConn {
+	return &BrokenConn{Conn: NewConn(source)}
+}
+
+type OneTimeConn struct {
+	isRead        bool
+	isFlushed     bool
+	contentLength int
+	*Conn
+}
+
+func (o *OneTimeConn) Peek(n int) ([]byte, error) {
+	if o.isRead {
+		return nil, io.EOF
+	}
+	return o.Conn.Peek(n)
+}
+
+func (o *OneTimeConn) Skip(n int) error {
+	if o.isRead {
+		return io.EOF
+	}
+	o.contentLength -= n
+
+	if o.contentLength == 0 {
+		o.isRead = true
+	}
+
+	return o.Conn.Skip(n)
+}
+
+func (o *OneTimeConn) Flush() error {
+	if o.isFlushed {
+		return errs.ErrConnectionClosed
+	}
+	o.isFlushed = true
+	return o.Conn.Flush()
+}
+
+func NewOneTimeConn(source string) *OneTimeConn {
+	return &OneTimeConn{isRead: false, isFlushed: false, Conn: NewConn(source), contentLength: len(source)}
+}
+
 func NewSlowReadConn(source string) *SlowReadConn {
-	return &SlowReadConn{NewConn(source)}
+	return &SlowReadConn{Conn: NewConn(source)}
+}
+
+type ErrorReadConn struct {
+	*Conn
+	errorToReturn error
+}
+
+func NewErrorReadConn(err error) *ErrorReadConn {
+	return &ErrorReadConn{
+		Conn:          NewConn(""),
+		errorToReturn: err,
+	}
+}
+
+func (er *ErrorReadConn) Peek(n int) ([]byte, error) {
+	return nil, er.errorToReturn
+}
+
+type SlowWriteConn struct {
+	*Conn
+	writeTimeout time.Duration
+}
+
+func (m *SlowWriteConn) SetWriteTimeout(t time.Duration) error {
+	m.writeTimeout = t
+	return nil
+}
+
+func NewSlowWriteConn(source string) *SlowWriteConn {
+	return &SlowWriteConn{NewConn(source), 0}
+}
+
+func (m *SlowWriteConn) Flush() error {
+	err := m.zw.Flush()
+	if err == nil {
+		time.Sleep(m.writeTimeout)
+		return ErrWriteTimeout
+	}
+	return err
 }
 
 func (m *Conn) Close() error {
@@ -132,11 +289,13 @@ func (m *Conn) RemoteAddr() net.Addr {
 }
 
 func (m *Conn) SetDeadline(t time.Time) error {
-	panic("implement me")
+	m.rtimeout = -time.Since(t)
+	m.wtimeout = m.rtimeout
+	return nil
 }
 
 func (m *Conn) SetReadDeadline(t time.Time) error {
-	m.readTimeout = -time.Since(t)
+	m.rtimeout = -time.Since(t)
 	return nil
 }
 
@@ -161,7 +320,7 @@ func (m *Conn) SetIdleTimeout(timeout time.Duration) error {
 }
 
 func (m *Conn) SetReadTimeout(t time.Duration) error {
-	m.readTimeout = t
+	m.rtimeout = t
 	return nil
 }
 
@@ -174,7 +333,8 @@ func (m *Conn) AddCloseCallback(callback netpoll.CloseCallback) error {
 }
 
 type StreamConn struct {
-	Data []byte
+	HasReleased bool
+	Data        []byte
 }
 
 func NewStreamConn() *StreamConn {
@@ -191,7 +351,7 @@ func (m *StreamConn) Peek(n int) ([]byte, error) {
 		m.Data = m.Data[:cap(m.Data)]
 		return m.Data[:1], nil
 	}
-	return nil, errors.New("not enough data")
+	return nil, errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Skip(n int) error {
@@ -199,11 +359,12 @@ func (m *StreamConn) Skip(n int) error {
 		m.Data = m.Data[n:]
 		return nil
 	}
-	return errors.New("not enough data")
+	return errs.NewPublic("not enough data")
 }
 
 func (m *StreamConn) Release() error {
-	panic("implement me")
+	m.HasReleased = true
+	return nil
 }
 
 func (m *StreamConn) Len() int {
@@ -220,4 +381,57 @@ func (m *StreamConn) ReadBinary(n int) (p []byte, err error) {
 
 func DialerFun(addr string) (network.Conn, error) {
 	return NewConn(""), nil
+}
+
+type MockWriter struct {
+	w network.Writer
+
+	MockMalloc      func(n int) (buf []byte, err error)
+	MockWriteBinary func(b []byte) (n int, err error)
+	MockFlush       func() error
+}
+
+func NewMockWriter(w network.Writer) *MockWriter {
+	return &MockWriter{w: w}
+}
+
+func (m *MockWriter) Malloc(n int) (buf []byte, err error) {
+	if m.MockMalloc != nil {
+		return m.MockMalloc(n)
+	}
+	return m.w.Malloc(n)
+}
+
+func (m *MockWriter) WriteBinary(b []byte) (n int, err error) {
+	if m.MockWriteBinary != nil {
+		return m.MockWriteBinary(b)
+	}
+	return m.w.WriteBinary(b)
+}
+
+func (m *MockWriter) Flush() error {
+	if m.MockFlush != nil {
+		return m.MockFlush()
+	}
+	return m.w.Flush()
+}
+
+type TLSConn struct {
+	network.Conn
+
+	HandshakeErr error
+}
+
+var _ network.ConnTLSer = (*TLSConn)(nil)
+
+func (c *TLSConn) Handshake() error {
+	return c.HandshakeErr
+}
+
+func (c *TLSConn) ConnectionState() tls.ConnectionState {
+	return tls.ConnectionState{}
+}
+
+func NewTLSConn(conn network.Conn) *TLSConn {
+	return &TLSConn{Conn: conn}
 }

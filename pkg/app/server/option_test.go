@@ -17,14 +17,20 @@
 package server
 
 import (
+	"context"
+	"net"
+	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/tracer/stats"
 	"github.com/cloudwego/hertz/pkg/common/utils"
+	"github.com/cloudwego/hertz/pkg/network"
 )
 
 func TestOptions(t *testing.T) {
@@ -33,8 +39,15 @@ func TestOptions(t *testing.T) {
 		Weight:      10,
 		Addr:        utils.NewNetAddr("tcp", ":8888"),
 	}
+	cfg := &net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
+		return c.Control(func(fd uintptr) {})
+	}}
+	transporter := func(options *config.Options) network.Transporter {
+		return &mockTransporter{}
+	}
 	opt := config.NewOptions([]config.Option{
 		WithReadTimeout(time.Second),
+		WithWriteTimeout(time.Second),
 		WithIdleTimeout(time.Second),
 		WithKeepAliveTimeout(time.Second),
 		WithRedirectTrailingSlash(false),
@@ -46,18 +59,29 @@ func TestOptions(t *testing.T) {
 		WithDisablePreParseMultipartForm(true),
 		WithStreamBody(false),
 		WithHostPorts(":8888"),
+		WithBasePath("/"),
 		WithMaxRequestBodySize(2),
+		WithDisablePrintRoute(true),
+		WithSenseClientDisconnection(true),
 		WithNetwork("unix"),
 		WithExitWaitTime(time.Second),
 		WithMaxKeepBodySize(500),
+		WithGetOnly(true),
+		WithKeepAlive(false),
 		WithTLS(nil),
 		WithH2C(true),
 		WithReadBufferSize(100),
 		WithALPN(true),
 		WithTraceLevel(stats.LevelDisabled),
 		WithRegistry(nil, info),
+		WithAutoReloadRender(true, 5*time.Second),
+		WithListenConfig(cfg),
+		WithAltTransport(transporter),
+		WithDisableHeaderNamesNormalizing(true),
+		WithMaxHeaderBytes(1024),
 	})
 	assert.DeepEqual(t, opt.ReadTimeout, time.Second)
+	assert.DeepEqual(t, opt.WriteTimeout, time.Second)
 	assert.DeepEqual(t, opt.IdleTimeout, time.Second)
 	assert.DeepEqual(t, opt.KeepAliveTimeout, time.Second)
 	assert.DeepEqual(t, opt.RedirectTrailingSlash, false)
@@ -69,16 +93,27 @@ func TestOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.DisablePreParseMultipartForm, true)
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
+	assert.DeepEqual(t, opt.BasePath, "/")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 2)
+	assert.DeepEqual(t, opt.DisablePrintRoute, true)
+	assert.DeepEqual(t, opt.SenseClientDisconnection, true)
 	assert.DeepEqual(t, opt.Network, "unix")
 	assert.DeepEqual(t, opt.ExitWaitTimeout, time.Second)
 	assert.DeepEqual(t, opt.MaxKeepBodySize, 500)
+	assert.DeepEqual(t, opt.GetOnly, true)
+	assert.DeepEqual(t, opt.DisableKeepalive, true)
 	assert.DeepEqual(t, opt.H2C, true)
 	assert.DeepEqual(t, opt.ReadBufferSize, 100)
 	assert.DeepEqual(t, opt.ALPN, true)
 	assert.DeepEqual(t, opt.TraceLevel, stats.LevelDisabled)
 	assert.DeepEqual(t, opt.RegistryInfo, info)
 	assert.DeepEqual(t, opt.Registry, nil)
+	assert.DeepEqual(t, opt.AutoReloadRender, true)
+	assert.DeepEqual(t, opt.AutoReloadInterval, 5*time.Second)
+	assert.DeepEqual(t, opt.ListenConfig, cfg)
+	assert.Assert(t, reflect.TypeOf(opt.AltTransporterNewer) == reflect.TypeOf(transporter))
+	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, true)
+	assert.DeepEqual(t, opt.MaxHeaderBytes, 1024)
 }
 
 func TestDefaultOptions(t *testing.T) {
@@ -95,7 +130,12 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.DisablePreParseMultipartForm, false)
 	assert.DeepEqual(t, opt.StreamRequestBody, false)
 	assert.DeepEqual(t, opt.Addr, ":8888")
+	assert.DeepEqual(t, opt.BasePath, "/")
 	assert.DeepEqual(t, opt.MaxRequestBodySize, 4*1024*1024)
+	assert.DeepEqual(t, opt.GetOnly, false)
+	assert.DeepEqual(t, opt.DisableKeepalive, false)
+	assert.DeepEqual(t, opt.DisablePrintRoute, false)
+	assert.DeepEqual(t, opt.SenseClientDisconnection, false)
 	assert.DeepEqual(t, opt.Network, "tcp")
 	assert.DeepEqual(t, opt.ExitWaitTimeout, time.Second*5)
 	assert.DeepEqual(t, opt.MaxKeepBodySize, 4*1024*1024)
@@ -103,5 +143,47 @@ func TestDefaultOptions(t *testing.T) {
 	assert.DeepEqual(t, opt.ReadBufferSize, 4096)
 	assert.DeepEqual(t, opt.ALPN, false)
 	assert.DeepEqual(t, opt.Registry, registry.NoopRegistry)
+	assert.DeepEqual(t, opt.AutoReloadRender, false)
 	assert.Assert(t, opt.RegistryInfo == nil)
+	assert.DeepEqual(t, opt.AutoReloadRender, false)
+	assert.DeepEqual(t, opt.AutoReloadInterval, time.Duration(0))
+	assert.DeepEqual(t, opt.DisableHeaderNamesNormalizing, false)
+	assert.DeepEqual(t, opt.MaxHeaderBytes, 1<<20)
+}
+
+func TestWithListener(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
+	cfg := &net.ListenConfig{}
+	opt := config.NewOptions([]config.Option{
+		WithHostPorts("127.0.0.1:8888"),
+		WithNetwork("udp"),
+		WithListenConfig(cfg),
+		WithListener(ln),
+	})
+
+	// Listener should be set
+	assert.DeepEqual(t, opt.Listener, ln)
+
+	// Network and Addr should be updated from listener
+	assert.DeepEqual(t, opt.Network, ln.Addr().Network())
+	assert.DeepEqual(t, opt.Addr, ln.Addr().String())
+
+	// ListenConfig should be reset
+	assert.Assert(t, opt.ListenConfig == nil)
+}
+
+type mockTransporter struct{}
+
+func (m *mockTransporter) ListenAndServe(onData network.OnData) (err error) {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Close() error {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Shutdown(ctx context.Context) error {
+	panic("implement me")
 }

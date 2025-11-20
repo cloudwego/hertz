@@ -17,13 +17,19 @@
 package standard
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
+	"syscall"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/errors"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 )
 
@@ -42,6 +48,26 @@ type Conn struct {
 	outputBuffer *linkBuffer
 	caches       [][]byte // buf allocated by Next when cross-package, which should be freed when release
 	maxSize      int      // history max malloc size
+
+	err error
+}
+
+func (c *Conn) ToHertzError(err error) error {
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ENOTCONN) {
+		return errs.ErrConnectionClosed
+	}
+	if netErr, ok := err.(*net.OpError); ok && netErr.Timeout() {
+		return errs.ErrTimeout
+	}
+
+	return err
+}
+
+func (c *Conn) SetWriteTimeout(t time.Duration) error {
+	if t <= 0 {
+		return c.c.SetWriteDeadline(time.Time{})
+	}
+	return c.c.SetWriteDeadline(time.Now().Add(t))
 }
 
 func (c *Conn) SetReadTimeout(t time.Duration) error {
@@ -73,6 +99,8 @@ func (c *Conn) Read(b []byte) (l int, err error) {
 	// If left buffer size is less than block4k, first Peek(1) to fill the buffer.
 	// Then copy min(c.Len, len(b)) to b.
 	if len(b) <= block4k {
+		// If c.fill(1) return err, conn.Read must return 0, err. So there is no need
+		// to check c.Len
 		err = c.fill(1)
 		if err != nil {
 			return 0, err
@@ -157,9 +185,11 @@ func (c *Conn) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Close closes the connection
 func (c *Conn) Close() error {
-	c.inputBuffer.release()
-	c.outputBuffer.release()
-	c.inputBuffer, c.outputBuffer = nil, nil
+	return c.c.Close()
+}
+
+// CloseNoResetBuffer closes the connection without reset buffer.
+func (c *Conn) CloseNoResetBuffer() error {
 	return c.c.Close()
 }
 
@@ -273,6 +303,9 @@ func (c *Conn) handleTail() {
 	c.inputBuffer.write.Reset()
 }
 
+// Peek returns the next n bytes without advancing the reader. The bytes stop
+// being valid at the next read call. If Peek returns fewer than n bytes, it
+// also returns an error explaining why the read is short.
 func (c *Conn) Peek(i int) (p []byte, err error) {
 	node := c.inputBuffer.read
 	// fill the inputBuffer so that there is enough data
@@ -281,10 +314,15 @@ func (c *Conn) Peek(i int) (p []byte, err error) {
 		return
 	}
 
+	if c.Len() < i {
+		i = c.Len()
+		err = c.readErr()
+	}
+
 	l := node.Len()
 	// Enough data in a single node, so that just return the slice of the node.
 	if l >= i {
-		return node.buf[node.off : node.off+i], nil
+		return node.buf[node.off : node.off+i], err
 	}
 
 	// not enough data in a signal node
@@ -294,12 +332,12 @@ func (c *Conn) Peek(i int) (p []byte, err error) {
 	} else {
 		p = make([]byte, i)
 	}
-	err = c.peekBuffer(i, p)
+	c.peekBuffer(i, p)
 	return p, err
 }
 
 // peekBuffer loads the buf with data of size i without moving read pointer.
-func (c *Conn) peekBuffer(i int, buf []byte) error {
+func (c *Conn) peekBuffer(i int, buf []byte) {
 	l, pIdx, node := 0, 0, c.inputBuffer.read
 	for ack := i; ack > 0; ack = ack - l {
 		l = node.Len()
@@ -311,7 +349,6 @@ func (c *Conn) peekBuffer(i int, buf []byte) error {
 		}
 		node = node.next
 	}
-	return nil
 }
 
 // next loads the buf with data of size i with moving read pointer.
@@ -325,12 +362,22 @@ func (c *Conn) next(length int, b []byte) error {
 }
 
 // fill loads more data than size i, otherwise it will block read.
+// NOTE: fill may fill data less than i and store err in Conn.err
+// when last read returns n > 0 and err != nil. So after calling
+// fill, it is necessary to check whether c.Len() > i
 func (c *Conn) fill(i int) (err error) {
 	// Check if there is enough data in inputBuffer.
 	if c.Len() >= i {
 		return nil
 	}
-
+	// check whether conn has returned err before.
+	if err = c.readErr(); err != nil {
+		if c.Len() > 0 {
+			c.err = err
+			return nil
+		}
+		return
+	}
 	node := c.inputBuffer.write
 	node.buf = node.buf[:cap(node.buf)]
 	left := cap(node.buf) - node.malloc
@@ -354,15 +401,22 @@ func (c *Conn) fill(i int) (err error) {
 	i -= c.Len()
 	node = c.inputBuffer.write
 	node.buf = node.buf[:cap(node.buf)]
+
 	// Circulate reading data so that the node holds enough data
 	for i > 0 {
 		n, err := c.c.Read(c.inputBuffer.write.buf[node.malloc:])
+		if n > 0 {
+			node.malloc += n
+			c.inputBuffer.len += n
+			i -= n
+			if err != nil {
+				c.err = err
+				return nil
+			}
+		}
 		if err != nil {
 			return err
 		}
-		node.malloc += n
-		c.inputBuffer.len += n
-		i -= n
 	}
 	return nil
 }
@@ -371,7 +425,7 @@ func (c *Conn) fill(i int) (err error) {
 func (c *Conn) Skip(n int) error {
 	// check whether enough or not.
 	if c.Len() < n {
-		return errors.NewPrivate("link buffer skip[" + strconv.Itoa(n) + "] not enough")
+		return errs.NewPrivate("link buffer skip[" + strconv.Itoa(n) + "] not enough")
 	}
 	c.inputBuffer.len -= n // re-cal length
 
@@ -505,6 +559,20 @@ func (c *Conn) Flush() (err error) {
 	return nil
 }
 
+func (c *Conn) HandleSpecificError(err error, rip string) (needIgnore bool) {
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		hlog.SystemLogger().Debugf("Go net library error=%s, remoteAddr=%s", err.Error(), rip)
+		return true
+	}
+	return false
+}
+
+func (c *Conn) readErr() error {
+	err := c.err
+	c.err = nil
+	return err
+}
+
 func (c *TLSConn) Handshake() error {
 	return c.c.(network.ConnTLSer).Handshake()
 }
@@ -518,20 +586,27 @@ func newConn(c net.Conn, size int) network.Conn {
 	if size > maxSize {
 		maxSize = size
 	}
-	inputNode := newBufferNode(maxSize)
+
+	node := newBufferNode(maxSize)
+	inputBuffer := &linkBuffer{
+		head:  node,
+		read:  node,
+		write: node,
+	}
+	runtime.SetFinalizer(inputBuffer, (*linkBuffer).release)
+
 	outputNode := newBufferNode(0)
+	outputBuffer := &linkBuffer{
+		head:  outputNode,
+		write: outputNode,
+	}
+	runtime.SetFinalizer(outputBuffer, (*linkBuffer).release)
+
 	return &Conn{
-		c: c,
-		inputBuffer: &linkBuffer{
-			head:  inputNode,
-			read:  inputNode,
-			write: inputNode,
-		},
-		outputBuffer: &linkBuffer{
-			head:  outputNode,
-			write: outputNode,
-		},
-		maxSize: maxSize,
+		c:            c,
+		inputBuffer:  inputBuffer,
+		outputBuffer: outputBuffer,
+		maxSize:      maxSize,
 	}
 }
 
@@ -540,21 +615,80 @@ func newTLSConn(c net.Conn, size int) network.Conn {
 	if size > maxSize {
 		maxSize = size
 	}
+
 	node := newBufferNode(maxSize)
+	inputBuffer := &linkBuffer{
+		head:  node,
+		read:  node,
+		write: node,
+	}
+	runtime.SetFinalizer(inputBuffer, (*linkBuffer).release)
+
 	outputNode := newBufferNode(0)
+	outputBuffer := &linkBuffer{
+		head:  outputNode,
+		write: outputNode,
+	}
+	runtime.SetFinalizer(outputBuffer, (*linkBuffer).release)
+
 	return &TLSConn{
 		Conn{
-			c: c,
-			inputBuffer: &linkBuffer{
-				head:  node,
-				read:  node,
-				write: node,
-			},
-			outputBuffer: &linkBuffer{
-				head:  outputNode,
-				write: outputNode,
-			},
-			maxSize: maxSize,
+			c:            c,
+			inputBuffer:  inputBuffer,
+			outputBuffer: outputBuffer,
+			maxSize:      maxSize,
 		},
+	}
+}
+
+var earliestTime = time.Unix(1, 0)
+
+var _ internalNetwork.StatefulConn = &statefulConn{}
+
+func NewStatefulConn(c network.Conn, onReadError func(err error)) internalNetwork.StatefulConn {
+	return &statefulConn{
+		Conn:        c,
+		onReadError: onReadError,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type statefulConn struct {
+	network.Conn
+	onReadError func(err error)
+	ch          chan struct{}
+}
+
+// DetectConnectionClose starts a blocking read to detect connection error
+func (c *statefulConn) DetectConnectionClose() {
+	c.Conn.SetReadDeadline(time.Time{}) // blocking read
+	go func() {
+		// start a blocking read, if return
+		// 1. n != 0, err == nil: pipeline request
+		// 2. err != nil: execute onReadError
+		_, err := c.Conn.Peek(1) // peek 1 byte to trigger Read Syscall
+		if err != nil {
+			c.onReadError(err)
+		}
+		c.ch <- struct{}{}
+	}()
+}
+
+// AbortBlockingRead cancels the blocking read and waits for the DetectConnectionClose exit.
+// Only call AbortBlockingRead if already called DetectConnectionClose.
+func (c *statefulConn) AbortBlockingRead() {
+	c.Conn.SetReadDeadline(earliestTime) // cancel the blocking read
+	<-c.ch                               // wait until the blocking read returns
+}
+
+func newOnReadErrorFunc(cancelCtx context.CancelFunc) func(err error) {
+	return func(err error) {
+		// 1. timeout error, triggered by `abortBlockingRead` when response is written, ignore.
+		// 2. other connection error (e.g. EOF), cancel the context
+		if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			// ignore the error triggered by AbortBlockingRead, which should be "i/o timeout"
+		} else {
+			cancelCtx()
+		}
 	}
 }

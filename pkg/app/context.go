@@ -47,6 +47,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -73,6 +74,125 @@ var zeroTCPAddr = &net.TCPAddr{
 
 type Handler interface {
 	ServeHTTP(c context.Context, ctx *RequestContext)
+}
+
+type ClientIP func(ctx *RequestContext) string
+
+type ClientIPOptions struct {
+	RemoteIPHeaders []string
+	TrustedCIDRs    []*net.IPNet
+}
+
+var defaultTrustedCIDRs = []*net.IPNet{
+	{ // 0.0.0.0/0 (IPv4)
+		IP:   net.IP{0x0, 0x0, 0x0, 0x0},
+		Mask: net.IPMask{0x0, 0x0, 0x0, 0x0},
+	},
+	{ // ::/0 (IPv6)
+		IP:   net.IP{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+		Mask: net.IPMask{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+	},
+}
+
+var defaultClientIPOptions = ClientIPOptions{
+	RemoteIPHeaders: []string{"X-Forwarded-For", "X-Real-IP"},
+	TrustedCIDRs:    defaultTrustedCIDRs,
+}
+
+var loopbackIP = net.ParseIP("127.0.0.1")
+
+// ClientIPWithOption used to generate custom ClientIP function and set by engine.SetClientIPFunc
+func ClientIPWithOption(opts ClientIPOptions) ClientIP {
+	return func(ctx *RequestContext) string {
+		remoteIPStr := ""
+		trustedProxy := false
+		if addr := ctx.RemoteAddr(); strings.HasPrefix(addr.Network(), "unix") {
+			// unix, unixgram, unixpacket is considered same as "127.0.0.1"
+			remoteIPStr = addr.String()
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, loopbackIP)
+		} else {
+			h, _, err := net.SplitHostPort(strings.TrimSpace(addr.String()))
+			if err != nil {
+				return ""
+			}
+			remoteIPStr = h
+			trustedProxy = isTrustedProxy(opts.TrustedCIDRs, net.ParseIP(h))
+		}
+
+		if trustedProxy {
+			for _, headerName := range opts.RemoteIPHeaders {
+				ip, valid := validateHeader(opts.TrustedCIDRs, ctx.Request.Header.Get(headerName))
+				if valid {
+					return ip
+				}
+			}
+		}
+		return remoteIPStr
+	}
+}
+
+// isTrustedProxy will check whether the IP address is included in the trusted list according to trustedCIDRs
+func isTrustedProxy(trustedCIDRs []*net.IPNet, remoteIP net.IP) bool {
+	if trustedCIDRs == nil || remoteIP == nil {
+		return false
+	}
+	for _, cidr := range trustedCIDRs {
+		if cidr.Contains(remoteIP) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateHeader will parse X-Real-IP and X-Forwarded-For header and return the Initial client IP address or an untrusted IP address
+func validateHeader(trustedCIDRs []*net.IPNet, header string) (clientIP string, valid bool) {
+	if header == "" {
+		return "", false
+	}
+	items := strings.Split(header, ",")
+	for i := len(items) - 1; i >= 0; i-- {
+		ipStr := strings.TrimSpace(items[i])
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			break
+		}
+
+		// X-Forwarded-For is appended by proxy
+		// Check IPs in reverse order and stop when find untrusted proxy
+		if (i == 0) || (!isTrustedProxy(trustedCIDRs, ip)) {
+			return ipStr, true
+		}
+	}
+	return "", false
+}
+
+var defaultClientIP = ClientIPWithOption(defaultClientIPOptions)
+
+// SetClientIPFunc sets ClientIP function implementation to get ClientIP.
+// Deprecated: Use engine.SetClientIPFunc instead of SetClientIPFunc
+func SetClientIPFunc(fn ClientIP) {
+	defaultClientIP = fn
+}
+
+type FormValueFunc func(*RequestContext, string) []byte
+
+var defaultFormValue = func(ctx *RequestContext, key string) []byte {
+	v := ctx.QueryArgs().Peek(key)
+	if len(v) > 0 {
+		return v
+	}
+	v = ctx.PostArgs().Peek(key)
+	if len(v) > 0 {
+		return v
+	}
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		vv := mf.Value[key]
+		if len(vv) > 0 {
+			return []byte(vv[0])
+		}
+	}
+	return nil
 }
 
 type RequestContext struct {
@@ -107,6 +227,46 @@ type RequestContext struct {
 
 	// enableTrace defines whether enable trace.
 	enableTrace bool
+
+	// clientIPFunc get client ip by use custom function.
+	clientIPFunc ClientIP
+
+	// clientIPFunc get form value by use custom function.
+	formValueFunc FormValueFunc
+
+	binder binding.Binder
+	exiled bool
+}
+
+// Exile marks this RequestContext as not to be recycled.
+// Experimental features: Use with caution, it may have a slight impact on performance.
+func (ctx *RequestContext) Exile() {
+	ctx.exiled = true
+}
+
+func (ctx *RequestContext) IsExiled() bool {
+	return ctx.exiled
+}
+
+// Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
+// Will return nil if the response writer is not hijacked.
+func (ctx *RequestContext) Flush() error {
+	if ctx.Response.GetHijackWriter() == nil {
+		return nil
+	}
+	return ctx.Response.GetHijackWriter().Flush()
+}
+
+func (ctx *RequestContext) SetClientIPFunc(f ClientIP) {
+	ctx.clientIPFunc = f
+}
+
+func (ctx *RequestContext) SetFormValueFunc(f FormValueFunc) {
+	ctx.formValueFunc = f
+}
+
+func (ctx *RequestContext) SetBinder(binder binding.Binder) {
+	ctx.binder = binder
 }
 
 func (ctx *RequestContext) GetTraceInfo() traceinfo.TraceInfo {
@@ -174,19 +334,71 @@ func (ctx *RequestContext) GetIndex() int8 {
 	return ctx.index
 }
 
+// SetIndex reset the handler's execution index
+// Disclaimer: You can loop yourself to deal with this, use wisely.
+func (ctx *RequestContext) SetIndex(index int8) {
+	ctx.index = index
+}
+
 type HandlerFunc func(c context.Context, ctx *RequestContext)
 
 // HandlersChain defines a HandlerFunc array.
 type HandlersChain []HandlerFunc
 
-var handlerNames = make(map[uintptr]string)
+type HandlerNameOperator interface {
+	SetHandlerName(handler HandlerFunc, name string)
+	GetHandlerName(handler HandlerFunc) string
+}
+
+func SetHandlerNameOperator(o HandlerNameOperator) {
+	inbuiltHandlerNameOperator = o
+}
+
+type inbuiltHandlerNameOperatorStruct struct {
+	handlerNames map[uintptr]string
+}
+
+func (o *inbuiltHandlerNameOperatorStruct) SetHandlerName(handler HandlerFunc, name string) {
+	o.handlerNames[getFuncAddr(handler)] = name
+}
+
+func (o *inbuiltHandlerNameOperatorStruct) GetHandlerName(handler HandlerFunc) string {
+	return o.handlerNames[getFuncAddr(handler)]
+}
+
+type concurrentHandlerNameOperatorStruct struct {
+	handlerNames map[uintptr]string
+	lock         sync.RWMutex
+}
+
+func (o *concurrentHandlerNameOperatorStruct) SetHandlerName(handler HandlerFunc, name string) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+	o.handlerNames[getFuncAddr(handler)] = name
+}
+
+func (o *concurrentHandlerNameOperatorStruct) GetHandlerName(handler HandlerFunc) string {
+	o.lock.RLock()
+	defer o.lock.RUnlock()
+	return o.handlerNames[getFuncAddr(handler)]
+}
+
+func SetConcurrentHandlerNameOperator() {
+	SetHandlerNameOperator(&concurrentHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}})
+}
+
+func init() {
+	inbuiltHandlerNameOperator = &inbuiltHandlerNameOperatorStruct{handlerNames: map[uintptr]string{}}
+}
+
+var inbuiltHandlerNameOperator HandlerNameOperator
 
 func SetHandlerName(handler HandlerFunc, name string) {
-	handlerNames[getFuncAddr(handler)] = name
+	inbuiltHandlerNameOperator.SetHandlerName(handler, name)
 }
 
 func GetHandlerName(handler HandlerFunc) string {
-	return handlerNames[getFuncAddr(handler)]
+	return inbuiltHandlerNameOperator.GetHandlerName(handler)
 }
 
 func getFuncAddr(v interface{}) uintptr {
@@ -215,8 +427,8 @@ type HijackHandler func(c network.Conn)
 //
 // The server skips calling the handler in the following cases:
 //
-//     * 'Connection: close' header exists in either request or response.
-//     * Unexpected error during response writing to the connection.
+//   - 'Connection: close' header exists in either request or response.
+//   - Unexpected error during response writing to the connection.
 //
 // The server stops processing requests from hijacked connections.
 //
@@ -228,9 +440,8 @@ type HijackHandler func(c network.Conn)
 // Arbitrary 'Connection: Upgrade' protocols may be implemented
 // with HijackHandler. For instance,
 //
-//     * WebSocket ( https://en.wikipedia.org/wiki/WebSocket )
-//     * HTTP/2.0 ( https://en.wikipedia.org/wiki/HTTP/2 )
-//
+//   - WebSocket ( https://en.wikipedia.org/wiki/WebSocket )
+//   - HTTP/2.0 ( https://en.wikipedia.org/wiki/HTTP/2 )
 func (ctx *RequestContext) Hijack(handler HijackHandler) {
 	ctx.hijackHandler = handler
 }
@@ -381,9 +592,10 @@ func (ctx *RequestContext) String(code int, format string, values ...interface{}
 
 // FullPath returns a matched route full path. For not found routes
 // returns an empty string.
-//     router.GET("/user/:id", func(c *hertz.RequestContext) {
-//         c.FullPath() == "/user/:id" // true
-//     })
+//
+//	router.GET("/user/:id", func(c context.Context, ctx *app.RequestContext) {
+//	    ctx.FullPath() == "/user/:id" // true
+//	})
 func (ctx *RequestContext) FullPath() string {
 	return ctx.fullPath
 }
@@ -447,34 +659,23 @@ func (ctx *RequestContext) FormFile(name string) (*multipart.FileHeader, error) 
 //
 // The value is searched in the following places:
 //
-//   * Query string.
-//   * POST or PUT body.
+//   - Query string.
+//   - POST or PUT body.
 //
 // There are more fine-grained methods for obtaining form values:
 //
-//   * QueryArgs for obtaining values from query string.
-//   * PostArgs for obtaining values from POST or PUT body.
-//   * MultipartForm for obtaining values from multipart form.
-//   * FormFile for obtaining uploaded files.
+//   - QueryArgs for obtaining values from query string.
+//   - PostArgs for obtaining values from POST or PUT body.
+//   - MultipartForm for obtaining values from multipart form.
+//   - FormFile for obtaining uploaded files.
 //
 // The returned value is valid until returning from RequestHandler.
+// Use engine.SetCustomFormValueFunc to change action of FormValue.
 func (ctx *RequestContext) FormValue(key string) []byte {
-	v := ctx.QueryArgs().Peek(key)
-	if len(v) > 0 {
-		return v
+	if ctx.formValueFunc != nil {
+		return ctx.formValueFunc(ctx, key)
 	}
-	v = ctx.PostArgs().Peek(key)
-	if len(v) > 0 {
-		return v
-	}
-	mf, err := ctx.MultipartForm()
-	if err == nil && mf.Value != nil {
-		vv := mf.Value[key]
-		if len(vv) > 0 {
-			return []byte(vv[0])
-		}
-	}
-	return nil
+	return defaultFormValue(ctx, key)
 }
 
 func (ctx *RequestContext) multipartFormValue(key string) (string, bool) {
@@ -486,6 +687,17 @@ func (ctx *RequestContext) multipartFormValue(key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (ctx *RequestContext) multipartFormValueArray(key string) ([]string, bool) {
+	mf, err := ctx.MultipartForm()
+	if err == nil && mf.Value != nil {
+		vv := mf.Value[key]
+		if len(vv) > 0 {
+			return vv, true
+		}
+	}
+	return nil, false
 }
 
 func (ctx *RequestContext) RequestBodyStream() io.Reader {
@@ -600,6 +812,10 @@ func (ctx *RequestContext) Copy() *RequestContext {
 	paramCopy := make([]param.Param, len(cp.Params))
 	copy(paramCopy, cp.Params)
 	cp.Params = paramCopy
+	cp.fullPath = ctx.fullPath
+	cp.clientIPFunc = ctx.clientIPFunc
+	cp.formValueFunc = ctx.formValueFunc
+	cp.binder = ctx.binder
 	return cp
 }
 
@@ -629,7 +845,7 @@ func (ctx *RequestContext) SetHandlers(hc HandlersChain) {
 
 // HandlerName returns the main handler's name.
 //
-//For example if the handler is "handleGetUsers()", this function will return "main.handleGetUsers".
+// For example if the handler is "handleGetUsers()", this function will return "main.handleGetUsers".
 func (ctx *RequestContext) HandlerName() string {
 	return utils.NameOfFunction(ctx.handlers.Last())
 }
@@ -646,7 +862,8 @@ func (ctx *RequestContext) ResetWithoutConn() {
 		close(ctx.finished)
 		ctx.finished = nil
 	}
-	ctx.Request.Reset()
+
+	ctx.Request.ResetWithoutConn()
 	ctx.Response.Reset()
 	if ctx.IsEnableTrace() {
 		ctx.traceInfo.Reset()
@@ -661,10 +878,20 @@ func (ctx *RequestContext) Reset() {
 	ctx.conn = nil
 }
 
+// Redirect returns an HTTP redirect to the specific location.
+// Note that this will not stop the current handler.
+// In other words, even if Redirect() is called, the remaining handlers will still be executed and cause unexpected result.
+// So it should call Abort to ensure the remaining handlers of this request will not be called.
+//
+//	ctx.Abort()
+//	return
 func (ctx *RequestContext) Redirect(statusCode int, uri []byte) {
 	ctx.redirect(uri, statusCode)
 }
 
+// Header is an intelligent shortcut for ctx.Response.Header.Set(key, value).
+// It writes a header in the response.
+// If value == "", this method removes the header `ctx.Response.Header.Del(key)`.
 func (ctx *RequestContext) Header(key, value string) {
 	if value == "" {
 		ctx.Response.Header.Del(key)
@@ -726,10 +953,50 @@ func (ctx *RequestContext) GetInt(key string) (i int) {
 	return
 }
 
+// GetInt32 returns the value associated with the key as an integer. Return int32(0) when type is error.
+func (ctx *RequestContext) GetInt32(key string) (i32 int32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		i32, _ = val.(int32)
+	}
+	return
+}
+
 // GetInt64 returns the value associated with the key as an integer. Return int64(0) when type is error.
 func (ctx *RequestContext) GetInt64(key string) (i64 int64) {
 	if val, ok := ctx.Get(key); ok && val != nil {
 		i64, _ = val.(int64)
+	}
+	return
+}
+
+// GetUint returns the value associated with the key as an unsigned integer. Return uint(0) when type is error.
+func (ctx *RequestContext) GetUint(key string) (ui uint) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui, _ = val.(uint)
+	}
+	return
+}
+
+// GetUint32 returns the value associated with the key as an unsigned integer. Return uint32(0) when type is error.
+func (ctx *RequestContext) GetUint32(key string) (ui32 uint32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui32, _ = val.(uint32)
+	}
+	return
+}
+
+// GetUint64 returns the value associated with the key as an unsigned integer. Return uint64(0) when type is error.
+func (ctx *RequestContext) GetUint64(key string) (ui64 uint64) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		ui64, _ = val.(uint64)
+	}
+	return
+}
+
+// GetFloat32 returns the value associated with the key as a float32. Return float32(0.0) when type is error.
+func (ctx *RequestContext) GetFloat32(key string) (f32 float32) {
+	if val, ok := ctx.Get(key); ok && val != nil {
+		f32, _ = val.(float32)
 	}
 	return
 }
@@ -800,10 +1067,11 @@ func (ctx *RequestContext) GetStringMapStringSlice(key string) (smss map[string]
 
 // Param returns the value of the URL param.
 // It is a shortcut for c.Params.ByName(key)
-//     router.GET("/user/:id", func(c *hertz.RequestContext) {
-//         // a GET request to /user/john
-//         id := c.Param("id") // id == "john"
-//     })
+//
+//	router.GET("/user/:id", func(c context.Context, ctx *app.RequestContext) {
+//	    // a GET request to /user/john
+//	    id := ctx.Param("id") // id == "john"
+//	})
 func (ctx *RequestContext) Param(key string) string {
 	return ctx.Params.ByName(key)
 }
@@ -879,6 +1147,12 @@ func (ctx *RequestContext) PureJSON(code int, obj interface{}) {
 	ctx.Render(code, render.PureJSON{Data: obj})
 }
 
+// IndentedJSON serializes the given struct as pretty JSON (indented + endlines) into the response body.
+// It also sets the Content-Type as "application/json".
+func (ctx *RequestContext) IndentedJSON(code int, obj interface{}) {
+	ctx.Render(code, render.IndentedJSON{Data: obj})
+}
+
 // HTML renders the HTTP template specified by its file name.
 //
 // It also updates the HTTP code and sets the Content-Type as "text/html".
@@ -950,6 +1224,56 @@ func (ctx *RequestContext) Cookie(key string) []byte {
 	return ctx.Request.Header.Cookie(key)
 }
 
+// SetCookie adds a Set-Cookie header to the Response's headers.
+//
+//	Parameter introduce:
+//	name and value is used to set cookie's name and value, eg. Set-Cookie: name=value
+//	maxAge is use to set cookie's expiry date, eg. Set-Cookie: name=value; max-age=1
+//	path and domain is used to set the scope of a cookie, eg. Set-Cookie: name=value;domain=localhost; path=/;
+//	secure and httpOnly is used to sent cookies securely; eg. Set-Cookie: name=value;HttpOnly; secure;
+//	sameSite let servers specify whether/when cookies are sent with cross-site requests; eg. Set-Cookie: name=value;HttpOnly; secure; SameSite=Lax;
+//
+//	For example:
+//	1. ctx.SetCookie("user", "hertz", 1, "/", "localhost",protocol.CookieSameSiteLaxMode, true, true)
+//	add response header --->  Set-Cookie: user=hertz; max-age=1; domain=localhost; path=/; HttpOnly; secure; SameSite=Lax;
+//	2. ctx.SetCookie("user", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: user=hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	3. ctx.SetCookie("", "hertz", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: hertz; max-age=10; domain=localhost; path=/; SameSite=Lax;
+//	4. ctx.SetCookie("user", "", 10, "/", "localhost",protocol.CookieSameSiteLaxMode, false, false)
+//	add response header --->  Set-Cookie: user=; max-age=10; domain=localhost; path=/; SameSite=Lax;
+func (ctx *RequestContext) SetCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, false)
+}
+
+func (ctx *RequestContext) setCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly, partitioned bool) {
+	if path == "" {
+		path = "/"
+	}
+	cookie := protocol.AcquireCookie()
+	defer protocol.ReleaseCookie(cookie)
+	cookie.SetKey(name)
+	cookie.SetValue(url.QueryEscape(value))
+	cookie.SetMaxAge(maxAge)
+	cookie.SetPath(path)
+	cookie.SetDomain(domain)
+	cookie.SetSecure(secure)
+	cookie.SetHTTPOnly(httpOnly)
+	cookie.SetSameSite(sameSite)
+	cookie.SetPartitioned(partitioned)
+	ctx.Response.Header.SetCookie(cookie)
+}
+
+// SetPartitionedCookie adds a partitioned cookie to the Response's headers.
+// Use protocol.CookieSameSiteNoneMode for cross-site cookies to work.
+//
+// Usage: ctx.SetPartitionedCookie("user", "name", 10, "/", "localhost", protocol.CookieSameSiteNoneMode, true, true)
+//
+// This adds the response header: Set-Cookie: user=name; Max-Age=10; Domain=localhost; Path=/; HttpOnly; Secure; SameSite=None; Partitioned
+func (ctx *RequestContext) SetPartitionedCookie(name, value string, maxAge int, path, domain string, sameSite protocol.CookieSameSite, secure, httpOnly bool) {
+	ctx.setCookie(name, value, maxAge, path, domain, sameSite, secure, httpOnly, true)
+}
+
 // UserAgent returns the value of the request user_agent.
 func (ctx *RequestContext) UserAgent() []byte {
 	return ctx.Request.Header.UserAgent()
@@ -975,33 +1299,13 @@ func (ctx *RequestContext) Body() ([]byte, error) {
 	return ctx.Request.BodyE()
 }
 
-type ClientIP func(ctx *RequestContext) string
-
-var defaultClientIP = func(ctx *RequestContext) string {
-	RemoteIPHeaders := []string{"X-Real-IP", "X-Forwarded-For"}
-	for _, headerName := range RemoteIPHeaders {
-		ip := ctx.Request.Header.Get(headerName)
-		if ip != "" {
-			return ip
-		}
-	}
-
-	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.RemoteAddr().String())); err == nil {
-		return ip
-	}
-
-	return ""
-}
-
-// SetClientIPFunc sets ClientIP function implementation to get ClientIP.
-func SetClientIPFunc(fn ClientIP) {
-	defaultClientIP = fn
-}
-
-// ClientIP tries to parse the headers in [X-Real-Ip, X-Forwarded-For].
+// ClientIP attempts to parse the headers in the order of [X-Forwarded-For, X-Real-IP].
 // It calls RemoteIP() under the hood. If it cannot satisfy the requirements,
-// use SetClientIPFunc to inject your own implementation.
+// use engine.SetClientIPFunc to inject your own implementation.
 func (ctx *RequestContext) ClientIP() string {
+	if ctx.clientIPFunc != nil {
+		return ctx.clientIPFunc(ctx)
+	}
 	return defaultClientIP(ctx)
 }
 
@@ -1026,11 +1330,12 @@ func (ctx *RequestContext) PostArgs() *protocol.Args {
 // Query returns the keyed url query value if it exists, otherwise it returns an empty string `("")`.
 //
 // For example:
-//     GET /path?id=1234&name=Manu&value=
-// 	   c.Query("id") == "1234"
-// 	   c.Query("name") == "Manu"
-// 	   c.Query("value") == ""
-// 	   c.Query("wtf") == ""
+//
+//	    GET /path?id=1234&name=Manu&value=
+//		   c.Query("id") == "1234"
+//		   c.Query("name") == "Manu"
+//		   c.Query("value") == ""
+//		   c.Query("wtf") == ""
 func (ctx *RequestContext) Query(key string) string {
 	value, _ := ctx.GetQuery(key)
 	return value
@@ -1050,10 +1355,11 @@ func (ctx *RequestContext) DefaultQuery(key, defaultValue string) string {
 // if it exists `(value, true)` (even when the value is an empty string) will be returned,
 // otherwise it returns `("", false)`.
 // For example:
-//     GET /?name=Manu&lastname=
-//     ("Manu", true) == c.GetQuery("name")
-//     ("", false) == c.GetQuery("id")
-//     ("", true) == c.GetQuery("lastname")
+//
+//	GET /?name=Manu&lastname=
+//	("Manu", true) == c.GetQuery("name")
+//	("", false) == c.GetQuery("id")
+//	("", true) == c.GetQuery("lastname")
 func (ctx *RequestContext) GetQuery(key string) (string, bool) {
 	return ctx.QueryArgs().PeekExists(key)
 }
@@ -1063,6 +1369,13 @@ func (ctx *RequestContext) GetQuery(key string) (string, bool) {
 func (ctx *RequestContext) PostForm(key string) string {
 	value, _ := ctx.GetPostForm(key)
 	return value
+}
+
+// PostFormArray returns the specified key from a POST urlencoded form or multipart form
+// when it exists, otherwise it returns an empty array `([])`.
+func (ctx *RequestContext) PostFormArray(key string) []string {
+	values, _ := ctx.GetPostFormArray(key)
+	return values
 }
 
 // DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
@@ -1081,14 +1394,37 @@ func (ctx *RequestContext) DefaultPostForm(key, defaultValue string) string {
 // otherwise it returns ("", false).
 //
 // For example, during a PATCH request to update the user's email:
-//     email=mail@example.com  -->  ("mail@example.com", true) := GetPostForm("email") // set email to "mail@example.com"
-// 	   email=                  -->  ("", true) := GetPostForm("email") // set email to ""
-//                             -->  ("", false) := GetPostForm("email") // do nothing with email
+//
+//	    email=mail@example.com  -->  ("mail@example.com", true) := GetPostForm("email") // set email to "mail@example.com"
+//		   email=                  -->  ("", true) := GetPostForm("email") // set email to ""
+//	                            -->  ("", false) := GetPostForm("email") // do nothing with email
 func (ctx *RequestContext) GetPostForm(key string) (string, bool) {
 	if v, exists := ctx.PostArgs().PeekExists(key); exists {
 		return v, exists
 	}
 	return ctx.multipartFormValue(key)
+}
+
+// GetPostFormArray is like PostFormArray(key). It returns the specified key from a POST urlencoded
+// form or multipart form when it exists `([]string, true)` (even when the value is an empty string),
+// otherwise it returns ([]string(nil), false).
+//
+// For example, during a PATCH request to update the item's tags:
+//
+//	    tag=tag1 tag=tag2 tag=tag3  -->  (["tag1", "tag2", "tag3"], true) := GetPostFormArray("tags") // set tags to ["tag1", "tag2", "tag3"]
+//		   tags=                  -->  (nil, true) := GetPostFormArray("tags") // set tags to nil
+//	                            -->  (nil, false) := GetPostFormArray("tags") // do nothing with tags
+func (ctx *RequestContext) GetPostFormArray(key string) ([]string, bool) {
+	vs := ctx.PostArgs().PeekAll(key)
+	values := make([]string, len(vs))
+	for i, v := range vs {
+		values[i] = string(v)
+	}
+	if len(values) == 0 {
+		return ctx.multipartFormValueArray(key)
+	} else {
+		return values, true
+	}
 }
 
 // bodyAllowedForStatus is a copy of http.bodyAllowedForStatus non-exported function.
@@ -1104,20 +1440,122 @@ func bodyAllowedForStatus(status int) bool {
 	return true
 }
 
+func (ctx *RequestContext) getBinder() binding.Binder {
+	if ctx.binder != nil {
+		return ctx.binder
+	}
+	return binding.DefaultBinder()
+}
+
 // BindAndValidate binds data from *RequestContext to obj and validates them if needed.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) BindAndValidate(obj interface{}) error {
-	return binding.BindAndValidate(&ctx.Request, obj, ctx.Params)
+	bi := ctx.getBinder()
+	if err := bi.Bind(&ctx.Request, obj, ctx.Params); err != nil {
+		return err
+	}
+	return bi.Validate(&ctx.Request, obj)
 }
 
 // Bind binds data from *RequestContext to obj.
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Bind(obj interface{}) error {
-	return binding.Bind(&ctx.Request, obj, ctx.Params)
+	return ctx.getBinder().Bind(&ctx.Request, obj, ctx.Params)
 }
 
-// Validate validates obj with "vd" tag
+// Validate validates obj
 // NOTE: obj should be a pointer.
 func (ctx *RequestContext) Validate(obj interface{}) error {
-	return binding.Validate(obj)
+	return ctx.getBinder().Validate(&ctx.Request, obj)
+}
+
+// BindQuery binds query parameters from *RequestContext to obj with 'query' tag. It will only use 'query' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindQuery(obj interface{}) error {
+	return ctx.getBinder().BindQuery(&ctx.Request, obj)
+}
+
+// BindHeader binds header parameters from *RequestContext to obj with 'header' tag. It will only use 'header' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindHeader(obj interface{}) error {
+	return ctx.getBinder().BindHeader(&ctx.Request, obj)
+}
+
+// BindPath binds router parameters from *RequestContext to obj with 'path' tag. It will only use 'path' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindPath(obj interface{}) error {
+	return ctx.getBinder().BindPath(&ctx.Request, obj, ctx.Params)
+}
+
+// BindForm binds form parameters from *RequestContext to obj with 'form' tag. It will only use 'form' tag for binding.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindForm(obj interface{}) error {
+	if len(ctx.Request.Body()) == 0 {
+		return fmt.Errorf("missing form body")
+	}
+	return ctx.getBinder().BindForm(&ctx.Request, obj)
+}
+
+// BindJSON binds JSON body from *RequestContext.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindJSON(obj interface{}) error {
+	return ctx.getBinder().BindJSON(&ctx.Request, obj)
+}
+
+// BindProtobuf binds protobuf body from *RequestContext.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindProtobuf(obj interface{}) error {
+	return ctx.getBinder().BindProtobuf(&ctx.Request, obj)
+}
+
+// BindByContentType will select the binding type on the ContentType automatically.
+// NOTE: obj should be a pointer.
+func (ctx *RequestContext) BindByContentType(obj interface{}) error {
+	if ctx.Request.Header.IsGet() {
+		return ctx.BindQuery(obj)
+	}
+	ct := utils.FilterContentType(bytesconv.B2s(ctx.Request.Header.ContentType()))
+	switch strings.ToLower(ct) {
+	case consts.MIMEApplicationJSON:
+		return ctx.BindJSON(obj)
+	case consts.MIMEPROTOBUF:
+		return ctx.BindProtobuf(obj)
+	case consts.MIMEApplicationHTMLForm, consts.MIMEMultipartPOSTForm:
+		return ctx.BindForm(obj)
+	default:
+		return fmt.Errorf("unsupported bind content-type for '%s'", ct)
+	}
+}
+
+// VisitAllQueryArgs calls f for each existing query arg.
+//
+// f must not retain references to key and value after returning.
+// Make key and/or value copies if you need storing them after returning.
+func (ctx *RequestContext) VisitAllQueryArgs(f func(key, value []byte)) {
+	ctx.QueryArgs().VisitAll(f)
+}
+
+// VisitAllPostArgs calls f for each existing post arg.
+//
+// f must not retain references to key and value after returning.
+// Make key and/or value copies if you need storing them after returning.
+func (ctx *RequestContext) VisitAllPostArgs(f func(key, value []byte)) {
+	ctx.Request.PostArgs().VisitAll(f)
+}
+
+// VisitAllHeaders calls f for each request header.
+//
+// f must not retain references to key and/or value after returning.
+// Copy key and/or value contents before returning if you need retaining them.
+//
+// To get the headers in order they were received use VisitAllInOrder.
+func (ctx *RequestContext) VisitAllHeaders(f func(key, value []byte)) {
+	ctx.Request.Header.VisitAll(f)
+}
+
+// VisitAllCookie calls f for each request cookie.
+//
+// f must not retain references to key and/or value after returning.
+func (ctx *RequestContext) VisitAllCookie(f func(key, value []byte)) {
+	ctx.Request.Header.VisitAllCookie(f)
 }

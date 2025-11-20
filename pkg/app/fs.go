@@ -270,14 +270,12 @@ func (r *fsSmallFileReader) WriteTo(w io.Writer) (int64, error) {
 //
 // HTTP response may contain uncompressed file contents in the following cases:
 //
-//   * Missing 'Accept-Encoding: gzip' request header.
-//   * No write access to directory containing the file.
+//   - Missing 'Accept-Encoding: gzip' request header.
+//   - No write access to directory containing the file.
 //
 // Directory contents is returned if path points to directory.
 //
 // Use ServeFileUncompressed is you don't need serving compressed file contents.
-//
-// See also RequestCtx.SendFile.
 func ServeFile(ctx *RequestContext, path string) {
 	rootFSOnce.Do(func() {
 		rootFSHandler = rootFS.NewRequestHandler()
@@ -286,7 +284,7 @@ func ServeFile(ctx *RequestContext, path string) {
 		// extend relative path to absolute path
 		var err error
 		if path, err = filepath.Abs(path); err != nil {
-			hlog.Errorf("HERTZ: Cannot resolve path=%q to absolute file error=%s", path, err)
+			hlog.SystemLogger().Errorf("Cannot resolve path=%q to absolute file error=%s", path, err)
 			ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 			return
 		}
@@ -805,7 +803,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 	path = stripTrailingSlashes(path)
 
 	if n := bytes.IndexByte(path, 0); n >= 0 {
-		hlog.Errorf("HERTZ: Cannot serve path with nil byte at position=%d, path=%q", n, path)
+		hlog.SystemLogger().Errorf("Cannot serve path with nil byte at position=%d, path=%q", n, path)
 		ctx.AbortWithMsg("Are you a hacker?", consts.StatusBadRequest)
 		return
 	}
@@ -814,7 +812,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		// since ctx.Path must normalize and sanitize the path.
 
 		if n := bytes.Index(path, bytestr.StrSlashDotDotSlash); n >= 0 {
-			hlog.Errorf("HERTZ: Cannot serve path with '/../' at position=%d due to security reasons, path=%q", n, path)
+			hlog.SystemLogger().Errorf("Cannot serve path with '/../' at position=%d due to security reasons, path=%q", n, path)
 			ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 			return
 		}
@@ -842,7 +840,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		ff, err = h.openFSFile(filePath, mustCompress)
 
 		if mustCompress && err == errNoCreatePermission {
-			hlog.Errorf("HERTZ: Insufficient permissions for saving compressed file for path=%q. Serving uncompressed file. "+
+			hlog.SystemLogger().Errorf("Insufficient permissions for saving compressed file for path=%q. Serving uncompressed file. "+
 				"Allow write access to the directory with this file in order to improve hertz performance", filePath)
 			mustCompress = false
 			ff, err = h.openFSFile(filePath, mustCompress)
@@ -850,12 +848,12 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		if err == errDirIndexRequired {
 			ff, err = h.openIndexFile(ctx, filePath, mustCompress)
 			if err != nil {
-				hlog.Errorf("HERTZ: Cannot open dir index, path=%q, error=%s", filePath, err)
+				hlog.SystemLogger().Errorf("Cannot open dir index, path=%q, error=%s", filePath, err)
 				ctx.AbortWithMsg("Directory index is forbidden", consts.StatusForbidden)
 				return
 			}
 		} else if err != nil {
-			hlog.Errorf("HERTZ: Cannot open file=%q, error=%s", filePath, err)
+			hlog.SystemLogger().Errorf("Cannot open file=%q, error=%s", filePath, err)
 			if h.pathNotFound == nil {
 				ctx.AbortWithMsg("Cannot open requested path", consts.StatusNotFound)
 			} else {
@@ -892,14 +890,14 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 
 	r, err := ff.NewReader()
 	if err != nil {
-		hlog.Errorf("HERTZ: Cannot obtain file reader for path=%q, error=%s", path, err)
+		hlog.SystemLogger().Errorf("Cannot obtain file reader for path=%q, error=%s", path, err)
 		ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 		return
 	}
 
 	hdr := &ctx.Response.Header
 	if ff.compressed {
-		hdr.SetCanonical(bytestr.StrContentEncoding, bytestr.StrGzip)
+		hdr.SetContentEncodingBytes(bytestr.StrGzip)
 	}
 
 	statusCode := consts.StatusOK
@@ -910,14 +908,14 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 			startPos, endPos, err := ParseByteRange(byteRange, contentLength)
 			if err != nil {
 				r.(io.Closer).Close()
-				hlog.Errorf("HERTZ: Cannot parse byte range %q for path=%q,error=%s", byteRange, path, err)
+				hlog.SystemLogger().Errorf("Cannot parse byte range %q for path=%q,error=%s", byteRange, path, err)
 				ctx.AbortWithMsg("Range Not Satisfiable", consts.StatusRequestedRangeNotSatisfiable)
 				return
 			}
 
 			if err = r.(byteRangeUpdater).UpdateByteRange(startPos, endPos); err != nil {
 				r.(io.Closer).Close()
-				hlog.Errorf("HERTZ: Cannot seek byte range %q for path=%q, error=%s", byteRange, path, err)
+				hlog.SystemLogger().Errorf("Cannot seek byte range %q for path=%q, error=%s", byteRange, path, err)
 				ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 				return
 			}
@@ -937,7 +935,7 @@ func (h *fsHandler) handleRequest(c context.Context, ctx *RequestContext) {
 		ctx.Response.Header.SetContentLength(contentLength)
 		if rc, ok := r.(io.Closer); ok {
 			if err := rc.Close(); err != nil {
-				hlog.Errorf("HERTZ: Cannot close file reader: error=%s", err)
+				hlog.SystemLogger().Errorf("Cannot close file reader: error=%s", err)
 				ctx.AbortWithMsg("Internal Server Error", consts.StatusInternalServerError)
 				return
 			}
@@ -1155,12 +1153,11 @@ func ParseByteRange(byteRange []byte, contentLength int) (startPos, endPos int, 
 //
 // Examples:
 //
-//   * host=foobar.com, slashesCount=0, original path="/foo/bar".
+//   - host=foobar.com, slashesCount=0, original path="/foo/bar".
 //     Resulting path: "/foobar.com/foo/bar"
 //
-//   * host=img.aaa.com, slashesCount=1, original path="/images/123/456.jpg"
+//   - host=img.aaa.com, slashesCount=1, original path="/images/123/456.jpg"
 //     Resulting path: "/img.aaa.com/123/456.jpg"
-//
 func NewVHostPathRewriter(slashesCount int) PathRewriteFunc {
 	return func(ctx *RequestContext) []byte {
 		path := stripLeadingSlashes(ctx.Path(), slashesCount)
@@ -1205,8 +1202,6 @@ func stripLeadingSlashes(path []byte, stripSlashes int) []byte {
 //
 // ServeFile may be used for saving network traffic when serving files
 // with good compression ratio.
-//
-// See also RequestCtx.SendFile.
 func ServeFileUncompressed(ctx *RequestContext, path string) {
 	ctx.Request.Header.DelBytes(bytestr.StrAcceptEncoding)
 	ServeFile(ctx, path)
@@ -1217,9 +1212,9 @@ func ServeFileUncompressed(ctx *RequestContext, path string) {
 //
 // Examples:
 //
-//   * slashesCount = 0, original path: "/foo/bar", result: "/foo/bar"
-//   * slashesCount = 1, original path: "/foo/bar", result: "/bar"
-//   * slashesCount = 2, original path: "/foo/bar", result: ""
+//   - slashesCount = 0, original path: "/foo/bar", result: "/foo/bar"
+//   - slashesCount = 1, original path: "/foo/bar", result: "/bar"
+//   - slashesCount = 2, original path: "/foo/bar", result: ""
 //
 // The returned path rewriter may be used as FS.PathRewrite .
 func NewPathSlashesStripper(slashesCount int) PathRewriteFunc {

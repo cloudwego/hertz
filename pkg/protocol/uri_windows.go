@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*
  * Copyright 2022 CloudWeGo Authors
@@ -44,11 +43,31 @@
 
 package protocol
 
+import "github.com/cloudwego/hertz/pkg/common/hlog"
+
 func addLeadingSlash(dst, src []byte) []byte {
 	// zero length and "C:/" case
-	if len(src) == 0 || (len(src) > 2 && src[1] != ':') {
+	isDisk := len(src) > 2 && src[1] == ':'
+	if len(src) == 0 || (!isDisk && src[0] != '/') {
 		dst = append(dst, '/')
 	}
 
 	return dst
+}
+
+// checkSchemeWhenCharIsColon check url begin with :
+// Scenarios that handle protocols like "http:"
+// Add the path to the win file, e.g. "E:\gopath", "E:\".
+func checkSchemeWhenCharIsColon(i int, rawURL []byte) (scheme, path []byte) {
+	if i == 0 {
+		hlog.Errorf("error happened when trying to parse the rawURL(%s): missing protocol scheme", rawURL)
+		return
+	}
+
+	// case :\
+	if i+1 < len(rawURL) && rawURL[i+1] == '\\' {
+		return nil, rawURL
+	}
+
+	return rawURL[:i], rawURL[i+1:]
 }

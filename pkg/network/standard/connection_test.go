@@ -18,9 +18,14 @@ package standard
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
+	"errors"
 	"io"
 	"net"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -142,11 +147,11 @@ func TestPeekRelease(t *testing.T) {
 	}
 
 	// test cross node
-	b, _ = conn.Peek(100000000)
-	if len(b) != 100000000 {
+	b, _ = conn.Peek(1000000)
+	if len(b) != 1000000 {
 		t.Errorf("unexpected len(b): %v, expected 1", len(b))
 	}
-	conn.Skip(100000000)
+	conn.Skip(1000000)
 	conn.Release()
 
 	// test maxSize
@@ -181,10 +186,38 @@ func TestReadBytes(t *testing.T) {
 	}
 	bbb, _ := conn.ReadByte()
 	if bbb != 0 {
-		t.Errorf("unexpected bbb: %v, expected nil", bbb)
+		t.Errorf("unexpected bbb: %v, expected nil", string(bbb))
 	}
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
+	}
+}
+
+func TestStatefulConnConnectionCloseDetection(t *testing.T) {
+	cliConn, svrConn := net.Pipe()
+	svrCtx, cancelCtx := context.WithCancel(context.Background())
+	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
+	defer svrStatefulConn.Close()
+
+	// 1. normal request
+	svrStatefulConn.DetectConnectionClose()
+	svrStatefulConn.AbortBlockingRead()
+	select {
+	case <-svrCtx.Done():
+		t.Fatal("ctx should not be canceled")
+	default:
+	}
+
+	// 2. client close conn
+	svrStatefulConn.DetectConnectionClose()
+	cliConn.Close()
+	time.Sleep(100 * time.Millisecond) // wait a while
+
+	select {
+	case <-svrCtx.Done():
+		// expected
+	default:
+		t.Fatal("ctx should be canceled")
 	}
 }
 
@@ -231,50 +264,149 @@ func TestWriteLogic(t *testing.T) {
 	}
 }
 
+func TestInitializeConn(t *testing.T) {
+	c := mockConn{
+		localAddr: &mockAddr{
+			network: "tcp",
+			address: "192.168.0.10:80",
+		},
+		remoteAddr: &mockAddr{
+			network: "tcp",
+			address: "192.168.0.20:80",
+		},
+	}
+	conn := newConn(&c, 8192)
+	// check the assignment
+	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetWriteDeadline(time.Time{}))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(1)*time.Second))
+	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(-1)*time.Second))
+	assert.DeepEqual(t, errors.New("conn: method not supported"), conn.Close())
+	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.10:80"}, conn.LocalAddr())
+	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.20:80"}, conn.RemoteAddr())
+}
+
+func TestInitializeTLSConn(t *testing.T) {
+	c := mockConn{}
+	tlsConn := newTLSConn(&c, 8192).(*TLSConn)
+	assert.DeepEqual(t, errors.New("conn: method not supported"), tlsConn.Handshake())
+	assert.DeepEqual(t, tls.ConnectionState{}, tlsConn.ConnectionState())
+}
+
+func TestHandleSpecificError(t *testing.T) {
+	conn := &Conn{}
+	assert.DeepEqual(t, false, conn.HandleSpecificError(nil, ""))
+	assert.DeepEqual(t, true, conn.HandleSpecificError(syscall.EPIPE, ""))
+}
+
 type mockConn struct {
-	buffer bytes.Buffer
+	buffer        bytes.Buffer
+	localAddr     net.Addr
+	remoteAddr    net.Addr
+	readReturnErr bool
+}
+
+func (m *mockConn) Handshake() error {
+	return errors.New("conn: method not supported")
+}
+
+func (m *mockConn) ConnectionState() tls.ConnectionState {
+	return tls.ConnectionState{}
 }
 
 func (m mockConn) Read(b []byte) (n int, err error) {
 	length := len(b)
+	for i := 0; i < length; i++ {
+		b[i] = 0
+	}
+
+	if m.readReturnErr {
+		err = io.EOF
+	}
 	if length > 8192 {
-		return 8192, nil
+		return 8192, err
 	}
 	if len(b) < 1024 {
-		return 100, nil
+		return 100, err
 	}
-
 	if len(b) < 5000 {
-		return 4096, nil
+		return 4096, err
 	}
 
-	return 4099, nil
+	return 4099, err
 }
 
 func (m *mockConn) Write(b []byte) (n int, err error) {
 	return m.buffer.Write(b)
 }
 
-func (m mockConn) Close() error {
-	panic("implement me")
+func (m *mockConn) Close() error {
+	return errors.New("conn: method not supported")
 }
 
-func (m mockConn) LocalAddr() net.Addr {
-	panic("implement me")
+func (m *mockConn) LocalAddr() net.Addr {
+	return m.localAddr
 }
 
-func (m mockConn) RemoteAddr() net.Addr {
-	panic("implement me")
+func (m *mockConn) RemoteAddr() net.Addr {
+	return m.remoteAddr
 }
 
-func (m mockConn) SetDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetDeadline(deadline time.Time) error {
+	if err := m.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
+	return m.SetWriteDeadline(deadline)
 }
 
-func (m mockConn) SetReadDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetReadDeadline(deadline time.Time) error {
+	return errors.New("conn: read deadline not supported")
 }
 
-func (m mockConn) SetWriteDeadline(t time.Time) error {
-	panic("implement me")
+func (m *mockConn) SetWriteDeadline(deadline time.Time) error {
+	return errors.New("conn: write deadline not supported")
+}
+
+type mockAddr struct {
+	network string
+	address string
+}
+
+func (m *mockAddr) Network() string {
+	return m.network
+}
+
+func (m *mockAddr) String() string {
+	return m.address
+}
+
+func TestConnSetFinalizer(t *testing.T) {
+	defer func(newfunc func() interface{}) {
+		bufferPool.New = newfunc
+	}(bufferPool.New) // reset
+
+	runtime.GC()
+	runtime.GC()
+	for i := 0; i < 1000; i++ {
+		_ = newConn(&mockConn{}, 4096)
+	}
+	runtime.GC()
+	bufferPool.New = nil
+	assert.NotNil(t, bufferPool.Get())
+
+}
+
+func TestFillReturnErrAndN(t *testing.T) {
+	c := &mockConn{
+		readReturnErr: true,
+	}
+	conn := newConn(c, 4099)
+	b, err := conn.Peek(4099)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, len(b), 4099)
+	conn.Skip(10)
+	b, err = conn.Peek(4099)
+	assert.DeepEqual(t, err, io.EOF)
+	assert.DeepEqual(t, len(b), 4089)
 }

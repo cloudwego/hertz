@@ -17,9 +17,10 @@
 package stats
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/cloudwego/hertz/pkg/common/errors"
 )
 
 // EventIndex indicates a unique event.
@@ -88,8 +89,8 @@ var (
 
 // errors
 var (
-	ErrNotAllowed = errors.New("event definition is not allowed after initialization")
-	ErrDuplicated = errors.New("event name is already defined")
+	ErrNotAllowed = errors.NewPublic("event definition is not allowed after initialization")
+	ErrDuplicated = errors.NewPublic("event name is already defined")
 )
 
 var (

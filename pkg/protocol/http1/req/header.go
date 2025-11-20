@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/bytestr"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -66,9 +67,13 @@ func WriteHeader(h *protocol.RequestHeader, w network.Writer) error {
 }
 
 func ReadHeader(h *protocol.RequestHeader, r network.Reader) error {
+	return ReadHeaderWithLimit(h, r, 0)
+}
+
+func ReadHeaderWithLimit(h *protocol.RequestHeader, r network.Reader, maxHeaderBytes int) error {
 	n := 1
 	for {
-		err := tryRead(h, r, n)
+		err := tryReadWithLimit(h, r, n, maxHeaderBytes)
 		if err == nil {
 			return nil
 		}
@@ -86,7 +91,7 @@ func ReadHeader(h *protocol.RequestHeader, r network.Reader) error {
 	}
 }
 
-func tryRead(h *protocol.RequestHeader, r network.Reader, n int) error {
+func tryReadWithLimit(h *protocol.RequestHeader, r network.Reader, n, maxHeaderBytes int) error {
 	h.ResetSkipNormalize()
 	b, err := r.Peek(n)
 	if len(b) == 0 {
@@ -103,8 +108,14 @@ func tryRead(h *protocol.RequestHeader, r network.Reader, n int) error {
 		return errEOFReadHeader
 	}
 	b = ext.MustPeekBuffered(r)
+	if maxHeaderBytes > 0 && len(b) > maxHeaderBytes {
+		b = b[:maxHeaderBytes]
+	}
 	headersLen, errParse := parse(h, b)
 	if errParse != nil {
+		if maxHeaderBytes > 0 && len(b) >= maxHeaderBytes && errors.Is(errParse, errs.ErrNeedMore) {
+			return errHeaderTooLarge
+		}
 		return ext.HeaderError("request", err, errParse, b)
 	}
 	ext.MustDiscard(r, headersLen)
@@ -116,55 +127,90 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	rawHeaders, _, err := ext.ReadRawHeaders(h.RawHeaders()[:0], buf[m:])
 	h.SetRawHeaders(rawHeaders)
 	if err != nil {
 		return 0, err
 	}
-	var n int
-	n, err = parseHeaders(h, buf[m:])
+	n, err := parseHeaders(h, buf[m:])
 	if err != nil {
 		return 0, err
 	}
 	return m + n, nil
 }
 
+const (
+	maxCheckMethodLen = 10
+
+	// reuse ValidHeaderFieldNameTable for Method, both are `token`
+	// see:
+	//	https://www.rfc-editor.org/rfc/rfc9110.html#name-methods
+	//	https://www.rfc-editor.org/rfc/rfc9110.html#name-field-names
+	validMethodCharTable = bytesconv.ValidHeaderFieldNameTable
+)
+
+var errMalformedHTTPRequest = errors.New("malformed HTTP request")
+
+// request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
-	bNext := buf
-	var b []byte
-	var err error
-	for len(b) == 0 {
-		if b, bNext, err = utils.NextLine(bNext); err != nil {
-			return 0, err
+	b, leftb, err := utils.NextLine(buf)
+	if err != nil {
+		// errs.ErrNeedMore?
+		// check malformed HTTP request before reading more data
+		// NOTE:
+		//  only check method bytes if errs.ErrNeedMore for closing malformed connections.
+		//  for performance concern, it won't be checked in the hot path.
+		for i, c := range buf {
+			if c == ' ' || i > maxCheckMethodLen {
+				break // skip if SP or reach maxCheckMethodLen
+			}
+			if validMethodCharTable[c] == 0 {
+				return 0, errMalformedHTTPRequest
+			}
 		}
+		return 0, err
 	}
 
 	// parse method
 	n := bytes.IndexByte(b, ' ')
 	if n <= 0 {
-		return 0, fmt.Errorf("cannot find http request method in %q", ext.BufferSnippet(buf))
+		return 0, errMalformedHTTPRequest
 	}
 	h.SetMethodBytes(b[:n])
 	b = b[n+1:]
 
-	// Set default protocol
-	h.SetProtocol(consts.HTTP11)
-	// parse requestURI
-	n = bytes.LastIndexByte(b, ' ')
-	if n < 0 {
-		h.SetNoHTTP11(true)
-		h.SetProtocol(consts.HTTP10)
-		n = len(b)
-	} else if n == 0 {
-		return 0, fmt.Errorf("requestURI cannot be empty in %q", buf)
-	} else if !bytes.Equal(b[n+1:], bytestr.StrHTTP11) {
-		h.SetNoHTTP11(true)
-		h.SetProtocol(consts.HTTP10)
+	// parse request-target (uri)
+	n = bytes.IndexByte(b, ' ')
+	if n <= 0 {
+		return 0, errMalformedHTTPRequest
 	}
 	h.SetRequestURIBytes(b[:n])
+	b = b[n+1:]
 
-	return len(buf) - len(bNext), nil
+	// parse http protocol
+	switch string(b) {
+	case consts.HTTP11: // likely HTTP/1.1
+		h.SetProtocol(consts.HTTP11)
+	case consts.HTTP10:
+		h.SetProtocol(consts.HTTP10)
+	default:
+		if len(b) < 5 || string(b[:5]) != "HTTP/" {
+			return 0, errMalformedHTTPRequest
+		}
+		// XXX: all other cases are considered to be HTTP/1.0 for safe
+		h.SetProtocol(consts.HTTP10)
+	}
+	return len(buf) - len(leftb), nil
+}
+
+// validHeaderFieldValue is equal to httpguts.ValidHeaderFieldValue（shares the same context）
+func validHeaderFieldValue(val []byte) bool {
+	for _, v := range val {
+		if bytesconv.ValidHeaderFieldValueTable[v] == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
@@ -180,7 +226,13 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 			// See RFC 7230, Section 3.2.4.
 			if bytes.IndexByte(s.Key, ' ') != -1 || bytes.IndexByte(s.Key, '\t') != -1 {
 				err = fmt.Errorf("invalid header key %q", s.Key)
-				continue
+				return 0, err
+			}
+
+			// Check the invalid chars in header value
+			if !validHeaderFieldValue(s.Value) {
+				err = fmt.Errorf("invalid header value %q", s.Value)
+				return 0, err
 			}
 
 			switch s.Key[0] | 0x20 {
@@ -229,6 +281,14 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 					if !bytes.Equal(s.Value, bytestr.StrIdentity) {
 						h.InitContentLengthWithValue(-1)
 						h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
+					}
+					continue
+				}
+				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
+					if nerr := h.Trailer().SetTrailers(s.Value); nerr != nil {
+						if err == nil {
+							err = nerr
+						}
 					}
 					continue
 				}

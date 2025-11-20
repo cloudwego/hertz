@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -57,7 +56,6 @@ func Default(opts ...config.Option) *Hertz {
 func (h *Hertz) Spin() {
 	errCh := make(chan error)
 	h.initOnRunHooks(errCh)
-	h.initOnShutdownHooks()
 	go func() {
 		errCh <- h.Run()
 	}()
@@ -68,20 +66,15 @@ func (h *Hertz) Spin() {
 	}
 
 	if err := signalWaiter(errCh); err != nil {
-		hlog.Errorf("HERTZ: Receive close signal: error=%v", err)
+		hlog.SystemLogger().Errorf("Receive close signal: error=%v", err)
 		if err := h.Engine.Close(); err != nil {
-			hlog.Errorf("HERTZ: Close error=%v", err)
+			hlog.SystemLogger().Errorf("Close error=%v", err)
 		}
 		return
 	}
 
-	hlog.Infof("HERTZ: Begin graceful shutdown, wait at most num=%d seconds...", h.GetOptions().ExitWaitTimeout/time.Second)
-
-	ctx, cancel := context.WithTimeout(context.Background(), h.GetOptions().ExitWaitTimeout)
-	defer cancel()
-
-	if err := h.Shutdown(ctx); err != nil {
-		hlog.Errorf("HERTZ: Shutdown error=%v", err)
+	if err := h.Shutdown(context.Background()); err != nil {
+		hlog.SystemLogger().Errorf("Shutdown error=%v", err)
 	}
 }
 
@@ -93,19 +86,21 @@ func (h *Hertz) SetCustomSignalWaiter(f func(err chan error) error) {
 }
 
 // Default implementation for signal waiter.
-// SIGTERM triggers immediately close.
-// SIGHUP|SIGINT triggers graceful shutdown.
+// SIGHUP|SIGINT|SIGTERM triggers graceful shutdown.
 func waitSignal(errCh chan error) error {
+	signalToNotify := []os.Signal{syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM}
+	if signal.Ignored(syscall.SIGHUP) {
+		signalToNotify = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	}
+
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	signal.Notify(signals, signalToNotify...)
 
 	select {
 	case sig := <-signals:
 		switch sig {
-		case syscall.SIGTERM:
-			// force exit
-			return errors.New(sig.String()) // nolint
-		case syscall.SIGHUP, syscall.SIGINT:
+		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
+			hlog.SystemLogger().Infof("Received signal: %s\n", sig)
 			// graceful shutdown
 			return nil
 		}
@@ -125,21 +120,11 @@ func (h *Hertz) initOnRunHooks(errChan chan error) {
 			// delay register 1s
 			time.Sleep(1 * time.Second)
 			if err := opt.Registry.Register(opt.RegistryInfo); err != nil {
-				hlog.Errorf("HERTZ: Register error=%v", err)
+				hlog.SystemLogger().Errorf("Register error=%v", err)
 				// pass err to errChan
 				errChan <- err
 			}
 		}()
 		return nil
-	})
-}
-
-func (h *Hertz) initOnShutdownHooks() {
-	opt := h.GetOptions()
-	// add deregister func to shutdownHooks
-	h.OnShutdown = append(h.OnShutdown, func(ctx context.Context) {
-		if err := opt.Registry.Deregister(opt.RegistryInfo); err != nil {
-			hlog.Errorf("HERTZ: Deregister error=%v", err)
-		}
 	})
 }

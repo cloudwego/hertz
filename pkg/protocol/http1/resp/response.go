@@ -45,10 +45,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -87,13 +89,8 @@ func GetHTTP1Response(resp *protocol.Response) fmt.Stringer {
 	return &h1Response{resp}
 }
 
-// ReadHeaderAndLimitBody reads response from the given r, limiting the body size.
-//
-// If maxBodySize > 0 and the body size exceeds maxBodySize,
-// then ErrBodyTooLarge is returned.
-//
-// io.EOF is returned if r is closed before reading the first header byte.
-func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySize int) error {
+// ReadHeaders reads http header into *protocol.Response
+func ReadHeaders(resp *protocol.Response, r network.Reader) error {
 	resp.ResetBody()
 	err := ReadHeader(&resp.Header, r)
 	if err != nil {
@@ -105,41 +102,92 @@ func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySi
 			return err
 		}
 	}
+	return nil
+}
 
-	if !resp.MustSkipBody() {
-		bodyBuf := resp.BodyBuffer()
-		bodyBuf.Reset()
-		bodyBuf.B, err = ext.ReadBody(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
-		if err != nil {
+// ReadHeaderAndLimitBody ...
+func ReadHeaderAndLimitBody(resp *protocol.Response, r network.Reader, maxBodySize int) error {
+	if err := ReadHeaders(resp, r); err != nil {
+		return err
+	}
+	return ReadRespBody(resp, r, maxBodySize)
+}
+
+// ReadRespBody reads response body from the given r, limiting the body size.
+//
+// If maxBodySize > 0 and the body size exceeds maxBodySize,
+// then ErrBodyTooLarge is returned.
+//
+// io.EOF is returned if r is closed before reading the first header byte.
+func ReadRespBody(resp *protocol.Response, r network.Reader, maxBodySize int) (err error) {
+	if resp.MustSkipBody() {
+		return nil
+	}
+	bodyBuf := resp.BodyBuffer()
+	bodyBuf.Reset()
+	bodyBuf.B, err = ext.ReadBody(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
+	if err != nil {
+		return err
+	}
+	if resp.Header.ContentLength() == -1 {
+		err = ext.ReadTrailer(resp.Header.Trailer(), r)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		resp.Header.SetContentLength(len(bodyBuf.B))
 	}
+	resp.Header.SetContentLength(len(bodyBuf.B))
 	return nil
 }
 
 type clientRespStream struct {
+	mu sync.Mutex
+
 	r             io.Reader
-	closeCallback func() error
+	closeCallback func(shouldClose bool) error
 }
 
-func (c *clientRespStream) Close() (err error) {
-	ext.ReleaseBodyStream(c.r)
+// ForceClose closes underlying conn. It enables `Read` call to return instead of blocking.
+//
+// This method is ONLY used by hertz internally.
+// Normally, users call `Close` when the body is no longer used.
+func (c *clientRespStream) ForceClose() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.closeCallback != nil {
-		err = c.closeCallback()
+		err = c.closeCallback(true)
+		c.closeCallback = nil
 	}
-	c.reset()
+	// NOTE: DO NOT put back to pool here,
+	// user may still use clientRespStream and call Close() like `defer body.Close()`
+	return
+}
+
+// Close closes response stream gracefully.
+//
+// NOTE:
+// * Since Close() will put it back to pool, MUST ensure it only be called when no longer use.
+// * MUST NOT call Close() and `Read()` concurrently to avoid race issue
+func (c *clientRespStream) Close() (err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	runtime.SetFinalizer(c, nil)
+	// If error happened in ReleaseBodyStream, the connection may be in abnormal state.
+	// Close it in the callback in order to avoid other unexpected problems.
+	err = ext.ReleaseBodyStream(c.r)
+	if c.closeCallback != nil {
+		if err != nil {
+			hlog.SystemLogger().Warnf("error occurred during the stream body close: %s", err)
+		}
+		err = c.closeCallback(err != nil)
+	}
+	c.r = nil
+	c.closeCallback = nil
+	clientRespStreamPool.Put(c)
 	return
 }
 
 func (c *clientRespStream) Read(p []byte) (n int, err error) {
 	return c.r.Read(p)
-}
-
-func (c *clientRespStream) reset() {
-	c.closeCallback = nil
-	c.r = nil
-	clientRespStreamPool.Put(c)
 }
 
 var clientRespStreamPool = sync.Pool{
@@ -148,44 +196,44 @@ var clientRespStreamPool = sync.Pool{
 	},
 }
 
-func convertClientRespStream(bs io.Reader, fn func() error) *clientRespStream {
+func convertClientRespStream(bs io.Reader, fn func(shouldClose bool) error) *clientRespStream {
 	clientStream := clientRespStreamPool.Get().(*clientRespStream)
 	clientStream.r = bs
 	clientStream.closeCallback = fn
+	runtime.SetFinalizer(clientStream, (*clientRespStream).Close)
 	return clientStream
 }
 
-// ReadBodyStream reads response body in stream
-func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, closeCallBack func() error) error {
-	resp.ResetBody()
-	err := ReadHeader(&resp.Header, r)
-	if err != nil {
+// ReadHeaderBodyStream ...
+func ReadHeaderBodyStream(resp *protocol.Response, r network.Reader,
+	maxBodySize int, closeCallBack func(shouldClose bool) error) error {
+	if err := ReadHeaders(resp, r); err != nil {
 		return err
 	}
+	return ReadRespBodyStream(resp, r, maxBodySize, closeCallBack)
+}
 
-	if resp.Header.StatusCode() == consts.StatusContinue {
-		// Read the next response according to http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html .
-		if err = ReadHeader(&resp.Header, r); err != nil {
-			return err
-		}
-	}
+// Deprecated: use ReadHeaderBodyStream
+var ReadBodyStream = ReadHeaderBodyStream
 
+// ReadRespBodyStream reads response body in stream
+func ReadRespBodyStream(resp *protocol.Response, r network.Reader,
+	maxBodySize int, closeCallBack func(shouldClose bool) error) (err error) {
 	if resp.MustSkipBody() {
 		return nil
 	}
-
 	bodyBuf := resp.BodyBuffer()
 	bodyBuf.Reset()
 	bodyBuf.B, err = ext.ReadBodyWithStreaming(r, resp.Header.ContentLength(), maxBodySize, bodyBuf.B)
 	if err != nil {
 		if errors.Is(err, errs.ErrBodyTooLarge) {
-			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.ContentLength())
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), resp.Header.ContentLength())
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
 
 		if errors.Is(err, errs.ErrChunkedStream) {
-			bodyStream := ext.AcquireBodyStream(bodyBuf, r, -1)
+			bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), -1)
 			resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 			return nil
 		}
@@ -193,8 +241,7 @@ func ReadBodyStream(resp *protocol.Response, r network.Reader, maxBodySize int, 
 		resp.Reset()
 		return err
 	}
-
-	bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.ContentLength())
+	bodyStream := ext.AcquireBodyStream(bodyBuf, r, resp.Header.Trailer(), resp.Header.ContentLength())
 	resp.ConstructBodyStream(bodyBuf, convertClientRespStream(bodyStream, closeCallBack))
 	return nil
 }
@@ -276,6 +323,9 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 			}
 			if err == nil {
 				err = ext.WriteBodyChunked(w, resp.BodyStream())
+			}
+			if err == nil {
+				err = ext.WriteTrailer(resp.Header.Trailer(), w)
 			}
 		}
 	}

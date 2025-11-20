@@ -1,0 +1,22 @@
+# Typo check: https://github.com/crate-ci/typos
+
+[files]
+extend-exclude = ["go.mod", "go.sum"]
+
+[default.extend-identifiers]
+pn = "pn" # packageName in cmd/hz
+ConnTLSer = "ConnTLSer"
+OPTIO = "OPTIO" # b[:5] for OPTION
+
+[default.extend-words]
+typ = "typ"   # type
+Flate = "Flate" # flate algorithm
+
+[default]
+# Only ignore these exact "weird-case" examples used to demonstrate case-insensitive matching.
+extend-ignore-re = [
+  # Comments showing header normalization examples:
+  "\\bcONTENT-lenGTH\\b",
+  # Test intentionally using odd case:
+  "\\bconnecTION\\b",
+]

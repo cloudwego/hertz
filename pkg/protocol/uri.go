@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"path/filepath"
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -318,9 +319,9 @@ func (u *URI) SetHostBytes(host []byte) {
 //
 // Examples:
 //
-//    * For /foo/bar/baz.html path returns baz.html.
-//    * For /foo/bar/ returns empty byte slice.
-//    * For /foobar.js returns foobar.js.
+//   - For /foo/bar/baz.html path returns baz.html.
+//   - For /foo/bar/ returns empty byte slice.
+//   - For /foobar.js returns foobar.js.
 func (u *URI) LastPathSegment() []byte {
 	path := u.Path()
 	n := bytes.LastIndexByte(path, '/')
@@ -334,14 +335,14 @@ func (u *URI) LastPathSegment() []byte {
 //
 // The following newURI types are accepted:
 //
-//     * Absolute, i.e. http://foobar.com/aaa/bb?cc . In this case the original
-//       uri is replaced by newURI.
-//     * Absolute without scheme, i.e. //foobar.com/aaa/bb?cc. In this case
-//       the original scheme is preserved.
-//     * Missing host, i.e. /aaa/bb?cc . In this case only RequestURI part
-//       of the original uri is replaced.
-//     * Relative path, i.e.  xx?yy=abc . In this case the original RequestURI
-//       is updated according to the new relative path.
+//   - Absolute, i.e. http://foobar.com/aaa/bb?cc . In this case the original
+//     uri is replaced by newURI.
+//   - Absolute without scheme, i.e. //foobar.com/aaa/bb?cc. In this case
+//     the original scheme is preserved.
+//   - Missing host, i.e. /aaa/bb?cc . In this case only RequestURI part
+//     of the original uri is replaced.
+//   - Relative path, i.e.  xx?yy=abc . In this case the original RequestURI
+//     is updated according to the new relative path.
 func (u *URI) Update(newURI string) {
 	u.UpdateBytes(bytesconv.S2b(newURI))
 }
@@ -350,14 +351,14 @@ func (u *URI) Update(newURI string) {
 //
 // The following newURI types are accepted:
 //
-//     * Absolute, i.e. http://foobar.com/aaa/bb?cc . In this case the original
-//       uri is replaced by newURI.
-//     * Absolute without scheme, i.e. //foobar.com/aaa/bb?cc. In this case
-//       the original scheme is preserved.
-//     * Missing host, i.e. /aaa/bb?cc . In this case only RequestURI part
-//       of the original uri is replaced.
-//     * Relative path, i.e.  xx?yy=abc . In this case the original RequestURI
-//       is updated according to the new relative path.
+//   - Absolute, i.e. http://foobar.com/aaa/bb?cc . In this case the original
+//     uri is replaced by newURI.
+//   - Absolute without scheme, i.e. //foobar.com/aaa/bb?cc. In this case
+//     the original scheme is preserved.
+//   - Missing host, i.e. /aaa/bb?cc . In this case only RequestURI part
+//     of the original uri is replaced.
+//   - Relative path, i.e.  xx?yy=abc . In this case the original RequestURI
+//     is updated according to the new relative path.
 func (u *URI) UpdateBytes(newURI []byte) {
 	u.requestURI = u.updateBytes(newURI, u.requestURI)
 }
@@ -370,6 +371,30 @@ func (u *URI) UpdateBytes(newURI []byte) {
 // uri may contain e.g. RequestURI without scheme and host if host is non-empty.
 func (u *URI) Parse(host, uri []byte) {
 	u.parse(host, uri, false)
+}
+
+// Maybe rawURL is of the form scheme:path.
+// (Scheme must be [a-zA-Z][a-zA-Z0-9+-.]*)
+// If so, return scheme, path; else return nil, rawURL.
+func getScheme(rawURL []byte) (scheme, path []byte) {
+	for i := 0; i < len(rawURL); i++ {
+		c := rawURL[i]
+		switch {
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+		// do nothing
+		case '0' <= c && c <= '9' || c == '+' || c == '-' || c == '.':
+			if i == 0 {
+				return nil, rawURL
+			}
+		case c == ':':
+			return checkSchemeWhenCharIsColon(i, rawURL)
+		default:
+			// we have encountered an invalid character,
+			// so there is no valid scheme
+			return nil, rawURL
+		}
+	}
+	return nil, rawURL
 }
 
 func (u *URI) parse(host, uri []byte, isTLS bool) {
@@ -454,20 +479,14 @@ func stringContainsCTLByte(s []byte) bool {
 }
 
 func splitHostURI(host, uri []byte) ([]byte, []byte, []byte) {
-	n := bytes.Index(uri, bytestr.StrSlashSlash)
-	if n < 0 {
+	scheme, path := getScheme(uri)
+
+	if scheme == nil {
 		return bytestr.StrHTTP, host, uri
 	}
-	scheme := uri[:n]
-	if bytes.IndexByte(scheme, '/') >= 0 {
-		return bytestr.StrHTTP, host, uri
-	}
-	if len(scheme) > 0 && scheme[len(scheme)-1] == ':' {
-		scheme = scheme[:len(scheme)-1]
-	}
-	n += len(bytestr.StrSlashSlash)
-	uri = uri[n:]
-	n = bytes.IndexByte(uri, '/')
+
+	uri = path[len(bytestr.StrSlashSlash):]
+	n := bytes.IndexByte(uri, '/')
 	if n < 0 {
 		// A hack for bogus urls like foobar.com?a=b without
 		// slash after host.
@@ -483,6 +502,18 @@ func normalizePath(dst, src []byte) []byte {
 	dst = dst[:0]
 	dst = addLeadingSlash(dst, src)
 	dst = decodeArgAppendNoPlus(dst, src)
+
+	// Windows server need to replace all backslashes with
+	// forward slashes to avoid path traversal attacks.
+	if filepath.Separator == '\\' {
+		for {
+			n := bytes.IndexByte(dst, '\\')
+			if n < 0 {
+				break
+			}
+			dst[n] = '/'
+		}
+	}
 
 	// remove duplicate slashes
 	b := dst
@@ -573,6 +604,9 @@ func (u *URI) updateBytes(newURI, buf []byte) []byte {
 		schemeOriginal := b[:0]
 		if len(u.scheme) > 0 {
 			schemeOriginal = append([]byte(nil), u.scheme...)
+		}
+		if n == 0 {
+			newURI = bytes.Join([][]byte{u.scheme, bytestr.StrColon, newURI}, nil)
 		}
 		u.Parse(nil, newURI)
 		if len(schemeOriginal) > 0 && len(u.scheme) == 0 {

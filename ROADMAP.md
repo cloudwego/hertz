@@ -1,21 +1,14 @@
 # Hertz RoadMap
-This document shows key roadmap of Hertz development from the year of 2022 to 2023. It may help users know more about the future features. But the actual work is driven by real-world needs, we may adjust our goals sometimes.
 
-# New Features:
-- Community Build
-    - Support more middlewares for users, like sessions、gzip.
-    - Support reverse proxy.
-    - Support swagger.
-- Protocol
-    - Support Websocket.
-    - Support HTTP2.
-- Service Governance
-    - Support more extension for users.
-- Performance Optimization
-    - Improve the server throughput in small packet case.
-- User Experience Optimization
-    - Provide good development practices for users to develop with Hertz more easily.
-    - Improve code generation tool(hz) usability.
+From 2025, instead of developing new features we will focus on optimizing core functionalities and user experience.
 
+The following is a list of planned projects.
 
-All developers are welcome to contribute your extension to [hertz-contrib](https://github.com/hertz-contrib).
+- [ ] Optimize `RequestContext` issues under concurrency.
+- [ ] Refactor binding and validator for better extensibility, and deprecate built-in implementations.
+- [ ] Make `netpoll` optional, and `pkg/network/standard` the default.
+- [ ] Enhance Content-Encoding extension interface for better extensibility.
+- [ ] Optimize `pkg/common/adaptor`, and deprecate implementations with `net/http` alternatives.
+- [ ] Deprecate the built-in protobuf code generator, use [cloudwego/prutal](https://github.com/cloudwego/prutal)
+
+All users are encouraged to provide suggestions on the projects listed above, or to submit proposals for enhancing current features.

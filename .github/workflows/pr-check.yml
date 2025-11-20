@@ -4,41 +4,31 @@ on: [ pull_request ]
 
 jobs:
   compliant:
-    runs-on: [ self-hosted, X64 ]
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Check License Header
-        uses: apache/skywalking-eyes/header@501a28d2fb4a9b962661987e50cf0219631b32ff
+        uses: apache/skywalking-eyes/header@v0.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: typos-action
+      - name: Check Spell
         uses: crate-ci/typos@master
 
-  staticcheck:
-    runs-on: [ self-hosted, X64 ]
+  lint:
+    runs-on: [ self-hosted, Linux, X64 ]
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: stable
+          cache: false # don't use cache for self-hosted runners
 
-      - uses: actions/cache@v3
+      - name: Golangci Lint
+        # https://golangci-lint.run/
+        uses: golangci/golangci-lint-action@v6
         with:
-          path: ~/go/pkg/mod
-          key: reviewdog-${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            reviewdog-${{ runner.os }}-go-
-
-      - uses: reviewdog/action-staticcheck@v1
-        with:
-          github_token: ${{ secrets.github_token }}
-          # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
-          reporter: github-pr-review
-          # Report all results.
-          filter_mode: nofilter
-          # Exit with 1 when it find at least one finding.
-          fail_on_error: true
-          # Set staticcheck flags
-          staticcheck_flags: -checks=inherit,-SA1029
+          version: latest
+          only-new-issues: true

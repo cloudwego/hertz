@@ -46,10 +46,12 @@ import (
 	"io"
 	"sync"
 
+	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 var (
@@ -62,24 +64,19 @@ var (
 	}
 )
 
+// Deprecated: Use github.com/cloudwego/hertz/pkg/protocol.NoBody instead.
+var NoBody = protocol.NoBody
+
 type bodyStream struct {
 	prefetchedBytes *bytes.Reader
 	reader          network.Reader
+	trailer         *protocol.Trailer
 	offset          int
 	contentLength   int
 	chunkLeft       int
+	// whether the chunk has reached the EOF
+	chunkEOF bool
 }
-
-// NoBody is an io.ReadCloser with no bytes. Read always returns EOF
-// and Close always returns nil. It can be used in an outgoing client
-// request to explicitly signal that a request has zero bytes.
-// An alternative, however, is to simply set Request.Body to nil.
-var NoBody = noBody{}
-
-type noBody struct{}
-
-func (noBody) Read([]byte) (int, error) { return 0, io.EOF }
-func (noBody) Close() error             { return nil }
 
 func ReadBodyWithStreaming(zr network.Reader, contentLength, maxBodySize int, dst []byte) (b []byte, err error) {
 	if contentLength == -1 {
@@ -114,11 +111,13 @@ func ReadBodyWithStreaming(zr network.Reader, contentLength, maxBodySize int, ds
 	return b, nil
 }
 
-func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, contentLength int) io.Reader {
+func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, t *protocol.Trailer, contentLength int) io.Reader {
 	rs := bodyStreamPool.Get().(*bodyStream)
 	rs.prefetchedBytes = bytes.NewReader(b.B)
 	rs.reader = r
 	rs.contentLength = contentLength
+	rs.trailer = t
+	rs.chunkEOF = false
 
 	return rs
 }
@@ -130,14 +129,19 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 		}
 	}()
 	if rs.contentLength == -1 {
+		if rs.chunkEOF {
+			return 0, io.EOF
+		}
+
 		if rs.chunkLeft == 0 {
 			chunkSize, err := utils.ParseChunkSize(rs.reader)
 			if err != nil {
 				return 0, err
 			}
 			if chunkSize == 0 {
-				err = utils.SkipCRLF(rs.reader)
+				err = ReadTrailer(rs.trailer, rs.reader)
 				if err == nil {
+					rs.chunkEOF = true
 					err = io.EOF
 				}
 				return 0, err
@@ -211,7 +215,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 	if err != nil {
 		// the data on stream may be incomplete
 		if err == io.EOF {
-			if rs.offset != rs.contentLength {
+			if rs.offset != rs.contentLength && rs.contentLength != -2 {
 				err = io.ErrUnexpectedEOF
 			}
 			// ensure that skipRest works fine
@@ -230,6 +234,51 @@ func (rs *bodyStream) skipRest() error {
 	// the bodyStream has been skip rest
 	if rs.prefetchedBytes == nil {
 		return nil
+	}
+
+	// the request is chunked encoding
+	if rs.contentLength == -1 {
+		if rs.chunkEOF {
+			return nil
+		}
+
+		strCRLFLen := len(bytestr.StrCRLF)
+		for {
+			chunkSize, err := utils.ParseChunkSize(rs.reader)
+			if err != nil {
+				return err
+			}
+
+			if chunkSize == 0 {
+				rs.chunkEOF = true
+				return SkipTrailer(rs.reader)
+			}
+
+			err = rs.reader.Skip(chunkSize)
+			if err != nil {
+				return err
+			}
+
+			crlf, err := rs.reader.Peek(strCRLFLen)
+			if err != nil {
+				return err
+			}
+
+			if !bytes.Equal(crlf, bytestr.StrCRLF) {
+				return errBrokenChunk
+			}
+
+			err = rs.reader.Skip(strCRLFLen)
+			if err != nil {
+				return err
+			}
+			// After Skip, the buffer needs to be released to prevent OOM if there are too much data on conn.
+			err = rs.reader.Release()
+			if err != nil {
+				return err
+			}
+
+		}
 	}
 	// max value of pSize is 8193, it's safe.
 	pSize := int(rs.prefetchedBytes.Size())
@@ -257,7 +306,15 @@ func (rs *bodyStream) skipRest() error {
 		if skip > needSkipLen {
 			skip = needSkipLen
 		}
-		rs.reader.Skip(skip)
+		err := rs.reader.Skip(skip)
+		if err != nil {
+			return err
+		}
+		// After Skip, the buffer needs to be released to prevent OOM if there are too much data on conn.
+		err = rs.reader.Release()
+		if err != nil {
+			return err
+		}
 		needSkipLen -= skip
 		if needSkipLen == 0 {
 			return nil
@@ -266,15 +323,24 @@ func (rs *bodyStream) skipRest() error {
 }
 
 // ReleaseBodyStream releases the body stream.
+// Error of skipRest may be returned if there is one.
 //
 // NOTE: Be careful to use this method unless you know what it's for.
 func ReleaseBodyStream(requestReader io.Reader) (err error) {
 	if rs, ok := requestReader.(*bodyStream); ok {
 		err = rs.skipRest()
-		rs.prefetchedBytes = nil
-		rs.offset = 0
-		rs.reader = nil
+		rs.reset()
 		bodyStreamPool.Put(rs)
 	}
 	return
+}
+
+func (rs *bodyStream) reset() {
+	rs.prefetchedBytes = nil
+	rs.offset = 0
+	rs.reader = nil
+	rs.trailer = nil
+	rs.chunkEOF = false
+	rs.chunkLeft = 0
+	rs.contentLength = 0
 }

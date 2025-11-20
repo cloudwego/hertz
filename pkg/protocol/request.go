@@ -62,18 +62,26 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
 var (
-	errMissingFile     = errors.NewPublic("http: no such file")
-	errNoMultipartForm = errors.NewPublic("request has no multipart/form-data Content-Type")
+	ErrMissingFile = errors.NewPublic("http: no such file")
 
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
 
 	requestPool sync.Pool
 )
+
+// NoBody is an io.ReadCloser with no bytes. Read always returns EOF
+// and Close always returns nil. It can be used in an outgoing client
+// request to explicitly signal that a request has zero bytes.
+var NoBody = noBody{}
+
+type noBody struct{}
+
+func (noBody) Read([]byte) (int, error) { return 0, io.EOF }
+func (noBody) Close() error             { return nil }
 
 type Request struct {
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
@@ -158,25 +166,34 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 //
 // The caller must do one of the following actions if MayContinue returns true:
 //
-//     - Either send StatusExpectationFailed response if request headers don't
-//       satisfy the caller.
-//     - Or send StatusContinue response before reading request body
-//       with ContinueReadBody.
-//     - Or close the connection.
+//   - Either send StatusExpectationFailed response if request headers don't
+//     satisfy the caller.
+//   - Or send StatusContinue response before reading request body
+//     with ContinueReadBody.
+//   - Or close the connection.
 func (req *Request) MayContinue() bool {
-	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
+	return bytes.Equal(req.Header.peek(consts.HeaderExpect), bytestr.Str100Continue)
 }
 
+// Scheme returns the scheme of the request.
+// uri will be parsed in ServeHTTP(before user's process), so that there is no need for uri nil-check.
 func (req *Request) Scheme() []byte {
 	return req.uri.Scheme()
 }
 
-func (req *Request) ResetSkipHeader() {
+// For keepalive connection reuse.
+// It is roughly the same as ResetSkipHeader, except that the connection related fields are removed:
+// - req.isTLS
+func (req *Request) resetSkipHeaderAndConn() {
 	req.ResetBody()
 	req.uri.Reset()
 	req.parsedURI = false
 	req.parsedPostArgs = false
 	req.postArgs.Reset()
+}
+
+func (req *Request) ResetSkipHeader() {
+	req.resetSkipHeaderAndConn()
 	req.isTLS = false
 }
 
@@ -207,7 +224,7 @@ func (req *Request) PostArgString() []byte {
 
 // MultipartForm returns request's multipart form.
 //
-// Returns errNoMultipartForm if request's Content-Type
+// Returns errors.ErrNoMultipartForm if request's Content-Type
 // isn't 'multipart/form-data'.
 //
 // RemoveMultipartFormFiles must be called after returned multipart form
@@ -218,10 +235,10 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 	}
 	req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
 	if len(req.multipartFormBoundary) == 0 {
-		return nil, errNoMultipartForm
+		return nil, errors.ErrNoMultipartForm
 	}
 
-	ce := req.Header.peek(bytestr.StrContentEncoding)
+	ce := req.Header.peek(consts.HeaderContentEncoding)
 	var err error
 	var f *multipart.Form
 
@@ -296,7 +313,7 @@ func (req *Request) FormFile(name string) (*multipart.FileHeader, error) {
 	}
 	fhh := mf.File[name]
 	if fhh == nil {
-		return nil, errMissingFile
+		return nil, ErrMissingFile
 	}
 	return fhh[0], nil
 }
@@ -347,7 +364,7 @@ func (req *Request) SwapBody(body []byte) []byte {
 func (req *Request) CopyTo(dst *Request) {
 	req.CopyToSkipBody(dst)
 	if req.bodyRaw != nil {
-		dst.bodyRaw = req.bodyRaw
+		dst.bodyRaw = append(dst.bodyRaw[:0], req.bodyRaw...)
 		if dst.body != nil {
 			dst.body.Reset()
 		}
@@ -373,6 +390,7 @@ func (req *Request) CopyToSkipBody(dst *Request) {
 		dst.options = &config.RequestOptions{}
 		req.options.CopyTo(dst.options)
 	}
+
 	// do not copy multipartForm - it will be automatically
 	// re-created on the first call to MultipartForm.
 }
@@ -393,7 +411,7 @@ func (req *Request) ResetBody() {
 	req.RemoveMultipartFormFiles()
 	req.CloseBodyStream() //nolint:errcheck
 	if req.body != nil {
-		if req.body.Len() <= req.maxKeepBodySize {
+		if req.body.Cap() <= req.maxKeepBodySize {
 			req.body.Reset()
 			return
 		}
@@ -446,7 +464,7 @@ func (req *Request) SetFormData(data map[string]string) {
 		req.postArgs.Add(k, v)
 	}
 	req.parsedPostArgs = true
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 }
 
 // SetFormDataFromValues sets x-www-form-urlencoded params from url values.
@@ -457,7 +475,7 @@ func (req *Request) SetFormDataFromValues(data url.Values) {
 		}
 	}
 	req.parsedPostArgs = true
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 }
 
 // SetFile sets single file field name and its path for multipart upload.
@@ -563,13 +581,15 @@ func parseBasicAuth(auth []byte) (username, password string, ok bool) {
 }
 
 // SetAuthToken sets the auth token header(Default Scheme: Bearer) in the current HTTP request. Header example:
-// 		Authorization: Bearer <auth-token-value-comes-here>
+//
+//	Authorization: Bearer <auth-token-value-comes-here>
 func (req *Request) SetAuthToken(token string) {
 	req.SetHeader(consts.HeaderAuthorization, "Bearer "+token)
 }
 
 // SetAuthSchemeToken sets the auth token scheme type in the HTTP request. For Example:
-//      Authorization: <auth-scheme-value-set-here> <auth-token-value>
+//
+//	Authorization: <auth-scheme-value-set-here> <auth-token-value>
 func (req *Request) SetAuthSchemeToken(scheme, token string) {
 	req.SetHeader(consts.HeaderAuthorization, scheme+" "+token)
 }
@@ -613,12 +633,12 @@ func (req *Request) HasMultipartForm() bool {
 
 // IsBodyStream returns true if body is set via SetBodyStream*
 func (req *Request) IsBodyStream() bool {
-	return req.bodyStream != nil && req.bodyStream != ext.NoBody
+	return req.bodyStream != nil && req.bodyStream != NoBody
 }
 
 func (req *Request) BodyStream() io.Reader {
 	if req.bodyStream == nil {
-		req.bodyStream = ext.NoBody
+		return NoBody
 	}
 	return req.bodyStream
 }
@@ -664,8 +684,7 @@ func (req *Request) parsePostArgs() {
 		return
 	}
 	req.parsedPostArgs = true
-
-	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.StrPostArgsContentType) {
+	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.MIMEPostForm) {
 		return
 	}
 	req.postArgs.ParseBytes(req.Body())
@@ -802,6 +821,14 @@ func (req *Request) SetConnectionClose() {
 	req.Header.SetConnectionClose(true)
 }
 
+func (req *Request) ResetWithoutConn() {
+	req.Header.Reset()
+	req.resetSkipHeaderAndConn()
+	req.CloseBodyStream()
+
+	req.options = nil
+}
+
 // AcquireRequest returns an empty Request instance from request pool.
 //
 // The returned Request instance may be passed to ReleaseRequest when it is
@@ -827,7 +854,7 @@ func ReleaseRequest(req *Request) {
 // NewRequest makes a new Request given a method, URL, and
 // optional body.
 //
-// Method's default value is GET
+// # Method's default value is GET
 //
 // Url must contain fully qualified uri, i.e. with scheme and host,
 // and http is assumed if scheme is omitted.

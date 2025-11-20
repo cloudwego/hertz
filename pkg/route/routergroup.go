@@ -83,7 +83,7 @@ type RouterGroup struct {
 	root     bool
 }
 
-var _ IRouter = &RouterGroup{}
+var _ IRouter = (*RouterGroup)(nil)
 
 // Use adds middleware to the group, see example code in GitHub.
 func (group *RouterGroup) Use(middleware ...app.HandlerFunc) IRoutes {
@@ -200,7 +200,8 @@ func (group *RouterGroup) StaticFile(relativePath, filepath string) IRoutes {
 // Static serves files from the given file system root.
 // To use the operating system's file system implementation,
 // use :
-//     router.Static("/static", "/var/www")
+//
+//	router.Static("/static", "/var/www")
 func (group *RouterGroup) Static(relativePath, root string) IRoutes {
 	return group.StaticFS(relativePath, &app.FS{Root: root})
 }

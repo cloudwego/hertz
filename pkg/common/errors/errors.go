@@ -49,14 +49,20 @@ import (
 
 var (
 	// These errors are the base error, which are used for checking in errors.Is()
-	ErrNeedMore        = errors.New("need more data")
-	ErrChunkedStream   = errors.New("chunked stream")
-	ErrBodyTooLarge    = errors.New("body size exceeds the given limit")
-	ErrHijacked        = errors.New("connection has been hijacked")
-	ErrIdleTimeout     = errors.New("idle timeout")
-	ErrTimeout         = errors.New("timeout")
-	ErrNothingRead     = errors.New("nothing read")
-	ErrShortConnection = errors.New("short connection")
+	ErrNeedMore           = errors.New("need more data")
+	ErrChunkedStream      = errors.New("chunked stream")
+	ErrBodyTooLarge       = errors.New("body size exceeds the given limit")
+	ErrHeaderTooLarge     = errors.New("header size exceeds the given limit")
+	ErrHijacked           = errors.New("connection has been hijacked")
+	ErrTimeout            = errors.New("timeout")
+	ErrIdleTimeout        = errors.New("idle timeout")
+	ErrNothingRead        = errors.New("nothing read")
+	ErrShortConnection    = errors.New("short connection")
+	ErrNoFreeConns        = errors.New("no free connections available to host")
+	ErrConnectionClosed   = errors.New("connection closed")
+	ErrNotSupportProtocol = errors.New("not support protocol")
+	ErrNoMultipartForm    = errors.New("request has no multipart/form-data Content-Type")
+	ErrBadPoolConn        = errors.New("connection is closed by peer while being in the connection pool")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.
@@ -83,7 +89,7 @@ const (
 
 type ErrorChain []*Error
 
-var _ error = &Error{}
+var _ error = (*Error)(nil)
 
 // SetType sets the error's type.
 func (msg *Error) SetType(flags ErrorType) *Error {
@@ -149,10 +155,11 @@ func (msg *Error) JSON() interface{} {
 
 // Errors returns an array will all the error messages.
 // Example:
-// 		c.Error(errors.New("first"))
-// 		c.Error(errors.New("second"))
-// 		c.Error(errors.New("third"))
-// 		c.Errors.Errors() // == []string{"first", "second", "third"}
+//
+//	c.Error(errors.New("first"))
+//	c.Error(errors.New("second"))
+//	c.Error(errors.New("third"))
+//	c.Errors.Errors() // == []string{"first", "second", "third"}
 func (a ErrorChain) Errors() []string {
 	if len(a) == 0 {
 		return nil
@@ -221,4 +228,16 @@ func NewPublic(err string) *Error {
 
 func NewPrivate(err string) *Error {
 	return New(errors.New(err), ErrorTypePrivate, nil)
+}
+
+func Newf(t ErrorType, meta interface{}, format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), t, meta)
+}
+
+func NewPublicf(format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), ErrorTypePublic, nil)
+}
+
+func NewPrivatef(format string, v ...interface{}) *Error {
+	return New(fmt.Errorf(format, v...), ErrorTypePrivate, nil)
 }

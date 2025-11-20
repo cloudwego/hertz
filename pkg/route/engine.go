@@ -47,6 +47,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -58,6 +60,7 @@ import (
 	"github.com/cloudwego/hertz/internal/nocopy"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -73,18 +76,24 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/http1"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/factory"
 	"github.com/cloudwego/hertz/pkg/protocol/suite"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
+const unknownTransporterName = "unknown"
+
 var (
+	// will be netpoll.NewTransporter if available, see: netpoll.go
 	defaultTransporter = standard.NewTransporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")
 	errAlreadyRunning   = errs.NewPrivate("engine is already running")
 	errStatusNotRunning = errs.NewPrivate("engine is not running")
 
-	default404Body = []byte("404 page not found")
-	default405Body = []byte("405 method not allowed")
-	default400Body = []byte("400 bad request")
+	default404Body = []byte("Not Found")
+	default405Body = []byte("Method Not Allowed")
+	default400Body = []byte("Bad Request")
+
+	requiredHostBody = []byte("missing required Host header")
 )
 
 type hijackConn struct {
@@ -152,8 +161,9 @@ type Engine struct {
 	enableTrace bool
 
 	// protocol layer management
-	protocolSuite   *suite.Config
-	protocolServers map[string]protocol.Server
+	protocolSuite         *suite.Config
+	protocolServers       map[string]protocol.Server
+	protocolStreamServers map[string]protocol.StreamServer
 
 	// RequestContext pool
 	ctxPool sync.Pool
@@ -184,6 +194,13 @@ type Engine struct {
 
 	// Hook functions get triggered simultaneously when engine shutdown
 	OnShutdown []CtxCallback
+
+	// Custom Functions
+	clientIPFunc  app.ClientIP
+	formValueFunc app.FormValueFunc
+
+	// Custom Binder
+	binder binding.Binder
 }
 
 func (engine *Engine) IsTraceEnable() bool {
@@ -198,15 +215,35 @@ func (engine *Engine) GetOptions() *config.Options {
 	return engine.options
 }
 
+// SetTransporter only sets the global default value for the transporter.
+// Use WithTransporter during engine creation to set the transporter for the engine.
 func SetTransporter(transporter func(options *config.Options) network.Transporter) {
 	defaultTransporter = transporter
 }
 
+func (engine *Engine) GetTransporterName() (tName string) {
+	return getTransporterName(engine.transport)
+}
+
+func getTransporterName(transporter network.Transporter) (tName string) {
+	defer func() {
+		err := recover()
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
+		}
+	}()
+	t := reflect.ValueOf(transporter).Type().String()
+	tName = strings.Split(strings.TrimPrefix(t, "*"), ".")[0]
+	return tName
+}
+
+// Deprecated: This only get the global default transporter - may not be the real one used by the engine.
+// Use engine.GetTransporterName for the real transporter used.
 func GetTransporterName() (tName string) {
 	defer func() {
 		err := recover()
-		if err != nil {
-			tName = "unknown"
+		if err != nil || tName == "" {
+			tName = unknownTransporterName
 		}
 	}()
 	fName := runtime.FuncForPC(reflect.ValueOf(defaultTransporter).Pointer()).Name()
@@ -222,7 +259,18 @@ func (engine *Engine) IsStreamRequestBody() bool {
 }
 
 func (engine *Engine) IsRunning() bool {
-	return atomic.LoadUint32(&engine.status) == statusRunning
+	if atomic.LoadUint32(&engine.status) != statusRunning {
+		return false
+	}
+	// double check listener
+	type ListenerIface interface {
+		Listener() net.Listener
+	}
+	v, ok := engine.transport.(ListenerIface)
+	if ok {
+		return v.Listener() != nil
+	}
+	return true // default behavior if no ListenerIface
 }
 
 func (engine *Engine) HijackConnHandle(c network.Conn, h app.HijackHandler) {
@@ -250,12 +298,12 @@ func (engine *Engine) NewContext() *app.RequestContext {
 
 // Shutdown starts the server's graceful exit by next steps:
 //
-// 1. Trigger OnShutdown hooks concurrently, but don't wait them
-// 2. Close the net listener, which means new connection won't be accepted
-// 3. Wait all connections get closed:
-// 	One connection gets closed after reaching out the shorter time of processing
-//	one request (in hand or next incoming), idleTimeout or ExitWaitTime
-// 4. Exit
+//  1. Trigger OnShutdown hooks concurrently and wait them until wait timeout or finish
+//  2. Close the net listener, which means new connection won't be accepted
+//  3. Wait all connections get closed:
+//     One connection gets closed after reaching out the shorter time of processing
+//     one request (in hand or next incoming), idleTimeout or ExitWaitTime
+//  4. Exit
 func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	if atomic.LoadUint32(&engine.status) != statusRunning {
 		return errStatusNotRunning
@@ -264,29 +312,61 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
-	// trigger hooks if any
-	for i := range engine.OnShutdown {
-		go func(index int) {
-			engine.OnShutdown[index](ctx)
-		}(i)
+	opt := engine.GetOptions()
+	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most %s ...", opt.ExitWaitTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, opt.ExitWaitTimeout)
+	defer cancel()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		engine.executeOnShutdownHooks(ctx)
+	}()
+
+	defer func() {
+		// ensure that the hook is executed until wait timeout or finish
+		select {
+		case <-ctx.Done():
+			hlog.SystemLogger().Infof("Execute OnShutdownHooks timeout: error=%v", ctx.Err())
+			return
+		case <-ch:
+			hlog.SystemLogger().Info("Execute OnShutdownHooks finish")
+			return
+		}
+	}()
+
+	if opt.Registry != nil {
+		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
+			hlog.SystemLogger().Errorf("Deregister error=%v", err)
+			return err
+		}
 	}
 
 	// call transport shutdown
 	if err := engine.transport.Shutdown(ctx); err != ctx.Err() {
 		return err
 	}
+
 	return
+}
+
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context) {
+	wg := sync.WaitGroup{}
+	for i := range engine.OnShutdown {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			engine.OnShutdown[index](ctx)
+		}(i)
+	}
+	wg.Wait()
 }
 
 func (engine *Engine) Run() (err error) {
 	if err = engine.Init(); err != nil {
 		return err
 	}
-
-	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
-		return errAlreadyRunning
-	}
-	defer atomic.StoreUint32(&engine.status, statusClosed)
 
 	// trigger hooks if any
 	ctx := context.Background()
@@ -296,29 +376,30 @@ func (engine *Engine) Run() (err error) {
 		}
 	}
 
+	if err = engine.MarkAsRunning(); err != nil {
+		return err
+	}
+	defer atomic.StoreUint32(&engine.status, statusClosed)
+
 	return engine.listenAndServe()
 }
 
 func (engine *Engine) Init() error {
-	if !h2Enable(engine.options) {
-		engine.protocolSuite.Delete(suite.HTTP2)
-	}
-
 	// add built-in http1 server by default
 	if !engine.HasServer(suite.HTTP1) {
 		engine.AddProtocol(suite.HTTP1, factory.NewServerFactory(newHttp1OptionFromEngine(engine)))
 	}
 
-	serverMap, err := engine.protocolSuite.LoadAll(engine)
+	serverMap, streamServerMap, err := engine.protocolSuite.LoadAll(engine)
 	if err != nil {
 		return errs.New(err, errs.ErrorTypePrivate, "LoadAll protocol suite error")
 	}
 
 	engine.protocolServers = serverMap
+	engine.protocolStreamServers = streamServerMap
 
 	if engine.alpnEnable() {
 		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP1)
-		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP2)
 	}
 
 	if !atomic.CompareAndSwapUint32(&engine.status, 0, statusInitialized) {
@@ -332,6 +413,7 @@ func (engine *Engine) alpnEnable() bool {
 }
 
 func (engine *Engine) listenAndServe() error {
+	hlog.SystemLogger().Infof("Using network library=%s", engine.GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
 
@@ -351,7 +433,7 @@ func (engine *Engine) getNextProto(conn network.Conn) (proto string, err error) 
 	if tlsConn, ok := conn.(network.ConnTLSer); ok {
 		if engine.options.ReadTimeout > 0 {
 			if err := conn.SetReadTimeout(engine.options.ReadTimeout); err != nil {
-				hlog.Errorf("HERTZ: BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
+				hlog.SystemLogger().Errorf("BUG: error in SetReadDeadline=%s: error=%s", engine.options.ReadTimeout, err)
 			}
 		}
 		err = tlsConn.Handshake()
@@ -362,22 +444,17 @@ func (engine *Engine) getNextProto(conn network.Conn) (proto string, err error) 
 	return
 }
 
-func (engine *Engine) onData(c context.Context, conn network.Conn) (err error) {
-	err = engine.Serve(c, conn)
+func (engine *Engine) onData(c context.Context, conn interface{}) (err error) {
+	switch conn := conn.(type) {
+	case network.Conn:
+		err = engine.Serve(c, conn)
+	case network.StreamConn:
+		err = engine.ServeStream(c, conn)
+	}
 	return
 }
 
-func errProcess(conn io.Closer, err error) {
-	if err == nil {
-		return
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
+func logError(conn network.Conn, err error) {
 	// Quiet close the connection
 	if errors.Is(err, errs.ErrShortConnection) || errors.Is(err, errs.ErrIdleTimeout) {
 		return
@@ -385,12 +462,14 @@ func errProcess(conn io.Closer, err error) {
 
 	// Do not process the hijack connection error
 	if errors.Is(err, errs.ErrHijacked) {
-		err = nil
 		return
 	}
 
 	// Get remote address
-	rip := getRemoteAddrFromCloser(conn)
+	rip := ""
+	if addr := conn.RemoteAddr(); addr != nil {
+		rip = addr.String()
+	}
 
 	// Handle Specific error
 	if hsp, ok := conn.(network.HandleSpecificError); ok {
@@ -399,19 +478,13 @@ func errProcess(conn io.Closer, err error) {
 		}
 	}
 	// other errors
-	hlog.Errorf("HERTZ: Error=%s, remoteAddr=%s", err.Error(), rip)
-}
-
-func getRemoteAddrFromCloser(conn io.Closer) string {
-	if c, ok := conn.(network.Conn); ok {
-		if addr := c.RemoteAddr(); addr != nil {
-			return addr.String()
-		}
-	}
-	return ""
+	hlog.SystemLogger().Errorf(hlog.EngineErrorFormat, err.Error(), rip)
 }
 
 func (engine *Engine) Close() error {
+	if engine.htmlRender != nil {
+		engine.htmlRender.Close() //nolint:errcheck
+	}
 	return engine.transport.Close()
 }
 
@@ -432,7 +505,12 @@ func (engine *Engine) GetServerName() []byte {
 
 func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	defer func() {
-		errProcess(conn, err)
+		if err != nil {
+			logError(conn, err)
+		}
+		if !errors.Is(err, errs.ErrHijacked) {
+			_ = conn.Close()
+		}
 	}()
 
 	// H2C path
@@ -442,7 +520,7 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 		if bytes.Equal(buf, bytestr.StrClientPreface) && engine.protocolServers[suite.HTTP2] != nil {
 			return engine.protocolServers[suite.HTTP2].Serve(c, conn)
 		}
-		hlog.Warnf("HERTZ: HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
+		hlog.SystemLogger().Warn("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 	}
 
 	// ALPN path
@@ -471,19 +549,110 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	return
 }
 
+func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) error {
+	// ALPN path
+	if engine.options.ALPN && engine.options.TLS != nil {
+		version := conn.GetVersion()
+		nextProtocol := versionToALNP(version)
+		if server, ok := engine.protocolStreamServers[nextProtocol]; ok {
+			return server.Serve(ctx, conn)
+		}
+	}
+
+	// default path
+	if server, ok := engine.protocolStreamServers[suite.HTTP3]; ok {
+		return server.Serve(ctx, conn)
+	}
+	return errs.ErrNotSupportProtocol
+}
+
+func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	if opt.CustomBinder != nil {
+		engine.initCustomBinder(opt.CustomBinder)
+		return
+	}
+	vf := engine.initValidatorFunc(opt)
+	if opt.BindConfig == nil {
+		c := binding.NewBindConfig()
+		c.ValidatorFunc = vf
+		engine.binder = binding.NewDefaultBinder(c)
+		return
+	}
+	engine.initDefaultBinder(opt.BindConfig, vf)
+}
+
+// initValidator initializes the validator function and returns whether a custom validator was used
+func (engine *Engine) initValidatorFunc(opt *config.Options) binding.ValidatorFunc {
+	customValidator := opt.CustomValidator
+	if customValidator == nil {
+		conf := opt.ValidateConfig               //nolint:staticcheck // Deprecated
+		vc, ok := conf.(*binding.ValidateConfig) //nolint:staticcheck // Deprecated
+		if !ok && conf != nil {
+			panic(fmt.Errorf("ValidateConfig type err: %T", conf))
+		}
+		if vc == nil {
+			return nil
+		}
+		customValidator = binding.NewValidator(vc) //nolint:staticcheck // Deprecated
+	}
+	switch v := customValidator.(type) {
+	case binding.ValidatorFunc:
+		// ValidatorFunc (preferred approach)
+		return v
+
+	case func(*protocol.Request, interface{}) error:
+		// Function with correct signature, convert to ValidatorFunc
+		return binding.ValidatorFunc(v)
+
+	case binding.StructValidator: //nolint:staticcheck // Deprecated
+		// StructValidator (backwards compatibility)
+		return binding.MakeValidatorFunc(v)
+
+	default:
+		panic(fmt.Errorf("customized validator type err: %T", v))
+	}
+}
+
+// initCustomBinder handles custom binder initialization
+func (engine *Engine) initCustomBinder(customBinder interface{}) {
+	binder, ok := customBinder.(binding.Binder)
+	if !ok {
+		panic("customized binder does not implement binding.Binder")
+	}
+	engine.binder = binder
+}
+
+// initDefaultBinder initializes the default binder with optional custom config
+func (engine *Engine) initDefaultBinder(bindConfig interface{}, vf binding.ValidatorFunc) {
+	bConf, ok := bindConfig.(*binding.BindConfig)
+	if !ok {
+		panic("opt.BindConfig is not the '*binding.BindConfig' type")
+	}
+	// User customized validator has the highest priority
+	if vf != nil {
+		bConf.ValidatorFunc = vf
+	}
+	engine.binder = binding.NewDefaultBinder(bConf)
+}
+
 func NewEngine(opt *config.Options) *Engine {
 	engine := &Engine{
 		trees: make(MethodTrees, 0, 9),
 		RouterGroup: RouterGroup{
 			Handlers: nil,
-			basePath: "/",
+			basePath: opt.BasePath,
 			root:     true,
 		},
-		transport:       defaultTransporter(opt),
-		tracerCtl:       &internalStats.Controller{},
-		protocolServers: make(map[string]protocol.Server),
-		enableTrace:     true,
-		options:         opt,
+		transport:             defaultTransporter(opt),
+		tracerCtl:             &internalStats.Controller{},
+		protocolServers:       make(map[string]protocol.Server),
+		protocolStreamServers: make(map[string]protocol.StreamServer),
+		enableTrace:           true,
+		options:               opt,
+	}
+	engine.initBinderAndValidator(opt)
+	if opt.TransporterNewer != nil {
+		engine.transport = opt.TransporterNewer(opt)
 	}
 	engine.RouterGroup.engine = engine
 
@@ -524,17 +693,13 @@ func initTrace(engine *Engine) stats.Level {
 	return traceLevel
 }
 
-func h2Enable(opt *config.Options) bool {
-	return opt.H2C || (opt.TLS != nil && opt.ALPN)
-}
-
 func debugPrintRoute(httpMethod, absolutePath string, handlers app.HandlersChain) {
 	nuHandlers := len(handlers)
 	handlerName := app.GetHandlerName(handlers.Last())
 	if handlerName == "" {
 		handlerName = utils.NameOfFunction(handlers.Last())
 	}
-	hlog.Debugf("HERTZ: Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
+	hlog.SystemLogger().Debugf("Method=%-6s absolutePath=%-25s --> handlerName=%s (num=%d handlers)", httpMethod, absolutePath, handlerName, nuHandlers)
 }
 
 func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) {
@@ -545,10 +710,13 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 	utils.Assert(method != "", "HTTP method can not be empty")
 	utils.Assert(len(handlers) > 0, "there must be at least one handler")
 
-	debugPrintRoute(method, path, handlers)
+	if !engine.options.DisablePrintRoute {
+		debugPrintRoute(method, path, handlers)
+	}
+
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
-		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}
+		methodRouter = &router{method: method, root: &node{}}
 		engine.trees = append(engine.trees, methodRouter)
 	}
 	methodRouter.addRoute(path, handlers)
@@ -582,11 +750,20 @@ func (engine *Engine) recv(ctx *app.RequestContext) {
 
 // ServeHTTP makes the router implement the Handler interface.
 func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
+	ctx.SetBinder(engine.binder)
 	if engine.PanicHandler != nil {
 		defer engine.recv(ctx)
 	}
 
 	rPath := string(ctx.Request.URI().Path())
+
+	// align with https://datatracker.ietf.org/doc/html/rfc2616#section-5.2
+	if len(ctx.Request.Host()) == 0 && ctx.Request.Header.IsHTTP11() && bytesconv.B2s(ctx.Request.Method()) != consts.MethodConnect {
+		ctx.SetHandlers(engine.Handlers)
+		serveError(c, ctx, consts.StatusBadRequest, requiredHostBody)
+		return
+	}
+
 	httpMethod := bytesconv.B2s(ctx.Request.Header.Method())
 	unescape := false
 	if engine.options.UseRawPath {
@@ -600,8 +777,15 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 
 	// Follow RFC7230#section-5.3
 	if rPath == "" || rPath[0] != '/' {
+		ctx.SetHandlers(engine.Handlers)
 		serveError(c, ctx, consts.StatusBadRequest, default400Body)
 		return
+	}
+
+	// if Params is re-assigned in HandlerFunc and the capacity is not enough we need to realloc
+	maxParams := int(engine.maxParams)
+	if cap(ctx.Params) < maxParams {
+		ctx.Params = make(param.Params, 0, maxParams)
 	}
 
 	// Find root of the tree for the given HTTP method
@@ -652,6 +836,8 @@ func (engine *Engine) allocateContext() *app.RequestContext {
 	ctx := engine.NewContext()
 	ctx.Request.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
 	ctx.Response.SetMaxKeepBodySize(engine.options.MaxKeepBodySize)
+	ctx.SetClientIPFunc(engine.clientIPFunc)
+	ctx.SetFormValueFunc(engine.formValueFunc)
 	return ctx
 }
 
@@ -747,28 +933,67 @@ func (engine *Engine) Use(middleware ...app.HandlerFunc) IRoutes {
 // LoadHTMLGlob loads HTML files identified by glob pattern
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLGlob(pattern string) {
-	left := engine.delims.Left
-	right := engine.delims.Right
-	templ := template.Must(template.New("").Delims(left, right).Funcs(engine.funcMap).ParseGlob(pattern))
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseGlob(pattern))
 
-	engine.SetHTMLTemplate(templ)
+	if engine.options.AutoReloadRender {
+		files, err := filepath.Glob(pattern)
+		if err != nil {
+			hlog.SystemLogger().Errorf("LoadHTMLGlob: %v", err)
+			return
+		}
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // LoadHTMLFiles loads a slice of HTML files
 // and associates the result with HTML renderer.
 func (engine *Engine) LoadHTMLFiles(files ...string) {
-	templ := template.Must(template.New("").Delims(engine.delims.Left, engine.delims.Right).Funcs(engine.funcMap).ParseFiles(files...))
-	engine.SetHTMLTemplate(templ)
+	tmpl := template.Must(template.New("").
+		Delims(engine.delims.Left, engine.delims.Right).
+		Funcs(engine.funcMap).
+		ParseFiles(files...))
+
+	if engine.options.AutoReloadRender {
+		engine.SetAutoReloadHTMLTemplate(tmpl, files)
+		return
+	}
+
+	engine.SetHTMLTemplate(tmpl)
 }
 
 // SetHTMLTemplate associate a template with HTML renderer.
-func (engine *Engine) SetHTMLTemplate(templ *template.Template) {
-	engine.htmlRender = render.HTMLProduction{Template: templ.Funcs(engine.funcMap)}
+func (engine *Engine) SetHTMLTemplate(tmpl *template.Template) {
+	engine.htmlRender = render.HTMLProduction{Template: tmpl.Funcs(engine.funcMap)}
+}
+
+// SetAutoReloadHTMLTemplate associate a template with HTML renderer.
+func (engine *Engine) SetAutoReloadHTMLTemplate(tmpl *template.Template, files []string) {
+	engine.htmlRender = &render.HTMLDebug{
+		Template:        tmpl,
+		Files:           files,
+		FuncMap:         engine.funcMap,
+		Delims:          engine.delims,
+		RefreshInterval: engine.options.AutoReloadInterval,
+	}
 }
 
 // SetFuncMap sets the funcMap used for template.funcMap.
 func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
 	engine.funcMap = funcMap
+}
+
+func (engine *Engine) SetClientIPFunc(f app.ClientIP) {
+	engine.clientIPFunc = f
+}
+
+func (engine *Engine) SetFormValueFunc(f app.FormValueFunc) {
+	engine.formValueFunc = f
 }
 
 // Delims sets template left and right delims and returns an Engine instance.
@@ -824,8 +1049,13 @@ func (engine *Engine) Routes() (routes RoutesInfo) {
 	return routes
 }
 
-func (engine *Engine) AddProtocol(protocol string, factory suite.ServerFactory) {
+func (engine *Engine) AddProtocol(protocol string, factory interface{}) {
 	engine.protocolSuite.Add(protocol, factory)
+}
+
+// SetAltHeader sets the value of "Alt-Svc" header for protocols other than targetProtocol.
+func (engine *Engine) SetAltHeader(targetProtocol, altHeaderValue string) {
+	engine.protocolSuite.SetAltHeader(targetProtocol, altHeaderValue)
 }
 
 func (engine *Engine) HasServer(name string) bool {
@@ -860,20 +1090,49 @@ func iterate(method string, routes RoutesInfo, root *node) RoutesInfo {
 
 // for built-in http1 impl only.
 func newHttp1OptionFromEngine(engine *Engine) *http1.Option {
-	return &http1.Option{
-		StreamRequestBody:            engine.options.StreamRequestBody,
-		GetOnly:                      engine.options.GetOnly,
-		DisablePreParseMultipartForm: engine.options.DisablePreParseMultipartForm,
-		DisableKeepalive:             engine.options.DisableKeepalive,
-		NoDefaultServerHeader:        engine.options.NoDefaultServerHeader,
-		MaxRequestBodySize:           engine.options.MaxRequestBodySize,
-		IdleTimeout:                  engine.options.IdleTimeout,
-		ReadTimeout:                  engine.options.ReadTimeout,
-		ServerName:                   engine.GetServerName(),
-		ContinueHandler:              engine.ContinueHandler,
-		TLS:                          engine.options.TLS,
-		HTMLRender:                   engine.htmlRender,
-		EnableTrace:                  engine.IsTraceEnable(),
-		HijackConnHandle:             engine.HijackConnHandle,
+	opt := &http1.Option{
+		StreamRequestBody:             engine.options.StreamRequestBody,
+		GetOnly:                       engine.options.GetOnly,
+		DisablePreParseMultipartForm:  engine.options.DisablePreParseMultipartForm,
+		DisableKeepalive:              engine.options.DisableKeepalive,
+		NoDefaultServerHeader:         engine.options.NoDefaultServerHeader,
+		MaxRequestBodySize:            engine.options.MaxRequestBodySize,
+		MaxHeaderBytes:                engine.options.MaxHeaderBytes,
+		IdleTimeout:                   engine.options.IdleTimeout,
+		ReadTimeout:                   engine.options.ReadTimeout,
+		ServerName:                    engine.GetServerName(),
+		ContinueHandler:               engine.ContinueHandler,
+		TLS:                           engine.options.TLS,
+		HTMLRender:                    engine.htmlRender,
+		EnableTrace:                   engine.IsTraceEnable(),
+		HijackConnHandle:              engine.HijackConnHandle,
+		DisableHeaderNamesNormalizing: engine.options.DisableHeaderNamesNormalizing,
+		NoDefaultDate:                 engine.options.NoDefaultDate,
+		NoDefaultContentType:          engine.options.NoDefaultContentType,
 	}
+	// Idle timeout of standard network must not be zero. Set it to -1 seconds if it is zero.
+	// Due to the different triggering ways of the network library, see the actual use of this value for the detailed reasons.
+	if opt.IdleTimeout == 0 && engine.GetTransporterName() == "standard" {
+		opt.IdleTimeout = -1
+	}
+	return opt
+}
+
+func versionToALNP(v uint32) string {
+	if v == network.Version1 || v == network.Version2 {
+		return suite.HTTP3
+	}
+	if v == network.VersionTLS || v == network.VersionDraft29 {
+		return suite.HTTP3Draft29
+	}
+	return ""
+}
+
+// MarkAsRunning will mark the status of the hertz engine as "running".
+// Warning: do not call this method by yourself, unless you know what you are doing.
+func (engine *Engine) MarkAsRunning() (err error) {
+	if !atomic.CompareAndSwapUint32(&engine.status, statusInitialized, statusRunning) {
+		return errAlreadyRunning
+	}
+	return nil
 }

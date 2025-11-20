@@ -55,9 +55,8 @@ import (
 )
 
 type router struct {
-	method        string
-	root          *node
-	hasTsrHandler map[string]bool
+	method string
+	root   *node
 }
 
 type MethodTrees []*router
@@ -113,7 +112,7 @@ const (
 	nilString  = ""
 )
 
-func checkPathValid(path string) (valid bool) {
+func checkPathValid(path string) {
 	if path == nilString {
 		panic("empty path")
 	}
@@ -146,15 +145,16 @@ func checkPathValid(path string) (valid bool) {
 			}
 		}
 	}
-	return true
 }
 
 // addRoute adds a node with the given handle to the path.
 func (r *router) addRoute(path string, h app.HandlersChain) {
 	checkPathValid(path)
 
-	pnames := []string{} // Param names
-	ppath := path        // Pristine path
+	var (
+		pnames []string // Param names
+		ppath  = path   // Pristine path
+	)
 
 	if h == nil {
 		panic(fmt.Sprintf("Adding route without handler function: %v", path))
@@ -302,9 +302,7 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 			if h != nil {
 				currentNode.handlers = h
 				currentNode.ppath = ppath
-				if len(currentNode.pnames) == 0 {
-					currentNode.pnames = pnames
-				}
+				currentNode.pnames = pnames
 			}
 		}
 		return
@@ -361,7 +359,8 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 				searchIndex = searchIndex + len(cn.prefix)
 			} else {
 				// not equal
-				if (len(cn.prefix) == len(search)+1) && (cn.prefix[len(search)]) == '/' && (cn.handlers != nil || cn.anyChild != nil) {
+				if (len(cn.prefix) == len(search)+1) &&
+					(cn.prefix[len(search)]) == '/' && cn.prefix[:len(search)] == search && (cn.handlers != nil || cn.anyChild != nil) {
 					res.tsr = true
 				}
 				// No matching prefix, let's backtrack to the first possible alternative node of the decision path
@@ -394,7 +393,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		}
 
 		if search == nilString {
-			if cd := cn.findChild('/'); cd != nil && cd.handlers != nil {
+			if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 				res.tsr = true
 			}
 		}
@@ -419,7 +418,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			search = search[i:]
 			searchIndex = searchIndex + i
 			if search == nilString {
-				if cd := cn.findChild('/'); cd != nil && cd.handlers != nil {
+				if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 					res.tsr = true
 				}
 			}

@@ -43,12 +43,18 @@ package protocol
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
+	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 func TestResponseCopyTo(t *testing.T) {
@@ -62,7 +68,7 @@ func TestResponseCopyTo(t *testing.T) {
 	// init resp
 	// resp.laddr = zeroTCPAddr
 	resp.SkipBody = true
-	resp.Header.SetStatusCode(200)
+	resp.Header.SetStatusCode(consts.StatusOK)
 	resp.SetBodyString("test")
 	testResponseCopyTo(t, &resp)
 }
@@ -166,6 +172,26 @@ func TestResponseResetBody(t *testing.T) {
 	assert.Nil(t, resp.body)
 }
 
+func TestResponseBodyReuse(t *testing.T) {
+	resp := Response{}
+	resp.maxKeepBodySize = 1024
+
+	buf := resp.BodyBuffer()
+	// set a big body
+	buf.Write(make([]byte, resp.maxKeepBodySize+1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+	// NOTICE: bytebufferpool may not get a big enough buffer,
+	// so we just mock a new one here
+	resp.body = &bytebufferpool.ByteBuffer{
+		B: make([]byte, 0, resp.maxKeepBodySize+1),
+	}
+	// set a small body
+	buf.Write(make([]byte, 1))
+	resp.ResetBody()
+	assert.Nil(t, resp.body)
+}
+
 func testResponseCopyTo(t *testing.T, src *Response) {
 	var dst Response
 	src.CopyTo(&dst)
@@ -173,4 +199,146 @@ func testResponseCopyTo(t *testing.T, src *Response) {
 	if !reflect.DeepEqual(src, &dst) { //nolint:govet
 		t.Fatalf("ResponseCopyTo fail, src: \n%+v\ndst: \n%+v\n", src, &dst) //nolint:govet
 	}
+}
+
+func TestResponseMustSkipBody(t *testing.T) {
+	resp := Response{}
+	resp.SetStatusCode(consts.StatusOK)
+	resp.SetBodyString("test")
+	assert.False(t, resp.MustSkipBody())
+	// no content 204 means that skip body is necessary
+	resp.SetStatusCode(consts.StatusNoContent)
+	resp.ResetBody()
+	assert.True(t, resp.MustSkipBody())
+}
+
+func TestResponseBodyGunzip(t *testing.T) {
+	t.Parallel()
+	dst1 := []byte("")
+	src1 := []byte("hello")
+	res1 := compress.AppendGzipBytes(dst1, src1)
+	resp := Response{}
+	resp.SetBody(res1)
+	zipData, err := resp.BodyGunzip()
+	assert.Nil(t, err)
+	assert.DeepEqual(t, zipData, src1)
+}
+
+func TestResponseSwapResponseBody(t *testing.T) {
+	t.Parallel()
+	resp1 := Response{}
+	str1 := "resp1"
+	byteBuffer1 := &bytebufferpool.ByteBuffer{}
+	byteBuffer1.Set([]byte(str1))
+	resp1.ConstructBodyStream(byteBuffer1, bytes.NewBufferString(str1))
+	assert.True(t, resp1.HasBodyBytes())
+	resp2 := Response{}
+	str2 := "resp2"
+	byteBuffer2 := &bytebufferpool.ByteBuffer{}
+	byteBuffer2.Set([]byte(str2))
+	resp2.ConstructBodyStream(byteBuffer2, bytes.NewBufferString(str2))
+	SwapResponseBody(&resp1, &resp2)
+	assert.DeepEqual(t, resp1.body.B, []byte(str2))
+	assert.DeepEqual(t, resp1.BodyStream(), bytes.NewBufferString(str2))
+	assert.DeepEqual(t, resp2.body.B, []byte(str1))
+	assert.DeepEqual(t, resp2.BodyStream(), bytes.NewBufferString(str1))
+}
+
+func TestResponseAcquireResponse(t *testing.T) {
+	t.Parallel()
+	for i := 0; i < 10; i++ {
+		resp1 := AcquireResponse()
+		assert.NotNil(t, resp1)
+		assert.Nil(t, resp1.body)
+		assert.Assert(t, resp1.BodyStream() == NoResponseBody)
+		assert.Assert(t, resp1.IsBodyStream() == false)
+
+		resp1.SetBody([]byte("test"))
+		resp1.SetStatusCode(consts.StatusOK)
+		ReleaseResponse(resp1)
+	}
+}
+
+type closeBuffer struct {
+	*bytes.Buffer
+}
+
+func (b *closeBuffer) Close() error {
+	b.Reset()
+	return nil
+}
+
+func TestSetBodyStreamNoReset(t *testing.T) {
+	t.Parallel()
+	resp := Response{}
+	bsA := &closeBuffer{bytes.NewBufferString("A")}
+	bsB := &closeBuffer{bytes.NewBufferString("B")}
+	bsC := &closeBuffer{bytes.NewBufferString("C")}
+
+	resp.SetBodyStream(bsA, 1)
+	resp.SetBodyStreamNoReset(bsB, 1)
+	// resp.Body() has closed bsB
+	assert.DeepEqual(t, string(resp.Body()), "B")
+	assert.DeepEqual(t, bsA.String(), "A")
+
+	resp.bodyStream = bsA
+	resp.SetBodyStream(bsC, 1)
+	assert.DeepEqual(t, bsA.String(), "")
+}
+
+func TestRespSafeCopy(t *testing.T) {
+	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
+	resp.bodyRaw = make([]byte, 1)
+	resps := make([]*Response, 10)
+	for i := 0; i < 10; i++ {
+		resp.bodyRaw[0] = byte(i)
+		tmpResq := AcquireResponse()
+		resp.CopyTo(tmpResq)
+		resps[i] = tmpResq
+	}
+	for i := 0; i < 10; i++ {
+		assert.DeepEqual(t, []byte{byte(i)}, resps[i].Body())
+	}
+}
+
+func TestResponse_HijackWriter(t *testing.T) {
+	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
+	buf := new(bytes.Buffer)
+	isFinal := false
+	resp.HijackWriter(&mock.ExtWriter{Buf: buf, IsFinal: &isFinal})
+	resp.AppendBody([]byte("hello"))
+	assert.DeepEqual(t, 0, buf.Len())
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello", buf.String())
+	resp.AppendBodyString(", world")
+	assert.DeepEqual(t, "hello", buf.String())
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello, world", buf.String())
+	resp.SetBody([]byte("hello, hertz"))
+	resp.GetHijackWriter().Flush()
+	assert.DeepEqual(t, "hello, hertz", buf.String())
+	assert.False(t, isFinal)
+	resp.GetHijackWriter().Finalize()
+	assert.True(t, isFinal)
+}
+
+type HijackerFunc func() (network.Conn, error)
+
+func (h HijackerFunc) Read(_ []byte) (int, error)    { return 0, errors.New("not implemented") }
+func (h HijackerFunc) Hijack() (network.Conn, error) { return h() }
+
+func TestResponse_Hijack(t *testing.T) {
+	resp := AcquireResponse()
+	defer ReleaseResponse(resp)
+
+	_, err := resp.Hijack()
+	assert.NotNil(t, err)
+
+	resp.SetBodyStream(HijackerFunc(func() (network.Conn, error) { return nil, nil }), -1)
+	_, err = resp.Hijack()
+	assert.Nil(t, err)
 }

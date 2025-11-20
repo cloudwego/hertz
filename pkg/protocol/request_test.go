@@ -56,6 +56,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/compress"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 type errorReader struct{}
@@ -69,6 +70,51 @@ func TestMultiForm(t *testing.T) {
 	// r.Header.Set()
 	_, err := r.MultipartForm()
 	fmt.Println(err)
+}
+
+func TestRequestBodyWriterWrite(t *testing.T) {
+	w := requestBodyWriter{&Request{}}
+	w.Write([]byte("test"))
+	assert.DeepEqual(t, "test", string(w.r.body.B))
+}
+
+func TestRequestScheme(t *testing.T) {
+	req := NewRequest("", "ptth://127.0.0.1:8080", nil)
+	assert.DeepEqual(t, "ptth", string(req.Scheme()))
+	req = NewRequest("", "127.0.0.1:8080", nil)
+	assert.DeepEqual(t, "http", string(req.Scheme()))
+	assert.DeepEqual(t, true, req.IsURIParsed())
+}
+
+func TestRequestHost(t *testing.T) {
+	req := &Request{}
+	req.SetHost("127.0.0.1:8080")
+	assert.DeepEqual(t, "127.0.0.1:8080", string(req.Host()))
+}
+
+func TestRequestSwapBody(t *testing.T) {
+	reqA := &Request{}
+	reqA.SetBodyRaw([]byte("testA"))
+	reqB := &Request{}
+	reqB.SetBodyRaw([]byte("testB"))
+	SwapRequestBody(reqA, reqB)
+	assert.DeepEqual(t, "testA", string(reqB.bodyRaw))
+	assert.DeepEqual(t, "testB", string(reqA.bodyRaw))
+	reqA.SetBody([]byte("testA"))
+	reqB.SetBody([]byte("testB"))
+	SwapRequestBody(reqA, reqB)
+	assert.DeepEqual(t, "testA", string(reqB.body.B))
+	assert.DeepEqual(t, "", string(reqB.bodyRaw))
+	assert.DeepEqual(t, "testB", string(reqA.body.B))
+	assert.DeepEqual(t, "", string(reqA.bodyRaw))
+	reqA.SetBodyStream(strings.NewReader("testA"), len("testA"))
+	reqB.SetBodyStream(strings.NewReader("testB"), len("testB"))
+	SwapRequestBody(reqA, reqB)
+	body := make([]byte, 5)
+	reqB.bodyStream.Read(body)
+	assert.DeepEqual(t, "testA", string(body))
+	reqA.bodyStream.Read(body)
+	assert.DeepEqual(t, "testB", string(body))
 }
 
 func TestRequestKnownSizeStreamMultipartFormWithFile(t *testing.T) {
@@ -94,8 +140,9 @@ tailfoobar`
 	r := NewRequest("POST", "/upload", mr)
 	r.Header.SetContentLength(521)
 	r.Header.SetContentTypeBytes([]byte("multipart/form-data; boundary=----WebKitFormBoundaryJwfATyF8tmxSJnLg"))
-
+	assert.DeepEqual(t, false, r.HasMultipartForm())
 	f, err := r.MultipartForm()
+	assert.DeepEqual(t, true, r.HasMultipartForm())
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -147,6 +194,10 @@ tailfoobar`
 			t.Fatalf("unexpected content-type %q. Expecting %q", ct, "application/octet-stream")
 		}
 	}
+
+	firstFile, err := r.FormFile("fileaaa")
+	assert.DeepEqual(t, "TODO", firstFile.Filename)
+	assert.Nil(t, err)
 }
 
 func TestRequestUnknownSizeStreamMultipartFormWithFile(t *testing.T) {
@@ -300,6 +351,117 @@ tailfoobar`
 	}
 }
 
+func TestRequestMultipartFormBoundary(t *testing.T) {
+	r := &Request{}
+	r.SetMultipartFormBoundary("----boundary----")
+	assert.DeepEqual(t, "----boundary----", r.MultipartFormBoundary())
+}
+
+func TestRequestSetQueryString(t *testing.T) {
+	r := &Request{}
+	r.SetQueryString("test")
+	assert.DeepEqual(t, "test", string(r.URI().queryString))
+}
+
+func TestRequestSetFormData(t *testing.T) {
+	r := &Request{}
+	data := map[string]string{"username": "admin"}
+	r.SetFormData(data)
+	assert.DeepEqual(t, "username", string(r.postArgs.args[0].key))
+	assert.DeepEqual(t, "admin", string(r.postArgs.args[0].value))
+	assert.DeepEqual(t, true, r.parsedPostArgs)
+	assert.DeepEqual(t, consts.MIMEApplicationHTMLForm, string(r.Header.contentType))
+
+	r = &Request{}
+	value := map[string][]string{"item": {"apple", "peach"}}
+	r.SetFormDataFromValues(value)
+	assert.DeepEqual(t, "item", string(r.postArgs.args[0].key))
+	assert.DeepEqual(t, "apple", string(r.postArgs.args[0].value))
+	assert.DeepEqual(t, "item", string(r.postArgs.args[1].key))
+	assert.DeepEqual(t, "peach", string(r.postArgs.args[1].value))
+}
+
+func TestRequestSetFile(t *testing.T) {
+	r := &Request{}
+	r.SetFile("file", "/usr/bin/test.txt")
+	assert.DeepEqual(t, &File{"/usr/bin/test.txt", "file", nil}, r.multipartFiles[0])
+
+	files := map[string]string{"f1": "/usr/bin/test1.txt"}
+	r.SetFiles(files)
+	assert.DeepEqual(t, &File{"/usr/bin/test1.txt", "f1", nil}, r.multipartFiles[1])
+
+	assert.DeepEqual(t, []*File{{"/usr/bin/test.txt", "file", nil}, {"/usr/bin/test1.txt", "f1", nil}}, r.MultipartFiles())
+}
+
+func TestRequestSetFileReader(t *testing.T) {
+	r := &Request{}
+	r.SetFileReader("file", "/usr/bin/test.txt", nil)
+	assert.DeepEqual(t, &File{"/usr/bin/test.txt", "file", nil}, r.multipartFiles[0])
+}
+
+func TestRequestSetMultipartFormData(t *testing.T) {
+	r := &Request{}
+	data := map[string]string{"item": "apple"}
+	r.SetMultipartFormData(data)
+	assert.DeepEqual(t, &MultipartField{"item", "", "", strings.NewReader("apple")}, r.multipartFields[0])
+
+	r = &Request{}
+	fields := []*MultipartField{{"item2", "", "", strings.NewReader("apple2")}, {"item3", "", "", strings.NewReader("apple3")}}
+	r.SetMultipartFields(fields...)
+	assert.DeepEqual(t, fields, r.MultipartFields())
+}
+
+func TestRequestSetBasicAuth(t *testing.T) {
+	r := &Request{}
+	r.SetBasicAuth("admin", "admin")
+	assert.DeepEqual(t, "Authorization", string(r.Header.h[0].key))
+	assert.DeepEqual(t, "Basic "+base64.StdEncoding.EncodeToString([]byte("admin:admin")), string(r.Header.h[0].value))
+}
+
+func TestRequestSetAuthToken(t *testing.T) {
+	r := &Request{}
+	r.SetAuthToken("token")
+	assert.DeepEqual(t, "Authorization", string(r.Header.h[0].key))
+	assert.DeepEqual(t, "Bearer token", string(r.Header.h[0].value))
+
+	r = &Request{}
+	r.SetAuthSchemeToken("http", "token")
+	assert.DeepEqual(t, "Authorization", string(r.Header.h[0].key))
+	assert.DeepEqual(t, "http token", string(r.Header.h[0].value))
+}
+
+func TestRequestSetHeaders(t *testing.T) {
+	r := &Request{}
+	headers := map[string]string{"Key1": "value1"}
+	r.SetHeaders(headers)
+	assert.DeepEqual(t, "Key1", string(r.Header.h[0].key))
+	assert.DeepEqual(t, "value1", string(r.Header.h[0].value))
+}
+
+func TestRequestSetCookie(t *testing.T) {
+	r := &Request{}
+	r.SetCookie("cookie1", "cookie1")
+	assert.DeepEqual(t, "cookie1", string(r.Header.cookies[0].key))
+	assert.DeepEqual(t, "cookie1", string(r.Header.cookies[0].value))
+
+	r.SetCookies(map[string]string{"cookie2": "cookie2"})
+	assert.DeepEqual(t, "cookie2", string(r.Header.cookies[1].key))
+	assert.DeepEqual(t, "cookie2", string(r.Header.cookies[1].value))
+}
+
+func TestRequestPath(t *testing.T) {
+	r := NewRequest("POST", "/upload?test", nil)
+	assert.DeepEqual(t, "/upload", string(r.Path()))
+	assert.DeepEqual(t, "test", string(r.QueryString()))
+}
+
+func TestRequestConnectionClose(t *testing.T) {
+	r := NewRequest("POST", "/upload?test", nil)
+	assert.DeepEqual(t, false, r.ConnectionClose())
+	r.SetConnectionClose()
+	assert.DeepEqual(t, true, r.ConnectionClose())
+}
+
 func TestRequestBodyWriteToPlain(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +555,32 @@ func TestRequestResetBody(t *testing.T) {
 	req.maxKeepBodySize = -1
 	req.ResetBody()
 	assert.Nil(t, req.body)
+}
+
+func TestRequestConstructBodyStream(t *testing.T) {
+	r := &Request{}
+	b := []byte("test")
+	r.ConstructBodyStream(&bytebufferpool.ByteBuffer{B: b}, strings.NewReader("test"))
+	assert.DeepEqual(t, "test", string(r.body.B))
+	stream := make([]byte, 4)
+	r.bodyStream.Read(stream)
+	assert.DeepEqual(t, "test", string(stream))
+}
+
+func TestRequestPostArgs(t *testing.T) {
+	t.Parallel()
+
+	s := `username=admin&password=admin`
+	mr := strings.NewReader(s)
+	r := &Request{}
+	r.SetBodyStream(mr, len(s))
+	r.Header.contentType = []byte(consts.MIMEApplicationHTMLForm)
+	arg := r.PostArgs()
+	assert.DeepEqual(t, "username", string(arg.args[0].key))
+	assert.DeepEqual(t, "admin", string(arg.args[0].value))
+	assert.DeepEqual(t, "password", string(arg.args[1].key))
+	assert.DeepEqual(t, "admin", string(arg.args[1].value))
+	assert.DeepEqual(t, "username=admin&password=admin", string(r.PostArgString()))
 }
 
 func TestRequestMayContinue(t *testing.T) {
@@ -509,6 +697,33 @@ func TestRequestCopyToWithOptions(t *testing.T) {
 	assert.DeepEqual(t, true, reqCopy.options.IsSD())
 }
 
+func TestRequestSetMaxKeepBodySize(t *testing.T) {
+	r := &Request{}
+	r.SetMaxKeepBodySize(1024)
+	assert.DeepEqual(t, 1024, r.maxKeepBodySize)
+}
+
+func TestRequestBodyReuse(t *testing.T) {
+	req := Request{}
+	req.maxKeepBodySize = 1024
+
+	buf := req.BodyBuffer()
+	// set a big body
+	buf.Write(make([]byte, req.maxKeepBodySize+1))
+	req.ResetBody()
+	assert.Nil(t, req.body)
+	// NOTICE: bytebufferpool may not get a big enough buffer,
+	// so we just mock a new one here
+	req.body = &bytebufferpool.ByteBuffer{
+		B: make([]byte, 0, req.maxKeepBodySize+1),
+	}
+	// set a small body
+	buf = req.BodyBuffer()
+	buf.Write(make([]byte, 1))
+	req.ResetBody()
+	assert.Nil(t, req.body)
+}
+
 func TestRequestGetBodyAfterGetBodyStream(t *testing.T) {
 	req := AcquireRequest()
 	req.SetBodyString("abc")
@@ -554,5 +769,20 @@ func testBodyWriteTo(t *testing.T, bw bodyWriterTo, expectedS string, isRetained
 		if len(body) > 0 {
 			t.Fatalf("unexpected non-zero body after BodyWriteTo: %q", body)
 		}
+	}
+}
+
+func TestReqSafeCopy(t *testing.T) {
+	req := AcquireRequest()
+	req.bodyRaw = make([]byte, 1)
+	reqs := make([]*Request, 10)
+	for i := 0; i < 10; i++ {
+		req.bodyRaw[0] = byte(i)
+		tmpReq := AcquireRequest()
+		req.CopyTo(tmpReq)
+		reqs[i] = tmpReq
+	}
+	for i := 0; i < 10; i++ {
+		assert.DeepEqual(t, []byte{byte(i)}, reqs[i].Body())
 	}
 }

@@ -62,6 +62,7 @@ var (
 	errRequestHostRequired = errs.NewPublic("missing required Host header in request")
 	errGetOnly             = errs.NewPublic("non-GET request received")
 	errBodyTooLarge        = errs.New(errs.ErrBodyTooLarge, errs.ErrorTypePublic, "http1/req")
+	errHeaderTooLarge      = errs.New(errs.ErrHeaderTooLarge, errs.ErrorTypePublic, "http1/req")
 )
 
 type h1Request struct {
@@ -102,11 +103,11 @@ func GetHTTP1Request(req *protocol.Request) fmt.Stringer {
 //
 // If MayContinue returns true, the caller must:
 //
-//     - Either send StatusExpectationFailed response if request headers don't
-//       satisfy the caller.
-//     - Or send StatusContinue response before reading request body
-//       with ContinueReadBody.
-//     - Or close the connection.
+//   - Either send StatusExpectationFailed response if request headers don't
+//     satisfy the caller.
+//   - Or send StatusContinue response before reading request body
+//     with ContinueReadBody.
+//   - Or close the connection.
 //
 // io.EOF is returned if r is closed before reading the first header byte.
 func ReadHeaderAndLimitBody(req *protocol.Request, r network.Reader, maxBodySize int, preParse ...bool) error {
@@ -133,11 +134,11 @@ func ReadHeaderAndLimitBody(req *protocol.Request, r network.Reader, maxBodySize
 //
 // If MayContinue returns true, the caller must:
 //
-//     - Either send StatusExpectationFailed response if request headers don't
-//       satisfy the caller.
-//     - Or send StatusContinue response before reading request body
-//       with ContinueReadBody.
-//     - Or close the connection.
+//   - Either send StatusExpectationFailed response if request headers don't
+//     satisfy the caller.
+//   - Or send StatusContinue response before reading request body
+//     with ContinueReadBody.
+//   - Or close the connection.
 //
 // io.EOF is returned if r is closed before reading the first header byte.
 func Read(req *protocol.Request, r network.Reader, preParse ...bool) error {
@@ -275,7 +276,11 @@ func ContinueReadBodyStream(req *protocol.Request, zr network.Reader, maxBodySiz
 		// the end of body is determined by connection close.
 		// So just ignore request body for requests without
 		// 'Content-Length' and 'Transfer-Encoding' headers.
-		req.Header.SetContentLength(0)
+
+		// refer to https://tools.ietf.org/html/rfc7230#section-3.3.2
+		if !req.Header.IgnoreBody() {
+			req.Header.SetContentLength(0)
+		}
 		return nil
 	}
 
@@ -285,19 +290,19 @@ func ContinueReadBodyStream(req *protocol.Request, zr network.Reader, maxBodySiz
 	if err != nil {
 		if errors.Is(err, errs.ErrBodyTooLarge) {
 			req.Header.SetContentLength(contentLength)
-			req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, contentLength))
+			req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, req.Header.Trailer(), contentLength))
 
 			return nil
 		}
 		if errors.Is(err, errs.ErrChunkedStream) {
-			req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, contentLength))
+			req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, req.Header.Trailer(), contentLength))
 			return nil
 		}
 		req.Reset()
 		return err
 	}
 
-	req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, contentLength))
+	req.ConstructBodyStream(bodyBuf, ext.AcquireBodyStream(bodyBuf, zr, req.Header.Trailer(), contentLength))
 	return nil
 }
 
@@ -339,7 +344,11 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		// the end of body is determined by connection close.
 		// So just ignore request body for requests without
 		// 'Content-Length' and 'Transfer-Encoding' headers.
-		req.Header.SetContentLength(0)
+
+		// refer to https://tools.ietf.org/html/rfc7230#section-3.3.2
+		if !req.Header.IgnoreBody() {
+			req.Header.SetContentLength(0)
+		}
 		return nil
 	}
 
@@ -350,6 +359,14 @@ func ContinueReadBody(req *protocol.Request, r network.Reader, maxBodySize int, 
 		req.Reset()
 		return err
 	}
+
+	if req.Header.ContentLength() == -1 {
+		err = ext.ReadTrailer(req.Header.Trailer(), r)
+		if err != nil && err != io.EOF {
+			return err
+		}
+	}
+
 	req.Header.SetContentLength(len(bodyBuf.B))
 	return nil
 }
@@ -408,8 +425,12 @@ func writeBodyStream(req *protocol.Request, w network.Writer) error {
 		}
 	} else {
 		req.Header.SetContentLength(-1)
-		if err = WriteHeader(&req.Header, w); err == nil {
+		err = WriteHeader(&req.Header, w)
+		if err == nil {
 			err = ext.WriteBodyChunked(w, req.BodyStream())
+		}
+		if err == nil {
+			err = ext.WriteTrailer(req.Header.Trailer(), w)
 		}
 	}
 	err1 := req.CloseBodyStream()

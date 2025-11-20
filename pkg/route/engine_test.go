@@ -49,23 +49,53 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/cloudwego/hertz/internal/test/mock/binder"
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server/binding"
+	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/network"
+	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/protocol/suite"
+	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
 func TestNew_Engine(t *testing.T) {
+	defaultTransporter = standard.NewTransporter
 	opt := config.NewOptions([]config.Option{})
 	router := NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
 	assert.DeepEqual(t, "/", router.basePath)
 	assert.DeepEqual(t, router.engine, router)
 	assert.DeepEqual(t, 0, len(router.Handlers))
+}
+
+func TestNew_Engine_WithTransporter(t *testing.T) {
+	defaultTransporter = newMockTransporter
+	opt := config.NewOptions([]config.Option{})
+	router := NewEngine(opt)
+	assert.DeepEqual(t, "route", router.GetTransporterName())
+
+	defaultTransporter = newMockTransporter
+	opt.TransporterNewer = standard.NewTransporter
+	router = NewEngine(opt)
+	assert.DeepEqual(t, "standard", router.GetTransporterName())
+	assert.DeepEqual(t, "route", GetTransporterName())
+}
+
+func TestGetTransporterName(t *testing.T) {
+	name := getTransporterName(&fakeTransporter{})
+	assert.DeepEqual(t, "route", name)
 }
 
 func TestEngineUnescape(t *testing.T) {
@@ -82,7 +112,7 @@ func TestEngineUnescape(t *testing.T) {
 
 	for _, r := range routes {
 		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
-			ctx.String(200, ctx.Param(ctx.Query("key")))
+			ctx.String(consts.StatusOK, ctx.Param(ctx.Query("key")))
 		})
 	}
 
@@ -99,7 +129,7 @@ func TestEngineUnescape(t *testing.T) {
 	}
 	for _, tr := range testRoutes {
 		w := performRequest(e, http.MethodGet, tr.route+"?key="+tr.key)
-		assert.DeepEqual(t, 200, w.Code)
+		assert.DeepEqual(t, consts.StatusOK, w.Code)
 		assert.DeepEqual(t, tr.want, w.Body.String())
 	}
 }
@@ -119,7 +149,7 @@ func TestEngineUnescapeRaw(t *testing.T) {
 
 	for _, r := range routes {
 		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
-			ctx.String(200, ctx.Param(ctx.Query("key")))
+			ctx.String(consts.StatusOK, ctx.Param(ctx.Query("key")))
 		})
 	}
 
@@ -146,7 +176,7 @@ func TestEngineUnescapeRaw(t *testing.T) {
 	}
 	for _, tr := range testRoutes {
 		w := performRequest(e, http.MethodGet, tr.route+"?key="+tr.key)
-		assert.DeepEqual(t, 200, w.Code)
+		assert.DeepEqual(t, consts.StatusOK, w.Code)
 		assert.DeepEqual(t, tr.want, w.Body.String())
 	}
 }
@@ -156,7 +186,7 @@ func TestConnectionClose(t *testing.T) {
 	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
 	err := engine.Serve(context.Background(), conn)
@@ -169,7 +199,7 @@ func TestConnectionClose01(t *testing.T) {
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		ctx.SetConnectionClose()
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
 	err := engine.Serve(context.Background(), conn)
@@ -183,7 +213,7 @@ func TestIdleTimeout(t *testing.T) {
 	engine.Init()
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(100 * time.Millisecond)
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
@@ -214,7 +244,7 @@ func TestIdleTimeout01(t *testing.T) {
 	atomic.StoreUint32(&engine.status, statusRunning)
 	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
 		time.Sleep(10 * time.Millisecond)
-		ctx.String(200, "ok")
+		ctx.String(consts.StatusOK, "ok")
 	})
 
 	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
@@ -231,6 +261,39 @@ func TestIdleTimeout01(t *testing.T) {
 		t.Errorf("cannot return this early! should wait for at least 1s...")
 	case <-time.Tick(1 * time.Second):
 		return
+	}
+}
+
+func TestIdleTimeout03(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.options.IdleTimeout = 0
+	engine.transport = standard.NewTransporter(engine.options)
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.Init()
+	atomic.StoreUint32(&engine.status, statusRunning)
+	engine.GET("/foo", func(c context.Context, ctx *app.RequestContext) {
+		time.Sleep(50 * time.Millisecond)
+		ctx.String(consts.StatusOK, "ok")
+	})
+
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n" +
+		"GET /foo HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\n\r\n")
+
+	ch := make(chan error)
+	startCh := make(chan error)
+	go func() {
+		<-startCh
+		ch <- engine.Serve(context.Background(), conn)
+	}()
+	close(startCh)
+	select {
+	case err := <-ch:
+		if !errors.Is(err, errs.ErrShortConnection) {
+			t.Errorf("err should be ErrShortConnection, but got %s", err)
+		}
+		return
+	case <-time.Tick(200 * time.Millisecond):
+		t.Errorf("timeout! should have been finished in 200ms...")
 	}
 }
 
@@ -356,12 +419,110 @@ func TestRenderHtml(t *testing.T) {
 	})
 	rr := performRequest(e, "GET", "/templateName")
 	b, _ := ioutil.ReadAll(rr.Body)
-	assert.DeepEqual(t, 200, rr.Code)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
 	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
 	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
 }
 
+func TestTransporterName(t *testing.T) {
+	SetTransporter(standard.NewTransporter)
+	assert.DeepEqual(t, "standard", GetTransporterName())
+
+	SetTransporter(newMockTransporter)
+	assert.DeepEqual(t, "route", GetTransporterName())
+}
+
+func newMockTransporter(options *config.Options) network.Transporter {
+	return &mockTransporter{}
+}
+
+type mockTransporter struct{}
+
+func (m *mockTransporter) ListenAndServe(onData network.OnData) (err error) {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Close() error {
+	panic("implement me")
+}
+
+func (m *mockTransporter) Shutdown(ctx context.Context) error {
+	panic("implement me")
+}
+
+func TestRenderHtmlOfGlobWithAutoRender(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.AutoReloadRender = true
+	e := NewEngine(opt)
+	e.Delims("{[{", "}]}")
+	e.SetFuncMap(template.FuncMap{
+		"formatAsDate": formatAsDate,
+	})
+	e.LoadHTMLGlob("../common/testdata/template/htmltemplate.html")
+	e.GET("/templateName", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(http.StatusOK, "htmltemplate.html", map[string]interface{}{
+			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),
+		})
+	})
+	rr := performRequest(e, "GET", "/templateName")
+	b, _ := ioutil.ReadAll(rr.Body)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
+	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
+	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestSetClientIPAndSetFormValue(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	e := NewEngine(opt)
+	e.SetClientIPFunc(func(ctx *app.RequestContext) string {
+		return "1.1.1.1"
+	})
+	e.SetFormValueFunc(func(requestContext *app.RequestContext, s string) []byte {
+		return []byte(s)
+	})
+	e.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		assert.DeepEqual(t, ctx.ClientIP(), "1.1.1.1")
+		assert.DeepEqual(t, string(ctx.FormValue("key")), "key")
+	})
+
+	_ = performRequest(e, "GET", "/ping")
+}
+
+func TestRenderHtmlOfFilesWithAutoRender(t *testing.T) {
+	opt := config.NewOptions([]config.Option{})
+	opt.AutoReloadRender = true
+	e := NewEngine(opt)
+	e.Delims("{[{", "}]}")
+	e.SetFuncMap(template.FuncMap{
+		"formatAsDate": formatAsDate,
+	})
+	e.LoadHTMLFiles("../common/testdata/template/htmltemplate.html")
+	e.GET("/templateName", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(http.StatusOK, "htmltemplate.html", map[string]interface{}{
+			"now": time.Date(2017, 0o7, 0o1, 0, 0, 0, 0, time.UTC),
+		})
+	})
+	rr := performRequest(e, "GET", "/templateName")
+	b, _ := ioutil.ReadAll(rr.Body)
+	assert.DeepEqual(t, consts.StatusOK, rr.Code)
+	assert.DeepEqual(t, []byte("<h1>Date: 2017/07/01</h1>"), b)
+	assert.DeepEqual(t, "text/html; charset=utf-8", rr.Header().Get("Content-Type"))
+}
+
+func TestSetEngineRun(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	e.Init()
+	assert.True(t, !e.IsRunning())
+	e.MarkAsRunning()
+	assert.True(t, e.IsRunning())
+}
+
 type mockConn struct{}
+
+func (m *mockConn) SetWriteTimeout(t time.Duration) error {
+	// TODO implement me
+	panic("implement me")
+}
 
 func (m *mockConn) ReadBinary(n int) (p []byte, err error) {
 	panic("implement me")
@@ -451,4 +612,561 @@ func (m *mockConn) WriteBinary(b []byte) (n int, err error) {
 
 func (m *mockConn) Flush() error {
 	panic("implement me")
+}
+
+type fakeTransporter struct{}
+
+func (f *fakeTransporter) Close() error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) Shutdown(ctx context.Context) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeTransporter) ListenAndServe(onData network.OnData) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+type mockNonValidator struct{}
+
+func (m *mockNonValidator) ValidateStruct(interface{}) error {
+	return fmt.Errorf("test mock")
+}
+
+func TestInitBinderAndValidator(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("unexpected panic, %v", r)
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
+	opt.CustomBinder = binder.NewBinder()
+	mockValidatorFunc := binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+		return errors.New("test mock")
+	})
+	opt.CustomValidator = mockValidatorFunc
+	NewEngine(opt)
+	validateConfig := binding.NewValidateConfig()
+	opt.ValidateConfig = validateConfig
+	opt.CustomValidator = nil
+	NewEngine(opt)
+}
+
+func TestInitValidatorPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expect a panic, but get nil")
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
+	opt.CustomValidator = &mockNonValidator{}
+	NewEngine(opt)
+}
+
+func TestBindConfig(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	bindConfig := binding.NewBindConfig()
+	bindConfig.LooseZeroMode = false
+	opt.BindConfig = bindConfig
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+	})
+	performRequest(e, "GET", "/bind?a=")
+
+	bindConfig = binding.NewBindConfig()
+	bindConfig.LooseZeroMode = true
+	opt.BindConfig = bindConfig
+	e = NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err != nil {
+			t.Fatal("unexpected error")
+		}
+		assert.DeepEqual(t, 0, req.A)
+	})
+	performRequest(e, "GET", "/bind?a=")
+}
+
+type ValidateError struct {
+	ErrType, FailField, Msg string
+}
+
+// Error implements error interface.
+func (e *ValidateError) Error() string {
+	if e.Msg != "" {
+		return e.ErrType + ": expr_path=" + e.FailField + ", cause=" + e.Msg
+	}
+	return e.ErrType + ": expr_path=" + e.FailField + ", cause=invalid"
+}
+
+func TestValidateConfigSetErrorFactory(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	opt.ValidateConfig = validateConfig
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+	performRequest(e, "GET", "/bind?b=1")
+}
+
+func TestValidateConfigSetErrorFactoryWithBindConfig(t *testing.T) {
+	type TestValidate struct {
+		B int `query:"b" vd:"$>100"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	CustomValidateErrFunc := func(failField, msg string) error {
+		err := ValidateError{
+			ErrType:   "validateErr",
+			FailField: "[validateFailField]: " + failField,
+			Msg:       "[validateErrMsg]: " + msg,
+		}
+
+		return &err
+	}
+
+	validateConfig := binding.NewValidateConfig()
+	validateConfig.SetValidatorErrorFactory(CustomValidateErrFunc)
+	opt.ValidateConfig = validateConfig
+	opt.BindConfig = binding.NewBindConfig()
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req TestValidate
+		err := ctx.BindAndValidate(&req)
+		if err == nil {
+			t.Fatal("expect an error")
+		}
+		assert.DeepEqual(t, "validateErr: expr_path=[validateFailField]: B, cause=[validateErrMsg]: ", err.Error())
+	})
+	performRequest(e, "GET", "/bind?b=1")
+}
+
+func TestCustomBinder(t *testing.T) {
+	type Req struct {
+		A int `query:"a"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomBinder = binder.NewBinder()
+	e := NewEngine(opt)
+	e.GET("/bind", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		if err != nil {
+			t.Fatal("unexpected error")
+		}
+		assert.NotEqual(t, 2, req.A)
+	})
+	performRequest(e, "GET", "/bind?a=2")
+}
+
+func TestValidateRegValidateFunc(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"f($)"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	validateConfig := &binding.ValidateConfig{}
+	validateConfig.MustRegValidateFunc("f", func(args ...interface{}) error {
+		return fmt.Errorf("test error")
+	})
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test error", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidator(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"d($)"`
+	}
+	opt := config.NewOptions([]config.Option{})
+	validateConfig := &binding.ValidateConfig{}
+	validateConfig.MustRegValidateFunc("d", func(args ...interface{}) error {
+		return fmt.Errorf("test error")
+	})
+	opt.CustomValidator = binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+		return errors.New("test mock")
+	})
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test mock", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidatorFunc(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	validatorFunc := func(req *protocol.Request, v any) error {
+		return fmt.Errorf("test validator func")
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = validatorFunc
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test validator func", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestWithCustomValidatorFunc(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	validatorFunc := func(req *protocol.Request, v any) error {
+		return fmt.Errorf("test with custom validator func")
+	}
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = validatorFunc
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test with custom validator func", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+func TestCustomValidatorInvalidType(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for invalid validator type")
+		}
+	}()
+	opt := config.NewOptions([]config.Option{})
+	opt.CustomValidator = "invalid validator type"
+	NewEngine(opt)
+}
+
+func TestWithCustomValidatorConversion(t *testing.T) {
+	type Req struct {
+		A int `query:"a" vd:"$>10"`
+	}
+	// Create a config using the deprecated WithCustomValidator function
+	opt := config.NewOptions([]config.Option{})
+
+	// Simulate using the WithCustomValidator function
+	withValidatorOpt := config.Option{F: func(o *config.Options) {
+		o.CustomValidator = binding.ValidatorFunc(func(_ *protocol.Request, _ interface{}) error {
+			return errors.New("test mock")
+		})
+	}}
+	withValidatorOpt.F(opt)
+
+	// Verify it was converted to ValidatorFunc
+	_, isValidatorFunc := opt.CustomValidator.(binding.ValidatorFunc)
+	assert.True(t, isValidatorFunc)
+
+	e := NewEngine(opt)
+	e.GET("/validate", func(c context.Context, ctx *app.RequestContext) {
+		var req Req
+		err := ctx.BindAndValidate(&req)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, "test mock", err.Error())
+	})
+	performRequest(e, "GET", "/validate?a=2")
+}
+
+var errTestDeregsitry = fmt.Errorf("test deregsitry error")
+
+type mockDeregsitryErr struct{}
+
+var _ registry.Registry = &mockDeregsitryErr{}
+
+func (e mockDeregsitryErr) Register(*registry.Info) error {
+	return nil
+}
+
+func (e mockDeregsitryErr) Deregister(*registry.Info) error {
+	return errTestDeregsitry
+}
+
+type mockStandardTransporter struct {
+	network.Transporter
+}
+
+func (m *mockStandardTransporter) Shutdown(ctx context.Context) error {
+	// FIXME: standard.Transporter mindlessly blocks on ctx.Done()
+	// This change help tests run faster
+	newctx, cancel := context.WithCancel(ctx)
+	cancel()
+	return m.Transporter.Shutdown(newctx)
+}
+
+func newMockStandardTransporter(opt *config.Options) network.Transporter {
+	return &mockStandardTransporter{standard.NewTransporter(opt)}
+}
+
+func TestEngineShutdown(t *testing.T) {
+	opt := config.NewOptions(nil)
+	opt.Addr = "127.0.0.1:0"
+	opt.TransporterNewer = newMockStandardTransporter
+
+	mockCtxCallback := func(ctx context.Context) {
+		// Shutdown adds `ExitWaitTimeout` to the given context
+		dl, ok := ctx.Deadline()
+		assert.Assert(t, ok)
+		assert.Assert(t,
+			opt.ExitWaitTimeout-time.Until(dl) < 50*time.Millisecond, // runtime schedule latency
+			opt.ExitWaitTimeout, time.Until(dl))
+	}
+
+	var wg sync.WaitGroup
+	var engine *Engine
+
+	runEngine := func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			engine.Run()
+		}()
+		// wait for engine to start
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	shutdownEngine := func(ctx context.Context, expectErr error, expectStatus uint32) {
+		t.Helper()
+		err := engine.Shutdown(ctx)
+		if expectErr == nil {
+			assert.Nil(t, err)
+		} else {
+			assert.DeepEqual(t, expectErr, err)
+		}
+		if expectStatus != 0 {
+			if expectStatus == statusShutdown {
+				assert.DeepEqual(t, expectStatus, atomic.LoadUint32(&engine.status))
+				// make sure engine.Run() returns
+				// in case registry fails, it blocks
+				engine.transport.Shutdown(ctx)
+				expectStatus = statusClosed
+			}
+			wg.Wait() // wait engine.Run() returns
+		}
+		assert.DeepEqual(t, expectStatus, atomic.LoadUint32(&engine.status))
+	}
+
+	// case: serve not running error
+	engine = NewEngine(opt)
+	shutdownEngine(context.Background(), errStatusNotRunning, 0)
+
+	// case: serve successfully running and shutdown
+	engine = NewEngine(opt)
+	engine.OnShutdown = []CtxCallback{mockCtxCallback}
+	runEngine()
+	shutdownEngine(context.Background(), nil, statusClosed)
+
+	// case: serve successfully running and shutdown with deregistry error
+	engine = NewEngine(opt)
+	engine.OnShutdown = []CtxCallback{mockCtxCallback}
+	engine.options.Registry = &mockDeregsitryErr{}
+	runEngine()
+	shutdownEngine(context.Background(), errTestDeregsitry, statusShutdown)
+	engine.options.Registry = nil
+
+	// case: ctx cancelled when Shutdown
+	engine = NewEngine(opt)
+
+	// make sure callback is in progress but ctx cancelled
+	engine.OnShutdown = []CtxCallback{func(ctx context.Context) { time.Sleep(50 * time.Millisecond) }}
+
+	runEngine()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	shutdownEngine(ctx, nil, statusClosed)
+}
+
+type mockStreamer struct{}
+
+type mockProtocolServer struct{}
+
+func (s *mockStreamer) Serve(c context.Context, conn network.StreamConn) error {
+	return nil
+}
+
+func (s *mockProtocolServer) Serve(c context.Context, conn network.Conn) error {
+	return nil
+}
+
+type mockStreamConn struct {
+	network.StreamConn
+	version string
+}
+
+var _ network.StreamConn = &mockStreamConn{}
+
+func (m *mockStreamConn) GetVersion() uint32 {
+	return network.Version1
+}
+
+func TestEngineServeStream(t *testing.T) {
+	engine := &Engine{
+		options: &config.Options{
+			ALPN: true,
+			TLS:  &tls.Config{},
+		},
+		protocolStreamServers: map[string]protocol.StreamServer{
+			suite.HTTP3: &mockStreamer{},
+		},
+	}
+
+	// Test ALPN path
+	conn := &mockStreamConn{version: suite.HTTP3}
+	err := engine.ServeStream(context.Background(), conn)
+	assert.Nil(t, err)
+
+	// Test default path
+	engine.options.ALPN = false
+	conn = &mockStreamConn{}
+	err = engine.ServeStream(context.Background(), conn)
+	assert.Nil(t, err)
+
+	// Test unsupported protocol
+	engine.protocolStreamServers = map[string]protocol.StreamServer{}
+	conn = &mockStreamConn{}
+	err = engine.ServeStream(context.Background(), conn)
+	assert.DeepEqual(t, errs.ErrNotSupportProtocol, err)
+}
+
+func TestEngineServe(t *testing.T) {
+	engine := NewEngine(config.NewOptions(nil))
+	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
+	engine.protocolServers[suite.HTTP2] = &mockProtocolServer{}
+
+	// test H2C path
+	ctx := context.Background()
+	conn := mock.NewConn("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+	engine.options.H2C = true
+	err := engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+
+	// test ALPN path
+	ctx = context.Background()
+	conn = mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	engine.options.H2C = false
+	engine.options.ALPN = true
+	engine.options.TLS = &tls.Config{}
+	err = engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+
+	// test HTTP1 path
+	engine.options.ALPN = false
+	err = engine.Serve(ctx, conn)
+	assert.Nil(t, err)
+}
+
+func TestOndata(t *testing.T) {
+	ctx := context.Background()
+	engine := NewEngine(config.NewOptions(nil))
+
+	// test stream conn
+	streamConn := &mockStreamConn{version: suite.HTTP3}
+	engine.protocolStreamServers[suite.HTTP3] = &mockStreamer{}
+	err := engine.onData(ctx, streamConn)
+	assert.Nil(t, err)
+
+	// test conn
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	engine.protocolServers[suite.HTTP1] = &mockProtocolServer{}
+	err = engine.onData(ctx, conn)
+	assert.Nil(t, err)
+}
+
+func TestAcquireHijackConn(t *testing.T) {
+	engine := &Engine{
+		NoHijackConnPool: false,
+	}
+	// test conn pool
+	conn := mock.NewConn("GET /foo HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	hijackConn := engine.acquireHijackConn(conn)
+	assert.NotNil(t, hijackConn)
+	assert.NotNil(t, hijackConn.Conn)
+	assert.DeepEqual(t, engine, hijackConn.e)
+	assert.DeepEqual(t, conn, hijackConn.Conn)
+
+	// test no conn pool
+	engine.NoHijackConnPool = true
+	hijackConn = engine.acquireHijackConn(conn)
+	assert.NotNil(t, hijackConn)
+	assert.NotNil(t, hijackConn.Conn)
+	assert.DeepEqual(t, engine, hijackConn.e)
+	assert.DeepEqual(t, conn, hijackConn.Conn)
+}
+
+func TestHandleParamsReassignInHandleFunc(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	routes := []string{
+		"/:a/:b/:c",
+	}
+	for _, r := range routes {
+		e.GET(r, func(c context.Context, ctx *app.RequestContext) {
+			ctx.Params = make([]param.Param, 1)
+			ctx.String(consts.StatusOK, "")
+		})
+	}
+	testRoutes := []string{
+		"/aaa/bbb/ccc",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/asd/alskja/alkdjad",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+		"/alksjdlakjd/ooo/askda",
+	}
+	ctx := e.ctxPool.Get().(*app.RequestContext)
+	for _, tr := range testRoutes {
+		r := protocol.NewRequest(http.MethodGet, tr, nil)
+		r.CopyTo(&ctx.Request)
+		e.ServeHTTP(context.Background(), ctx)
+		ctx.ResetWithoutConn()
+	}
 }
