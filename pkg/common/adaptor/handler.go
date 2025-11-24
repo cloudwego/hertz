@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -169,10 +170,7 @@ func (p *httpResponseWriter) WriteHeader(statusCode int) {
 		// For chunked encoding, write headers immediately
 		cw := resp.NewChunkedBodyWriter(r, w)
 		r.HijackWriter(cw)
-		type chunkedBodyWriter interface {
-			WriteHeader() error
-		}
-		p.err = cw.(chunkedBodyWriter).WriteHeader()
+		p.err = cw.(internalNetwork.HeaderWriter).WriteHeader()
 	} else {
 		// use Writer directly instead of keep buffering data in resp.BodyBuffer()
 		// you never know how much data would be written to response

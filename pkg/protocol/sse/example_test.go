@@ -24,6 +24,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/client"
+	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route"
@@ -35,7 +36,9 @@ func Example() {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	defer ln.Close()
 
-	opt := config.NewOptions([]config.Option{})
+	opt := config.NewOptions([]config.Option{
+		server.WithSenseClientDisconnection(true),
+	})
 	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(ctx context.Context, c *app.RequestContext) {
@@ -48,6 +51,17 @@ func Example() {
 		// [optional] it writes 0\r\n\r\n to indicate the end of chunked response
 		// hertz will do it after handler returns
 		w.Close()
+	})
+	hdlFinished := make(chan struct{})
+	engine.GET("/timeout", func(ctx context.Context, c *app.RequestContext) {
+		w := NewWriter(c)
+		if err := w.WriteHeader(); err != nil {
+			panic(err)
+		}
+		// wait for SSE Reader cancel
+		<-ctx.Done()
+		println("Server Sensed Connection closed")
+		close(hdlFinished)
 	})
 	go engine.Run()
 	defer engine.Close()
@@ -88,6 +102,29 @@ func Example() {
 		panic(err)
 	}
 	println("Client LastEventID", r.LastEventID())
+
+	req, resp = &protocol.Request{}, &protocol.Response{}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	req.SetRequestURI("http://" + opt.Addr + "/timeout")
+	req.SetMethod("GET")
+	err = c.Do(ctx, req, resp)
+	if err != nil {
+		panic(err)
+	}
+	println("Client Do finished immediately")
+	r, err = NewReader(resp)
+	if err != nil {
+		panic(err)
+	}
+	defer r.Close()
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancelFunc()
+	}()
+	r.ForEach(ctx, func(e *Event) error {
+		return nil
+	})
+	<-hdlFinished
 	// Output:
 	//
 }

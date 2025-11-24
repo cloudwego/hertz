@@ -28,11 +28,13 @@ import (
 
 // mockWriteFlusher implements the writeFlusher interface for testing
 type mw struct {
-	buf         bytes.Buffer
-	flushCalled bool
-	writeErr    error
-	flushErr    error
-	finalizeErr error
+	buf               bytes.Buffer
+	flushCalled       bool
+	writeErr          error
+	flushErr          error
+	finalizeErr       error
+	writeHeaderErr    error
+	writeHeaderCalled bool
 }
 
 func (m *mw) Write(p []byte) (n int, err error) {
@@ -53,6 +55,11 @@ func (m *mw) String() string {
 
 func (m *mw) Finalize() error {
 	return m.finalizeErr
+}
+
+func (m *mw) WriteHeader() error {
+	m.writeHeaderCalled = true
+	return m.writeHeaderErr
 }
 
 func TestWriter_WriteEvent(t *testing.T) {
@@ -248,4 +255,47 @@ func TestWriter_Close(t *testing.T) {
 
 	// Verify the error is propagated
 	assert.DeepEqual(t, expectedErr, err)
+}
+
+func TestWriter_WriteHeader(t *testing.T) {
+	tests := []struct {
+		name           string
+		writeHeaderErr error
+		flushErr       error
+		wantErr        bool
+	}{
+		{
+			name: "Success",
+		},
+		{
+			name:           "WriteHeader error",
+			writeHeaderErr: errors.New("write header error"),
+			wantErr:        true,
+		},
+		{
+			name:     "Flush error",
+			flushErr: errors.New("flush error"),
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mw{
+				writeHeaderErr: tt.writeHeaderErr,
+				flushErr:       tt.flushErr,
+			}
+			w := &Writer{w: m}
+
+			err := w.WriteHeader()
+
+			if tt.wantErr {
+				assert.Assert(t, err != nil)
+			} else {
+				assert.Assert(t, err == nil)
+				assert.Assert(t, m.writeHeaderCalled)
+				assert.Assert(t, m.flushCalled)
+			}
+		})
+	}
 }

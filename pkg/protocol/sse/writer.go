@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -101,6 +102,21 @@ func (w *Writer) WriteComment(s string) error {
 	if _, err := w.w.Write(p.B); err != nil {
 		return err
 	}
+	return w.w.Flush()
+}
+
+// WriteHeader flushes response header directly
+//
+// When a long wait is required before sending the first Event or Comment,
+// it can be called to prevent the client-side from waiting too long for header parsing.
+// It fails if called multiple times or other WriteXXX functions have been called before.
+func (w *Writer) WriteHeader() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.w.(internalNetwork.HeaderWriter).WriteHeader(); err != nil {
+		return err
+	}
+
 	return w.w.Flush()
 }
 

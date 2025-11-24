@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"sync"
 
+	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
@@ -35,6 +36,8 @@ func init() {
 		},
 	}
 }
+
+var _ internalNetwork.HeaderWriter = &chunkedBodyWriter{}
 
 type chunkedBodyWriter struct {
 	r *protocol.Response
