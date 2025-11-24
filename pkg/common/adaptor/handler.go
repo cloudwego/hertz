@@ -22,6 +22,8 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"runtime"
+	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
@@ -86,7 +88,14 @@ func HertzHandler(h http.Handler) app.HandlerFunc {
 		// coz it's server response
 		// no need to copy anything from hertz Response
 		w := &httpResponseWriter{rc: rc}
+
 		h.ServeHTTP(w, req)
+		if w.hijacked != nil {
+			// wait for hijacked conn to close before returning,
+			// otherwise either hertz will close the conn
+			// or netpoll may reuse the conn for next request.
+			<-w.hijacked
+		}
 	}
 }
 
@@ -97,8 +106,9 @@ type httpResponseWriter struct {
 	err error
 
 	wroteHeader bool
-	hijacked    bool
 	skipBody    bool
+
+	hijacked chan struct{} // != nil if hijacked
 }
 
 var errConnHijacked = errors.New("hertz net/http adaptor: conn hijacked")
@@ -113,7 +123,7 @@ func (p *httpResponseWriter) Header() http.Header {
 
 // Write implements http.ResponseWriter.Write
 func (p *httpResponseWriter) Write(b []byte) (n int, err error) {
-	if p.hijacked {
+	if p.hijacked != nil {
 		return 0, errConnHijacked
 	}
 	if !p.wroteHeader {
@@ -131,7 +141,7 @@ func (p *httpResponseWriter) Write(b []byte) (n int, err error) {
 
 // WriteHeader implements http.ResponseWriter.WriteHeader
 func (p *httpResponseWriter) WriteHeader(statusCode int) {
-	if p.wroteHeader || p.hijacked {
+	if p.wroteHeader || p.hijacked != nil {
 		return
 	}
 	p.wroteHeader = true
@@ -184,7 +194,7 @@ var _ http.Hijacker = (*httpResponseWriter)(nil)
 
 // Hijack implements http.Hijacker
 func (p *httpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if p.hijacked {
+	if p.hijacked != nil {
 		return nil, nil, errConnHijacked
 	}
 	if p.err != nil {
@@ -197,9 +207,8 @@ func (p *httpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 			return nil, nil, p.err
 		}
 	}
-	p.hijacked = true
-
-	conn := p.rc.GetConn()
+	conn := newHijackedConn(p.rc.GetConn())
+	p.hijacked = conn.closeCh
 
 	// reset timeout if any
 	_ = conn.SetReadTimeout(0)
@@ -231,3 +240,29 @@ var _ network.ExtWriter = noopWriter{}
 func (noopWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (noopWriter) Flush() error                { return nil }
 func (noopWriter) Finalize() error             { return nil }
+
+type hijackedConn struct {
+	network.Conn
+
+	closeOnce sync.Once
+	closeCh   chan struct{}
+}
+
+func newHijackedConn(conn network.Conn) *hijackedConn {
+	c := &hijackedConn{Conn: conn, closeCh: make(chan struct{})}
+	runtime.SetFinalizer(c, hijackedConnFinalizer)
+	return c
+}
+
+func hijackedConnFinalizer(c *hijackedConn) {
+	_ = c.Close()
+}
+
+func (c *hijackedConn) Close() error {
+	runtime.SetFinalizer(c, nil)
+	err := c.Conn.Close()
+	c.closeOnce.Do(func() {
+		close(c.closeCh)
+	})
+	return err
+}
