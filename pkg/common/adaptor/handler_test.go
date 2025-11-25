@@ -25,6 +25,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -144,21 +145,28 @@ func TestHertzHandler_WriteHeader(t *testing.T) {
 
 func TestHertzHandler_Hijack(t *testing.T) {
 	h := HertzHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, rw, err := w.(http.Hijacker).Hijack()
+		conn, rw, err := w.(http.Hijacker).Hijack()
 		assert.Nil(t, err)
 		_, _, err = w.(http.Hijacker).Hijack() // hijacked
 		assert.NotNil(t, err)
 
 		w.WriteHeader(500) // hijacked, noop
-		_, err = w.Write([]byte("hello"))
-		assert.Assert(t, err == errConnHijacked)
 
-		rw.Write([]byte("hello"))
-		rw.Flush()
-		b := make([]byte, 10)
-		n, err := rw.Read(b)
-		assert.Nil(t, err)
-		assert.Assert(t, string(b[:n]) == "world")
+		go func() {
+			defer conn.Close()
+			time.Sleep(50 * time.Millisecond)
+			_, err = w.Write([]byte("hello"))
+			assert.Assert(t, err == errConnHijacked)
+
+			_, err = rw.Write([]byte("hello"))
+			assert.Nil(t, err)
+			err = rw.Flush()
+			assert.Nil(t, err)
+			b := make([]byte, 10)
+			n, err := rw.Read(b)
+			assert.Nil(t, err)
+			assert.Assert(t, string(b[:n]) == "world")
+		}()
 	}))
 	addr, e := runEngine(func(e *route.Engine) {
 		e.GET("/test", h)
@@ -175,9 +183,34 @@ func TestHertzHandler_Hijack(t *testing.T) {
 	assert.Assert(t, string(b[:n]) == "hello", string(b[:n]))
 	_, err = conn.Write([]byte("world"))
 	assert.Nil(t, err)
-
 	n, err = conn.Read(b) // Keep-Alive will not work if hijacked
 	assert.Assert(t, err == io.EOF)
+	assert.Assert(t, n == 0)
+}
+
+// TestHertzHandler_HijackGC tests that hijacked conn is closed by GC finalizer
+// when user forgets to call Close()
+func TestHertzHandler_HijackGC(t *testing.T) {
+	h := HertzHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _, err := w.(http.Hijacker).Hijack()
+		assert.Nil(t, err)
+		// intentionally not closing conn, let GC handle it
+		runtime.GC()
+		runtime.GC() // make sure the net.Conn is closed by GC
+	}))
+	addr, e := runEngine(func(e *route.Engine) {
+		e.GET("/test", h)
+	})
+	defer e.Close()
+
+	conn, err := net.Dial("tcp", addr)
+	assert.Nil(t, err)
+	defer conn.Close()
+	conn.Write([]byte("GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n"))
+
+	b := make([]byte, 100)
+	n, err := conn.Read(b) // conn should be closed by finalizer
+	assert.Assert(t, err == io.EOF, err)
 	assert.Assert(t, n == 0)
 }
 
