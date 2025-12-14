@@ -55,7 +55,7 @@ const (
 
 // hz Plugins
 const (
-	ProtocPluginName = "protoc-gen-hertz"
+	ProtocPluginName = "protoc-gen-rgo"
 	ThriftPluginName = "thrift-gen-hertz"
 )
 
