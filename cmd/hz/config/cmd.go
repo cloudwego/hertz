@@ -162,9 +162,9 @@ func wrapCmd(args *Argument, path, exe, kas string) (*exec.Cmd, error) {
 			cmd.Args = append(cmd.Args, "-I", filepath.Dir(inc))
 		}
 		cmd.Args = append(cmd.Args,
-			"--plugin=protoc-gen-hertz="+exe,
-			"--hertz_out="+args.OutDir,
-			"--hertz_opt="+kas,
+			"--plugin=protoc-gen-rgo="+exe,
+			"--rgo_out="+args.OutDir,
+			"--rgo_opt="+kas,
 		)
 		for _, p := range args.ProtobufPlugins {
 			pluginParams := strings.Split(p, ":")
