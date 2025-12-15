@@ -42,6 +42,7 @@ package decoder
 
 import (
 	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
@@ -122,6 +123,11 @@ func cookieSlice(req *protocol.Request, params param.Params, key string, default
 }
 
 func headerSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+
+	k := []byte(key)
+	utils.NormalizeHeaderKey(k, req.Header.IsDisableNormalizing())
+	key = bytesconv.B2s(k)
+
 	req.Header.VisitAll(func(headerKey, value []byte) {
 		if bytesconv.B2s(headerKey) == key {
 			ret = append(ret, string(value))

@@ -149,17 +149,21 @@ func TestBind_BaseType(t *testing.T) {
 
 func TestBind_SliceType(t *testing.T) {
 	type Req struct {
-		ID   *[]int    `query:"id"`
-		Str  [3]string `query:"str"`
-		Byte []byte    `query:"b"`
+		ID            *[]int    `query:"id"`
+		Str           [3]string `query:"str"`
+		Byte          []byte    `query:"b"`
+		CustomHeaders []string  `header:"custom-header"`
 	}
 	IDs := []int{11, 12, 13}
 	Strs := [3]string{"qwe", "asd", "zxc"}
 	Bytes := []byte("123")
+	CustomHeader1 := "ch1"
+	CustomHeader2 := "ch2"
 
 	req := newMockRequest().
 		SetRequestURI(fmt.Sprintf("http://foobar.com?id=%d&id=%d&id=%d&str=%s&str=%s&str=%s&b=%d&b=%d&b=%d", IDs[0], IDs[1], IDs[2], Strs[0], Strs[1], Strs[2], Bytes[0], Bytes[1], Bytes[2]))
-
+	req.Req.Header.Add("custom-header", CustomHeader1)
+	req.Req.Header.Add("custom-header", CustomHeader2)
 	var result Req
 
 	err := DefaultBinder().Bind(req.Req, &result, nil)
@@ -178,6 +182,10 @@ func TestBind_SliceType(t *testing.T) {
 	for idx, val := range Bytes {
 		assert.DeepEqual(t, val, result.Byte[idx])
 	}
+
+	assert.True(t, len(result.CustomHeaders) >= 2)
+	assert.DeepEqual(t, CustomHeader1, result.CustomHeaders[0])
+	assert.DeepEqual(t, CustomHeader2, result.CustomHeaders[1])
 }
 
 func TestBind_StructType(t *testing.T) {
