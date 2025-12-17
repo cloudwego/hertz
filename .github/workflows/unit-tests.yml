@@ -59,7 +59,7 @@ jobs:
           cache: false # don't use cache for self-hosted runners
 
       - name: Unit Test
-        run: go test -covermode=atomic -coverprofile=coverage.txt ./...
+        run: go test -coverpkg=./... -coverprofile=coverage.txt ./...
 
       - uses: codecov/codecov-action@v5
         with:
