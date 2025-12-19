@@ -369,7 +369,7 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else { // 'append location', append new content after 'append location'
+				} else { // 'append location', append new content before or after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
@@ -378,7 +378,11 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
+						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
+					} else {
+						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					}
 					if err != nil {
 						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 					}
@@ -546,7 +550,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'method'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else { // 'append location', append new content after 'append location'
+				} else { // 'append location', append new content before or after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
@@ -555,7 +559,11 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
+						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
+					} else {
+						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					}
 					if err != nil {
 						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 					}
@@ -608,7 +616,7 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 					}
 					logs.Infof("append content for file '%s', because the update behavior is 'Append' and appendKey is 'service'", filePath)
 					pkgGen.files = append(pkgGen.files, File{filePath, buf.String(), false, ""})
-				} else { // 'append location', append new content after 'append location'
+				} else { // 'append location', append new content before or after 'append location'
 					part := bytes.Split(fileContent, []byte(tplInfo.UpdateBehavior.AppendLocation))
 					if len(part) == 0 {
 						return fmt.Errorf("can not find append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
@@ -617,7 +625,11 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 						return fmt.Errorf("do not support multiple append location '%s' for file '%s'\n", tplInfo.UpdateBehavior.AppendLocation, filePath)
 					}
 					buf := bytes.NewBuffer(nil)
-					err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					if tplInfo.UpdateBehavior.AppendDirection == Before {
+						err = writeBytes(buf, part[0], appendContent, []byte(tplInfo.UpdateBehavior.AppendLocation), part[1])
+					} else {
+						err = writeBytes(buf, part[0], []byte(tplInfo.UpdateBehavior.AppendLocation), appendContent, part[1])
+					}
 					if err != nil {
 						return fmt.Errorf("write file(%s) failed, err: %v", tplInfo.Path, err)
 					}
