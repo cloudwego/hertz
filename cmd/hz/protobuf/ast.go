@@ -156,6 +156,9 @@ func astToService(ast *descriptorpb.FileDescriptorProto, resolver *Resolver, cmd
 			if !ok || len(handlerOutDir) == 0 {
 				handlerOutDir = ""
 			}
+			if !util.IsValidPackageName(filepath.Base(handlerOutDir)) {
+				handlerOutDir = ""
+			}
 			if len(handlerOutDir) == 0 {
 				handlerOutDir = servicePath
 			}
