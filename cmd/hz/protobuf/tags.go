@@ -332,6 +332,7 @@ func defaultBindingStructTags(f protoreflect.FieldDescriptor) []model.Tag {
 	for _, tag := range bindingTags {
 		if vv := checkFirstOption(tag, opts); vv != nil {
 			out[0] = reflectJsonTag(f)
+			out[0].IsDefault = true
 			return out[:1]
 		}
 	}
