@@ -106,6 +106,9 @@ const (
 	pkind
 	// all kind
 	akind
+)
+
+const (
 	paramLabel = byte(':')
 	anyLabel   = byte('*')
 	slash      = "/"
@@ -121,17 +124,17 @@ func checkPathValid(path string) {
 	}
 	for i, c := range []byte(path) {
 		switch c {
-		case ':':
+		case paramLabel:
 			if (i < len(path)-1 && path[i+1] == '/') || i == (len(path)-1) {
 				panic("wildcards must be named with a non-empty name in path '" + path + "'")
 			}
 			i++
 			for ; i < len(path) && path[i] != '/'; i++ {
-				if path[i] == ':' || path[i] == '*' {
+				if path[i] == paramLabel || path[i] == anyLabel {
 					panic("only one wildcard per path segment is allowed, find multi in path '" + path + "'")
 				}
 			}
-		case '*':
+		case anyLabel:
 			if i == len(path)-1 {
 				panic("wildcards must be named with a non-empty name in path '" + path + "'")
 			}
@@ -221,7 +224,7 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 				currentNode.ppath = ppath
 				currentNode.pnames = pnames
 			}
-			currentNode.isLeaf = currentNode.children == nil && currentNode.paramChild == nil && currentNode.anyChild == nil
+			currentNode.isLeaf = true
 		} else if lcpLen < prefixLen {
 			// Split node
 			n := newNode(
@@ -273,7 +276,6 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 				// Only Static children could reach here
 				currentNode.children = append(currentNode.children, n)
 			}
-			currentNode.isLeaf = currentNode.children == nil && currentNode.paramChild == nil && currentNode.anyChild == nil
 		} else if lcpLen < searchLen {
 			search = search[lcpLen:]
 			c := currentNode.findChildWithLabel(search[0])
@@ -292,7 +294,7 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 			case akind:
 				currentNode.anyChild = n
 			}
-			currentNode.isLeaf = currentNode.children == nil && currentNode.paramChild == nil && currentNode.anyChild == nil
+			currentNode.isLeaf = false
 		} else {
 			// Node already exists
 			if currentNode.handlers != nil && h != nil {
@@ -383,7 +385,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		// Static node
 		if search != nilString {
 			// If it can execute that logic, there is handler registered on the current node and search is `/`.
-			if search == "/" && cn.handlers != nil {
+			if search == slash && cn.handlers != nil {
 				res.tsr = true
 			}
 			if child := cn.findChild(search[0]); child != nil {
@@ -549,7 +551,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 		if fixTrailingSlash && len(n.children) == 1 {
 			// No handle found. Check if a handle for this path with(without) a trailing slash exists
 			n = n.children[0]
-			if n.prefix == "/" && n.handlers != nil {
+			if n.prefix == slash && n.handlers != nil {
 				return append(ciPath, '/'), true
 			}
 		}
@@ -589,7 +591,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 	} else if fixTrailingSlash {
 		// Nothing found.
 		// Try to fix the path by adding / removing a trailing slash.
-		if path == "/" {
+		if path == slash {
 			return ciPath, true
 		}
 		if len(path)+1 == len(n.prefix) && n.prefix[len(path)] == '/' &&
@@ -626,6 +628,6 @@ loop:
 
 	// Nothing found. We can recommend to redirect to the same URL
 	// without a trailing slash if a leaf exists for that path
-	found = fixTrailingSlash && path == "/" && n.handlers != nil
+	found = fixTrailingSlash && path == slash && n.handlers != nil
 	return
 }
