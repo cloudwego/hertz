@@ -280,6 +280,10 @@ func (pkgGen *HttpPackageGenerator) genLoopService(tplInfo *Template, filePathRe
 	if err != nil {
 		return err
 	}
+	// add outputDir if filePath is not an absolute path
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(pkgGen.OutputDir, filePath)
+	}
 	// determine if a custom file exists
 	exist, err := util.PathExist(filePath)
 	if err != nil {
@@ -402,6 +406,10 @@ func (pkgGen *HttpPackageGenerator) genLoopMethod(tplInfo *Template, filePathRen
 	if err != nil {
 		return err
 	}
+	// add outputDir if filePath is not an absolute path
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(pkgGen.OutputDir, filePath)
+	}
 	// determine if a custom file exists
 	exist, err := util.PathExist(filePath)
 	if err != nil {
@@ -457,6 +465,10 @@ func (pkgGen *HttpPackageGenerator) genSingleCustomizedFile(tplInfo *Template, f
 	filePath, err := renderFilePath(tplInfo, filePathRenderInfo)
 	if err != nil {
 		return err
+	}
+	// add outputDir if filePath is not an absolute path
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(pkgGen.OutputDir, filePath)
 	}
 	// determine if a custom file exists
 	exist, err := util.PathExist(filePath)
