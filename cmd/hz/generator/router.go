@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -379,17 +378,17 @@ func checkDupRegister(file []byte, insertReg string) bool {
 }
 
 func appendMw(mws []string, mw string) ([]string, string) {
-	for i := 0; true; i++ {
-		if i == math.MaxInt {
-			break
+	base := mw
+	for i := 0; ; i++ {
+		candidate := base
+		if i > 0 {
+			candidate = base + strconv.Itoa(i)
 		}
-		if !stringsIncludes(mws, mw) {
-			mws = append(mws, mw)
-			break
+		if !stringsIncludes(mws, candidate) {
+			mws = append(mws, candidate)
+			return mws, candidate
 		}
-		mw += strconv.Itoa(i)
 	}
-	return mws, mw
 }
 
 func stringsIncludes(strs []string, str string) bool {
