@@ -130,7 +130,15 @@ func (b *BalancerFactory) GetInstance(ctx context.Context, req *protocol.Request
 		return nil, err
 	}
 	atomic.StoreInt32(&cacheRes.expire, 0)
-	ins := b.balancer.Pick(cacheRes.res.Load().(discovery.Result))
+
+	res := cacheRes.res.Load().(discovery.Result)
+
+	// Set HashKey from request if HashKeyFunc is configured
+	if b.opts.HashKeyFunc != nil {
+		res.HashKey = b.opts.HashKeyFunc(ctx, req)
+	}
+
+	ins := b.balancer.Pick(res)
 	if ins == nil {
 		hlog.SystemLogger().Errorf("null instance. serviceName: %s, options: %v", string(req.Host()), req.Options())
 		return nil, errors.NewPublic("instance not found")

@@ -17,9 +17,11 @@
 package loadbalance
 
 import (
+	"context"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/client/discovery"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 // Loadbalancer picks instance for the given service discovery result.
@@ -55,6 +57,10 @@ type Options struct {
 	// Balancer expire check interval
 	// we need remove idle Balancers for resource saving
 	ExpireInterval time.Duration
+
+	// HashKeyFunc is used to extract hash key from request for consistent hash balancer.
+	// If set, this function will be called to determine the hash key used by consistent hash balancer.
+	HashKeyFunc func(ctx context.Context, req *protocol.Request) string
 }
 
 // Check checks option's param
