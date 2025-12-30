@@ -146,22 +146,6 @@ type clientRespStream struct {
 	closeCallback func(shouldClose bool) error
 }
 
-// ForceClose closes underlying conn. It enables `Read` call to return instead of blocking.
-//
-// This method is ONLY used by hertz internally.
-// Normally, users call `Close` when the body is no longer used.
-func (c *clientRespStream) ForceClose() (err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closeCallback != nil {
-		err = c.closeCallback(true)
-		c.closeCallback = nil
-	}
-	// NOTE: DO NOT put back to pool here,
-	// user may still use clientRespStream and call Close() like `defer body.Close()`
-	return
-}
-
 // Close closes response stream gracefully.
 //
 // NOTE:

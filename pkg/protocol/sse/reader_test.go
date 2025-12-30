@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -281,16 +282,11 @@ func TestReader_ReadEvent_WithBodyStream(t *testing.T) {
 }
 
 type mockReadForceClose struct {
-	readFunc  func(b []byte) (int, error)
-	closeFunc func() error
+	readFunc func(b []byte) (int, error)
 }
 
 func (m *mockReadForceClose) Read(b []byte) (int, error) {
 	return m.readFunc(b)
-}
-
-func (m *mockReadForceClose) ForceClose() error {
-	return m.closeFunc()
 }
 
 func TestReader_ReadEvent_Error(t *testing.T) {
@@ -320,10 +316,6 @@ func TestReader_ForEach(t *testing.T) {
 	defer close(ch)
 	mr.readFunc = func(b []byte) (int, error) {
 		return 0, <-ch
-	}
-	mr.closeFunc = func() error {
-		ch <- errors.New("closed")
-		return nil
 	}
 
 	// create protocol.Response
@@ -399,4 +391,167 @@ func TestReader_SetMaxBufferSize(t *testing.T) {
 		}()
 		r.SetMaxBufferSize(80 * 1024)
 	})
+}
+
+// blockingReadStream simulates a stream that blocks on Read until signaled.
+type blockingReadStream struct {
+	ch       chan struct{}
+	raceAddr int32 // race detected addr
+}
+
+func (b *blockingReadStream) Read(p []byte) (n int, err error) {
+	b.raceAddr += 1
+	<-b.ch // Block until signaled
+	return 0, io.EOF
+}
+
+func (b *blockingReadStream) Close() error {
+	b.raceAddr += 1
+	return nil
+}
+
+// TestReader_ConcurrentReadAndClose tests that Read and Close can be called
+// concurrently without race conditions.
+func TestReader_ConcurrentReadAndClose(t *testing.T) {
+	bs := &blockingReadStream{ch: make(chan struct{})}
+
+	resp := &protocol.Response{}
+	resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	resp.SetBodyStream(bs, -1)
+
+	r, err := NewReader(resp)
+	assert.Assert(t, err == nil)
+
+	// Use a WaitGroup to wait for both goroutines to complete
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: Try to read (will block)
+	go func() {
+		defer wg.Done()
+		e := NewEvent()
+		defer e.Release()
+		_ = r.Read(e) // Will block until bs.ch is closed
+	}()
+
+	// Goroutine 2: Close the reader while read is in progress
+	go func() {
+		defer wg.Done()
+		time.Sleep(200 * time.Millisecond) // Give read time to start
+		err := r.Close()
+		assert.Assert(t, err == nil)
+	}()
+
+	// Wait a bit, then unblock the read
+	time.Sleep(500 * time.Millisecond)
+	close(bs.ch)
+
+	// Wait for both goroutines to complete
+	wg.Wait()
+
+	// Close should be idempotent
+	err = r.Close()
+	assert.Assert(t, err != nil, "closing already closed reader should return error")
+}
+
+// TestReader_MultipleClose tests that calling Close multiple times is safe.
+func TestReader_MultipleClose(t *testing.T) {
+	input := "id: 123\nevent: update\ndata: test data\n\n"
+
+	resp := &protocol.Response{}
+	resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	resp.SetBody([]byte(input))
+
+	r, err := NewReader(resp)
+	assert.Assert(t, err == nil)
+
+	// First close should succeed
+	err = r.Close()
+	assert.Assert(t, err == nil)
+
+	// Second close should fail with "closing a closed file"
+	err = r.Close()
+	assert.Assert(t, err != nil)
+	assert.DeepEqual(t, "closing a closed file", err.Error())
+}
+
+// TestReader_ReadAfterClose tests that reading after Close returns appropriate error.
+func TestReader_ReadAfterClose(t *testing.T) {
+	input := "id: 123\nevent: update\ndata: test data\n\n"
+
+	resp := &protocol.Response{}
+	resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	resp.SetBody([]byte(input))
+
+	r, err := NewReader(resp)
+	assert.Assert(t, err == nil)
+
+	// Close the reader first
+	err = r.Close()
+	assert.Assert(t, err == nil)
+
+	// Try to read after close - should get "use of closed file" error
+	e := NewEvent()
+	defer e.Release()
+	err = r.Read(e)
+	assert.Assert(t, err != nil)
+	assert.DeepEqual(t, "use of closed file", err.Error())
+}
+
+// TestReader_ConcurrentForEachAndClose tests that ForEach and Close can be called
+// concurrently without race conditions.
+func TestReader_ConcurrentForEachAndClose(t *testing.T) {
+	bs := &blockingReadStream{ch: make(chan struct{})}
+
+	resp := &protocol.Response{}
+	resp.Header.SetContentType(string(bytestr.MIMETextEventStream))
+	resp.SetBodyStream(bs, -1)
+
+	r, err := NewReader(resp)
+	assert.Assert(t, err == nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// Use a WaitGroup to wait for both goroutines to complete
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: ForEach (will block)
+	forEachErr := make(chan error, 1)
+	go func() {
+		defer wg.Done()
+		err := r.ForEach(ctx, func(e *Event) error {
+			return nil
+		})
+		forEachErr <- err
+	}()
+
+	// Goroutine 2: Close the reader while ForEach is in progress
+	go func() {
+		defer wg.Done()
+		time.Sleep(400 * time.Millisecond) // Give forEach time to start
+		err := r.Close()
+		assert.Assert(t, err == nil)
+	}()
+
+	// Unblock the blocking read
+	time.Sleep(600 * time.Millisecond)
+	close(bs.ch)
+
+	// Wait for both goroutines to complete
+	wg.Wait()
+
+	// Check that ForEach exited (either with context error or EOF)
+	select {
+	case err := <-forEachErr:
+		// Either context canceled or EOF, both are acceptable
+		assert.Assert(t, err == nil || err == ctx.Err() || err == context.DeadlineExceeded)
+	default:
+		t.Error("ForEach should have completed")
+	}
+
+	// Close should be idempotent
+	err = r.Close()
+	assert.Assert(t, err != nil, "closing already closed reader should return error")
 }
