@@ -281,16 +281,11 @@ func TestReader_ReadEvent_WithBodyStream(t *testing.T) {
 }
 
 type mockReadForceClose struct {
-	readFunc  func(b []byte) (int, error)
-	closeFunc func() error
+	readFunc func(b []byte) (int, error)
 }
 
 func (m *mockReadForceClose) Read(b []byte) (int, error) {
 	return m.readFunc(b)
-}
-
-func (m *mockReadForceClose) ForceClose() error {
-	return m.closeFunc()
 }
 
 func TestReader_ReadEvent_Error(t *testing.T) {
@@ -320,10 +315,6 @@ func TestReader_ForEach(t *testing.T) {
 	defer close(ch)
 	mr.readFunc = func(b []byte) (int, error) {
 		return 0, <-ch
-	}
-	mr.closeFunc = func() error {
-		ch <- errors.New("closed")
-		return nil
 	}
 
 	// create protocol.Response

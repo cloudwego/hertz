@@ -24,6 +24,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
@@ -43,6 +44,10 @@ type Reader struct {
 	events int32
 
 	lastEventID string
+
+	// lower 32 bit: 0: not reading, n: reading count
+	// higher 32 bit: 0: not closing, 1: closed
+	state uint64
 }
 
 // NewReader creates a new SSE reader from the given response.
@@ -75,10 +80,6 @@ func (r *Reader) SetMaxBufferSize(max int) {
 	r.s.Buffer(nil, max)
 }
 
-type forceCloseIf interface {
-	ForceClose() error // implemented by *clientRespStream
-}
-
 // ForEach iterates over all SSE events in the response body,
 // invoking the provided handler function for each event.
 //
@@ -91,40 +92,34 @@ type forceCloseIf interface {
 //   - Context is cancelled (if ctx.Done() != nil)
 //   - All events are processed (returns nil)
 func (r *Reader) ForEach(ctx context.Context, f func(e *Event) error) error {
-	if ctx.Done() != nil {
-		ch := make(chan struct{})
-		defer close(ch)
-		go func() {
-			select {
-			case <-ctx.Done():
-				// force close the underlying connection to release resource
-				// or r.Read may block until remote server ends
-				if s, ok := r.r.(forceCloseIf); ok {
-					s.ForceClose()
+	ch := make(chan error, 1)
+	go func() {
+		e := NewEvent()
+		defer e.Release()
+		for {
+			if err := r.Read(e); err != nil {
+				if err == io.EOF {
+					err = nil
 				}
-			case <-ch:
+				ch <- err
 				return
 			}
-		}()
-	}
-	e := NewEvent()
-	defer e.Release()
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := r.Read(e); err != nil {
-			if err == io.EOF {
-				return nil
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
-			if er := ctx.Err(); er != nil {
-				err = er
+			if err := f(e); err != nil {
+				ch <- err
+				return
 			}
-			return err
 		}
-		if err := f(e); err != nil {
-			return err
-		}
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-ch:
+		return err
 	}
 }
 
@@ -147,6 +142,14 @@ func (r *Reader) onEventRead(e *Event) {
 // (e.g., bufio.ErrTooLong if an event line exceeds the buffer size).
 // Use SetMaxBufferSize to handle larger events.
 func (r *Reader) Read(e *Event) error {
+	if !r.incref() {
+		return errors.New("use of closed file")
+	}
+	defer func() {
+		if r.decref() {
+			_ = r.resp.CloseBodyStream()
+		}
+	}()
 	e.Reset()
 	for i := 0; r.s.Scan(); i++ {
 		line := r.s.Bytes()
@@ -224,7 +227,53 @@ func (r *Reader) Read(e *Event) error {
 // Close closes the underlying response body.
 //
 // NOTE:
-// * MUST NOT call Close() and Read() / ForEach() concurrently to avoid race issue.
+// * It's OK to call Close() and Read() / ForEach() concurrently.
 func (r *Reader) Close() error {
-	return r.resp.CloseBodyStream()
+	if !r.increfAndClose() {
+		return errors.New("closing a closed file")
+	}
+	if r.decref() {
+		return r.resp.CloseBodyStream()
+	}
+	return nil
+}
+
+// returns true if it's available for reading or writing.
+func (r *Reader) incref() bool {
+	for {
+		old := atomic.LoadUint64(&r.state)
+		if (old >> 32) != 0 {
+			// closed
+			return false
+		}
+		if atomic.CompareAndSwapUint64(&r.state, old, old+1) {
+			return true
+		}
+	}
+}
+
+// returns false if the file was already closed.
+func (r *Reader) increfAndClose() bool {
+	for {
+		old := atomic.LoadUint64(&r.state)
+		if (old >> 32) != 0 {
+			return false
+		}
+		// Mark as closed and acquire a reference.
+		new_ := (old | (1 << 32)) + 1
+		if atomic.CompareAndSwapUint64(&r.state, old, new_) {
+			return true
+		}
+	}
+}
+
+// returns true if there's no remaining reference and closed.
+func (r *Reader) decref() bool {
+	for {
+		old := atomic.LoadUint64(&r.state)
+		new_ := old - 1
+		if atomic.CompareAndSwapUint64(&r.state, old, new_) {
+			return new_ == 1<<32
+		}
+	}
 }
