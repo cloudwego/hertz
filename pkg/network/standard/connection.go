@@ -241,7 +241,13 @@ func (c *Conn) Release() error {
 		//
 		// NOTE: Each connection will bind a buffer. We need to care about the memory usage.
 		if c.inputBuffer.head == c.inputBuffer.write {
-			c.inputBuffer.write.Reset()
+			// Avoid retaining an oversized tail node; handleTail will
+			// replace it if too large, otherwise just reset it.
+			c.handleTail()
+			// After handling tail, move head/read to the current write node
+			c.inputBuffer.head, c.inputBuffer.read = c.inputBuffer.write, c.inputBuffer.write
+			// Release any temporary peek caches
+			c.releaseCaches()
 			return nil
 		}
 
@@ -273,6 +279,7 @@ func (c *Conn) Release() error {
 	size := 0
 	for c.inputBuffer.head != c.inputBuffer.read {
 		node := c.inputBuffer.head
+		// accumulate the size of the node being released
 		c.inputBuffer.head = c.inputBuffer.head.next
 		size += c.inputBuffer.head.malloc
 		node.Release()
