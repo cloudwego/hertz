@@ -59,6 +59,8 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 	var text string
 	var exist bool
 	var defaultValue string
+	var defaultDisabled bool // Flag to prevent default value from overriding JSON-provided values
+
 	for _, tagInfo := range d.tagInfos {
 		if tagInfo.Skip || tagInfo.Key == jsonTag || tagInfo.Key == fileNameTag {
 			if tagInfo.Key == jsonTag {
@@ -69,14 +71,19 @@ func (d *mapTypeFieldTextDecoder) Decode(req *protocol.Request, params param.Par
 				} else {
 					err = fmt.Errorf("'%s' field is a 'required' parameter, but the request does not have this parameter", tagInfo.Value)
 				}
+				// If field exists in JSON body, disable default value to prevent override
 				if len(tagInfo.Default) != 0 && keyExist(req, tagInfo) {
 					defaultValue = ""
+					defaultDisabled = true
 				}
 			}
 			continue
 		}
 		text, exist = tagInfo.Getter(req, params, tagInfo.Value)
-		defaultValue = tagInfo.Default
+		// Only set defaultValue if not disabled by JSON tag and not already set
+		if !defaultDisabled && len(defaultValue) == 0 {
+			defaultValue = tagInfo.Default
+		}
 		if exist {
 			err = nil
 			break
