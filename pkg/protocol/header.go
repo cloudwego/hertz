@@ -1644,8 +1644,8 @@ func (h *ResponseHeader) Get(key string) string {
 // GetAll returns all header value for the given key
 // it is concurrent safety and long lifetime.
 func (h *RequestHeader) GetAll(key string) []string {
-	res := make([]string, 0)
 	headers := h.PeekAll(key)
+	res := make([]string, 0, len(headers))
 	for _, header := range headers {
 		res = append(res, string(header))
 	}
@@ -1655,8 +1655,8 @@ func (h *RequestHeader) GetAll(key string) []string {
 // GetAll returns all header value for the given key and is concurrent safety.
 // it is concurrent safety and long lifetime.
 func (h *ResponseHeader) GetAll(key string) []string {
-	res := make([]string, 0)
 	headers := h.PeekAll(key)
+	res := make([]string, 0, len(headers))
 	for _, header := range headers {
 		res = append(res, string(header))
 	}

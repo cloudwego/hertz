@@ -152,12 +152,15 @@ func TestBind_SliceType(t *testing.T) {
 		ID   *[]int    `query:"id"`
 		Str  [3]string `query:"str"`
 		Byte []byte    `query:"b"`
+		HH   []string  `header:"h"`
 	}
 	IDs := []int{11, 12, 13}
 	Strs := [3]string{"qwe", "asd", "zxc"}
 	Bytes := []byte("123")
+	Headers := []string{"header"}
 
 	req := newMockRequest().
+		SetHeaders("H", Headers[0]).
 		SetRequestURI(fmt.Sprintf("http://foobar.com?id=%d&id=%d&id=%d&str=%s&str=%s&str=%s&b=%d&b=%d&b=%d", IDs[0], IDs[1], IDs[2], Strs[0], Strs[1], Strs[2], Bytes[0], Bytes[1], Bytes[2]))
 
 	var result Req
@@ -178,6 +181,7 @@ func TestBind_SliceType(t *testing.T) {
 	for idx, val := range Bytes {
 		assert.DeepEqual(t, val, result.Byte[idx])
 	}
+	assert.DeepEqual(t, Headers, result.HH)
 }
 
 func TestBind_StructType(t *testing.T) {
