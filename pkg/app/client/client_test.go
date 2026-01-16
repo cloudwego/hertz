@@ -54,11 +54,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -92,32 +92,26 @@ func assertNil(err error) {
 	}
 }
 
-var unixsockPath string
-
-func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "tests-*")
-	assertNil(err)
-	unixsockPath = dir
-	defer os.RemoveAll(dir)
-
-	m.Run()
-}
-
-var nextUnixSockID = int32(10000)
-
-func nextUnixSock() string {
-	n := atomic.AddInt32(&nextUnixSockID, 1)
-	return filepath.Join(unixsockPath, strconv.Itoa(int(n))+".sock")
-}
-
 func waitEngineRunning(e *route.Engine) {
 	testutils.WaitEngineRunning(e)
 }
 
-func TestCloseIdleConnections(t *testing.T) {
+func newTestOptions(t *testing.T) (*config.Options, net.Listener) {
+	ln := testutils.NewTestListener(t)
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt.Listener = ln
+	opt.Addr = ln.Addr().String()
+	opt.Network = "tcp"
+	return opt, ln
+}
+
+func fullURL(ln net.Listener, p string) string {
+	return "http://" + path.Join(ln.Addr().String(), p)
+}
+
+func TestCloseIdleConnections(t *testing.T) {
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	go engine.Run()
@@ -163,10 +157,53 @@ func TestCloseIdleConnections(t *testing.T) {
 	}()
 }
 
+func TestCloseIdleTLSConnections(t *testing.T) {
+	httpsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("https response"))
+	}))
+	defer httpsServer.Close()
+
+	c, _ := NewClient(
+		WithTLSConfig(httpsServer.Client().Transport.(*http.Transport).TLSClientConfig),
+		WithDialTimeout(1*time.Second),
+	)
+
+	httpsReq, httpsResp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(httpsReq)
+		protocol.ReleaseResponse(httpsResp)
+	}()
+	httpsReq.SetRequestURI(httpsServer.URL)
+	if err := c.Do(context.Background(), httpsReq, httpsResp); err != nil {
+		t.Fatalf("HTTPS request failed: %v", err)
+	}
+
+	c.CloseIdleConnections()
+
+	c.mLock.Lock()
+	var totalConns int
+	for _, hc := range c.ms {
+		totalConns += hc.ConnectionCount()
+	}
+	c.mLock.Unlock()
+
+	if totalConns > 0 {
+		t.Errorf("expected 0 HTTPS idle connections after close, got %d", totalConns)
+	}
+
+	c.cleanHostClients(true)
+
+	c.mLock.Lock()
+	defer c.mLock.Unlock()
+	if len(c.ms) != 0 {
+		t.Errorf("expected 0 HTTPS host clients, got %d", len(c.ms))
+	}
+}
+
 func TestClientInvalidURI(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	requests := int64(0)
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -196,9 +233,8 @@ func TestClientInvalidURI(t *testing.T) {
 }
 
 func TestClientGetWithBody(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 		body := ctx.Request.Body()
@@ -229,9 +265,8 @@ func TestClientGetWithBody(t *testing.T) {
 }
 
 func TestClientPostBodyStream(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		body := ctx.Request.Body()
@@ -269,9 +304,8 @@ func TestClientURLAuth(t *testing.T) {
 	}
 	ch := make(chan string, 1)
 
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 	engine.GET("/foo/bar", func(c context.Context, ctx *app.RequestContext) {
 		ch <- string(ctx.Request.Header.Peek(consts.HeaderAuthorization))
@@ -301,9 +335,8 @@ func TestClientURLAuth(t *testing.T) {
 }
 
 func TestClientNilResp(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -328,8 +361,11 @@ func TestClientNilResp(t *testing.T) {
 }
 
 func TestClientParseConn(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
@@ -338,7 +374,7 @@ func TestClientParseConn(t *testing.T) {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
-	opt.Addr = testutils.GetListenerAddr(engine)
+	opt.Addr = ln.Addr().String()
 
 	c, _ := NewClient(WithDialer(newMockDialerWithCustomFunc(opt.Network, opt.Addr, 1*time.Second, nil)))
 	req, res := protocol.AcquireRequest(), protocol.AcquireResponse()
@@ -364,9 +400,8 @@ func TestClientParseConn(t *testing.T) {
 }
 
 func TestClientPostArgs(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		body := ctx.Request.Body()
@@ -402,9 +437,8 @@ func TestClientPostArgs(t *testing.T) {
 }
 
 func TestClientHeaderCase(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 		zw := ctx.GetWriter()
@@ -434,9 +468,8 @@ func TestClientHeaderCase(t *testing.T) {
 }
 
 func TestClientReadTimeout(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	readtimeout := 50 * time.Millisecond
@@ -510,9 +543,8 @@ func TestClientReadTimeout(t *testing.T) {
 }
 
 func TestClientDefaultUserAgent(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -541,9 +573,8 @@ func TestClientDefaultUserAgent(t *testing.T) {
 }
 
 func TestClientSetUserAgent(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -572,9 +603,8 @@ func TestClientSetUserAgent(t *testing.T) {
 }
 
 func TestClientNoUserAgent(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
@@ -612,9 +642,8 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 		"a-b-c-d-f":    "",
 	}
 	body := "request body"
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.POST("/foo/bar/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -691,9 +720,8 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 }
 
 func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.Use(func(c context.Context, ctx *app.RequestContext) {
@@ -730,9 +758,8 @@ func TestHostClientPendingRequests(t *testing.T) {
 	const concurrency = 10
 	doneCh := make(chan struct{})
 	readyCh := make(chan struct{}, concurrency)
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -817,9 +844,8 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 		timeout        = 50 * time.Millisecond
 		wg             sync.WaitGroup
 	)
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.POST("/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -884,9 +910,8 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 
 func TestHostClientMaxConnDuration(t *testing.T) {
 	connectionCloseCount := uint32(0)
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/bbb/cc", func(c context.Context, ctx *app.RequestContext) {
@@ -929,9 +954,8 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 }
 
 func TestHostClientMultipleAddrs(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.GET("/baz/aaa", func(c context.Context, ctx *app.RequestContext) {
@@ -978,9 +1002,8 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 }
 
 func TestClientFollowRedirects(t *testing.T) {
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	handler := func(c context.Context, ctx *app.RequestContext) {
@@ -1084,9 +1107,8 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 		emptyBodyCount uint8
 		wg             sync.WaitGroup
 	)
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.POST("/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -1152,9 +1174,8 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 		emptyBodyCount uint8
 		wg             sync.WaitGroup
 	)
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.POST("/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -1223,8 +1244,11 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 }
 
 func TestNewClient(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
 		ctx.SetBodyString("pong")
@@ -1240,7 +1264,7 @@ func TestNewClient(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	status, resp, err := client.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
+	status, resp, err := client.Get(context.Background(), nil, fullURL(ln, "/ping"))
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -1252,8 +1276,11 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestUseShortConnection(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 	})
@@ -1262,7 +1289,7 @@ func TestUseShortConnection(t *testing.T) {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
-	opt.Addr = testutils.GetListenerAddr(engine)
+	opt.Addr = ln.Addr().String()
 
 	c, _ := NewClient(WithKeepAlive(false))
 	var wg sync.WaitGroup
@@ -1270,7 +1297,7 @@ func TestUseShortConnection(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "")); err != nil {
+			if _, _, err := c.Get(context.Background(), nil, fullURL(ln, "")); err != nil {
 				t.Error(err)
 				return
 			}
@@ -1294,8 +1321,11 @@ func TestUseShortConnection(t *testing.T) {
 }
 
 func TestPostWithFormData(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		var ans string
@@ -1331,7 +1361,7 @@ func TestPostWithFormData(t *testing.T) {
 		"a": []string{"d", "e"},
 		"c": []string{"f"},
 	})
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1347,8 +1377,11 @@ func TestPostWithFormData(t *testing.T) {
 }
 
 func TestPostWithMultipartField(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		if string(ctx.FormValue("a")) != "1" {
@@ -1377,7 +1410,7 @@ func TestPostWithMultipartField(t *testing.T) {
 		"b": "2",
 	}
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMultipartFormData(data)
 	req.SetMultipartFormData(map[string]string{
 		"c": "3",
@@ -1389,8 +1422,11 @@ func TestPostWithMultipartField(t *testing.T) {
 }
 
 func TestSetFiles(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		form, _ := ctx.MultipartForm()
@@ -1419,7 +1455,7 @@ func TestSetFiles(t *testing.T) {
 		protocol.ReleaseResponse(rsp)
 	}()
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	files := []string{"../../common/testdata/test.txt", "../../common/testdata/proto/test.proto", "../../common/testdata/test.png", "../../common/testdata/proto/test.pb.go"}
 	defer func() {
 		for _, file := range files {
@@ -1439,8 +1475,11 @@ func TestSetFiles(t *testing.T) {
 }
 
 func TestSetMultipartFields(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(c context.Context, ctx *app.RequestContext) {
 		t.Log(req.GetHTTP1Request(&ctx.Request).String())
@@ -1493,7 +1532,7 @@ func TestSetMultipartFields(t *testing.T) {
 	}()
 	req.SetMultipartFields(fields...)
 	req.SetMultipartFormData(map[string]string{"a": "1", "b": "2"})
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.DoTimeout(context.Background(), req, rsp, 1*time.Second)
 	if err != nil {
@@ -1505,8 +1544,11 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 	part1 := "abcdef"
 	part2 := "ghij"
 
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1+part2)
@@ -1523,7 +1565,7 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(resp)
 	}()
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -1549,8 +1591,11 @@ func TestClientReadResponseBodyStream(t *testing.T) {
 }
 
 func TestWithBasicAuth(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(c context.Context, ctx *app.RequestContext) {
 		auth := ctx.GetHeader(consts.HeaderAuthorization)
@@ -1580,7 +1625,7 @@ func TestWithBasicAuth(t *testing.T) {
 
 	// Success
 	req.SetBasicAuth("myuser", "basicauth")
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodGet)
 	err := client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1593,7 +1638,7 @@ func TestWithBasicAuth(t *testing.T) {
 	// Fail
 	req.Reset()
 	rsp.Reset()
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodGet)
 	err = client.Do(context.Background(), req, rsp)
 	if err != nil {
@@ -1934,8 +1979,11 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 	}
 	part2 := "ghij"
 
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1+part2)
@@ -1952,7 +2000,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		protocol.ReleaseRequest(req)
 		protocol.ReleaseResponse(resp)
 	}()
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 	req.SetMethod(consts.MethodPost)
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -1979,7 +2027,7 @@ func TestClientReadResponseBodyStreamWithDoubleRequest(t *testing.T) {
 		protocol.ReleaseRequest(req1)
 		protocol.ReleaseResponse(resp1)
 	}()
-	req1.SetRequestURI(testutils.GetURL(engine, ""))
+	req1.SetRequestURI(fullURL(ln, ""))
 	req1.SetMethod(consts.MethodPost)
 	err = client.Do(context.Background(), req1, resp1)
 	if err != nil {
@@ -2007,8 +2055,11 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 		part1 += "a"
 	}
 
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.POST("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusOK, part1)
@@ -2029,7 +2080,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	}()
 	req.SetConnectionClose()
 	req.SetMethod(consts.MethodPost)
-	req.SetRequestURI(testutils.GetURL(engine, ""))
+	req.SetRequestURI(fullURL(ln, ""))
 
 	err := client.Do(context.Background(), req, resp)
 	if err != nil {
@@ -2046,7 +2097,7 @@ func TestClientReadResponseBodyStreamWithConnectionClose(t *testing.T) {
 	}()
 	req1.SetConnectionClose()
 	req1.SetMethod(consts.MethodPost)
-	req1.SetRequestURI(testutils.GetURL(engine, ""))
+	req1.SetRequestURI(fullURL(ln, ""))
 
 	err = client.Do(context.Background(), req1, resp1)
 	if err != nil {
@@ -2292,9 +2343,8 @@ func TestClientDoWithDialFunc(t *testing.T) {
 	ch := make(chan error, 1)
 	uri := "/foo/bar/baz"
 	body := "request body"
-	opt := config.NewOptions([]config.Option{})
-	opt.Addr = nextUnixSock()
-	opt.Network = "unix"
+	opt, ln := newTestOptions(t)
+	defer ln.Close()
 	engine := route.NewEngine(opt)
 
 	engine.POST("/foo/bar/baz", func(c context.Context, ctx *app.RequestContext) {
@@ -2353,15 +2403,18 @@ func TestClientDoWithDialFunc(t *testing.T) {
 }
 
 func TestClientState(t *testing.T) {
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	go engine.Run()
 	defer func() {
 		engine.Close()
 	}()
 	waitEngineRunning(engine)
-	opt.Addr = testutils.GetListenerAddr(engine)
+	opt.Addr = ln.Addr().String()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -2393,8 +2446,11 @@ func TestClientState(t *testing.T) {
 
 func TestClientRetryErr(t *testing.T) {
 	t.Run("200", func(t *testing.T) {
+		ln := testutils.NewTestListener(t)
+		defer ln.Close()
+
 		opt := config.NewOptions([]config.Option{})
-		opt.Addr = "127.0.0.1:0"
+		opt.Listener = ln
 		engine := route.NewEngine(opt)
 		var l sync.Mutex
 		retryNum := 0
@@ -2411,7 +2467,7 @@ func TestClientRetryErr(t *testing.T) {
 		waitEngineRunning(engine)
 
 		c, _ := NewClient(WithRetryConfig(retry.WithMaxAttemptTimes(3)))
-		_, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
+		_, _, err := c.Get(context.Background(), nil, fullURL(ln, "/ping"))
 		assert.Nil(t, err)
 		l.Lock()
 		assert.DeepEqual(t, 1, retryNum)
@@ -2419,8 +2475,11 @@ func TestClientRetryErr(t *testing.T) {
 	})
 
 	t.Run("502", func(t *testing.T) {
+		ln := testutils.NewTestListener(t)
+		defer ln.Close()
+
 		opt := config.NewOptions([]config.Option{})
-		opt.Addr = "127.0.0.1:0"
+		opt.Listener = ln
 		engine := route.NewEngine(opt)
 		var l sync.Mutex
 		retryNum := 0
@@ -2440,7 +2499,7 @@ func TestClientRetryErr(t *testing.T) {
 		c.SetRetryIfFunc(func(req *protocol.Request, resp *protocol.Response, err error) bool {
 			return resp.StatusCode() == 502
 		})
-		_, _, err := c.Get(context.Background(), nil, testutils.GetURL(engine, "/ping"))
+		_, _, err := c.Get(context.Background(), nil, fullURL(ln, "/ping"))
 		assert.Nil(t, err)
 		l.Lock()
 		assert.DeepEqual(t, 3, retryNum)

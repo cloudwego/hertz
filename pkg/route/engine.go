@@ -508,9 +508,9 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 		if err != nil {
 			logError(conn, err)
 		}
-		if !errors.Is(err, errs.ErrHijacked) {
-			_ = conn.Close()
-		}
+		// always close conn before Serve returns,
+		// some implementations (e.g., netpoll) may reuse conn if not closed
+		_ = conn.Close()
 	}()
 
 	// H2C path

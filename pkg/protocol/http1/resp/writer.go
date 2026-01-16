@@ -55,7 +55,7 @@ func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 	if c.err != nil {
 		return 0, c.err
 	}
-	if err := c.writeHeader(); err != nil {
+	if err := c.WriteHeader(); err != nil {
 		return 0, err
 	}
 	if len(p) == 0 {
@@ -70,9 +70,10 @@ func (c *chunkedBodyWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (c *chunkedBodyWriter) writeHeader() error {
+// WriteHeader writes the response header for chunked encoding
+func (c *chunkedBodyWriter) WriteHeader() error {
 	if c.wroteHeader {
-		return nil
+		return c.err
 	}
 	c.wroteHeader = true
 	c.r.Header.SetContentLength(-1)
@@ -100,7 +101,7 @@ func (c *chunkedBodyWriter) Finalize() error {
 		return c.err
 	}
 	c.finalized = true
-	if err := c.writeHeader(); err != nil {
+	if err := c.WriteHeader(); err != nil {
 		return err
 	}
 	// zero-len chunk

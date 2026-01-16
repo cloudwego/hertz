@@ -19,9 +19,9 @@ package sse
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
-	"github.com/cloudwego/hertz/internal/testutils"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/client"
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -32,8 +32,11 @@ import (
 // Example demonstrates a simple SSE server and client interaction.
 func Example() {
 	// --- SSE Server ---
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln.Close()
+
 	opt := config.NewOptions([]config.Option{})
-	opt.Addr = "127.0.0.1:0"
+	opt.Listener = ln
 	engine := route.NewEngine(opt)
 	engine.GET("/", func(ctx context.Context, c *app.RequestContext) {
 		println("Server Got LastEventID", GetLastEventID(&c.Request))
@@ -49,7 +52,7 @@ func Example() {
 	go engine.Run()
 	defer engine.Close()
 	time.Sleep(20 * time.Millisecond) // wait for server to start
-	opt.Addr = testutils.GetListenerAddr(engine)
+	opt.Addr = ln.Addr().String()
 
 	// --- SSE Client ---
 	c, _ := client.NewClient()

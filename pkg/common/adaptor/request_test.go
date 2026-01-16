@@ -19,8 +19,10 @@ package adaptor
 import (
 	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +34,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
+
+func fullURL(ln net.Listener, p string) string {
+	return "http://" + path.Join(ln.Addr().String(), p)
+}
 
 func TestCompatResponse_WriteHeader(t *testing.T) {
 	var testHeader http.Header
@@ -47,7 +53,10 @@ func TestCompatResponse_WriteHeader(t *testing.T) {
 
 	testBody = "test body"
 
-	h := server.New(server.WithHostPorts("127.0.0.1:0"))
+	ln := testutils.NewTestListener(t)
+	defer ln.Close()
+
+	h := server.New(server.WithListener(ln))
 	h.POST("/test1", func(c context.Context, ctx *app.RequestContext) {
 		req, _ := GetCompatRequest(&ctx.Request)
 		resp := GetCompatResponseWriter(&ctx.Response)
@@ -63,8 +72,8 @@ func TestCompatResponse_WriteHeader(t *testing.T) {
 	go h.Spin()
 	time.Sleep(100 * time.Millisecond)
 
-	testUrl1 := testutils.GetURL(h, "/test1")
-	testUrl2 := testutils.GetURL(h, "/test2")
+	testUrl1 := fullURL(ln, "/test1")
+	testUrl2 := fullURL(ln, "/test2")
 	makeACall(t, http.MethodPost, testUrl1, testHeader, testBody, testStatusCode, []byte(testCookieValue))
 	makeACall(t, http.MethodPost, testUrl2, testHeader, testBody, consts.StatusOK, []byte(testCookieValue))
 }
