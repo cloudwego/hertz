@@ -8,15 +8,43 @@
 **Summary**: Updates project dependencies to support Go 1.26 and newer versions of critical libraries.
 
 **Changes**:
-- Updates `github.com/bytedance/gopkg` from v0.1.1 to v0.1.3 - includes performance improvements and bug fixes
-- Updates `github.com/bytedance/sonic` from v1.14.0 to v1.15.0 - the high-performance JSON serialization library with Go 1.26 compatibility
-- Updates `github.com/bytedance/sonic/loader` from v0.3.0 to v0.5.0 - improved JIT compilation support
-- Updates `github.com/cloudwego/netpoll` from v0.7.0 to v0.7.2 - network polling library improvements
-- Updates `github.com/cloudwego/base64x` from v0.1.5 to v0.1.6 - optimized base64 encoding/decoding
-- Updates `github.com/klauspost/cpuid/v2` from v2.0.9 to v2.2.9 - better CPU feature detection
-- Updates `github.com/stretchr/testify` from v1.9.0 to v1.10.0 - testing framework improvements
+- Updates `github.com/bytedance/gopkg` from v0.1.1 to v0.1.3
+  - Performance improvements and bug fixes
+  
+- Updates `github.com/bytedance/sonic` from v1.14.0 to v1.15.0
+  - **Go 1.26 compatibility support** 
+  - Avoids boundary pointer issues in string quoting
+  - Adds fallback implementations for unquoting and UTF-8 validation
+  - Fixes panic when encoding unsupported map-key types
+  - Fixes range check for uint32 in JIT
+  - Fixes bugs with encoding.TextMarshaler keys
+  - Fixes decode of JSON containing \u0000 characters
+  - Optimizations for encode and AST node performance
+  - Shows JSON trace when panic occurs for better debugging
+  
+- Updates `github.com/bytedance/sonic/loader` from v0.3.0 to v0.5.0
+  - Go 1.26 support with improved JIT compilation
+  - PCSP (Program Counter Stack Pointer) data for JIT functions
+  
+- Updates `github.com/cloudwego/netpoll` from v0.7.0 to v0.7.2
+  - Fixes MallocAck logic for discarding rest data
+  - Removes unused zero-copy code
+  - Lint fixes and code cleanup
+  
+- Updates `github.com/cloudwego/base64x` from v0.1.5 to v0.1.6
+  - Optimized base64 encoding/decoding performance
+  
+- Updates `github.com/klauspost/cpuid/v2` from v2.0.9 to v2.2.9
+  - Better CPU feature detection across architectures
+  
+- Updates `github.com/stretchr/testify` from v1.9.0 to v1.10.0
+  - Latest testing framework improvements and bug fixes
 
-**Impact**: Ensures Hertz is compatible with Go 1.26 and benefits from performance improvements and bug fixes in dependencies.
+**Impact**: 
+- **Critical**: Enables Hertz to work with Go 1.26, ensuring users can upgrade to the latest Go version
+- Improves JSON serialization performance and reliability through sonic updates
+- Enhances network I/O stability through netpoll fixes
+- Better error diagnostics with improved panic traces
 
 #### [[#1476](https://github.com/cloudwego/hertz/pull/1476)] chore: add scripts for release
 **Summary**: Adds automated release management scripts to streamline the release process.
@@ -114,12 +142,51 @@
 
 ## Summary
 
-This release focuses on:
+This release focuses on infrastructure improvements and Go 1.26 support:
 
-1. **Go 1.26 Support**: Updated all dependencies to support the latest Go version
-2. **Release Automation**: Added comprehensive scripts for managing releases and hotfixes
-3. **Repository Modernization**: Consolidated repository structure, brought cmd/hz into main repo
-4. **Enhanced CI/CD**: Improved workflows for testing, security scanning, and code quality
-5. **Better Developer Experience**: Added comprehensive tooling, documentation, and community guidelines
+### Key Highlights
 
-This is primarily a maintenance and infrastructure release that sets the foundation for better development practices and smoother releases going forward.
+1. **Go 1.26 Compatibility** ✅
+   - Updated all critical dependencies (sonic, netpoll, gopkg) to support Go 1.26
+   - Users can now safely upgrade to the latest Go version
+
+2. **Release Process Automation** 🚀
+   - Added comprehensive scripts for managing releases and hotfixes
+   - Dry-run mode for safe testing
+   - Automated version validation and dependency checking
+   - Reduces human error and ensures consistency
+
+3. **Repository Consolidation** 🔄
+   - Merged develop branch into main for simplified workflow
+   - Brought cmd/hz code generation tool into main repository
+   - Single-branch workflow improves maintainability
+
+4. **Enhanced CI/CD** 🔧
+   - New workflows for cmd testing, security scanning, and PR validation
+   - Improved code coverage collection
+   - Automated labeling and issue management
+
+5. **Better Developer Experience** 📚
+   - Comprehensive GitHub templates and issue forms
+   - Clear contribution guidelines
+   - Improved documentation and code standards
+
+### Performance & Reliability Improvements
+
+From dependency updates:
+- **JSON Performance**: sonic v1.15.0 brings encoding optimizations and better error handling
+- **Network Stability**: netpoll v0.7.2 fixes memory management issues
+- **Better Debugging**: Improved panic traces show JSON context
+
+### Breaking Changes
+
+None - this is a fully backward-compatible release.
+
+### Upgrade Recommendation
+
+**Recommended for all users**, especially those wanting to:
+- Use Go 1.26
+- Benefit from JSON performance improvements
+- Take advantage of enhanced tooling and automation
+
+This release sets the foundation for improved development velocity and code quality in future releases.
