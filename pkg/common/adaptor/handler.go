@@ -22,6 +22,8 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"runtime"
+	"sync"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/app"
@@ -86,7 +88,14 @@ func HertzHandler(h http.Handler) app.HandlerFunc {
 		// coz it's server response
 		// no need to copy anything from hertz Response
 		w := &httpResponseWriter{rc: rc}
+
 		h.ServeHTTP(w, req)
+		if w.hijacked != nil {
+			// wait for hijacked conn to close before returning,
+			// otherwise either hertz will close the conn
+			// or netpoll may reuse the conn for next request.
+			<-w.hijacked
+		}
 	}
 }
 
@@ -97,8 +106,9 @@ type httpResponseWriter struct {
 	err error
 
 	wroteHeader bool
-	hijacked    bool
 	skipBody    bool
+
+	hijacked chan struct{} // != nil if hijacked
 }
 
 var errConnHijacked = errors.New("hertz net/http adaptor: conn hijacked")
@@ -111,8 +121,9 @@ func (p *httpResponseWriter) Header() http.Header {
 	return p.header
 }
 
-func (p *httpResponseWriter) Write(b []byte) (n int, _ error) {
-	if p.hijacked {
+// Write implements http.ResponseWriter.Write
+func (p *httpResponseWriter) Write(b []byte) (n int, err error) {
+	if p.hijacked != nil {
 		return 0, errConnHijacked
 	}
 	if !p.wroteHeader {
@@ -128,8 +139,9 @@ func (p *httpResponseWriter) Write(b []byte) (n int, _ error) {
 	return n, p.err
 }
 
+// WriteHeader implements http.ResponseWriter.WriteHeader
 func (p *httpResponseWriter) WriteHeader(statusCode int) {
-	if p.wroteHeader || p.hijacked {
+	if p.wroteHeader || p.hijacked != nil {
 		return
 	}
 	p.wroteHeader = true
@@ -153,35 +165,50 @@ func (p *httpResponseWriter) WriteHeader(statusCode int) {
 		// must be set for hertz request loop or it would write header and body after handler returns
 		r.HijackWriter(noopWriter{})
 		p.err = resp.WriteHeader(&r.Header, w)
-		return
-	}
-	if r.Header.ContentLength() < 0 {
-		r.HijackWriter(resp.NewChunkedBodyWriter(r, w))
+	} else if r.Header.ContentLength() < 0 {
+		// For chunked encoding, write headers immediately
+		cw := resp.NewChunkedBodyWriter(r, w)
+		r.HijackWriter(cw)
+		type chunkedBodyWriter interface {
+			WriteHeader() error
+		}
+		p.err = cw.(chunkedBodyWriter).WriteHeader()
 	} else {
-		p.err = resp.WriteHeader(&r.Header, w)
 		// use Writer directly instead of keep buffering data in resp.BodyBuffer()
 		// you never know how much data would be written to response
 		r.HijackWriter(writer2writerExt(w))
+		p.err = resp.WriteHeader(&r.Header, w)
 	}
 }
 
 var _ http.Flusher = (*httpResponseWriter)(nil)
 
-// Flush implements the [http.Flusher]
+// Flush implements http.Flusher and captures any flush errors
 func (p *httpResponseWriter) Flush() {
-	_ = p.rc.GetWriter().Flush()
+	if p.err == nil {
+		p.err = p.rc.GetWriter().Flush()
+	}
 }
 
 var _ http.Hijacker = (*httpResponseWriter)(nil)
 
-// Hijack implements the [net/http.Hijacker]
+// Hijack implements http.Hijacker
 func (p *httpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if p.hijacked {
+	if p.hijacked != nil {
 		return nil, nil, errConnHijacked
 	}
-	p.hijacked = true
-
-	conn := p.rc.GetConn()
+	if p.err != nil {
+		return nil, nil, p.err
+	}
+	// If headers were already written, flush the buffer to avoid losing
+	// any pending data before hijacking the connection
+	if p.wroteHeader {
+		if p.err = p.rc.GetWriter().Flush(); p.err != nil {
+			return nil, nil, p.err
+		}
+	}
+	conn := newHijackedConn(p.rc.GetConn())
+	p.hijacked = conn.closeCh
 
 	// reset timeout if any
 	_ = conn.SetReadTimeout(0)
@@ -213,3 +240,29 @@ var _ network.ExtWriter = noopWriter{}
 func (noopWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (noopWriter) Flush() error                { return nil }
 func (noopWriter) Finalize() error             { return nil }
+
+type hijackedConn struct {
+	network.Conn
+
+	closeOnce sync.Once
+	closeCh   chan struct{}
+}
+
+func newHijackedConn(conn network.Conn) *hijackedConn {
+	c := &hijackedConn{Conn: conn, closeCh: make(chan struct{})}
+	runtime.SetFinalizer(c, hijackedConnFinalizer)
+	return c
+}
+
+func hijackedConnFinalizer(c *hijackedConn) {
+	_ = c.Close()
+}
+
+func (c *hijackedConn) Close() error {
+	runtime.SetFinalizer(c, nil)
+	err := c.Conn.Close()
+	c.closeOnce.Do(func() {
+		close(c.closeCh)
+	})
+	return err
+}

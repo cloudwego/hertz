@@ -122,16 +122,10 @@ func cookieSlice(req *protocol.Request, params param.Params, key string, default
 }
 
 func headerSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
-	req.Header.VisitAll(func(headerKey, value []byte) {
-		if bytesconv.B2s(headerKey) == key {
-			ret = append(ret, string(value))
-		}
-	})
-
-	if len(ret) == 0 && len(defaultValue) != 0 {
-		ret = append(ret, defaultValue...)
+	ret = defaultValue
+	if vv := req.Header.GetAll(key); len(vv) > 0 {
+		ret = vv
 	}
-
 	return
 }
 

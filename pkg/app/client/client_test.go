@@ -157,6 +157,50 @@ func TestCloseIdleConnections(t *testing.T) {
 	}()
 }
 
+func TestCloseIdleTLSConnections(t *testing.T) {
+	httpsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("https response"))
+	}))
+	defer httpsServer.Close()
+
+	c, _ := NewClient(
+		WithTLSConfig(httpsServer.Client().Transport.(*http.Transport).TLSClientConfig),
+		WithDialTimeout(1*time.Second),
+	)
+
+	httpsReq, httpsResp := protocol.AcquireRequest(), protocol.AcquireResponse()
+	defer func() {
+		protocol.ReleaseRequest(httpsReq)
+		protocol.ReleaseResponse(httpsResp)
+	}()
+	httpsReq.SetRequestURI(httpsServer.URL)
+	if err := c.Do(context.Background(), httpsReq, httpsResp); err != nil {
+		t.Fatalf("HTTPS request failed: %v", err)
+	}
+
+	c.CloseIdleConnections()
+
+	c.mLock.Lock()
+	var totalConns int
+	for _, hc := range c.ms {
+		totalConns += hc.ConnectionCount()
+	}
+	c.mLock.Unlock()
+
+	if totalConns > 0 {
+		t.Errorf("expected 0 HTTPS idle connections after close, got %d", totalConns)
+	}
+
+	c.cleanHostClients(true)
+
+	c.mLock.Lock()
+	defer c.mLock.Unlock()
+	if len(c.ms) != 0 {
+		t.Errorf("expected 0 HTTPS host clients, got %d", len(c.ms))
+	}
+}
+
 func TestClientInvalidURI(t *testing.T) {
 	opt, ln := newTestOptions(t)
 	defer ln.Close()
