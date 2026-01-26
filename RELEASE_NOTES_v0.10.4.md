@@ -77,7 +77,7 @@
   - Ensures CloudWeGo dependencies use semantic versioning
   - Prevents releases with non-standard dependency versions
 
-- Updates `version.go` from "v0.10.3" to "v0.10.3-dev" to indicate development state
+- Updates `version.go` from "v0.10.3" to "v0.10.3-dev" to indicate development state between releases
 
 - Removes legacy pre-commit hooks:
   - Removes `script/go-fmt`
@@ -135,6 +135,10 @@
 
 #### [[#1478](https://github.com/cloudwego/hertz/pull/1478)] chore: prepare for v0.10.4 release
 **Summary**: Final preparation commit consolidating all changes for v0.10.4 release.
+
+**Changes**:
+- Updates `version.go` from "v0.10.3-dev" to "v0.10.4" for the official release
+- Consolidates all previous PRs and prepares the repository for v0.10.4 release
 
 **Full Changelog**: https://github.com/cloudwego/hertz/compare/v0.10.3...v0.10.4
 
