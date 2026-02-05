@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	"github.com/cloudwego/hertz/internal/testutils"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -52,10 +51,7 @@ func TestTransporter(t *testing.T) {
 	resp := "world"
 	trans := NewTransporter(&config.Options{Network: "tcp", Addr: "127.0.0.1:0", SenseClientDisconnection: true}).(*transport)
 	go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
-		_, isStatefulConn := conn.(internalNetwork.StatefulConn)
-		if !isStatefulConn {
-			t.Fatal("SenseClientDisconnection configure failed")
-		}
+		// SenseClientDisconnection is configured, connection close detection is handled by connstate
 		c := conn.(network.Conn)
 		defer c.Close()
 		assertWriteRead(t, c, resp, req)
@@ -130,5 +126,104 @@ func TestAcceptError(t *testing.T) {
 	// Wait for serve to exit with error
 	if err := <-errCh; err != nil {
 		t.Fatal("expected nil after listener close")
+	}
+}
+
+// TestSenseClientDisconnectionContextCancel tests that the context is canceled
+// when the client disconnects and SenseClientDisconnection is enabled
+func TestSenseClientDisconnectionContextCancel(t *testing.T) {
+	handlerRunning := make(chan struct{})
+	handlerExited := make(chan struct{})
+
+	trans := NewTransporter(&config.Options{
+		Network:                  "tcp",
+		Addr:                     "127.0.0.1:0",
+		SenseClientDisconnection: true,
+	}).(*transport)
+
+	go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+		close(handlerRunning)
+
+		select {
+		case <-ctx.Done():
+			// Context was canceled as expected
+		case <-time.After(3 * time.Second):
+			panic("Context was not canceled after client disconnected")
+		}
+
+		close(handlerExited)
+		return nil
+	})
+
+	for trans.Listener() == nil {
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	clientConn, err := net.Dial("tcp", trans.Listener().Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for handler to start running
+	<-handlerRunning
+
+	// Close client connection to trigger disconnection detection
+	clientConn.Close()
+
+	// Wait for handler to exit (context should be canceled)
+	select {
+	case <-handlerExited:
+		// Handler exited as expected
+	case <-time.After(4 * time.Second):
+		t.Fatal("Handler did not exit after client disconnected")
+	}
+}
+
+// TestSenseClientDisconnectionDisabled tests that context cancel behavior
+// when SenseClientDisconnection is disabled
+func TestSenseClientDisconnectionDisabled(t *testing.T) {
+	handlerRunning := make(chan struct{})
+	handlerExited := make(chan struct{})
+
+	trans := NewTransporter(&config.Options{
+		Network:                  "tcp",
+		Addr:                     "127.0.0.1:0",
+		SenseClientDisconnection: false,
+	}).(*transport)
+
+	go trans.ListenAndServe(func(ctx context.Context, conn interface{}) error {
+		close(handlerRunning)
+
+		select {
+		case <-ctx.Done():
+			panic("Context was not canceled after client disconnected")
+		case <-time.After(2 * time.Second):
+		}
+
+		close(handlerExited)
+		return nil
+	})
+
+	for trans.Listener() == nil {
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	clientConn, err := net.Dial("tcp", trans.Listener().Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for handler to start running
+	<-handlerRunning
+
+	// Close client connection to trigger disconnection detection
+	clientConn.Close()
+
+	// Wait for handler to exit (context should be canceled)
+	select {
+	case <-handlerExited:
+		// Handler exited as expected
+	case <-time.After(4 * time.Second):
+		t.Fatal("Handler did not exit after client disconnected")
 	}
 }

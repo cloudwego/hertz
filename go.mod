@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/bytedance/gopkg v0.1.3
 	github.com/bytedance/sonic v1.15.0
+	github.com/cloudwego/gopkg v0.1.9-0.20260205092437-c9a0eef00189
 	github.com/cloudwego/netpoll v0.7.2
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/stretchr/testify v1.10.0
@@ -17,7 +18,6 @@ require (
 require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/gopkg v0.1.4 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

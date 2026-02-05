@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/gopkg/connstate"
+
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
@@ -190,34 +192,6 @@ func TestReadBytes(t *testing.T) {
 	}
 	if conn.Len() != 4094 {
 		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
-	}
-}
-
-func TestStatefulConnConnectionCloseDetection(t *testing.T) {
-	cliConn, svrConn := net.Pipe()
-	svrCtx, cancelCtx := context.WithCancel(context.Background())
-	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
-	defer svrStatefulConn.Close()
-
-	// 1. normal request
-	svrStatefulConn.DetectConnectionClose()
-	svrStatefulConn.AbortBlockingRead()
-	select {
-	case <-svrCtx.Done():
-		t.Fatal("ctx should not be canceled")
-	default:
-	}
-
-	// 2. client close conn
-	svrStatefulConn.DetectConnectionClose()
-	cliConn.Close()
-	time.Sleep(100 * time.Millisecond) // wait a while
-
-	select {
-	case <-svrCtx.Done():
-		// expected
-	default:
-		t.Fatal("ctx should be canceled")
 	}
 }
 
@@ -409,4 +383,110 @@ func TestFillReturnErrAndN(t *testing.T) {
 	b, err = conn.Peek(4099)
 	assert.DeepEqual(t, err, io.EOF)
 	assert.DeepEqual(t, len(b), 4089)
+}
+
+// TestConnCloseWithStater tests that Close properly closes the stater
+func TestConnCloseWithStater(t *testing.T) {
+	c := &mockConn{
+		localAddr: &mockAddr{
+			network: "tcp",
+			address: "127.0.0.1:8080",
+		},
+		remoteAddr: &mockAddr{
+			network: "tcp",
+			address: "127.0.0.1:12345",
+		},
+	}
+	conn := newConn(c, 4096).(*Conn)
+
+	// Create a mock stater
+	mockStater := &mockConnStater{}
+	conn.SetStater(mockStater)
+
+	// Close the connection - mockConn.Close() returns error, but stater should still be closed
+	_ = conn.Close()
+
+	// After Close, stater should be nil
+	if conn.stater != nil {
+		t.Errorf("Stater should be nil after Close, got %v", conn.stater)
+	}
+
+	// MockStater's Close method should have been called
+	if !mockStater.closed {
+		t.Error("MockStater's Close method was not called")
+	}
+}
+
+// TestConnstateConnectionCloseDetection tests the connstate-based connection close detection
+func TestConnstateConnectionCloseDetection(t *testing.T) {
+	// Use net.Pipe to create a pair of connected connections
+	cliConn, svrConn := net.Pipe()
+	defer cliConn.Close()
+	defer svrConn.Close()
+
+	// Create a context that can be canceled
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	// Create server-side Conn
+	svrStdConn := newConn(svrConn, 4096).(*Conn)
+
+	// Register connstate callback
+	stater, err := connstate.ListenConnState(svrConn,
+		connstate.WithOnRemoteClosed(func() {
+			cancelCtx()
+		}),
+	)
+	if err != nil {
+		// If connstate is not supported on this platform, skip the test
+		t.Skipf("connstate.ListenConnState not supported: %v", err)
+		return
+	}
+	defer stater.Close()
+
+	// Set stater to Conn
+	svrStdConn.SetStater(stater)
+
+	// Test 1: Normal operation - context should not be canceled
+	select {
+	case <-ctx.Done():
+		t.Fatal("Context should not be canceled in normal operation")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - context not canceled
+	}
+
+	// Test 2: Close client connection - context should be canceled
+	cliConn.Close()
+
+	// Wait for context to be canceled (with timeout)
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case <-ctx.Done():
+		// Expected - context canceled after client closes connection
+	case <-timeout.C:
+		t.Fatal("Context was not canceled after client closed connection")
+	}
+
+	// Close should properly clean up stater
+	err = svrStdConn.Close()
+	if err != nil {
+		t.Errorf("Close failed: %v", err)
+	}
+}
+
+// mockConnStater is a mock implementation of connstate.ConnStater for testing
+type mockConnStater struct {
+	closed bool
+	state  connstate.ConnState
+}
+
+func (m *mockConnStater) Close() error {
+	m.closed = true
+	return nil
+}
+
+func (m *mockConnStater) State() connstate.ConnState {
+	return m.state
 }
