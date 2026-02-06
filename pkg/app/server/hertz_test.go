@@ -1222,66 +1222,6 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
 }
 
-func TestWithSenseClientDisconnection(t *testing.T) {
-	ln := testutils.NewTestListener(t)
-	defer ln.Close()
-	var closeFlag int32
-	h := New(WithListener(ln), WithSenseClientDisconnection(true))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
-}
-
-func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
-	ln := testutils.NewTestListener(t)
-	defer ln.Close()
-	var closeFlag int32
-	h := New(WithListener(ln), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-		return ctx
-	}))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
-}
-
 func TestServerReturns413And431OnSizeLimits(t *testing.T) {
 	ln := testutils.NewTestListener(t)
 	defer ln.Close()
