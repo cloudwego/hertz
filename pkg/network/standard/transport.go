@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cloudwego/gopkg/connstate"
+
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -111,13 +113,39 @@ func (t *transport) serve() (err error) {
 
 		go func(ctx context.Context, conn network.Conn) {
 			if t.senseClientDisconnection {
-				ctx, cancelCtx := context.WithCancel(ctx)
-				conn = NewStatefulConn(conn, newOnReadErrorFunc(cancelCtx))
-				t.handler(ctx, conn)
-				cancelCtx()
-			} else {
-				t.handler(ctx, conn)
+				// Get the underlying net.Conn for connstate registration
+				var rawConn net.Conn
+				var stdConn *Conn
+				switch v := conn.(type) {
+				case *Conn:
+					stdConn = v
+					rawConn = v.c
+				case *TLSConn:
+					// TLSConn embeds Conn
+					stdConn = &v.Conn
+					rawConn = v.c
+				default:
+					// Other connection types are not supported
+					t.handler(ctx, conn)
+					t.updateActive(-1)
+					return
+				}
+
+				// Register connection close callback
+				var cancelCtx context.CancelFunc
+				ctx, cancelCtx = context.WithCancel(ctx)
+				stater, err := connstate.ListenConnState(rawConn,
+					connstate.WithOnRemoteClosed(connstate.OnRemoteClosed(cancelCtx)),
+				)
+				if err != nil {
+					hlog.SystemLogger().Errorf("ListenConnState failed: %v, connection close detection disabled", err)
+				} else {
+					// Set stater to Conn, it will be cleaned up when Close is called
+					stdConn.SetStater(stater)
+				}
 			}
+
+			t.handler(ctx, conn)
 			t.updateActive(-1)
 		}(ctx, c)
 	}
