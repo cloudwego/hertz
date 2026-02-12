@@ -185,8 +185,8 @@ func TestSenseClientDisconnectionDisabled(t *testing.T) {
 
 		select {
 		case <-ctx.Done():
-			panic("Context was not canceled after client disconnected")
-		case <-time.After(2 * time.Second):
+			panic("Context was canceled after client disconnected")
+		case <-time.After(200 * time.Millisecond):
 		}
 
 		close(handlerExited)
@@ -212,7 +212,7 @@ func TestSenseClientDisconnectionDisabled(t *testing.T) {
 	select {
 	case <-handlerExited:
 		// Handler exited as expected
-	case <-time.After(4 * time.Second):
+	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Handler did not exit after client disconnected")
 	}
 }

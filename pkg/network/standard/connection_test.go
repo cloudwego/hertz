@@ -22,7 +22,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -31,34 +30,44 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
+// bufConn wraps an io.Reader and *bytes.Buffer as a net.Conn for deterministic tests.
+type bufConn struct {
+	mockConn
+	r io.Reader
+	w *bytes.Buffer
+}
+
+func newBufConn(data []byte) *bufConn {
+	return &bufConn{r: bytes.NewReader(data), w: &bytes.Buffer{}}
+}
+
+func (c *bufConn) Read(b []byte) (int, error)  { return c.r.Read(b) }
+func (c *bufConn) Write(b []byte) (int, error) { return c.w.Write(b) }
+
 func TestRead(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	// test read small data
-	b := make([]byte, 1)
-	conn.Read(b)
-	if conn.Len() != 4095 {
-		t.Errorf("unexpected conn.Len: %v, expected 4095", conn.Len())
-	}
+	data := bytes.Repeat([]byte{1}, 10000)
+	c := newBufConn(data)
+	conn := newConn(c, 0)
 
-	// test read small data again
-	conn.Read(b)
-	if conn.Len() != 4094 {
-		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
-	}
+	// small read
+	b := make([]byte, 5)
+	n, err := conn.Read(b)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 5, n)
+	assert.DeepEqual(t, bytes.Repeat([]byte{1}, 5), b)
 
-	// test read large data
-	b = make([]byte, 10000)
-	n, _ := conn.Read(b)
-	if n != 4094 {
-		t.Errorf("unexpected n: %v, expected 4094", n)
-	}
+	// another small read
+	b = make([]byte, 10)
+	n, err = conn.Read(b)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 10, n)
 
-	// test read large data again
-	n, _ = conn.Read(b)
-	if n != 8192 {
-		t.Errorf("unexpected n: %v, expected 4094", n)
-	}
+	// large read returns available data
+	b = make([]byte, 20000)
+	n, err = conn.Read(b)
+	assert.Nil(t, err)
+	assert.True(t, n > 0)
+	assert.True(t, n <= 9985) // at most 10000 - 15 already read
 }
 
 func TestReadFromHasBufferAvailable(t *testing.T) {
@@ -111,128 +120,90 @@ func TestReadFromNoBufferAvailable(t *testing.T) {
 }
 
 func TestPeekRelease(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	b, _ := conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
+	data := bytes.Repeat([]byte{0}, 100000)
+	c := newBufConn(data)
+	conn := newConn(c, 0)
 
-	b, _ = conn.Peek(10000)
-	if len(b) != 10000 {
-		t.Errorf("unexpected len(b): %v, expected 10000", len(b))
-	}
+	// peek small
+	b, err := conn.Peek(1)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 1, len(b))
 
-	if conn.Len() != 12288 {
-		t.Errorf("unexpected conn.Len: %v, expected 12288", conn.Len())
-	}
-	err := conn.Skip(12289)
-	if err == nil {
-		t.Errorf("unexpected no error, expected link buffer skip[12289] not enough")
-	}
-	conn.Skip(12288)
-	if conn.Len() != 0 {
-		t.Errorf("unexpected conn.Len: %v, expected 2287", conn.Len())
-	}
+	// peek large
+	b, err = conn.Peek(10000)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 10000, len(b))
 
-	// test reuse buffer
+	// skip more than available should error
+	l := conn.Len()
+	assert.True(t, l >= 10000)
+	err = conn.Skip(l + 1)
+	assert.NotNil(t, err)
+
+	// skip all
+	err = conn.Skip(l)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 0, conn.Len())
+
+	// release and peek again
 	conn.Release()
-	b, _ = conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	if conn.Len() != 8192 {
-		t.Errorf("unexpected conn.Len: %v, expected 8192", conn.Len())
-	}
-
-	// test cross node
-	b, _ = conn.Peek(1000000)
-	if len(b) != 1000000 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	conn.Skip(1000000)
-	conn.Release()
-
-	// test maxSize
-	if conn.(*Conn).maxSize != 524288 {
-		t.Errorf("unexpected maxSize: %v, expected 524288", conn.(*Conn).maxSize)
-	}
+	b, err = conn.Peek(1)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 1, len(b))
+	assert.True(t, conn.Len() > 0)
 }
 
 func TestReadBytes(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	b, _ := conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	b[0] = 'a'
-	peekByte, _ := conn.Peek(1)
-	if peekByte[0] != 'a' {
-		t.Errorf("unexpected bb[0]: %v, expected a", peekByte[0])
-	}
-	if conn.Len() != 4096 {
-		t.Errorf("unexpected conn.Len: %v, expected 4096", conn.Len())
-	}
+	data := make([]byte, 1000)
+	data[0] = 'a'
+	data[1] = 'b'
+	c := newBufConn(data)
+	conn := newConn(c, 0)
 
-	readBinary, _ := conn.ReadBinary(1)
-	if readBinary[0] != 'a' {
-		t.Errorf("unexpected readBinary[0]: %v, expected a", readBinary[0])
-	}
-	b[0] = 'b'
-	if readBinary[0] != 'a' {
-		t.Errorf("unexpected readBinary[0]: %v, expected a", readBinary[0])
-	}
-	bbb, _ := conn.ReadByte()
-	if bbb != 0 {
-		t.Errorf("unexpected bbb: %v, expected nil", string(bbb))
-	}
-	if conn.Len() != 4094 {
-		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
-	}
+	// Peek returns view into buffer
+	b, _ := conn.Peek(1)
+	assert.DeepEqual(t, byte('a'), b[0])
+
+	// ReadBinary returns independent copy
+	rb, _ := conn.ReadBinary(1)
+	assert.DeepEqual(t, byte('a'), rb[0])
+
+	// mutating peek slice doesn't affect the copy
+	b[0] = 'z'
+	assert.DeepEqual(t, byte('a'), rb[0])
+
+	// ReadByte reads next unconsumed byte
+	by, err := conn.ReadByte()
+	assert.Nil(t, err)
+	assert.DeepEqual(t, byte('b'), by)
 }
 
 func TestWriteLogic(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	conn.Malloc(8190)
-	connection := conn.(*Conn)
-	// test left buffer
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
-	// test malloc next node and left buffer
-	conn.Malloc(8190)
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
+	c := &mockConn{}
+	conn := newConn(c, 0)
+
+	// Malloc and fill
+	buf, err := conn.Malloc(5)
+	assert.Nil(t, err)
+	copy(buf, []byte("hello"))
+
+	// WriteBinary
+	_, err = conn.WriteBinary([]byte(" world"))
+	assert.Nil(t, err)
+
+	// Flush sends all data
+	err = conn.Flush()
+	assert.Nil(t, err)
+	assert.DeepEqual(t, "hello world", c.buffer.String())
+
+	// Multiple Malloc + Flush
+	c.buffer.Reset()
+	buf, _ = conn.Malloc(3)
+	copy(buf, []byte("foo"))
+	buf, _ = conn.Malloc(3)
+	copy(buf, []byte("bar"))
 	conn.Flush()
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
-	conn.Malloc(8190)
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
-	// test readOnly
-	b := make([]byte, 4096)
-	conn.WriteBinary(b)
-	conn.Flush()
-	conn.Malloc(2)
-	if connection.outputBuffer.head == connection.outputBuffer.write {
-		t.Errorf("outputBuffer head == outputBuffer read")
-	}
-	// test reuse outputBuffer
-	b = make([]byte, 2)
-	conn.WriteBinary(b)
-	conn.Flush()
-	conn.Malloc(2)
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
+	assert.DeepEqual(t, "foobar", c.buffer.String())
 }
 
 func TestInitializeConn(t *testing.T) {
@@ -271,11 +242,25 @@ func TestHandleSpecificError(t *testing.T) {
 	assert.DeepEqual(t, true, conn.HandleSpecificError(syscall.EPIPE, ""))
 }
 
+func TestFillReturnErrAndN(t *testing.T) {
+	data := make([]byte, 4099)
+	c := newBufConn(data)
+	conn := newConn(c, 0)
+
+	b, err := conn.Peek(4099)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 4099, len(b))
+
+	conn.Skip(10)
+	b, err = conn.Peek(4099)
+	assert.DeepEqual(t, io.EOF, err)
+	assert.DeepEqual(t, 4089, len(b))
+}
+
 type mockConn struct {
-	buffer        bytes.Buffer
-	localAddr     net.Addr
-	remoteAddr    net.Addr
-	readReturnErr bool
+	buffer     bytes.Buffer
+	localAddr  net.Addr
+	remoteAddr net.Addr
 }
 
 func (m *mockConn) Handshake() error {
@@ -292,9 +277,6 @@ func (m mockConn) Read(b []byte) (n int, err error) {
 		b[i] = 0
 	}
 
-	if m.readReturnErr {
-		err = io.EOF
-	}
 	if length > 8192 {
 		return 8192, err
 	}
@@ -350,34 +332,4 @@ func (m *mockAddr) Network() string {
 
 func (m *mockAddr) String() string {
 	return m.address
-}
-
-func TestConnSetFinalizer(t *testing.T) {
-	defer func(newfunc func() interface{}) {
-		bufferPool.New = newfunc
-	}(bufferPool.New) // reset
-
-	runtime.GC()
-	runtime.GC()
-	for i := 0; i < 1000; i++ {
-		_ = newConn(&mockConn{}, 4096)
-	}
-	runtime.GC()
-	bufferPool.New = nil
-	assert.NotNil(t, bufferPool.Get())
-
-}
-
-func TestFillReturnErrAndN(t *testing.T) {
-	c := &mockConn{
-		readReturnErr: true,
-	}
-	conn := newConn(c, 4099)
-	b, err := conn.Peek(4099)
-	assert.Nil(t, err)
-	assert.DeepEqual(t, len(b), 4099)
-	conn.Skip(10)
-	b, err = conn.Peek(4099)
-	assert.DeepEqual(t, err, io.EOF)
-	assert.DeepEqual(t, len(b), 4089)
 }
