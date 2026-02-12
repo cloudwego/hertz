@@ -141,7 +141,7 @@ func (t *transport) serve() (err error) {
 					hlog.SystemLogger().Errorf("ListenConnState failed: %v, connection close detection disabled", err)
 				} else {
 					// Set stater to Conn, it will be cleaned up when Close is called
-					stdConn.SetStater(stater)
+					stdConn.stater = stater
 				}
 			}
 

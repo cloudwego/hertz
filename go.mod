@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/bytedance/gopkg v0.1.3
 	github.com/bytedance/sonic v1.15.0
-	github.com/cloudwego/gopkg v0.1.9
+	github.com/cloudwego/gopkg v0.1.11-0.20260226101607-10def4e32fd1
 	github.com/cloudwego/netpoll v0.7.2
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/stretchr/testify v1.10.0
