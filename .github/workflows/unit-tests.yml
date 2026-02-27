@@ -35,6 +35,20 @@ jobs:
       - name: Unit Test
         run: go test -race ./...
 
+
+  unit-test-no-netpoll:
+    runs-on: [self-hosted, Linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false # don't use cache for self-hosted runners
+
+      - name: Unit Test
+        run: HERTZ_NO_NETPOLL=1 go test -race ./...
+
   ut-windows:
     runs-on: [self-hosted, Windows]
     steps:

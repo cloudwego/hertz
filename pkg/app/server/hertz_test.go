@@ -855,10 +855,6 @@ func TestReuseCtx(t *testing.T) {
 	}
 }
 
-type CloseWithoutResetBuffer interface {
-	CloseNoResetBuffer() error
-}
-
 func TestOnprepare(t *testing.T) {
 	ln1 := testutils.NewTestListener(t)
 	defer ln1.Close()
@@ -868,11 +864,7 @@ func TestOnprepare(t *testing.T) {
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
 			assert.DeepEqual(t, string(b), "GET")
-			if c, ok := conn.(CloseWithoutResetBuffer); ok {
-				c.CloseNoResetBuffer()
-			} else {
-				conn.Close()
-			}
+			conn.Close()
 			return ctx
 		}))
 	h1.GET("/ping", func(ctx context.Context, c *app.RequestContext) {

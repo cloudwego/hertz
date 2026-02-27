@@ -39,11 +39,11 @@ func TestConnCloseWithStater(t *testing.T) {
 			address: "127.0.0.1:12345",
 		},
 	}
-	conn := newConn(c, 4096).(*Conn)
+	conn := newConn(c, 0).(*Conn)
 
 	// Create a mock stater
 	mockStater := &mockConnStater{}
-	conn.SetStater(mockStater)
+	conn.stater = mockStater
 
 	// Close the connection - mockConn.Close() returns error, but stater should still be closed
 	_ = conn.Close()
@@ -71,7 +71,7 @@ func TestConnstateConnectionCloseDetection(t *testing.T) {
 	defer cancelCtx()
 
 	// Create server-side Conn
-	svrStdConn := newConn(svrConn, 4096).(*Conn)
+	svrStdConn := newConn(svrConn, 0).(*Conn)
 
 	// Register connstate callback
 	stater, err := connstate.ListenConnState(svrConn,
@@ -87,7 +87,7 @@ func TestConnstateConnectionCloseDetection(t *testing.T) {
 	defer stater.Close()
 
 	// Set stater to Conn
-	svrStdConn.SetStater(stater)
+	svrStdConn.stater = stater
 
 	// Test 1: Normal operation - context should not be canceled
 	select {
@@ -185,8 +185,8 @@ func TestSenseClientDisconnectionDisabled(t *testing.T) {
 
 		select {
 		case <-ctx.Done():
-			panic("Context was not canceled after client disconnected")
-		case <-time.After(2 * time.Second):
+			panic("Context was canceled after client disconnected")
+		case <-time.After(200 * time.Millisecond):
 		}
 
 		close(handlerExited)
@@ -212,7 +212,7 @@ func TestSenseClientDisconnectionDisabled(t *testing.T) {
 	select {
 	case <-handlerExited:
 		// Handler exited as expected
-	case <-time.After(4 * time.Second):
+	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Handler did not exit after client disconnected")
 	}
 }
