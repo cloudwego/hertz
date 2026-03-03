@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudwego/gopkg/connstate"
+	"github.com/cloudwego/gopkg/net/connstate"
 
 	"github.com/cloudwego/hertz/pkg/common/config"
 )
