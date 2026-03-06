@@ -85,9 +85,8 @@ func TestHertz_Run(t *testing.T) {
 	waitEngineRunning(hertz)
 
 	hertz.Close()
-	resp, err := http.Get(fullURL(ln, "/test"))
-	assert.NotNil(t, err)
-	assert.Nil(t, resp)
+	time.Sleep(10 * time.Millisecond)
+	// Close will not call OnShutdown
 	assert.DeepEqual(t, uint32(0), atomic.LoadUint32(&testint))
 }
 

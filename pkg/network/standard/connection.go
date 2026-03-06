@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/gopkg/bufiox"
-	"github.com/cloudwego/gopkg/connstate"
+	"github.com/cloudwego/gopkg/net/connstate"
 
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -38,6 +38,8 @@ type Conn struct {
 	br     *bufiox.DefaultReader
 	bw     *bufiox.DefaultWriter
 	stater connstate.ConnStater
+
+	buf [8]byte
 }
 
 func (c *Conn) ToHertzError(err error) error {
@@ -100,15 +102,13 @@ func (c *Conn) Len() int {
 }
 
 // ReadByte is used to read one byte with advancing the read pointer.
-func (c *Conn) ReadByte() (byte, error) {
-	b, err := c.Peek(1)
+func (c *Conn) ReadByte() (b byte, err error) {
+	// Use Read instead of Peek+Skip to avoid holding a ref to the underlying buffer.
+	_, err = c.br.Read(c.buf[:1])
 	if err == nil {
-		err = c.Skip(1)
+		b = c.buf[0]
 	}
-	if err != nil {
-		return ' ', err
-	}
-	return b[0], nil
+	return
 }
 
 // ReadBinary is used to read next n byte with copy, and the read pointer will be advanced.
