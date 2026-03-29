@@ -229,7 +229,12 @@ func (b *defaultBinder) BindJSON(req *protocol.Request, v interface{}) error {
 }
 
 func (b *defaultBinder) decodeJSON(r io.Reader, obj interface{}) error {
-	decoder := hJson.NewDecoder(r)
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+
+	decoder := hJson.NewDecoder(bytes.NewReader(body))
 	if b.config.EnableDecoderUseNumber {
 		decoder.UseNumber()
 	}
@@ -237,7 +242,156 @@ func (b *defaultBinder) decodeJSON(r io.Reader, obj interface{}) error {
 		decoder.DisallowUnknownFields()
 	}
 
-	return decoder.Decode(obj)
+	if err := decoder.Decode(obj); err != nil {
+		return err
+	}
+
+	normalizeExplicitEmptyArray(body, obj)
+	return nil
+}
+
+func normalizeExplicitEmptyArray(body []byte, obj interface{}) {
+	if len(body) == 0 || !bytes.Contains(body, []byte("[]")) {
+		return
+	}
+	v := reflect.ValueOf(obj)
+	if !v.IsValid() {
+		return
+	}
+	normalizeExplicitEmptyArrayForValue(bytes.TrimSpace(body), v)
+}
+
+func normalizeExplicitEmptyArrayForValue(raw stdJson.RawMessage, v reflect.Value) {
+	v = dereferenceValue(v)
+	if !v.IsValid() || v.Kind() != reflect.Struct {
+		return
+	}
+
+	var obj map[string]stdJson.RawMessage
+	if err := stdJson.Unmarshal(raw, &obj); err != nil {
+		return
+	}
+
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		fieldType := t.Field(i)
+		if fieldType.PkgPath != "" {
+			continue
+		}
+
+		fieldName, ok := jsonFieldName(fieldType)
+		if !ok {
+			continue
+		}
+		fieldRaw, exists := obj[fieldName]
+		if !exists {
+			continue
+		}
+
+		fieldValue := v.Field(i)
+		switch fieldValue.Kind() {
+		case reflect.Slice:
+			if isJSONEmptyArray(fieldRaw) && fieldValue.IsNil() {
+				fieldValue.Set(reflect.MakeSlice(fieldValue.Type(), 0, 0))
+			}
+			normalizeStructSliceElements(fieldRaw, fieldValue)
+		case reflect.Ptr:
+			elemType := fieldValue.Type().Elem()
+			switch elemType.Kind() {
+			case reflect.Slice:
+				if isJSONEmptyArray(fieldRaw) && fieldValue.IsNil() {
+					fieldValue.Set(reflect.New(elemType))
+					fieldValue.Elem().Set(reflect.MakeSlice(elemType, 0, 0))
+				}
+				if !fieldValue.IsNil() {
+					normalizeStructSliceElements(fieldRaw, fieldValue.Elem())
+				}
+			case reflect.Struct:
+				if !fieldValue.IsNil() && isJSONObject(fieldRaw) {
+					normalizeExplicitEmptyArrayForValue(fieldRaw, fieldValue.Elem())
+				}
+			}
+		case reflect.Struct:
+			if isJSONObject(fieldRaw) {
+				normalizeExplicitEmptyArrayForValue(fieldRaw, fieldValue)
+			}
+		}
+	}
+}
+
+func normalizeStructSliceElements(raw stdJson.RawMessage, sliceValue reflect.Value) {
+	if sliceValue.Kind() != reflect.Slice || sliceValue.Len() == 0 {
+		return
+	}
+	elemType := sliceValue.Type().Elem()
+	elemKind := elemType.Kind()
+	if elemKind == reflect.Ptr {
+		elemKind = elemType.Elem().Kind()
+	}
+	if elemKind != reflect.Struct {
+		return
+	}
+
+	var arr []stdJson.RawMessage
+	if err := stdJson.Unmarshal(raw, &arr); err != nil {
+		return
+	}
+
+	for i := 0; i < len(arr) && i < sliceValue.Len(); i++ {
+		elem := sliceValue.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			if elem.IsNil() {
+				continue
+			}
+			elem = elem.Elem()
+		}
+		if elem.Kind() == reflect.Struct && isJSONObject(arr[i]) {
+			normalizeExplicitEmptyArrayForValue(arr[i], elem)
+		}
+	}
+}
+
+func dereferenceValue(v reflect.Value) reflect.Value {
+	for v.IsValid() && v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
+		v = v.Elem()
+	}
+	return v
+}
+
+func jsonFieldName(field reflect.StructField) (string, bool) {
+	tag := field.Tag.Get("json")
+	if tag == "-" {
+		return "", false
+	}
+	name := tag
+	if idx := strings.IndexByte(name, ','); idx >= 0 {
+		name = name[:idx]
+	}
+	if name == "" {
+		name = field.Name
+	}
+	return name, true
+}
+
+func isJSONEmptyArray(raw stdJson.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) == 2 && trimmed[0] == '[' && trimmed[1] == ']'
+}
+
+func isJSONObject(raw stdJson.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) >= 2 && trimmed[0] == '{' && trimmed[len(trimmed)-1] == '}'
+}
+
+func (b *defaultBinder) unmarshalJSON(body []byte, v interface{}) error {
+	if err := hJson.Unmarshal(body, v); err != nil {
+		return err
+	}
+	normalizeExplicitEmptyArray(body, v)
+	return nil
 }
 
 func (b *defaultBinder) BindProtobuf(req *protocol.Request, v interface{}) error {
@@ -268,7 +422,7 @@ func (b *defaultBinder) preBindBody(req *protocol.Request, v interface{}) error 
 	ct := bytesconv.B2s(req.Header.ContentType())
 	switch strings.ToLower(utils.FilterContentType(ct)) {
 	case consts.MIMEApplicationJSON:
-		return hJson.Unmarshal(req.Body(), v)
+		return b.unmarshalJSON(req.Body(), v)
 	case consts.MIMEPROTOBUF:
 		msg, ok := v.(proto.Message)
 		if !ok {
@@ -284,7 +438,7 @@ func (b *defaultBinder) bindNonStruct(req *protocol.Request, v interface{}) (err
 	ct := bytesconv.B2s(req.Header.ContentType())
 	switch strings.ToLower(utils.FilterContentType(ct)) {
 	case consts.MIMEApplicationJSON:
-		err = hJson.Unmarshal(req.Body(), v)
+		err = b.unmarshalJSON(req.Body(), v)
 	case consts.MIMEPROTOBUF:
 		msg, ok := v.(proto.Message)
 		if !ok {
