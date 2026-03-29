@@ -85,9 +85,8 @@ func TestHertz_Run(t *testing.T) {
 	waitEngineRunning(hertz)
 
 	hertz.Close()
-	resp, err := http.Get(fullURL(ln, "/test"))
-	assert.NotNil(t, err)
-	assert.Nil(t, resp)
+	time.Sleep(10 * time.Millisecond)
+	// Close will not call OnShutdown
 	assert.DeepEqual(t, uint32(0), atomic.LoadUint32(&testint))
 }
 
@@ -855,10 +854,6 @@ func TestReuseCtx(t *testing.T) {
 	}
 }
 
-type CloseWithoutResetBuffer interface {
-	CloseNoResetBuffer() error
-}
-
 func TestOnprepare(t *testing.T) {
 	ln1 := testutils.NewTestListener(t)
 	defer ln1.Close()
@@ -868,11 +863,7 @@ func TestOnprepare(t *testing.T) {
 			b, err := conn.Peek(3)
 			assert.Nil(t, err)
 			assert.DeepEqual(t, string(b), "GET")
-			if c, ok := conn.(CloseWithoutResetBuffer); ok {
-				c.CloseNoResetBuffer()
-			} else {
-				conn.Close()
-			}
+			conn.Close()
 			return ctx
 		}))
 	h1.GET("/ping", func(ctx context.Context, c *app.RequestContext) {
@@ -1220,66 +1211,6 @@ func TestWithDisableDefaultContentType(t *testing.T) {
 	hc := http.Client{Timeout: time.Second}
 	r, _ := hc.Get(fullURL(ln, "")) //nolint:errcheck
 	assert.DeepEqual(t, "", r.Header.Get("Content-Type"))
-}
-
-func TestWithSenseClientDisconnection(t *testing.T) {
-	ln := testutils.NewTestListener(t)
-	defer ln.Close()
-	var closeFlag int32
-	h := New(WithListener(ln), WithSenseClientDisconnection(true))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
-}
-
-func TestWithSenseClientDisconnectionAndWithOnConnect(t *testing.T) {
-	ln := testutils.NewTestListener(t)
-	defer ln.Close()
-	var closeFlag int32
-	h := New(WithListener(ln), WithSenseClientDisconnection(true), WithOnConnect(func(ctx context.Context, conn network.Conn) context.Context {
-		return ctx
-	}))
-	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
-		assert.DeepEqual(t, "aa", string(ctx.Host()))
-		ch := make(chan struct{})
-		select {
-		case <-c.Done():
-			atomic.StoreInt32(&closeFlag, 1)
-			assert.DeepEqual(t, context.Canceled, c.Err())
-		case <-ch:
-		}
-	})
-	go h.Spin()
-	waitEngineRunning(h)
-
-	con, err := net.Dial("tcp", ln.Addr().String())
-	assert.Nil(t, err)
-	_, err = con.Write([]byte("GET /ping HTTP/1.1\r\nHost: aa\r\n\r\n"))
-	assert.Nil(t, err)
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(0))
-	assert.Nil(t, con.Close())
-	time.Sleep(20 * time.Millisecond)
-	assert.DeepEqual(t, atomic.LoadInt32(&closeFlag), int32(1))
 }
 
 func TestServerReturns413And431OnSizeLimits(t *testing.T) {

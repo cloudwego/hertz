@@ -171,6 +171,9 @@ func getFieldDecoder(pInfo parentInfos, field reflect.StructField, index int, by
 		}
 
 		pIdx := pInfo.Indexes
+		if !field.Anonymous {
+			pInfo.JSONName = newParentJSONName
+		}
 		for i := 0; i < el.NumField(); i++ {
 			if el.Field(i).PkgPath != "" && !el.Field(i).Anonymous {
 				// ignore unexported field
@@ -183,7 +186,6 @@ func getFieldDecoder(pInfo parentInfos, field reflect.StructField, index int, by
 			idxes = append(idxes, index)
 			pInfo.Indexes = idxes
 			pInfo.Types = append(pInfo.Types, el)
-			pInfo.JSONName = newParentJSONName
 			dec, err := getFieldDecoder(pInfo, el.Field(i), i, byTag, config)
 			if err != nil {
 				return nil, err

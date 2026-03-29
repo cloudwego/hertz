@@ -151,6 +151,9 @@ func (config *BindConfig) UseStdJSONUnmarshaler() {
 	config.UseThirdPartyJSONUnmarshaler(stdJson.Unmarshal)
 }
 
+// ValidateErrFactory defines the factory function for creating validation errors.
+//
+// Deprecated: Use WithCustomValidatorFunc with a custom validation function instead.
 type ValidateErrFactory func(fieldSelector, msg string) error
 
 // ValidateConfig configures validation behavior for the built-in StructValidator.

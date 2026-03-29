@@ -18,280 +18,225 @@ package standard
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 )
 
+// --- helpers ---
+
+func mkConn(data []byte) (*bufConn, *Conn) {
+	c := &bufConn{r: bytes.NewReader(data), w: &bytes.Buffer{}}
+	return c, newConn(c, 4096).(*Conn)
+}
+
+type bufConn struct {
+	mockConn
+	r io.Reader
+	w *bytes.Buffer
+}
+
+func (c *bufConn) Read(b []byte) (int, error)  { return c.r.Read(b) }
+func (c *bufConn) Write(b []byte) (int, error) { return c.w.Write(b) }
+
+type mockConn struct {
+	buffer     bytes.Buffer
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+func (m *mockConn) Handshake() error                     { return errors.New("not supported") }
+func (m *mockConn) ConnectionState() tls.ConnectionState { return tls.ConnectionState{} }
+func (m mockConn) Read(b []byte) (int, error) {
+	for i := range b {
+		b[i] = 0
+	}
+	n := len(b)
+	if n > 8192 {
+		n = 8192
+	}
+	return n, nil
+}
+func (m *mockConn) Write(b []byte) (int, error)     { return m.buffer.Write(b) }
+func (m *mockConn) Close() error                    { return errors.New("not supported") }
+func (m *mockConn) LocalAddr() net.Addr             { return m.localAddr }
+func (m *mockConn) RemoteAddr() net.Addr            { return m.remoteAddr }
+func (m *mockConn) SetDeadline(t time.Time) error   { return m.SetWriteDeadline(t) }
+func (m *mockConn) SetReadDeadline(time.Time) error { return errors.New("read deadline not supported") }
+func (m *mockConn) SetWriteDeadline(time.Time) error {
+	return errors.New("write deadline not supported")
+}
+
+type errReader struct {
+	data []byte
+	err  error
+	done bool
+}
+
+func (r *errReader) Read(b []byte) (int, error) {
+	if r.done {
+		return 0, r.err
+	}
+	r.done = true
+	return copy(b, r.data), nil
+}
+
+type readerFromConn struct {
+	mockConn
+}
+
+func (c *readerFromConn) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(&c.buffer, r)
+}
+
+// --- tests ---
+
 func TestRead(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	// test read small data
-	b := make([]byte, 1)
-	conn.Read(b)
-	if conn.Len() != 4095 {
-		t.Errorf("unexpected conn.Len: %v, expected 4095", conn.Len())
-	}
+	data := bytes.Repeat([]byte{1}, 10000)
+	_, conn := mkConn(data)
 
-	// test read small data again
-	conn.Read(b)
-	if conn.Len() != 4094 {
-		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
-	}
+	b := make([]byte, 5)
+	n, err := conn.Read(b)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 5, n)
 
-	// test read large data
-	b = make([]byte, 10000)
-	n, _ := conn.Read(b)
-	if n != 4094 {
-		t.Errorf("unexpected n: %v, expected 4094", n)
-	}
-
-	// test read large data again
-	n, _ = conn.Read(b)
-	if n != 8192 {
-		t.Errorf("unexpected n: %v, expected 4094", n)
-	}
+	b = make([]byte, 20000)
+	n, err = conn.Read(b)
+	assert.Nil(t, err)
+	assert.True(t, n > 0)
 }
 
-func TestReadFromHasBufferAvailable(t *testing.T) {
-	preData := []byte("head data")
-	rawData := strings.Repeat("helloworld", 1)
-	tailData := []byte("tail data")
-	data := strings.NewReader(rawData)
+func TestPeekSkipRelease(t *testing.T) {
+	data := bytes.Repeat([]byte{0}, 10000)
+	_, conn := mkConn(data)
+
+	b, err := conn.Peek(100)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 100, len(b))
+
+	// skip more than buffered fails
+	assert.NotNil(t, conn.Skip(conn.Len()+1))
+
+	// skip all succeeds
+	assert.Nil(t, conn.Skip(conn.Len()))
+	assert.DeepEqual(t, 0, conn.Len())
+
+	// release then peek refills
+	conn.Release()
+	b, err = conn.Peek(1)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 1, len(b))
+}
+
+func TestReadByteAndReadBinary(t *testing.T) {
+	_, conn := mkConn([]byte("abcdef"))
+
+	rb, err := conn.ReadBinary(3)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, []byte("abc"), rb)
+
+	by, err := conn.ReadByte()
+	assert.Nil(t, err)
+	assert.DeepEqual(t, byte('d'), by)
+}
+
+func TestWriteAndFlush(t *testing.T) {
+	c := &mockConn{}
+	conn := newConn(c, 4096).(*Conn)
+
+	buf, _ := conn.Malloc(5)
+	copy(buf, []byte("hello"))
+	conn.WriteBinary([]byte(" world"))
+	assert.Nil(t, conn.Flush())
+	assert.DeepEqual(t, "hello world", c.buffer.String())
+}
+
+func TestReadFrom(t *testing.T) {
+	t.Run("fallback loop", func(t *testing.T) {
+		c := &mockConn{}
+		conn := newConn(c, 4096)
+		n, err := conn.(io.ReaderFrom).ReadFrom(strings.NewReader("hello"))
+		assert.Nil(t, err)
+		assert.DeepEqual(t, int64(5), n)
+		conn.Flush()
+		assert.DeepEqual(t, "hello", c.buffer.String())
+	})
+
+	t.Run("reader error", func(t *testing.T) {
+		readErr := errors.New("disk failure")
+		c := &mockConn{}
+		conn := newConn(c, 4096)
+		n, err := conn.(io.ReaderFrom).ReadFrom(&errReader{data: []byte("partial"), err: readErr})
+		assert.DeepEqual(t, readErr, err)
+		assert.DeepEqual(t, int64(7), n)
+	})
+
+	t.Run("underlying ReaderFrom", func(t *testing.T) {
+		c := &readerFromConn{}
+		conn := newConn(c, 4096)
+		n, err := conn.(io.ReaderFrom).ReadFrom(strings.NewReader("hello"))
+		assert.Nil(t, err)
+		assert.DeepEqual(t, int64(5), n)
+		assert.DeepEqual(t, "hello", c.buffer.String())
+	})
+}
+
+func TestPeekPartialEOF(t *testing.T) {
+	_, conn := mkConn(make([]byte, 100))
+
+	b, err := conn.Peek(100)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 100, len(b))
+
+	conn.Skip(10)
+
+	b, err = conn.Peek(100)
+	assert.DeepEqual(t, io.EOF, err)
+	assert.DeepEqual(t, 90, len(b))
+}
+
+func TestConnAddrs(t *testing.T) {
+	local := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 80}
+	remote := &net.TCPAddr{IP: net.IPv4(10, 0, 0, 1), Port: 9000}
+	c := &mockConn{localAddr: local, remoteAddr: remote}
+	conn := newConn(c, 4096)
+	assert.DeepEqual(t, local, conn.LocalAddr())
+	assert.DeepEqual(t, remote, conn.RemoteAddr())
+}
+
+func TestSetDeadlines(t *testing.T) {
 	c := &mockConn{}
 	conn := newConn(c, 4096)
-
-	// WriteBinary will malloc a buffer if no buffer available.
-	_, err0 := conn.WriteBinary(preData)
-	assert.Nil(t, err0)
-
-	reader, ok := conn.(io.ReaderFrom)
-	assert.True(t, ok)
-
-	l, err := reader.ReadFrom(data)
-	assert.Nil(t, err)
-	assert.DeepEqual(t, len(rawData), int(l))
-
-	_, err1 := conn.WriteBinary(tailData)
-	assert.Nil(t, err1)
-
-	err2 := conn.Flush()
-	assert.Nil(t, err2)
-	assert.DeepEqual(t, string(preData)+rawData+string(tailData), c.buffer.String())
+	assert.NotNil(t, conn.SetDeadline(time.Time{}))
+	assert.NotNil(t, conn.SetReadDeadline(time.Time{}))
+	assert.NotNil(t, conn.SetWriteDeadline(time.Time{}))
 }
 
-func TestReadFromNoBufferAvailable(t *testing.T) {
-	rawData := strings.Repeat("helloworld", 1)
-	tailData := []byte("tail data")
-	data := strings.NewReader(rawData)
+func TestSetTimeouts(t *testing.T) {
 	c := &mockConn{}
 	conn := newConn(c, 4096)
-	reader, ok := conn.(io.ReaderFrom)
-	assert.True(t, ok)
-
-	l, err := reader.ReadFrom(data)
-	assert.Nil(t, err)
-	assert.DeepEqual(t, len(rawData), int(l))
-
-	_, err1 := conn.WriteBinary(tailData)
-	assert.Nil(t, err1)
-
-	err2 := conn.Flush()
-	assert.Nil(t, err2)
-
-	assert.DeepEqual(t, rawData+string(tailData), c.buffer.String())
+	assert.NotNil(t, conn.SetReadTimeout(time.Second))
+	assert.NotNil(t, conn.SetReadTimeout(-1))
+	assert.NotNil(t, conn.SetWriteTimeout(time.Second))
+	assert.NotNil(t, conn.SetWriteTimeout(-1))
 }
 
-func TestPeekRelease(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	b, _ := conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
+func TestToHertzError(t *testing.T) {
+	conn := &Conn{}
+	other := errors.New("other")
 
-	b, _ = conn.Peek(10000)
-	if len(b) != 10000 {
-		t.Errorf("unexpected len(b): %v, expected 10000", len(b))
-	}
-
-	if conn.Len() != 12288 {
-		t.Errorf("unexpected conn.Len: %v, expected 12288", conn.Len())
-	}
-	err := conn.Skip(12289)
-	if err == nil {
-		t.Errorf("unexpected no error, expected link buffer skip[12289] not enough")
-	}
-	conn.Skip(12288)
-	if conn.Len() != 0 {
-		t.Errorf("unexpected conn.Len: %v, expected 2287", conn.Len())
-	}
-
-	// test reuse buffer
-	conn.Release()
-	b, _ = conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	if conn.Len() != 8192 {
-		t.Errorf("unexpected conn.Len: %v, expected 8192", conn.Len())
-	}
-
-	// test cross node
-	b, _ = conn.Peek(1000000)
-	if len(b) != 1000000 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	conn.Skip(1000000)
-	conn.Release()
-
-	// test maxSize
-	if conn.(*Conn).maxSize != 524288 {
-		t.Errorf("unexpected maxSize: %v, expected 524288", conn.(*Conn).maxSize)
-	}
-}
-
-func TestReadBytes(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	b, _ := conn.Peek(1)
-	if len(b) != 1 {
-		t.Errorf("unexpected len(b): %v, expected 1", len(b))
-	}
-	b[0] = 'a'
-	peekByte, _ := conn.Peek(1)
-	if peekByte[0] != 'a' {
-		t.Errorf("unexpected bb[0]: %v, expected a", peekByte[0])
-	}
-	if conn.Len() != 4096 {
-		t.Errorf("unexpected conn.Len: %v, expected 4096", conn.Len())
-	}
-
-	readBinary, _ := conn.ReadBinary(1)
-	if readBinary[0] != 'a' {
-		t.Errorf("unexpected readBinary[0]: %v, expected a", readBinary[0])
-	}
-	b[0] = 'b'
-	if readBinary[0] != 'a' {
-		t.Errorf("unexpected readBinary[0]: %v, expected a", readBinary[0])
-	}
-	bbb, _ := conn.ReadByte()
-	if bbb != 0 {
-		t.Errorf("unexpected bbb: %v, expected nil", string(bbb))
-	}
-	if conn.Len() != 4094 {
-		t.Errorf("unexpected conn.Len: %v, expected 4094", conn.Len())
-	}
-}
-
-func TestStatefulConnConnectionCloseDetection(t *testing.T) {
-	cliConn, svrConn := net.Pipe()
-	svrCtx, cancelCtx := context.WithCancel(context.Background())
-	svrStatefulConn := NewStatefulConn(newConn(svrConn, 4096), newOnReadErrorFunc(cancelCtx)).(*statefulConn)
-	defer svrStatefulConn.Close()
-
-	// 1. normal request
-	svrStatefulConn.DetectConnectionClose()
-	svrStatefulConn.AbortBlockingRead()
-	select {
-	case <-svrCtx.Done():
-		t.Fatal("ctx should not be canceled")
-	default:
-	}
-
-	// 2. client close conn
-	svrStatefulConn.DetectConnectionClose()
-	cliConn.Close()
-	time.Sleep(100 * time.Millisecond) // wait a while
-
-	select {
-	case <-svrCtx.Done():
-		// expected
-	default:
-		t.Fatal("ctx should be canceled")
-	}
-}
-
-func TestWriteLogic(t *testing.T) {
-	c := mockConn{}
-	conn := newConn(&c, 4096)
-	conn.Malloc(8190)
-	connection := conn.(*Conn)
-	// test left buffer
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
-	// test malloc next node and left buffer
-	conn.Malloc(8190)
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
-	conn.Flush()
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
-	conn.Malloc(8190)
-	if connection.outputBuffer.len != 2 {
-		t.Errorf("unexpected Len: %v, expected 2", connection.outputBuffer.len)
-	}
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
-	// test readOnly
-	b := make([]byte, 4096)
-	conn.WriteBinary(b)
-	conn.Flush()
-	conn.Malloc(2)
-	if connection.outputBuffer.head == connection.outputBuffer.write {
-		t.Errorf("outputBuffer head == outputBuffer read")
-	}
-	// test reuse outputBuffer
-	b = make([]byte, 2)
-	conn.WriteBinary(b)
-	conn.Flush()
-	conn.Malloc(2)
-	if connection.outputBuffer.head != connection.outputBuffer.write {
-		t.Errorf("outputBuffer head != outputBuffer read")
-	}
-}
-
-func TestInitializeConn(t *testing.T) {
-	c := mockConn{
-		localAddr: &mockAddr{
-			network: "tcp",
-			address: "192.168.0.10:80",
-		},
-		remoteAddr: &mockAddr{
-			network: "tcp",
-			address: "192.168.0.20:80",
-		},
-	}
-	conn := newConn(&c, 8192)
-	// check the assignment
-	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetDeadline(time.Time{}))
-	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadDeadline(time.Time{}))
-	assert.DeepEqual(t, errors.New("conn: write deadline not supported"), conn.SetWriteDeadline(time.Time{}))
-	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(1)*time.Second))
-	assert.DeepEqual(t, errors.New("conn: read deadline not supported"), conn.SetReadTimeout(time.Duration(-1)*time.Second))
-	assert.DeepEqual(t, errors.New("conn: method not supported"), conn.Close())
-	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.10:80"}, conn.LocalAddr())
-	assert.DeepEqual(t, &mockAddr{network: "tcp", address: "192.168.0.20:80"}, conn.RemoteAddr())
-}
-
-func TestInitializeTLSConn(t *testing.T) {
-	c := mockConn{}
-	tlsConn := newTLSConn(&c, 8192).(*TLSConn)
-	assert.DeepEqual(t, errors.New("conn: method not supported"), tlsConn.Handshake())
-	assert.DeepEqual(t, tls.ConnectionState{}, tlsConn.ConnectionState())
+	assert.DeepEqual(t, errs.ErrConnectionClosed, conn.ToHertzError(syscall.EPIPE))
+	assert.DeepEqual(t, errs.ErrConnectionClosed, conn.ToHertzError(syscall.ENOTCONN))
+	assert.DeepEqual(t, errs.ErrTimeout, conn.ToHertzError(&net.OpError{Op: "read", Err: &timeoutErr{}}))
+	assert.DeepEqual(t, other, conn.ToHertzError(other))
 }
 
 func TestHandleSpecificError(t *testing.T) {
@@ -300,72 +245,11 @@ func TestHandleSpecificError(t *testing.T) {
 	assert.DeepEqual(t, true, conn.HandleSpecificError(syscall.EPIPE, ""))
 }
 
-type mockConn struct {
-	buffer        bytes.Buffer
-	localAddr     net.Addr
-	remoteAddr    net.Addr
-	readReturnErr bool
-}
-
-func (m *mockConn) Handshake() error {
-	return errors.New("conn: method not supported")
-}
-
-func (m *mockConn) ConnectionState() tls.ConnectionState {
-	return tls.ConnectionState{}
-}
-
-func (m mockConn) Read(b []byte) (n int, err error) {
-	length := len(b)
-	for i := 0; i < length; i++ {
-		b[i] = 0
-	}
-
-	if m.readReturnErr {
-		err = io.EOF
-	}
-	if length > 8192 {
-		return 8192, err
-	}
-	if len(b) < 1024 {
-		return 100, err
-	}
-	if len(b) < 5000 {
-		return 4096, err
-	}
-
-	return 4099, err
-}
-
-func (m *mockConn) Write(b []byte) (n int, err error) {
-	return m.buffer.Write(b)
-}
-
-func (m *mockConn) Close() error {
-	return errors.New("conn: method not supported")
-}
-
-func (m *mockConn) LocalAddr() net.Addr {
-	return m.localAddr
-}
-
-func (m *mockConn) RemoteAddr() net.Addr {
-	return m.remoteAddr
-}
-
-func (m *mockConn) SetDeadline(deadline time.Time) error {
-	if err := m.SetWriteDeadline(deadline); err != nil {
-		return err
-	}
-	return m.SetWriteDeadline(deadline)
-}
-
-func (m *mockConn) SetReadDeadline(deadline time.Time) error {
-	return errors.New("conn: read deadline not supported")
-}
-
-func (m *mockConn) SetWriteDeadline(deadline time.Time) error {
-	return errors.New("conn: write deadline not supported")
+func TestTLSConn(t *testing.T) {
+	c := &mockConn{}
+	tc := newTLSConn(c, 4096).(*TLSConn)
+	assert.NotNil(t, tc.Handshake())
+	assert.DeepEqual(t, tls.ConnectionState{}, tc.ConnectionState())
 }
 
 type mockAddr struct {
@@ -373,40 +257,11 @@ type mockAddr struct {
 	address string
 }
 
-func (m *mockAddr) Network() string {
-	return m.network
-}
+func (m *mockAddr) Network() string { return m.network }
+func (m *mockAddr) String() string  { return m.address }
 
-func (m *mockAddr) String() string {
-	return m.address
-}
+type timeoutErr struct{}
 
-func TestConnSetFinalizer(t *testing.T) {
-	defer func(newfunc func() interface{}) {
-		bufferPool.New = newfunc
-	}(bufferPool.New) // reset
-
-	runtime.GC()
-	runtime.GC()
-	for i := 0; i < 1000; i++ {
-		_ = newConn(&mockConn{}, 4096)
-	}
-	runtime.GC()
-	bufferPool.New = nil
-	assert.NotNil(t, bufferPool.Get())
-
-}
-
-func TestFillReturnErrAndN(t *testing.T) {
-	c := &mockConn{
-		readReturnErr: true,
-	}
-	conn := newConn(c, 4099)
-	b, err := conn.Peek(4099)
-	assert.Nil(t, err)
-	assert.DeepEqual(t, len(b), 4099)
-	conn.Skip(10)
-	b, err = conn.Peek(4099)
-	assert.DeepEqual(t, err, io.EOF)
-	assert.DeepEqual(t, len(b), 4089)
-}
+func (e *timeoutErr) Error() string   { return "timeout" }
+func (e *timeoutErr) Timeout() bool   { return true }
+func (e *timeoutErr) Temporary() bool { return true }

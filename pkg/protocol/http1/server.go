@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
-	internalNetwork "github.com/cloudwego/hertz/internal/network"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server/render"
@@ -135,10 +134,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		cc = c
 	)
 
-	// for sensing connection close
-	// only if `conn` is internalNetwork.StatefulConn
-	statefulConn, configuredSenseConnClose := conn.(internalNetwork.StatefulConn)
-
 	if s.EnableTrace {
 		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
 	}
@@ -186,7 +181,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	for {
 		connRequestNum++
-		senseConnClose := configuredSenseConnClose // use to check if senseConnClose logic should be triggered for each request
 
 		if zr == nil {
 			zr = ctx.GetReader()
@@ -324,12 +318,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			})
 		}
 
-		// If request sets BodyStream, we don't start connection close detection logic to prevent concurrent Read.
-		senseConnClose = senseConnClose && !ctx.Request.IsBodyStream()
-		if senseConnClose {
-			statefulConn.DetectConnectionClose()
-		}
-
 		if ctx.Request.IsURIParsed() {
 			// ctx.Request.URI() must not be called before ServeHTTP
 			// The only case is concurrency issue when parsing a new request,
@@ -392,13 +380,6 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			} else {
 				ctx.GetTraceInfo().Stats().SetSendSize(0)
 			}
-		}
-
-		// Abort the blocking read in DetectConnectionClose
-		if senseConnClose {
-			// this should be sync to wait the blocking read return.
-			// we should make sure the read is not affected by other SetReadDeadline.
-			statefulConn.AbortBlockingRead()
 		}
 
 		// Release the zeroCopyReader before flush to prevent data race

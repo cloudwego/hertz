@@ -1,23 +1,34 @@
-# Options for analysis running.
-run:
-  timeout: 3m
-
-linters: # https://golangci-lint.run/usage/linters/
-  disable-all: true
+version: "2"
+linters:
+  default: none
   enable:
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - unused
     - unconvert
+    - unused
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -SA5008
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
     - goimports
-
-linters-settings:
-  staticcheck:
-    checks:
-      - all
-      - "-SA5008" # unknown JSON option "required"
-
-issues:
-  exclude-use-default: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
