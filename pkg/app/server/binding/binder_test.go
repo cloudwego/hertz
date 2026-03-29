@@ -41,6 +41,7 @@
 package binding
 
 import (
+	"bytes"
 	"encoding"
 	"encoding/json"
 	"errors"
@@ -52,6 +53,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server/binding/testdata"
+	hJson "github.com/cloudwego/hertz/pkg/common/json"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -665,6 +667,60 @@ func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	for idx, val := range J4s {
 		assert.DeepEqual(t, val, result.J4[idx])
 	}
+}
+
+func TestBind_PreserveExplicitEmptyArrayWhenThirdPartyUnmarshalSetsNil(t *testing.T) {
+	type Child struct {
+		List []int `json:"list,omitempty"`
+	}
+	type Req struct {
+		Child Child `json:"child"`
+	}
+
+	originUnmarshal := hJson.Unmarshal
+	defer func() {
+		hJson.Unmarshal = originUnmarshal
+	}()
+
+	bindConfig := &BindConfig{}
+	bindConfig.UseThirdPartyJSONUnmarshaler(func(data []byte, v interface{}) error {
+		if err := json.Unmarshal(data, v); err != nil {
+			return err
+		}
+
+		// Simulate a third-party unmarshal behavior that collapses explicit [] into nil.
+		if bytes.Contains(data, []byte(`"child":{"list":[]}`)) {
+			rv := reflect.ValueOf(v)
+			if rv.Kind() == reflect.Ptr {
+				rv = rv.Elem()
+			}
+			if rv.Kind() == reflect.Struct {
+				childField := rv.FieldByName("Child")
+				if childField.IsValid() && childField.Kind() == reflect.Struct {
+					listField := childField.FieldByName("List")
+					if listField.IsValid() && listField.Kind() == reflect.Slice && listField.CanSet() {
+						listField.Set(reflect.Zero(listField.Type()))
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	binder := NewDefaultBinder(bindConfig)
+	req := newMockRequest().
+		SetJSONContentType().
+		SetBody([]byte(`{"child":{"list":[]}}`))
+
+	var out Req
+	err := binder.Bind(req.Req, &out, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Child.List == nil {
+		t.Fatalf("expected explicit empty array to be preserved as non-nil slice")
+	}
+	assert.DeepEqual(t, 0, len(out.Child.List))
 }
 
 func TestBind_FileBind(t *testing.T) {
