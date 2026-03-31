@@ -151,6 +151,14 @@ const (
 
 var errMalformedHTTPRequest = errors.New("malformed HTTP request")
 
+// errBothTEAndCL is returned when a request contains both Transfer-Encoding and Content-Length headers.
+// This is a potential HTTP request smuggling attack vector. See RFC 7230 Section 3.3.3.
+var errBothTEAndCL = errors.New("both Transfer-Encoding and Content-Length headers are present in request: potential HTTP request smuggling")
+
+// errDuplicateCL is returned when a request contains multiple Content-Length headers with different values.
+// See RFC 7230 Section 3.3.2.
+var errDuplicateCL = errors.New("duplicate Content-Length header with conflicting values")
+
 // request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	b, leftb, err := utils.NextLine(buf)
@@ -261,9 +269,17 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 							}
 							h.InitContentLengthWithValue(-2)
 						} else {
+							// Reject duplicate Content-Length with conflicting values.
+							// See RFC 7230 Section 3.3.2.
+							if h.ContentLength() >= 0 && h.ContentLength() != contentLength {
+								return 0, errDuplicateCL
+							}
 							h.InitContentLengthWithValue(contentLength)
 							h.SetContentLengthBytes(s.Value)
 						}
+					} else {
+						// Transfer-Encoding: chunked already seen; reject per RFC 7230 Section 3.3.3.
+						return 0, errBothTEAndCL
 					}
 					continue
 				}
@@ -279,6 +295,11 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 			case 't':
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTransferEncoding) {
 					if !bytes.Equal(s.Value, bytestr.StrIdentity) {
+						// Reject if Content-Length was already seen.
+						// See RFC 7230 Section 3.3.3: potential HTTP request smuggling.
+						if h.ContentLength() >= 0 {
+							return 0, errBothTEAndCL
+						}
 						h.InitContentLengthWithValue(-1)
 						h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
 					}

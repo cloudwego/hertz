@@ -82,16 +82,61 @@ func TestRequestHeader_Read(t *testing.T) {
 }
 
 func TestRequestHeader_Peek(t *testing.T) {
+	// Requests with both Content-Length and Transfer-Encoding must be rejected
+	// to prevent HTTP request smuggling. See RFC 7230 Section 3.3.3.
 	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nTransfer-Encoding: foo\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
 	rh := protocol.RequestHeader{}
-	ReadHeader(&rh, zr)
-	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
-	assert.DeepEqual(t, []byte("127.0.0.1"), rh.Peek("Host"))
-	assert.DeepEqual(t, []byte("foo"), rh.Peek("User-Agent"))
-	assert.DeepEqual(t, []byte("Keep-Alive"), rh.Peek("Connection"))
-	assert.DeepEqual(t, []byte(""), rh.Peek("Content-Length"))
-	assert.DeepEqual(t, []byte("foo/bar"), rh.Peek("Content-Type"))
+	err := ReadHeader(&rh, zr)
+	assert.NotNil(t, err)
+	assert.True(t, strings.Contains(err.Error(), "Transfer-Encoding") || strings.Contains(err.Error(), "Content-Length"))
+}
+
+func TestRequestHeader_SmugglingRejected(t *testing.T) {
+	// CL then TE: chunked — must be rejected
+	s := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr := mock.NewZeroCopyReader(s)
+	rh := protocol.RequestHeader{}
+	err := ReadHeader(&rh, zr)
+	assert.NotNil(t, err)
+
+	// TE: chunked then CL — must also be rejected
+	s2 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nContent-Length: 10\r\n\r\n"
+	zr2 := mock.NewZeroCopyReader(s2)
+	rh2 := protocol.RequestHeader{}
+	err2 := ReadHeader(&rh2, zr2)
+	assert.NotNil(t, err2)
+
+	// Duplicate CL with different values — must be rejected
+	s3 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nContent-Length: 20\r\n\r\n"
+	zr3 := mock.NewZeroCopyReader(s3)
+	rh3 := protocol.RequestHeader{}
+	err3 := ReadHeader(&rh3, zr3)
+	assert.NotNil(t, err3)
+
+	// Duplicate CL with same value — must be accepted
+	s4 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nContent-Length: 10\r\n\r\n"
+	zr4 := mock.NewZeroCopyReader(s4)
+	rh4 := protocol.RequestHeader{}
+	err4 := ReadHeader(&rh4, zr4)
+	assert.Nil(t, err4)
+	assert.DeepEqual(t, 10, rh4.ContentLength())
+
+	// Only TE: chunked — must be accepted
+	s5 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr5 := mock.NewZeroCopyReader(s5)
+	rh5 := protocol.RequestHeader{}
+	err5 := ReadHeader(&rh5, zr5)
+	assert.Nil(t, err5)
+	assert.DeepEqual(t, -1, rh5.ContentLength())
+
+	// Only CL — must be accepted
+	s6 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\n\r\n"
+	zr6 := mock.NewZeroCopyReader(s6)
+	rh6 := protocol.RequestHeader{}
+	err6 := ReadHeader(&rh6, zr6)
+	assert.Nil(t, err6)
+	assert.DeepEqual(t, 5, rh6.ContentLength())
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
