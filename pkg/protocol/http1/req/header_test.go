@@ -83,7 +83,7 @@ func TestRequestHeader_Read(t *testing.T) {
 
 func TestRequestHeader_Peek(t *testing.T) {
 	// Requests with both Content-Length and Transfer-Encoding must be rejected
-	// to prevent HTTP request smuggling. See RFC 7230 Section 3.3.3.
+	// to prevent HTTP request smuggling. See RFC 9112 Section 6.3.
 	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nTransfer-Encoding: foo\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
 	zr := mock.NewZeroCopyReader(s)
 	rh := protocol.RequestHeader{}
@@ -204,6 +204,14 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	rh15 := protocol.RequestHeader{}
 	err15 := ReadHeader(&rh15, zr15)
 	assert.NotNil(t, err15)
+
+	// TE with trailing spaces and mixed case — chunked is final, must be accepted
+	s16 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip, Chunked \t\r\n\r\n"
+	zr16 := mock.NewZeroCopyReader(s16)
+	rh16 := protocol.RequestHeader{}
+	err16 := ReadHeader(&rh16, zr16)
+	assert.Nil(t, err16)
+	assert.DeepEqual(t, -1, rh16.ContentLength())
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
