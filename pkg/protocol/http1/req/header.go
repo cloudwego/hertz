@@ -229,7 +229,11 @@ func validHeaderFieldValue(val []byte) bool {
 func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	h.InitContentLengthWithValue(-2)
 
-	var teSeen bool // tracks whether any Transfer-Encoding header was seen
+	// teSeen tracks whether any Transfer-Encoding header has been seen.
+	// Each TE line is validated individually rather than merged — multiple TE lines
+	// (e.g. "TE: gzip" then "TE: chunked") are strictly rejected. This is intentional:
+	// different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+	var teSeen bool
 
 	var s ext.HeaderScanner
 	s.B = buf
