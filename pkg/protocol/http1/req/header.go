@@ -153,7 +153,7 @@ var errMalformedHTTPRequest = errors.New("malformed HTTP request")
 
 // errBothTEAndCL is returned when a request contains both Transfer-Encoding and Content-Length headers.
 // This is a potential HTTP request smuggling attack vector.
-// See RFC 9112 Section 6.3 Rule 3 and Section 11.2.
+// See RFC 9112 Section 6.3 Rule 3.
 var errBothTEAndCL = errors.New("both Transfer-Encoding and Content-Length headers are present in request: potential HTTP request smuggling")
 
 // errDuplicateCL is returned when a request contains multiple Content-Length headers with different values.
