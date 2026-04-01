@@ -267,7 +267,7 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentLength) {
-					if h.ContentLength() != -1 && !teSeen {
+					if !teSeen {
 						var nerr error
 						var contentLength int
 						if contentLength, nerr = protocol.ParseContentLength(s.Value); nerr != nil {
