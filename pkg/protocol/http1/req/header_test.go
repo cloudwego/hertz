@@ -90,11 +90,11 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	assert.NotNil(t, err0)
 
 	// CL then TE: chunked — must be rejected
-	s := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nTransfer-Encoding: chunked\r\n\r\n"
-	zr := mock.NewZeroCopyReader(s)
-	rh := protocol.RequestHeader{}
-	err := ReadHeader(&rh, zr)
-	assert.NotNil(t, err)
+	s1 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr1 := mock.NewZeroCopyReader(s1)
+	rh1 := protocol.RequestHeader{}
+	err1 := ReadHeader(&rh1, zr1)
+	assert.NotNil(t, err1)
 
 	// TE: chunked then CL — must also be rejected
 	s2 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nContent-Length: 10\r\n\r\n"
