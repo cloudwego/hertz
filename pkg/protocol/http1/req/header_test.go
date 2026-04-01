@@ -81,6 +81,18 @@ func TestRequestHeader_Read(t *testing.T) {
 	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
 }
 
+func TestRequestHeader_Peek(t *testing.T) {
+	s := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nContent-Type: foo/bar\r\n\r\nabcde"
+	zr := mock.NewZeroCopyReader(s)
+	rh := protocol.RequestHeader{}
+	ReadHeader(&rh, zr)
+	assert.DeepEqual(t, []byte("100-continue"), rh.Peek("Expect"))
+	assert.DeepEqual(t, []byte("127.0.0.1"), rh.Peek("Host"))
+	assert.DeepEqual(t, []byte("foo"), rh.Peek("User-Agent"))
+	assert.DeepEqual(t, []byte("Keep-Alive"), rh.Peek("Connection"))
+	assert.DeepEqual(t, []byte("foo/bar"), rh.Peek("Content-Type"))
+}
+
 func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	// CL + non-standard TE — must be rejected
 	s0 := "PUT /foo/bar HTTP/1.1\r\nExpect: 100-continue\r\nUser-Agent: foo\r\nHost: 127.0.0.1\r\nConnection: Keep-Alive\r\nContent-Length: 5\r\nTransfer-Encoding: foo\r\nContent-Type: foo/bar\r\n\r\nabcdef4343"
