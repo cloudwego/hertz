@@ -194,6 +194,16 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	rh14 := protocol.RequestHeader{}
 	err14 := ReadHeader(&rh14, zr14)
 	assert.NotNil(t, err14)
+
+	// Multiple TE header lines (e.g. "TE: gzip" then "TE: chunked") — strictly rejected.
+	// Although RFC 9112 treats multiple header lines as a comma-separated list,
+	// we intentionally reject this to prevent smuggling via inconsistent header merging
+	// across proxies and backends.
+	s15 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr15 := mock.NewZeroCopyReader(s15)
+	rh15 := protocol.RequestHeader{}
+	err15 := ReadHeader(&rh15, zr15)
+	assert.NotNil(t, err15)
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
