@@ -173,6 +173,27 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	rh11 := protocol.RequestHeader{}
 	err11 := ReadHeader(&rh11, zr11)
 	assert.NotNil(t, err11)
+
+	// Invalid Content-Length value — must not panic, error is deferred
+	s12 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: abc\r\n\r\n"
+	zr12 := mock.NewZeroCopyReader(s12)
+	rh12 := protocol.RequestHeader{}
+	err12 := ReadHeader(&rh12, zr12)
+	assert.NotNil(t, err12)
+
+	// Invalid header key with space — must be rejected
+	s13 := "POST / HTTP/1.1\r\nHost: example.com\r\nBad Key: value\r\n\r\n"
+	zr13 := mock.NewZeroCopyReader(s13)
+	rh13 := protocol.RequestHeader{}
+	err13 := ReadHeader(&rh13, zr13)
+	assert.NotNil(t, err13)
+
+	// Invalid header value with invalid char — must be rejected
+	s14 := "POST / HTTP/1.1\r\nHost: example.com\r\nX-Test: val\x00ue\r\n\r\n"
+	zr14 := mock.NewZeroCopyReader(s14)
+	rh14 := protocol.RequestHeader{}
+	err14 := ReadHeader(&rh14, zr14)
+	assert.NotNil(t, err14)
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
