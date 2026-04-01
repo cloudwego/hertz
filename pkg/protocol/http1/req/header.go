@@ -152,12 +152,17 @@ const (
 var errMalformedHTTPRequest = errors.New("malformed HTTP request")
 
 // errBothTEAndCL is returned when a request contains both Transfer-Encoding and Content-Length headers.
-// This is a potential HTTP request smuggling attack vector. See RFC 7230 Section 3.3.3.
+// This is a potential HTTP request smuggling attack vector.
+// See RFC 9112 Section 6.3 Rule 3 and Section 11.2.
 var errBothTEAndCL = errors.New("both Transfer-Encoding and Content-Length headers are present in request: potential HTTP request smuggling")
 
 // errDuplicateCL is returned when a request contains multiple Content-Length headers with different values.
-// See RFC 7230 Section 3.3.2.
+// RFC 9112 Section 6.3 Rule 5 treats this as an unrecoverable error (normalization is no longer permitted).
 var errDuplicateCL = errors.New("duplicate Content-Length header with conflicting values")
+
+// errNonChunkedTE is returned when Transfer-Encoding is present but "chunked" is not the final
+// transfer coding. Per RFC 9112 Section 6.3 Rule 4, the server MUST respond with 400 Bad Request.
+var errNonChunkedTE = errors.New("Transfer-Encoding present but chunked is not the final transfer coding")
 
 // request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
@@ -224,6 +229,8 @@ func validHeaderFieldValue(val []byte) bool {
 func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	h.InitContentLengthWithValue(-2)
 
+	var teSeen bool // tracks whether any Transfer-Encoding header was seen
+
 	var s ext.HeaderScanner
 	s.B = buf
 	s.DisableNormalizing = h.IsDisableNormalizing()
@@ -260,7 +267,7 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentLength) {
-					if h.ContentLength() != -1 {
+					if h.ContentLength() != -1 && !teSeen {
 						var nerr error
 						var contentLength int
 						if contentLength, nerr = protocol.ParseContentLength(s.Value); nerr != nil {
@@ -270,7 +277,7 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 							h.InitContentLengthWithValue(-2)
 						} else {
 							// Reject duplicate Content-Length with conflicting values.
-							// See RFC 7230 Section 3.3.2.
+							// RFC 9112 Section 6.3 Rule 5 treats mismatched values as an unrecoverable error.
 							if h.ContentLength() >= 0 && h.ContentLength() != contentLength {
 								return 0, errDuplicateCL
 							}
@@ -278,7 +285,7 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 							h.SetContentLengthBytes(s.Value)
 						}
 					} else {
-						// Transfer-Encoding: chunked already seen; reject per RFC 7230 Section 3.3.3.
+						// Transfer-Encoding already seen; reject per RFC 9112 Section 6.3 Rule 3.
 						return 0, errBothTEAndCL
 					}
 					continue
@@ -294,11 +301,18 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 				}
 			case 't':
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTransferEncoding) {
-					if !bytes.Equal(s.Value, bytestr.StrIdentity) {
-						// Reject if Content-Length was already seen.
-						// See RFC 7230 Section 3.3.3: potential HTTP request smuggling.
-						if h.ContentLength() >= 0 {
-							return 0, errBothTEAndCL
+					// Any TE + CL combination is a potential HTTP request smuggling vector.
+					// Reject per RFC 9112 Section 6.3 Rule 3.
+					if h.ContentLength() >= 0 {
+						return 0, errBothTEAndCL
+					}
+					teSeen = true
+					// identity means no encoding; ignore it for backward compatibility
+					// (removed in RFC 9112 Section 11.2, but still sent by some clients).
+					if !bytes.EqualFold(s.Value, bytestr.StrIdentity) {
+						// Per RFC 9112 Section 6.3 Rule 4, chunked MUST be the final transfer coding.
+						if !isFinalChunked(s.Value) {
+							return 0, errNonChunkedTE
 						}
 						h.InitContentLengthWithValue(-1)
 						h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
@@ -335,4 +349,15 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 		h.SetConnectionClose(!ext.HasHeaderValue(v, bytestr.StrKeepAlive))
 	}
 	return s.HLen, nil
+}
+
+// isFinalChunked reports whether "chunked" is the last transfer-coding token in a
+// (possibly comma-separated) Transfer-Encoding field value.
+// Per RFC 9112 Section 6.1 and Section 6.3 Rule 4, chunked MUST be the final coding.
+func isFinalChunked(te []byte) bool {
+	te = bytes.TrimRight(te, " \t")
+	if i := bytes.LastIndexByte(te, ','); i >= 0 {
+		te = bytes.TrimLeft(te[i+1:], " \t")
+	}
+	return bytes.EqualFold(te, bytestr.StrChunked)
 }

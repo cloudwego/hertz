@@ -137,6 +137,42 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	err6 := ReadHeader(&rh6, zr6)
 	assert.Nil(t, err6)
 	assert.DeepEqual(t, 5, rh6.ContentLength())
+
+	// CL then TE: identity — must be rejected (RFC 9112 Section 6.3 Rule 3)
+	s7 := "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nTransfer-Encoding: identity\r\n\r\n"
+	zr7 := mock.NewZeroCopyReader(s7)
+	rh7 := protocol.RequestHeader{}
+	err7 := ReadHeader(&rh7, zr7)
+	assert.NotNil(t, err7)
+
+	// TE: identity then CL — must also be rejected
+	s8 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: identity\r\nContent-Length: 10\r\n\r\n"
+	zr8 := mock.NewZeroCopyReader(s8)
+	rh8 := protocol.RequestHeader{}
+	err8 := ReadHeader(&rh8, zr8)
+	assert.NotNil(t, err8)
+
+	// TE: identity alone — accepted for backward compatibility (identity = no encoding)
+	s9 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: identity\r\n\r\n"
+	zr9 := mock.NewZeroCopyReader(s9)
+	rh9 := protocol.RequestHeader{}
+	err9 := ReadHeader(&rh9, zr9)
+	assert.Nil(t, err9)
+
+	// TE: gzip, chunked (chunked is final) — must be accepted
+	s10 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip, chunked\r\n\r\n"
+	zr10 := mock.NewZeroCopyReader(s10)
+	rh10 := protocol.RequestHeader{}
+	err10 := ReadHeader(&rh10, zr10)
+	assert.Nil(t, err10)
+	assert.DeepEqual(t, -1, rh10.ContentLength())
+
+	// TE: chunked, gzip (chunked is not final) — must be rejected (RFC 9112 Section 6.3 Rule 4)
+	s11 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked, gzip\r\n\r\n"
+	zr11 := mock.NewZeroCopyReader(s11)
+	rh11 := protocol.RequestHeader{}
+	err11 := ReadHeader(&rh11, zr11)
+	assert.NotNil(t, err11)
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
