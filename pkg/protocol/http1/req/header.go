@@ -362,4 +362,3 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	}
 	return s.HLen, nil
 }
-
