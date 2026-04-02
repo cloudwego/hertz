@@ -151,6 +151,23 @@ const (
 
 var errMalformedHTTPRequest = errors.New("malformed HTTP request")
 
+// errBothTEAndCL is returned when a request contains both Transfer-Encoding and Content-Length headers.
+// This is a potential HTTP request smuggling attack vector.
+// See RFC 9112 Section 6.3 Rule 3.
+var errBothTEAndCL = errors.New("both Transfer-Encoding and Content-Length headers are present in request: potential HTTP request smuggling")
+
+// errDuplicateCL is returned when a request contains multiple Content-Length headers with different values.
+// RFC 9112 Section 6.3 Rule 5 treats this as an unrecoverable error (normalization is no longer permitted).
+var errDuplicateCL = errors.New("duplicate Content-Length header with conflicting values")
+
+// errUnsupportedTE is returned when the Transfer-Encoding value is anything other than "chunked".
+// Like Go net/http and nginx, only "chunked" is accepted to minimize the smuggling attack surface.
+var errUnsupportedTE = errors.New("unsupported Transfer-Encoding: only \"chunked\" is accepted")
+
+// errMultipleTE is returned when more than one Transfer-Encoding header line is present.
+// Different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+var errMultipleTE = errors.New("multiple Transfer-Encoding headers are not allowed")
+
 // request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	b, leftb, err := utils.NextLine(buf)
@@ -216,6 +233,12 @@ func validHeaderFieldValue(val []byte) bool {
 func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	h.InitContentLengthWithValue(-2)
 
+	// teSeen tracks whether any Transfer-Encoding header has been seen.
+	// Each TE line is validated individually rather than merged — multiple TE lines
+	// (e.g. "TE: gzip" then "TE: chunked") are strictly rejected. This is intentional:
+	// different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+	var teSeen bool
+
 	var s ext.HeaderScanner
 	s.B = buf
 	s.DisableNormalizing = h.IsDisableNormalizing()
@@ -252,7 +275,7 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrContentLength) {
-					if h.ContentLength() != -1 {
+					if !teSeen {
 						var nerr error
 						var contentLength int
 						if contentLength, nerr = protocol.ParseContentLength(s.Value); nerr != nil {
@@ -261,9 +284,17 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 							}
 							h.InitContentLengthWithValue(-2)
 						} else {
+							// Reject duplicate Content-Length with conflicting values.
+							// RFC 9112 Section 6.3 Rule 5 treats mismatched values as an unrecoverable error.
+							if h.ContentLength() >= 0 && h.ContentLength() != contentLength {
+								return 0, errDuplicateCL
+							}
 							h.InitContentLengthWithValue(contentLength)
 							h.SetContentLengthBytes(s.Value)
 						}
+					} else {
+						// Transfer-Encoding already seen; reject per RFC 9112 Section 6.3 Rule 3.
+						return 0, errBothTEAndCL
 					}
 					continue
 				}
@@ -278,10 +309,26 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 				}
 			case 't':
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTransferEncoding) {
-					if !bytes.Equal(s.Value, bytestr.StrIdentity) {
-						h.InitContentLengthWithValue(-1)
-						h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
+					// Any TE + CL combination is a potential HTTP request smuggling vector.
+					// Reject per RFC 9112 Section 6.3 Rule 3.
+					if h.ContentLength() >= 0 {
+						return 0, errBothTEAndCL
 					}
+					// Multiple Transfer-Encoding header lines are strictly rejected.
+					// Different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+					if teSeen {
+						return 0, errMultipleTE
+					}
+					teSeen = true
+					// Like Go net/http and nginx, only accept "chunked" as the sole
+					// Transfer-Encoding value. Multi-coding values (e.g. "gzip, chunked")
+					// are not used in practice but can cause parsing inconsistencies
+					// across proxies, creating a smuggling vector.
+					if !bytes.EqualFold(s.Value, bytestr.StrChunked) {
+						return 0, errUnsupportedTE
+					}
+					h.InitContentLengthWithValue(-1)
+					h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
