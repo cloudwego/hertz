@@ -160,9 +160,13 @@ var errBothTEAndCL = errors.New("both Transfer-Encoding and Content-Length heade
 // RFC 9112 Section 6.3 Rule 5 treats this as an unrecoverable error (normalization is no longer permitted).
 var errDuplicateCL = errors.New("duplicate Content-Length header with conflicting values")
 
-// errNonChunkedTE is returned when Transfer-Encoding is present but "chunked" is not the final
-// transfer coding. Per RFC 9112 Section 6.3 Rule 4, the server MUST respond with 400 Bad Request.
-var errNonChunkedTE = errors.New("Transfer-Encoding present but chunked is not the final transfer coding")
+// errUnsupportedTE is returned when the Transfer-Encoding value is anything other than "chunked".
+// Like Go net/http and nginx, only "chunked" is accepted to minimize the smuggling attack surface.
+var errUnsupportedTE = errors.New("unsupported Transfer-Encoding: only \"chunked\" is accepted")
+
+// errMultipleTE is returned when more than one Transfer-Encoding header line is present.
+// Different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+var errMultipleTE = errors.New("multiple Transfer-Encoding headers are not allowed")
 
 // request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
@@ -310,17 +314,21 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 					if h.ContentLength() >= 0 {
 						return 0, errBothTEAndCL
 					}
-					teSeen = true
-					// identity means no encoding; ignore it for backward compatibility
-					// (removed in RFC 9112 Section 11.2, but still sent by some clients).
-					if !bytes.EqualFold(s.Value, bytestr.StrIdentity) {
-						// Per RFC 9112 Section 6.3 Rule 4, chunked MUST be the final transfer coding.
-						if !isFinalChunked(s.Value) {
-							return 0, errNonChunkedTE
-						}
-						h.InitContentLengthWithValue(-1)
-						h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
+					// Multiple Transfer-Encoding header lines are strictly rejected.
+					// Different proxies merge multi-line headers inconsistently, making it a smuggling vector.
+					if teSeen {
+						return 0, errMultipleTE
 					}
+					teSeen = true
+					// Like Go net/http and nginx, only accept "chunked" as the sole
+					// Transfer-Encoding value. Multi-coding values (e.g. "gzip, chunked")
+					// are not used in practice but can cause parsing inconsistencies
+					// across proxies, creating a smuggling vector.
+					if !bytes.EqualFold(s.Value, bytestr.StrChunked) {
+						return 0, errUnsupportedTE
+					}
+					h.InitContentLengthWithValue(-1)
+					h.SetArgBytes(bytestr.StrTransferEncoding, bytestr.StrChunked, protocol.ArgsHasValue)
 					continue
 				}
 				if utils.CaseInsensitiveCompare(s.Key, bytestr.StrTrailer) {
@@ -355,13 +363,3 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 	return s.HLen, nil
 }
 
-// isFinalChunked reports whether "chunked" is the last transfer-coding token in a
-// (possibly comma-separated) Transfer-Encoding field value.
-// Per RFC 9112 Section 6.1 and Section 6.3 Rule 4, chunked MUST be the final coding.
-func isFinalChunked(te []byte) bool {
-	te = bytes.TrimRight(te, " \t")
-	if i := bytes.LastIndexByte(te, ','); i >= 0 {
-		te = bytes.TrimLeft(te[i+1:], " \t")
-	}
-	return bytes.EqualFold(te, bytestr.StrChunked)
-}

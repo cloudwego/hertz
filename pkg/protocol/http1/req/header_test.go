@@ -160,22 +160,21 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	err8 := ReadHeader(&rh8, zr8)
 	assert.NotNil(t, err8)
 
-	// TE: identity alone — accepted for backward compatibility (identity = no encoding)
+	// TE: identity alone — rejected (removed in RFC 7230 and RFC 9112 Section 11.2)
 	s9 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: identity\r\n\r\n"
 	zr9 := mock.NewZeroCopyReader(s9)
 	rh9 := protocol.RequestHeader{}
 	err9 := ReadHeader(&rh9, zr9)
-	assert.Nil(t, err9)
+	assert.NotNil(t, err9)
 
-	// TE: gzip, chunked (chunked is final) — must be accepted
+	// TE: gzip, chunked — rejected (only pure "chunked" accepted, like Go net/http and nginx)
 	s10 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip, chunked\r\n\r\n"
 	zr10 := mock.NewZeroCopyReader(s10)
 	rh10 := protocol.RequestHeader{}
 	err10 := ReadHeader(&rh10, zr10)
-	assert.Nil(t, err10)
-	assert.DeepEqual(t, -1, rh10.ContentLength())
+	assert.NotNil(t, err10)
 
-	// TE: chunked, gzip (chunked is not final) — must be rejected (RFC 9112 Section 6.3 Rule 4)
+	// TE: chunked, gzip — must be rejected
 	s11 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked, gzip\r\n\r\n"
 	zr11 := mock.NewZeroCopyReader(s11)
 	rh11 := protocol.RequestHeader{}
@@ -213,13 +212,41 @@ func TestRequestHeader_SmugglingRejected(t *testing.T) {
 	err15 := ReadHeader(&rh15, zr15)
 	assert.NotNil(t, err15)
 
-	// TE with trailing spaces and mixed case — chunked is final, must be accepted
-	s16 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip, Chunked \t\r\n\r\n"
+	// Multiple TE: chunked + identity — strictly rejected (proxy may take last TE as identity)
+	s16 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n"
 	zr16 := mock.NewZeroCopyReader(s16)
 	rh16 := protocol.RequestHeader{}
 	err16 := ReadHeader(&rh16, zr16)
-	assert.Nil(t, err16)
-	assert.DeepEqual(t, -1, rh16.ContentLength())
+	assert.NotNil(t, err16)
+
+	// Multiple TE: identity + chunked — strictly rejected
+	s17 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: identity\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr17 := mock.NewZeroCopyReader(s17)
+	rh17 := protocol.RequestHeader{}
+	err17 := ReadHeader(&rh17, zr17)
+	assert.NotNil(t, err17)
+
+	// Duplicate TE: chunked + chunked — strictly rejected
+	s18 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n\r\n"
+	zr18 := mock.NewZeroCopyReader(s18)
+	rh18 := protocol.RequestHeader{}
+	err18 := ReadHeader(&rh18, zr18)
+	assert.NotNil(t, err18)
+
+	// Duplicate TE: identity + identity — strictly rejected
+	s19 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: identity\r\nTransfer-Encoding: identity\r\n\r\n"
+	zr19 := mock.NewZeroCopyReader(s19)
+	rh19 := protocol.RequestHeader{}
+	err19 := ReadHeader(&rh19, zr19)
+	assert.NotNil(t, err19)
+
+	// TE: Chunked with mixed case — must be accepted (case-insensitive match)
+	s20 := "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: Chunked\r\n\r\n"
+	zr20 := mock.NewZeroCopyReader(s20)
+	rh20 := protocol.RequestHeader{}
+	err20 := ReadHeader(&rh20, zr20)
+	assert.Nil(t, err20)
+	assert.DeepEqual(t, -1, rh20.ContentLength())
 }
 
 func TestRequestHeaderSetGet(t *testing.T) {
