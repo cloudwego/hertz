@@ -402,6 +402,16 @@ func (engine *Engine) Init() error {
 		engine.options.TLS.NextProtos = append(engine.options.TLS.NextProtos, suite.HTTP1)
 	}
 
+	if len(engine.noRoute) <= 0 {
+		engine.noRoute = []app.HandlerFunc{hertzRouteNotFound}
+		engine.rebuild404Handlers()
+	}
+
+	if len(engine.noMethod) <= 0 {
+		engine.noMethod = []app.HandlerFunc{hertzNotAllowedMethod}
+		engine.rebuild405Handlers()
+	}
+
 	if !atomic.CompareAndSwapUint32(&engine.status, 0, statusInitialized) {
 		return errInitFailed
 	}
@@ -416,6 +426,14 @@ func (engine *Engine) listenAndServe() error {
 	hlog.SystemLogger().Infof("Using network library=%s", engine.GetTransporterName())
 	return engine.transport.ListenAndServe(engine.onData)
 }
+
+// hertzRouteNotFound is default NoRoute handler when users do not configure any handler with NoRoute.
+// it is not an anonymous function, so utils.NameOfFunction could obtain a specific function name to assist troubleshooting.
+func hertzRouteNotFound(c context.Context, ctx *app.RequestContext) {}
+
+// hertzNotAllowedMethod is default NoMethod handler when users do not configure any handler with NoMethod.
+// it is not an anonymous function, so utils.NameOfFunction could obtain a specific function name to assist troubleshooting.
+func hertzNotAllowedMethod(c context.Context, ctx *app.RequestContext) {}
 
 func (c *hijackConn) Close() error {
 	if !c.e.KeepHijackedConns {
