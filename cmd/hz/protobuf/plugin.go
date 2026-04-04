@@ -463,8 +463,7 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags R
 	genMessageKnownFunctions(g, f, m)
 	genMessageDefaultDecls(g, f, m)
 	genMessageMethods(g, f, m)
-	genMessageOneofWrapperTypes(g, f, m)
-	return nil
+	return genHzMessageOneofWrapperTypes(g, f, m, rmTags)
 }
 
 func genMessageFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags RemoveTags) error {
@@ -549,6 +548,47 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 		name, " ", goType, tags,
 		trailingComment(field.Comments.Trailing))
 	sf.append(field.GoName)
+	return nil
+}
+
+// genHzMessageOneofWrapperTypes generates oneof wrapper types with hertz tag injection.
+func genHzMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, rmTags RemoveTags) error {
+	for _, oneof := range m.Oneofs {
+		if oneof.Desc.IsSynthetic() {
+			continue
+		}
+		ifName := oneofInterfaceName(oneof)
+		g.P("type ", ifName, " interface {")
+		g.P(ifName, "()")
+		g.P("}")
+		g.P()
+		for _, field := range oneof.Fields {
+			g.Annotate(field.GoIdent.GoName, field.Location)
+			g.Annotate(field.GoIdent.GoName+"."+field.GoName, field.Location)
+			g.P("type ", field.GoIdent, " struct {")
+			goType, _ := fieldGoType(g, f, field)
+			tags := structTags{
+				{"protobuf", fieldProtobufTagValue(field)},
+			}
+			if err := injectTagsToStructTags(field.Desc, &tags, true, rmTags); err != nil {
+				return err
+			}
+			if m.isTracked {
+				tags = append(tags, gotrackTags...)
+			}
+			leadingComments := appendDeprecationSuffix(field.Comments.Leading,
+				field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
+			g.P(leadingComments,
+				field.GoName, " ", goType, tags,
+				trailingComment(field.Comments.Trailing))
+			g.P("}")
+			g.P()
+		}
+		for _, field := range oneof.Fields {
+			g.P("func (*", field.GoIdent, ") ", ifName, "() {}")
+			g.P()
+		}
+	}
 	return nil
 }
 
