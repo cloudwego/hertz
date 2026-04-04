@@ -108,5 +108,6 @@ func NewInstance(network, address string, weight int, tags map[string]string) In
 // the instance list can/should be cached and CacheKey can be used to map the instance list in cache.
 type Result struct {
 	CacheKey  string
+	HashKey   string
 	Instances []Instance
 }
