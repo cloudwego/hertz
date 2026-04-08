@@ -23,7 +23,7 @@ install_dependent_tools() {
 
 go_tidy_build() {
   # make sure we get the latest version for testing
-  go get github.com/cloudwego/hertz@develop
+  go get github.com/cloudwego/hertz@main
   go mod tidy && go build .
 }
 
