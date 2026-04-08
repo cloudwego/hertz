@@ -13,28 +13,43 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+Minimal code or configuration to reproduce the issue:
+
+```go
+// paste your code here
+```
+
+Steps:
+1. ...
+2. ...
 
 **Expected behavior**
 
 A clear and concise description of what you expected to happen.
 
-**Screenshots**
+**Actual behavior**
 
-If applicable, add screenshots to help explain your problem.
+What actually happened. Include error messages, logs, or panic stack traces if available.
 
-**Hertz version:**
-
-Please provide the version of Hertz you are using.
+```
+// paste error output or logs here
+```
 
 **Environment:**
 
-The output of `go env`.
+- Hertz version: (e.g. v0.9.0)
+- Network library: (netpoll / standard)
+- Protocol: (HTTP/1.1 / HTTP/2 / SSE / ...)
+
+<details>
+<summary>output of <code>go env</code></summary>
+
+```
+// paste the output of `go env` here
+```
+
+</details>
 
 **Additional context**
 
-Add any other context about the problem here.
+Any other context such as middleware configuration, route setup, proxy/mesh setup, or screenshots.
