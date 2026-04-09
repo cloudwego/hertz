@@ -26,16 +26,18 @@ install_dependent_tools() {
   # install thriftgo
   go install github.com/cloudwego/thriftgo@latest
 
-  # install protoc
-  wget https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-linux-x86_64.zip
-  unzip -d protoc-3.19.4-linux-x86_64 protoc-3.19.4-linux-x86_64.zip
-  cp protoc-3.19.4-linux-x86_64/bin/protoc $PATH_BIN
-  cp -r protoc-3.19.4-linux-x86_64/include/google $PATH_BIN
+  # install protoc if not already downloaded
+  if [ ! -f "$PATH_BIN/protoc" ]; then
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-linux-x86_64.zip
+    unzip -d protoc-3.19.4-linux-x86_64 protoc-3.19.4-linux-x86_64.zip
+    cp protoc-3.19.4-linux-x86_64/bin/protoc $PATH_BIN
+    cp -r protoc-3.19.4-linux-x86_64/include/google $PATH_BIN
+  fi
 }
 
 go_tidy_build() {
   # make sure we get the latest version for testing
-  go get github.com/cloudwego/hertz@develop
+  go get github.com/cloudwego/hertz@main
   go mod tidy && go build .
 }
 

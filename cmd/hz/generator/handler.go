@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
@@ -233,7 +234,9 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 
 	// insert new handler
 	for _, method := range handler.(Handler).Methods {
-		if bytes.Contains(file, []byte(fmt.Sprintf("func %s(", method.Name))) {
+		// match both plain functions "func Name(" and receiver methods "func (x Type) Name("
+		re := regexp.MustCompile(fmt.Sprintf(`func\s+(\([^)]*\)\s+)?%s\s*\(`, regexp.QuoteMeta(method.Name)))
+		if re.Match(file) {
 			continue
 		}
 
