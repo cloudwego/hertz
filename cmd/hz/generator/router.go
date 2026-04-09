@@ -31,28 +31,35 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
+// Router holds the data needed to render the router registration template.
 type Router struct {
 	FilePath        string
 	PackageName     string
-	HandlerPackages map[string]string // {{basename}}:{{import_path}}
+	HandlerPackages map[string]string // package alias -> import path
 	Router          *RouterNode
 }
 
+// RouterNode represents a node in the routing tree. The tree structure mirrors
+// the URL path hierarchy. Each node may have:
+//   - Children: sub-path segments forming route groups
+//   - Handler + HttpMethod: a leaf endpoint registration
+//
+// The tree is used to generate nested router group code with middleware hooks.
 type RouterNode struct {
-	GroupName         string // current group name(the parent middleware name), used to register route. example: {{.GroupName}}.{{HttpMethod}}
-	MiddleWare        string // current node middleware, used to be group name for children.
-	HandlerMiddleware string
-	GroupMiddleware   string
-	PathPrefix        string
+	GroupName         string // parent's middleware var name, used for route registration (e.g. root.GET)
+	MiddleWare        string // this node's middleware var name, becomes GroupName for children
+	HandlerMiddleware string // middleware name specific to this handler (may differ from GroupMiddleware)
+	GroupMiddleware   string // middleware name for the route group (may use snake_case or camelCase)
+	PathPrefix        string // accumulated path prefix for snake-style middleware naming
 
 	Path     string
 	Parent   *RouterNode
 	Children childrenRouterInfo
 
-	Handler             string // {{HandlerPackage}}.{{HandlerName}}
-	HandlerPackage      string
-	HandlerPackageAlias string
-	HttpMethod          string
+	Handler             string // qualified handler call: "pkg.HandlerName"
+	HandlerPackage      string // handler import path
+	HandlerPackageAlias string // handler import alias
+	HttpMethod          string // HTTP method (GET, POST, etc.) or "" for group-only nodes
 }
 
 type RegisterInfo struct {
@@ -76,6 +83,9 @@ func (routerNode *RouterNode) Sort() {
 	sort.Sort(routerNode.Children)
 }
 
+// Update inserts a new route into the tree. It splits the path into segments,
+// finds the deepest existing node matching the path prefix, then inserts
+// remaining segments as new child nodes.
 func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg string, sortRouter bool) error {
 	if method.Path == "" {
 		return fmt.Errorf("empty path for method '%s'", method.Name)
@@ -193,8 +203,12 @@ func (routerNode *RouterNode) DFS(i int, hook func(layer int, node *RouterNode) 
 	return nil
 }
 
+// handlerPkgMap tracks handler package -> unique alias mappings across the entire
+// generation session to ensure each handler package gets a unique import alias.
 var handlerPkgMap map[string]string
 
+// Insert adds child nodes for each remaining path segment. The last segment
+// gets the handler and HTTP method assignment.
 func (routerNode *RouterNode) Insert(name string, method *HttpMethod, handlerType string, paths []string, handlerPkg string, sortRouter bool) {
 	cur := routerNode
 	for i, p := range paths {
@@ -251,6 +265,9 @@ func getHttpMethod(method string) string {
 	return strings.ToUpper(method)
 }
 
+// FindNearest walks the tree to find the deepest node matching the given path segments.
+// Returns the parent node and the index of the first unmatched path segment.
+// When sortRouter is true, it also checks HTTP method to distinguish same-path different-method routes.
 func (routerNode *RouterNode) FindNearest(paths []string, method string, sortRouter bool) (*RouterNode, int) {
 	ns := len(paths)
 	cur := routerNode
@@ -287,6 +304,8 @@ func (c childrenRouterInfo) Len() int {
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
+// Less sorts children: handler nodes (with HttpMethod) come before group nodes (without),
+// then alphabetically by path (ignoring leading non-letter chars like "/" and ":").
 func (c childrenRouterInfo) Less(i, j int) bool {
 	if c[i].HttpMethod == "" && c[j].HttpMethod != "" {
 		return false
@@ -327,6 +346,8 @@ var (
 	regImport     = regexp.MustCompile(`import \(\n`)
 )
 
+// updateRegister adds a new sub-router package registration call to the register.go file.
+// It inserts both the import statement and the registration call at the marked insert point.
 func (pkgGen *HttpPackageGenerator) updateRegister(pkg, rDir, pkgName string) error {
 	if pkgGen.tplsInfo[registerTplName].Disable {
 		return nil
@@ -378,6 +399,8 @@ func checkDupRegister(file []byte, insertReg string) bool {
 	return bytes.Contains(file, []byte("\t"+insertReg)) || bytes.Contains(file, []byte(" "+insertReg))
 }
 
+// appendMw appends a middleware name to the list, appending a numeric suffix if the name
+// already exists to ensure uniqueness (e.g. "mw", "mw0", "mw1", ...).
 func appendMw(mws []string, mw string) ([]string, string) {
 	for i := 0; true; i++ {
 		if i == math.MaxInt {
@@ -401,6 +424,9 @@ func stringsIncludes(strs []string, str string) bool {
 	return false
 }
 
+// genRouter generates the router registration file, middleware stubs, and register.go entries.
+// It first assigns unique middleware names to each tree node via DyeGroupName, then renders
+// the router template and updates middleware and registration files incrementally.
 func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode, handlerPackage, routerDir, routerPackage string) error {
 	err := root.DyeGroupName(pkgGen.SnakeStyleMiddleware)
 	if err != nil {
@@ -470,6 +496,8 @@ func (pkgGen *HttpPackageGenerator) genRouter(pkg *HttpPackage, root *RouterNode
 	return nil
 }
 
+// updateMiddlewareReg appends new middleware stub functions to an existing middleware.go file.
+// Each middleware function is only added if its name pattern doesn't already appear in the file.
 func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, middlewareTpl, filePath string) error {
 	if pkgGen.tplsInfo[middlewareTpl].Disable {
 		return nil

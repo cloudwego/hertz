@@ -25,11 +25,12 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
+// File represents a generated output file pending write to disk.
 type File struct {
-	Path        string
-	Content     string
-	NoRepeat    bool
-	FileTplName string
+	Path        string // relative output path
+	Content     string // rendered file content
+	NoRepeat    bool   // if true, skip writing when file already exists
+	FileTplName string // source template name (used to determine update warnings)
 }
 
 // Lint is used to statically analyze and format go code

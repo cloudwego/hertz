@@ -278,6 +278,8 @@ func (arg *Argument) checkPackage() error {
 	return nil
 }
 
+// Pack serializes the argument to a string list for passing through the
+// protoc/thriftgo plugin interface (see util.PackArgs).
 func (arg *Argument) Pack() ([]string, error) {
 	data, err := util.PackArgs(arg)
 	if err != nil {
@@ -294,7 +296,8 @@ func (arg *Argument) Unpack(data []string) error {
 	return nil
 }
 
-// Fork can copy its own parameters to a new argument
+// Fork creates a deep copy of the argument. This is necessary because globalArgs
+// is shared across CLI commands and its slice/map fields would otherwise be mutated.
 func (arg *Argument) Fork() *Argument {
 	args := NewArgument()
 	*args = *arg
@@ -326,6 +329,8 @@ func IdlTypeToCompiler(idlType string) (string, error) {
 	}
 }
 
+// ModelPackagePrefix returns the Go import path prefix for generated model packages.
+// This is passed to thriftgo so it generates import paths matching our output structure.
 func (arg *Argument) ModelPackagePrefix() (string, error) {
 	ret := arg.Gomod
 	if arg.ModelDir == "" {

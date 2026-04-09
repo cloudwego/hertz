@@ -36,10 +36,11 @@ type TemplateConfig struct {
 	Layouts []Template `yaml:"layouts"`
 }
 
+// UpdateBehavior type constants control how existing files are handled during "update" command.
 const (
-	Skip   = "skip"
-	Cover  = "cover"
-	Append = "append"
+	Skip   = "skip"   // do not modify existing file
+	Cover  = "cover"  // overwrite existing file completely
+	Append = "append" // append new content (e.g. new handler methods) to existing file
 )
 
 type Template struct {
@@ -158,8 +159,13 @@ func (tg *TemplateGenerator) loadLayout(layout Template, tplName string, isDefau
 	return nil
 }
 
+// Generate renders templates with the given input data and appends results to tg.files.
+// If tplName is specified, only that template is rendered to filepath.
+// If tplName is empty, all loaded templates are rendered (used for layout generation).
+// When input is a map, the "*" key provides global data merged into all templates,
+// and per-template data is keyed by template path.
 func (tg *TemplateGenerator) Generate(input interface{}, tplName, filepath string, noRepeat bool) error {
-	// check if "*" (global scope) data exists, and stores it to all
+	// Extract "*" (global scope) data that gets merged into every template's data.
 	var all map[string]interface{}
 	if data, ok := input.(map[string]interface{}); ok {
 		ad, ok := data["*"]
@@ -215,6 +221,8 @@ func (tg *TemplateGenerator) Generate(input interface{}, tplName, filepath strin
 	return nil
 }
 
+// Persist writes all accumulated files to disk, creating directories as needed.
+// Shell scripts (.sh) get executable permissions (0755), other files get 0644.
 func (tg *TemplateGenerator) Persist() error {
 	files := tg.files
 	outPath := tg.OutputDir
@@ -308,6 +316,8 @@ func (tg *TemplateGenerator) Files() []File {
 	return tg.files
 }
 
+// Degenerate removes all files and directories that were created by the template generator.
+// Only removes directories that didn't exist before generation (tracked in tg.dirs).
 func (tg *TemplateGenerator) Degenerate() error {
 	outPath := tg.OutputDir
 	if !filepath.IsAbs(outPath) {

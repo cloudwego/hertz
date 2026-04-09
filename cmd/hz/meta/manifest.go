@@ -26,13 +26,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// ManifestFile is the project metadata file created by "hz new".
+// It records the hz version and directory layout so "hz update" can locate generated files.
 const ManifestFile = ".hz"
 
+// Manifest represents the contents of the .hz project metadata file.
 type Manifest struct {
-	Version    string `yaml:"hz version"`
-	HandlerDir string `yaml:"handlerDir"`
-	ModelDir   string `yaml:"modelDir"`
-	RouterDir  string `yaml:"routerDir"`
+	Version    string `yaml:"hz version"` // hz version that created/updated this project
+	HandlerDir string `yaml:"handlerDir"` // custom handler directory (empty = default)
+	ModelDir   string `yaml:"modelDir"`   // custom model directory (empty = default)
+	RouterDir  string `yaml:"routerDir"`  // custom router directory (empty = default)
 }
 
 var GoVersion *gv.Version
@@ -42,6 +45,7 @@ func init() {
 	GoVersion, _ = gv.NewVersion(Version)
 }
 
+// InitAndValidate loads the .hz manifest from dir and validates it belongs to a hertz project.
 func (manifest *Manifest) InitAndValidate(dir string) error {
 	m, err := loadConfigFile(filepath.Join(dir, ManifestFile))
 	if err != nil {

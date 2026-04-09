@@ -87,6 +87,9 @@ func link(src, dst string) error {
 	return nil
 }
 
+// BuildPluginCmd constructs the protoc/thriftgo command that invokes the current hz binary
+// as a plugin. The hz binary re-enters as a plugin via PluginMode() (detected by EnvPluginMode).
+// Arguments are serialized via PackArgs and passed as comma-separated key=value pairs.
 func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -172,6 +175,9 @@ func BuildPluginCmd(args *Argument) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// GetThriftgoOptions builds the thriftgo "-g go:..." option string.
+// It starts with default options (reserve_comments, no auto json tags) and appends
+// user-specified options plus the computed package prefix.
 func (arg *Argument) GetThriftgoOptions() (string, error) {
 	defaultOpt := "reserve_comments,gen_json_tag=false,"
 	prefix, err := arg.ModelPackagePrefix()

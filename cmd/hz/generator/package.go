@@ -48,33 +48,33 @@ type Service struct {
 	ServiceGenDir string         // handler_dir for handler_by_service
 }
 
-// HttpPackageGenerator is used to record the configuration related to generating hertz http code.
+// HttpPackageGenerator generates handler, router, model, and client code for one IDL package.
 type HttpPackageGenerator struct {
-	ConfigPath     string       // package template path
-	Backend        meta.Backend // model template
-	Options        []Option
-	CmdType        string
-	ProjPackage    string // go module for project
-	HandlerDir     string
-	RouterDir      string
-	ModelDir       string // like: biz/model or biz\model (Windows)
-	UseDir         string // XXX: should be UsePkg, not a filepath?
-	ClientDir      string // client dir for "new"/"update" command
-	IdlClientDir   string // client dir for "client" command
-	ForceClientDir string // client dir without namespace for "client" command
-	BaseDomain     string // request domain for "client" command
-	QueryEnumAsInt bool   // client code use number for query parameter
-	ServiceGenDir  string
+	ConfigPath     string       // path to custom package template YAML config
+	Backend        meta.Backend // model code generation backend (e.g. "golang")
+	Options        []Option     // model generation options (e.g. MarshalEnumToText)
+	CmdType        string       // current command: new/update/model/client
+	ProjPackage    string       // Go module path (e.g. "github.com/foo/bar")
+	HandlerDir     string       // relative path for handler output
+	RouterDir      string       // relative path for router output
+	ModelDir       string       // relative path for model output (e.g. "biz/model")
+	UseDir         string       // external model package to import instead of generating
+	ClientDir      string       // client output dir for "new"/"update" commands
+	IdlClientDir   string       // default client dir derived from IDL namespace (for "client" command)
+	ForceClientDir string       // client dir without IDL namespace subdirectories
+	BaseDomain     string       // default request domain for generated client code
+	QueryEnumAsInt bool         // use numeric values for enum query parameters in client code
+	ServiceGenDir  string       // per-service handler directory override
 
-	NeedModel            bool
-	HandlerByMethod      bool // generate handler files with method dimension
-	SnakeStyleMiddleware bool // use snake name style for middleware
-	SortRouter           bool
-	ForceUpdateClient    bool // force update 'hertz_client.go'
+	NeedModel            bool // whether to generate model .go files (false when -use is specified)
+	HandlerByMethod      bool // one handler file per method (vs one per service)
+	SnakeStyleMiddleware bool // use snake_case naming for middleware functions
+	SortRouter           bool // sort router registration for deterministic output
+	ForceUpdateClient    bool // regenerate hertz_client.go even if it exists
 
-	loadedBackend   Backend
-	curModel        *model.Model
-	processedModels map[*model.Model]bool
+	loadedBackend   Backend               // initialized model template backend
+	curModel        *model.Model          // model currently being rendered (for ROOT template func)
+	processedModels map[*model.Model]bool // tracks models already processed to avoid duplicates
 
 	TemplateGenerator
 }
@@ -139,6 +139,8 @@ func (pkgGen *HttpPackageGenerator) Init() error {
 	return pkgGen.TemplateGenerator.Init()
 }
 
+// checkInited ensures the generator is initialized. Returns true if using default config
+// (no custom ConfigPath), false if a custom config was loaded.
 func (pkgGen *HttpPackageGenerator) checkInited() (bool, error) {
 	if pkgGen.tpls == nil {
 		if err := pkgGen.Init(); err != nil {
