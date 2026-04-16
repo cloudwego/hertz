@@ -33,7 +33,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// global args. MUST fork it when use
+// globalArgs is the shared argument template populated by CLI flag bindings.
+// Each command must call Fork() via Parse() before use to avoid mutation across commands.
 var globalArgs = config.NewArgument()
 
 func New(c *cli.Context) error {
@@ -139,6 +140,9 @@ func Client(c *cli.Context) error {
 	return nil
 }
 
+// PluginMode checks if the current process was invoked as a protoc/thriftgo plugin
+// (detected via EnvPluginMode env var). If so, it runs the plugin and exits.
+// This is called before CLI parsing in main() to handle the plugin re-entry path.
 func PluginMode() {
 	mode := os.Getenv(meta.EnvPluginMode)
 	if len(os.Args) <= 1 && mode != "" {
@@ -414,6 +418,8 @@ func GenerateLayout(args *config.Argument) error {
 	return nil
 }
 
+// TriggerPlugin invokes the IDL compiler (protoc/thriftgo) with hz registered as a plugin.
+// The compiler parses the IDL and calls back into hz (via PluginMode) to generate code.
 func TriggerPlugin(args *config.Argument) error {
 	if len(args.IdlPaths) == 0 {
 		return nil

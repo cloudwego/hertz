@@ -51,6 +51,9 @@ func CopyString2StringMap(from, to map[string]string) {
 	}
 }
 
+// PackArgs serializes a struct into a flat list of "Key=Value" strings for passing
+// arguments through the protoc/thriftgo plugin interface. Slices are joined with ";",
+// maps are encoded as "k1=v1;k2=v2". Only exported, non-zero fields are included.
 func PackArgs(c interface{}) (res []string, err error) {
 	t := reflect.TypeOf(c)
 	v := reflect.ValueOf(c)
@@ -120,6 +123,8 @@ func PackArgs(c interface{}) (res []string, err error) {
 	return res, nil
 }
 
+// UnpackArgs deserializes a "Key=Value" string list (from PackArgs) back into a struct.
+// This is the inverse of PackArgs, used by the plugin process to receive configuration.
 func UnpackArgs(args []string, c interface{}) error {
 	m, err := MapForm(args)
 	if err != nil {
@@ -291,6 +296,9 @@ func ImportToSanitizedPath(path string) string {
 	return path
 }
 
+// ToVarName joins path segments and converts them to a valid Go identifier.
+// Non-alphanumeric characters are replaced with '_', and leading digits are dropped.
+// Segments are joined with "__" (e.g. ["api","v1"] -> "api__v1").
 func ToVarName(paths []string) string {
 	ps := strings.Join(paths, "__")
 	input := []byte(url.PathEscape(ps))
@@ -310,6 +318,8 @@ func ToVarName(paths []string) string {
 	return string(out)
 }
 
+// SplitGoTags splits a Go struct tag string into individual key:"value" pairs,
+// respecting quoted values that may contain spaces.
 func SplitGoTags(input string) []string {
 	out := make([]string, 0, 4)
 	ns := len(input)
@@ -382,7 +392,8 @@ func GetHandlerPackageUniqueName(name string) (string, error) {
 	return name, nil
 }
 
-// getUniqueName can get a non-repeating variable name
+// getUniqueName returns a unique name by appending numeric suffixes if needed.
+// The uniqueNameSet is a global registry that persists across calls within a generation session.
 func getUniqueName(name string, uniqueNameSet map[string]bool) (string, error) {
 	uniqueName := name
 	if _, exist := uniqueNameSet[uniqueName]; exist {

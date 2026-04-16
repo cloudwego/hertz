@@ -1,0 +1,10 @@
+# Generated output from generate.sh
+generate_out/
+
+# Generated test output from model_test.go
+generator/testdata/
+
+# Build artifacts from test scripts
+.local/
+hz
+protoc-*
