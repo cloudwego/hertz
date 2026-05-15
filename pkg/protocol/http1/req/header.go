@@ -88,6 +88,9 @@ func ReadHeaderWithLimit(h *protocol.RequestHeader, r network.Reader, maxHeaderB
 			continue
 		}
 		n = r.Len()
+		if n == 0 {
+			n = 1
+		}
 	}
 }
 
@@ -128,10 +131,10 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 		return 0, err
 	}
 	rawHeaders, _, err := ext.ReadRawHeaders(h.RawHeaders()[:0], buf[m:])
-	h.SetRawHeaders(rawHeaders)
 	if err != nil {
 		return 0, err
 	}
+	h.SetRawHeaders(rawHeaders)
 	n, err := parseHeaders(h, buf[m:])
 	if err != nil {
 		return 0, err
@@ -155,6 +158,9 @@ var errMalformedHTTPRequest = errors.New("malformed HTTP request")
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
 	b, leftb, err := utils.NextLine(buf)
 	if err != nil {
+		if len(buf) == 0 {
+			return 0, err
+		}
 		// errs.ErrNeedMore?
 		// check malformed HTTP request before reading more data
 		// NOTE:
@@ -261,8 +267,15 @@ func parseHeaders(h *protocol.RequestHeader, buf []byte) (int, error) {
 							}
 							h.InitContentLengthWithValue(-2)
 						} else {
-							h.InitContentLengthWithValue(contentLength)
-							h.SetContentLengthBytes(s.Value)
+							if h.ContentLength() >= 0 && contentLength != h.ContentLength() {
+								if err == nil {
+									err = fmt.Errorf("conflicting Content-Length header values: %d and %d", h.ContentLength(), contentLength)
+								}
+								h.InitContentLengthWithValue(-2)
+							} else {
+								h.InitContentLengthWithValue(contentLength)
+								h.SetContentLengthBytes(s.Value)
+							}
 						}
 					}
 					continue
