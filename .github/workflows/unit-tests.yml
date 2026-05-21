@@ -14,7 +14,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
@@ -44,20 +44,20 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: HERTZ_NO_NETPOLL=1 go test -race ./...
 
   ut-windows:
-    runs-on: [self-hosted, Windows]
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false # don't use cache for self-hosted runners
+          cache: true # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
@@ -70,7 +70,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: go test -coverpkg=./... -coverprofile=coverage.txt ./...
