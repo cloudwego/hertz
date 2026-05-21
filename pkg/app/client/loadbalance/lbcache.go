@@ -49,7 +49,8 @@ type BalancerFactory struct {
 	opts     Options
 	cache    sync.Map // key -> LoadBalancer
 	resolver discovery.Resolver
-	balancer Loadbalancer
+	impl     Loadbalancer
+	implCtx  LoadbalancerCtx // non-nil iff impl also implements LoadbalancerCtx
 	sfg      singleflight.Group
 }
 
@@ -72,8 +73,9 @@ func NewBalancerFactory(config Config) *BalancerFactory {
 		b := &BalancerFactory{
 			opts:     config.LbOpts,
 			resolver: config.Resolver,
-			balancer: config.Balancer,
+			impl:     config.Balancer,
 		}
+		b.implCtx, _ = config.Balancer.(LoadbalancerCtx)
 		go b.watcher()
 		go b.refresh()
 		balancerFactories.Store(uniqueKey, b)
@@ -93,7 +95,7 @@ func (b *BalancerFactory) watcher() {
 				// (avoid being immediate delete the balancer which had been created recently)
 			} else {
 				b.cache.Delete(key)
-				b.balancer.Delete(key.(string))
+				b.impl.Delete(key.(string))
 			}
 			return true
 		})
@@ -118,7 +120,7 @@ func (b *BalancerFactory) refresh() {
 			cache := value.(*cacheResult)
 			cache.res.Store(res)
 			atomic.StoreInt32(&cache.expire, 0)
-			b.balancer.Rebalance(res)
+			b.impl.Rebalance(res)
 			return true
 		})
 	}
@@ -130,7 +132,13 @@ func (b *BalancerFactory) GetInstance(ctx context.Context, req *protocol.Request
 		return nil, err
 	}
 	atomic.StoreInt32(&cacheRes.expire, 0)
-	ins := b.balancer.Pick(cacheRes.res.Load().(discovery.Result))
+	res := cacheRes.res.Load().(discovery.Result)
+	var ins discovery.Instance
+	if b.implCtx != nil {
+		ins = b.implCtx.PickCtx(ctx, req, res)
+	} else {
+		ins = b.impl.Pick(res)
+	}
 	if ins == nil {
 		hlog.SystemLogger().Errorf("null instance. serviceName: %s, options: %v", string(req.Host()), req.Options())
 		return nil, errors.NewPublic("instance not found")
@@ -155,7 +163,7 @@ func (b *BalancerFactory) getCacheResult(ctx context.Context, req *protocol.Requ
 		renameResultCacheKey(&res, b.resolver.Name())
 		cache.res.Store(res)
 		atomic.StoreInt32(&cache.expire, 0)
-		b.balancer.Rebalance(res)
+		b.impl.Rebalance(res)
 		b.cache.Store(target, cache)
 		return cache, nil
 	})
