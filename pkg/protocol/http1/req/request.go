@@ -211,13 +211,13 @@ func write(req *protocol.Request, w network.Writer, usingProxy bool) error {
 	body := req.BodyBytes()
 	err := handleMultipart(req)
 	if err != nil {
-		return fmt.Errorf("error when handle multipart: %s", err)
+		return fmt.Errorf("error when handle multipart: %w", err)
 	}
 	if req.OnlyMultipartForm() {
 		m, _ := req.MultipartForm() // req.multipartForm != nil
 		body, err = protocol.MarshalMultipartForm(m, req.MultipartFormBoundary())
 		if err != nil {
-			return fmt.Errorf("error when marshaling multipart form: %s", err)
+			return fmt.Errorf("error when marshaling multipart form: %w", err)
 		}
 		req.Header.SetMultipartFormBoundary(req.MultipartFormBoundary())
 	}
