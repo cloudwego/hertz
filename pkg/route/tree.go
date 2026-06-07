@@ -341,7 +341,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			searchIndex -= len(previous.prefix)
 		} else {
 			paramIndex--
-			// for param/any node.prefix value is always `:` so we can not deduce searchIndex from that and must use pValue
+			// for param/any node.prefix value is always `:` or `*` so we can not deduce searchIndex from that and must use pValue
 			// for that index as it would also contain part of path we cut off before moving into node we are backtracking from
 			searchIndex -= len((*paramsPointer)[paramIndex].Value)
 			(*paramsPointer) = (*paramsPointer)[:paramIndex]
