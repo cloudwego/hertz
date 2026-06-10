@@ -108,7 +108,6 @@ const (
 	akind
 	paramLabel = byte(':')
 	anyLabel   = byte('*')
-	slash      = "/"
 	nilString  = ""
 )
 
@@ -402,7 +401,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		// Param node
 		if child := cn.paramChild; search != nilString && child != nil {
 			cn = child
-			i := strings.Index(search, slash)
+			i := strings.IndexByte(search, '/')
 			if i == -1 {
 				i = len(search)
 			}
