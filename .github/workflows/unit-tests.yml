@@ -23,14 +23,14 @@ jobs:
     strategy:
       matrix:
         version: ["1.20", oldstable, stable]
-    runs-on: [self-hosted, ARM64]
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
-          cache: false # false for self-hosted runners
+          cache: true # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
