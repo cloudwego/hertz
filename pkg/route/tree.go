@@ -295,6 +295,19 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 			currentNode.isLeaf = currentNode.children == nil && currentNode.paramChild == nil && currentNode.anyChild == nil
 		} else {
 			// Node already exists
+			if (currentNode.kind == pkind || currentNode.kind == akind) && currentNode.handlers != nil && h != nil {
+				if len(currentNode.pnames) > 0 && len(pnames) > 0 {
+					existing := currentNode.pnames[len(currentNode.pnames)-1]
+					incoming := pnames[len(pnames)-1]
+					if existing != incoming {
+						panic(fmt.Sprintf(
+							"wildcard name mismatch at the same position: %q vs %q",
+							existing, incoming,
+						))
+					}
+				}
+			}
+
 			if currentNode.handlers != nil && h != nil {
 				panic("handlers are already registered for path '" + ppath + "'")
 			}
