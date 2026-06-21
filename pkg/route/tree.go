@@ -301,7 +301,7 @@ func (r *router) insert(path string, h app.HandlersChain, t kind, ppath string, 
 					incoming := pnames[len(pnames)-1]
 					if existing != incoming {
 						panic(fmt.Sprintf(
-							"wildcard name mismatch at the same position: %q vs %q",
+							"parameter name mismatch at the same position: %q vs %q",
 							existing, incoming,
 						))
 					}
