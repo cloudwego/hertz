@@ -82,8 +82,9 @@ func ReadHeaderWithLimit(h *protocol.RequestHeader, r network.Reader, maxHeaderB
 			return err
 		}
 
-		// No more data available on the wire, try block peek
-		if n == r.Len() {
+		// No more data available on the wire, try block peek.
+		// Keep n >= 1: r.Len()==0 would otherwise force a degenerate Peek(0).
+		if n == r.Len() || r.Len() == 0 {
 			n++
 			continue
 		}
@@ -128,10 +129,12 @@ func parse(h *protocol.RequestHeader, buf []byte) (int, error) {
 		return 0, err
 	}
 	rawHeaders, _, err := ext.ReadRawHeaders(h.RawHeaders()[:0], buf[m:])
-	h.SetRawHeaders(rawHeaders)
 	if err != nil {
 		return 0, err
 	}
+	// Only commit raw headers after a successful read so failed parses
+	// do not leave a partially updated header state.
+	h.SetRawHeaders(rawHeaders)
 	n, err := parseHeaders(h, buf[m:])
 	if err != nil {
 		return 0, err
@@ -170,6 +173,9 @@ var errMultipleTE = errors.New("multiple Transfer-Encoding headers are not allow
 
 // request-line = method SP request-target SP HTTP-version CRLF
 func parseFirstLine(h *protocol.RequestHeader, buf []byte) (int, error) {
+	if len(buf) == 0 {
+		return 0, errs.ErrNeedMore
+	}
 	b, leftb, err := utils.NextLine(buf)
 	if err != nil {
 		// errs.ErrNeedMore?
