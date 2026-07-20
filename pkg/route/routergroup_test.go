@@ -144,6 +144,33 @@ func TestRouterGroupStatic(t *testing.T) {
 	assert.DeepEqual(t, string(content), w.Body.String())
 }
 
+// TestRouterGroupStaticPrefix ensures URL mount prefix is not joined into Root twice (#1121).
+func TestRouterGroupStaticPrefix(t *testing.T) {
+	dir, err := ioutil.TempDir("", "hertz-static-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	content := []byte("hello-static")
+	if err := ioutil.WriteFile(dir+"/hello.txt", content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	router := NewEngine(config.NewOptions(nil))
+	router.Static("/static", dir)
+	w := performRequest(router, "GET", "/static/hello.txt")
+	assert.DeepEqual(t, http.StatusOK, w.Code)
+	assert.DeepEqual(t, string(content), w.Body.String())
+
+	// trailing slash on mount path
+	router2 := NewEngine(config.NewOptions(nil))
+	router2.Static("/static/", dir)
+	w2 := performRequest(router2, "GET", "/static/hello.txt")
+	assert.DeepEqual(t, http.StatusOK, w2.Code)
+	assert.DeepEqual(t, string(content), w2.Body.String())
+}
+
 func TestRouterGroupStaticFile(t *testing.T) {
 	router := NewEngine(config.NewOptions(nil))
 	router.StaticFile("file", "./engine.go")

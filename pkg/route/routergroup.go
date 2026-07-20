@@ -202,14 +202,25 @@ func (group *RouterGroup) StaticFile(relativePath, filepath string) IRoutes {
 // use :
 //
 //	router.Static("/static", "/var/www")
+//
+// The URL prefix relativePath is stripped before joining with root, so
+// router.Static("/static", "./static") serves ./static/hello.txt at /static/hello.txt.
 func (group *RouterGroup) Static(relativePath, root string) IRoutes {
 	return group.StaticFS(relativePath, &app.FS{Root: root})
 }
 
 // StaticFS works just like `Static()` but a custom `FS` can be used instead.
+//
+// If fs.PathRewrite is nil, the relativePath prefix is stripped from the request
+// path so Root is not joined with the mount prefix twice (see issue #1121).
 func (group *RouterGroup) StaticFS(relativePath string, fs *app.FS) IRoutes {
 	if strings.Contains(relativePath, ":") || strings.Contains(relativePath, "*") {
 		panic("URL parameters can not be used when serving a static folder")
+	}
+	if fs.PathRewrite == nil {
+		if n := countURLPathSegments(relativePath); n > 0 {
+			fs.PathRewrite = app.NewPathSlashesStripper(n)
+		}
 	}
 	handler := fs.NewRequestHandler()
 	urlPattern := path.Join(relativePath, "/*filepath")
@@ -218,6 +229,16 @@ func (group *RouterGroup) StaticFS(relativePath string, fs *app.FS) IRoutes {
 	group.GET(urlPattern, handler)
 	group.HEAD(urlPattern, handler)
 	return group.returnObj()
+}
+
+// countURLPathSegments returns how many slash-separated segments are in p.
+// "/static" -> 1, "/a/b" -> 2, "/" or "" -> 0.
+func countURLPathSegments(p string) int {
+	p = strings.Trim(p, "/")
+	if p == "" {
+		return 0
+	}
+	return strings.Count(p, "/") + 1
 }
 
 func (group *RouterGroup) combineHandlers(handlers app.HandlersChain) app.HandlersChain {
