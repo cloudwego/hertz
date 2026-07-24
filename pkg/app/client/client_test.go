@@ -201,6 +201,127 @@ func TestCloseIdleTLSConnections(t *testing.T) {
 	}
 }
 
+func TestPooledConnHealthCheckTLS(t *testing.T) {
+	var accepted, requests int32
+	firstIdleClosed := make(chan struct{})
+	var closeFirstIdle sync.Once
+
+	httpsServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != consts.MethodPost {
+			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != "payload" {
+			http.Error(w, "unexpected body", http.StatusBadRequest)
+			return
+		}
+		atomic.AddInt32(&requests, 1)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	httpsServer.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			atomic.AddInt32(&accepted, 1)
+		case http.StateIdle:
+			if atomic.LoadInt32(&requests) == 1 {
+				closeFirstIdle.Do(func() {
+					_ = conn.Close()
+					close(firstIdleClosed)
+				})
+			}
+		}
+	}
+	httpsServer.StartTLS()
+	defer httpsServer.Close()
+
+	c, err := NewClient(
+		WithTLSConfig(httpsServer.Client().Transport.(*http.Transport).TLSClientConfig),
+		WithPooledConnHealthCheck(true),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseIdleConnections()
+
+	doPost := func() {
+		req := protocol.AcquireRequest()
+		defer protocol.ReleaseRequest(req)
+		req.Header.SetMethod(consts.MethodPost)
+		req.SetRequestURI(httpsServer.URL + "/health-check")
+		req.SetBodyString("payload")
+		resp := protocol.AcquireResponse()
+		defer protocol.ReleaseResponse(resp)
+
+		if err := c.Do(context.Background(), req, resp); err != nil {
+			t.Fatal(err)
+		}
+		assert.DeepEqual(t, http.StatusOK, resp.StatusCode())
+		assert.DeepEqual(t, "ok", string(resp.Body()))
+	}
+
+	doPost()
+	select {
+	case <-firstIdleClosed:
+	case <-time.After(time.Second):
+		t.Fatal("server did not close the first idle TLS connection")
+	}
+	doPost()
+
+	assert.DeepEqual(t, int32(2), atomic.LoadInt32(&accepted))
+	assert.DeepEqual(t, int32(2), atomic.LoadInt32(&requests))
+}
+
+func TestPooledConnHealthCheckReusesTLS(t *testing.T) {
+	var accepted, requests int32
+	httpsServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != consts.MethodPost {
+			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != "payload" {
+			http.Error(w, "unexpected body", http.StatusBadRequest)
+			return
+		}
+		atomic.AddInt32(&requests, 1)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	httpsServer.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			atomic.AddInt32(&accepted, 1)
+		}
+	}
+	httpsServer.StartTLS()
+	defer httpsServer.Close()
+
+	c, err := NewClient(
+		WithTLSConfig(httpsServer.Client().Transport.(*http.Transport).TLSClientConfig),
+		WithPooledConnHealthCheck(true),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseIdleConnections()
+
+	for i := 0; i < 2; i++ {
+		req := protocol.AcquireRequest()
+		req.Header.SetMethod(consts.MethodPost)
+		req.SetRequestURI(httpsServer.URL + "/health-check")
+		req.SetBodyString("payload")
+		resp := protocol.AcquireResponse()
+		err := c.Do(context.Background(), req, resp)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, http.StatusOK, resp.StatusCode())
+		assert.DeepEqual(t, "ok", string(resp.Body()))
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(resp)
+	}
+
+	assert.DeepEqual(t, int32(1), atomic.LoadInt32(&accepted))
+	assert.DeepEqual(t, int32(2), atomic.LoadInt32(&requests))
+}
+
 func TestClientInvalidURI(t *testing.T) {
 	opt, ln := newTestOptions(t)
 	defer ln.Close()
@@ -2288,6 +2409,14 @@ func TestClientHostClientConfigHook(t *testing.T) {
 	hcr, ok := hc.(*http1.HostClient)
 	assert.True(t, ok)
 	assert.DeepEqual(t, "FOO.BAR:443", hcr.Addr)
+}
+
+func TestPooledConnHealthCheckOptionPropagation(t *testing.T) {
+	c, err := NewClient(WithPooledConnHealthCheck(true))
+	assert.Nil(t, err)
+
+	http1Options := newHttp1OptionFromClient(c)
+	assert.DeepEqual(t, true, http1Options.PooledConnHealthCheck)
 }
 
 func TestClientDialerName(t *testing.T) {

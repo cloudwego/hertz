@@ -551,12 +551,19 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if timeout < 0 {
 		return false, errTimeout
 	}
-	cc, inPool, err := c.acquireConn(timeout)
+	cc, inPool, err := c.acquireConn(timeout, deadline)
 	if err != nil {
 		return false, err
 	}
 	conn := cc.c
 	resp.ParseNetAddr(conn)
+	if c.PooledConnHealthCheck {
+		timeout = calcTimeout(deadline, dtimeout)
+		if timeout < 0 {
+			c.closeConn(cc)
+			return false, errTimeout
+		}
+	}
 
 	if c.IsTLS && timeout > 0 { // force handshake using dial timeout
 		// NOTE: Handshake() here is optional as Write would tirigger handshake
@@ -816,7 +823,41 @@ func (c *HostClient) SetMaxConns(newMaxConns int) {
 	c.connsLock.Unlock()
 }
 
-func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inPool bool, err error) {
+// pooledConnHealthCheckTimeout bounds the read probe so healthy connections
+// are not delayed for long before a request is written.
+const pooledConnHealthCheckTimeout = 50 * time.Microsecond
+
+type pooledConnHealthChecker interface {
+	IsHealthy(timeout time.Duration) bool
+}
+
+func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) (cc *clientConn, inPool bool, err error) {
+	if !c.PooledConnHealthCheck {
+		return c.acquireConnOnce(dialTimeout)
+	}
+
+	for {
+		currentDialTimeout := calcTimeout(deadline, dialTimeout)
+		if currentDialTimeout < 0 {
+			return nil, false, errTimeout
+		}
+		cc, inPool, err = c.acquireConnOnce(currentDialTimeout)
+		if err != nil || cc == nil || !c.PooledConnHealthCheck || cc.lastUseTime.IsZero() {
+			return cc, inPool, err
+		}
+		healthCheckTimeout := calcTimeout(deadline, pooledConnHealthCheckTimeout)
+		if healthCheckTimeout < 0 {
+			c.closeConn(cc)
+			return nil, false, errTimeout
+		}
+		if c.isPooledConnHealthy(cc.c, healthCheckTimeout) {
+			return cc, inPool, nil
+		}
+		c.closeConn(cc)
+	}
+}
+
+func (c *HostClient) acquireConnOnce(dialTimeout time.Duration) (cc *clientConn, inPool bool, err error) {
 	createConn := false
 	startCleaner := false
 
@@ -890,6 +931,27 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, inP
 	cc = acquireClientConn(conn)
 
 	return cc, false, nil
+}
+
+func (c *HostClient) isPooledConnHealthy(conn network.Conn, timeout time.Duration) bool {
+	if checker, ok := conn.(pooledConnHealthChecker); ok {
+		return checker.IsHealthy(timeout)
+	}
+	if err := conn.SetReadTimeout(timeout); err != nil {
+		return false
+	}
+	p, err := conn.Peek(1)
+	if resetErr := conn.SetReadTimeout(0); resetErr != nil {
+		return false
+	}
+	if len(p) != 0 {
+		return false
+	}
+	if errors.Is(err, errs.ErrTimeout) {
+		return true
+	}
+	var timeoutErr net.Error
+	return errors.As(err, &timeoutErr) && timeoutErr.Timeout()
 }
 
 func (c *HostClient) queueForIdle(w *wantConn) {
@@ -1398,6 +1460,10 @@ type ClientOptions struct {
 	// By default idle connections are closed
 	// after DefaultMaxIdleConnDuration.
 	MaxIdleConnDuration time.Duration
+
+	// PooledConnHealthCheck determines whether an idle pooled connection is
+	// probed before reuse. It is disabled by default.
+	PooledConnHealthCheck bool
 
 	// Maximum duration for full response reading (including body).
 	//

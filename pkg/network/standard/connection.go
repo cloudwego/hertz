@@ -77,6 +77,26 @@ func (c *Conn) SetReadTimeout(t time.Duration) error {
 	return c.c.SetReadDeadline(time.Now().Add(t))
 }
 
+// IsHealthy checks whether the peer has closed the connection without
+// consuming data from the buffered reader used by the HTTP protocol.
+func (c *Conn) IsHealthy(timeout time.Duration) bool {
+	if timeout <= 0 || c.Len() > 0 || c.err != nil {
+		return false
+	}
+	if err := c.SetReadTimeout(timeout); err != nil {
+		return false
+	}
+	p, err := c.Peek(1)
+	if resetErr := c.SetReadTimeout(0); resetErr != nil {
+		return false
+	}
+	if len(p) != 0 {
+		return false
+	}
+	var timeoutErr net.Error
+	return errors.As(err, &timeoutErr) && timeoutErr.Timeout()
+}
+
 type TLSConn struct {
 	Conn
 }

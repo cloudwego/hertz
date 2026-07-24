@@ -42,11 +42,13 @@
 package http1
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -67,6 +69,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
+	hznetpoll "github.com/cloudwego/hertz/pkg/network/netpoll"
+	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -736,6 +740,384 @@ type retryConn struct {
 
 func (w retryConn) SetWriteTimeout(t time.Duration) error {
 	return errors.New("should retry")
+}
+
+type pooledConnHealthProbe struct {
+	network.Conn
+	firstPeekErr       error
+	healthCheckPeeks   int
+	closeCalls         int
+	readTimeouts       []time.Duration
+	currentReadTimeout time.Duration
+}
+
+func (c *pooledConnHealthProbe) Peek(n int) ([]byte, error) {
+	if c.currentReadTimeout > 0 && c.healthCheckPeeks == 0 {
+		c.healthCheckPeeks++
+		return nil, c.firstPeekErr
+	}
+	return c.Conn.Peek(n)
+}
+
+func (c *pooledConnHealthProbe) SetReadTimeout(timeout time.Duration) error {
+	c.readTimeouts = append(c.readTimeouts, timeout)
+	c.currentReadTimeout = timeout
+	return c.Conn.SetReadTimeout(timeout)
+}
+
+func (c *pooledConnHealthProbe) Close() error {
+	c.closeCalls++
+	return c.Conn.Close()
+}
+
+func addPooledConn(c *HostClient, conn network.Conn) *clientConn {
+	cc := acquireClientConn(conn)
+	cc.lastUseTime = time.Now()
+	c.conns = append(c.conns, cc)
+	c.connsCount++
+	return cc
+}
+
+func TestPooledConnHealthCheckDisabledByDefault(t *testing.T) {
+	stale := &pooledConnHealthProbe{
+		Conn:         mock.NewBrokenConn(""),
+		firstPeekErr: io.EOF,
+	}
+	c := &HostClient{ClientOptions: &ClientOptions{}}
+	want := addPooledConn(c, stale)
+
+	got, inPool, err := c.acquireConn(time.Second, time.Time{})
+	assert.Nil(t, err)
+	assert.True(t, inPool)
+	assert.True(t, got == want)
+	assert.DeepEqual(t, 0, stale.healthCheckPeeks)
+
+	c.closeConn(got)
+}
+
+func TestPooledConnHealthCheckReusesHealthyConnection(t *testing.T) {
+	response := "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+	healthy := &pooledConnHealthProbe{
+		Conn:         mock.NewConn(response),
+		firstPeekErr: errs.ErrTimeout,
+	}
+	var dialCalls int
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			PooledConnHealthCheck: true,
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				dialCalls++
+				return nil, errors.New("unexpected dial")
+			}),
+		},
+		Addr: "foobar",
+	}
+	addPooledConn(c, healthy)
+
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+	req.Header.SetMethod(consts.MethodPost)
+	req.SetRequestURI("http://foobar/health-check")
+	req.SetBodyString("payload")
+	resp := protocol.AcquireResponse()
+	defer protocol.ReleaseResponse(resp)
+
+	err := c.Do(context.Background(), req, resp)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 200, resp.StatusCode())
+	assert.DeepEqual(t, "ok", string(resp.Body()))
+	assert.DeepEqual(t, 0, dialCalls)
+	assert.DeepEqual(t, 1, healthy.healthCheckPeeks)
+	assert.DeepEqual(t, []time.Duration{pooledConnHealthCheckTimeout, 0}, healthy.readTimeouts[:2])
+}
+
+func TestPooledConnHealthCheckUsesShortProbeTimeout(t *testing.T) {
+	healthy := &pooledConnHealthProbe{
+		Conn:         mock.NewConn(""),
+		firstPeekErr: errs.ErrTimeout,
+	}
+	c := &HostClient{ClientOptions: &ClientOptions{
+		PooledConnHealthCheck: true,
+	}}
+	addPooledConn(c, healthy)
+
+	got, inPool, err := c.acquireConn(time.Second, time.Time{})
+	assert.Nil(t, err)
+	assert.True(t, inPool)
+	assert.DeepEqual(t, 1, healthy.healthCheckPeeks)
+	assert.DeepEqual(t, pooledConnHealthCheckTimeout, healthy.readTimeouts[0])
+	assert.DeepEqual(t, time.Duration(0), healthy.readTimeouts[1])
+
+	c.closeConn(got)
+}
+
+func TestPooledConnHealthCheckDiscardsStaleConnectionBeforePost(t *testing.T) {
+	staleBase := mock.NewBrokenConn("")
+	stale := &pooledConnHealthProbe{
+		Conn:         staleBase,
+		firstPeekErr: io.EOF,
+	}
+	fresh := mock.NewConn("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+	var dialCalls int
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			PooledConnHealthCheck: true,
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				dialCalls++
+				return fresh, nil
+			}),
+		},
+		Addr: "foobar",
+	}
+	addPooledConn(c, stale)
+
+	req := protocol.AcquireRequest()
+	defer protocol.ReleaseRequest(req)
+	req.Header.SetMethod(consts.MethodPost)
+	req.SetRequestURI("http://foobar/health-check")
+	req.SetBodyString("payload")
+	resp := protocol.AcquireResponse()
+	defer protocol.ReleaseResponse(resp)
+
+	err := c.Do(context.Background(), req, resp)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, 200, resp.StatusCode())
+	assert.DeepEqual(t, "ok", string(resp.Body()))
+	assert.DeepEqual(t, 1, stale.healthCheckPeeks)
+	assert.DeepEqual(t, 1, stale.closeCalls)
+	assert.DeepEqual(t, 0, staleBase.WriterRecorder().WroteLen())
+	assert.DeepEqual(t, 1, dialCalls)
+}
+
+func TestPooledConnHealthCheckChecksConnectionDeliveredToWaiter(t *testing.T) {
+	stale := &pooledConnHealthProbe{
+		Conn:         mock.NewBrokenConn(""),
+		firstPeekErr: io.EOF,
+	}
+	fresh := mock.NewConn("")
+	var dialCalls int
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer: dialerFunc(func(network, addr string, timeout time.Duration) (network.Conn, error) {
+				dialCalls++
+				if dialCalls == 1 {
+					return stale, nil
+				}
+				return fresh, nil
+			}),
+			MaxConns:              1,
+			MaxConnWaitTimeout:    time.Second,
+			PooledConnHealthCheck: true,
+		},
+		Addr: "foobar",
+	}
+
+	cc, inPool, err := c.acquireConn(time.Second, time.Time{})
+	assert.Nil(t, err)
+	assert.DeepEqual(t, false, inPool)
+
+	type acquireResult struct {
+		cc     *clientConn
+		inPool bool
+		err    error
+	}
+	resultCh := make(chan acquireResult, 1)
+	go func() {
+		cc, inPool, err := c.acquireConn(time.Second, time.Time{})
+		resultCh <- acquireResult{cc: cc, inPool: inPool, err: err}
+	}()
+
+	deadline := time.After(time.Second)
+	for {
+		c.connsLock.Lock()
+		waiting := c.connsWait != nil && c.connsWait.len() == 1
+		c.connsLock.Unlock()
+		if waiting {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("waiter was not queued")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+
+	c.releaseConn(cc)
+	select {
+	case got := <-resultCh:
+		assert.Nil(t, got.err)
+		assert.DeepEqual(t, false, got.inPool)
+		assert.True(t, got.cc.c == fresh)
+		c.closeConn(got.cc)
+	case <-time.After(time.Second):
+		t.Fatal("waiter did not receive a replacement connection")
+	}
+
+	assert.DeepEqual(t, 1, stale.healthCheckPeeks)
+	assert.DeepEqual(t, 1, stale.closeCalls)
+	assert.DeepEqual(t, 2, dialCalls)
+}
+
+func TestPooledConnHealthCheckRealConnection(t *testing.T) {
+	dialers := []struct {
+		name   string
+		dialer network.Dialer
+	}{
+		{name: "standard", dialer: standard.NewDialer()},
+		{name: "netpoll", dialer: hznetpoll.NewDialer()},
+	}
+	for _, tt := range dialers {
+		t.Run(tt.name, func(t *testing.T) {
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			assert.Nil(t, err)
+			defer ln.Close()
+
+			serverResult := make(chan error, 1)
+			var accepted, requests int
+			go func() {
+				for i := 0; i < 2; i++ {
+					conn, err := ln.Accept()
+					if err != nil {
+						serverResult <- err
+						return
+					}
+					accepted++
+					req, err := http.ReadRequest(bufio.NewReader(conn))
+					if err != nil {
+						conn.Close()
+						serverResult <- err
+						return
+					}
+					body, err := io.ReadAll(req.Body)
+					req.Body.Close()
+					if err != nil || req.Method != consts.MethodPost || string(body) != "payload" {
+						conn.Close()
+						serverResult <- fmt.Errorf("unexpected request method=%q body=%q err=%v", req.Method, body, err)
+						return
+					}
+					requests++
+					if _, err := io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok"); err != nil {
+						conn.Close()
+						serverResult <- err
+						return
+					}
+					conn.Close()
+				}
+				serverResult <- nil
+			}()
+
+			c := &HostClient{
+				ClientOptions: &ClientOptions{
+					Dialer:                tt.dialer,
+					PooledConnHealthCheck: true,
+				},
+				Addr: ln.Addr().String(),
+			}
+			for i := 0; i < 2; i++ {
+				req := protocol.AcquireRequest()
+				req.Header.SetMethod(consts.MethodPost)
+				req.SetRequestURI("http://" + ln.Addr().String() + "/health-check")
+				req.SetBodyString("payload")
+				resp := protocol.AcquireResponse()
+				err := c.Do(context.Background(), req, resp)
+				assert.Nil(t, err)
+				assert.DeepEqual(t, 200, resp.StatusCode())
+				assert.DeepEqual(t, "ok", string(resp.Body()))
+				protocol.ReleaseRequest(req)
+				protocol.ReleaseResponse(resp)
+			}
+
+			select {
+			case err := <-serverResult:
+				assert.Nil(t, err)
+			case <-time.After(time.Second):
+				t.Fatal("server did not receive both requests")
+			}
+			assert.DeepEqual(t, 2, accepted)
+			assert.DeepEqual(t, 2, requests)
+		})
+	}
+}
+
+func TestPooledConnHealthCheckReusesRealConnection(t *testing.T) {
+	dialers := []struct {
+		name   string
+		dialer network.Dialer
+	}{
+		{name: "standard", dialer: standard.NewDialer()},
+		{name: "netpoll", dialer: hznetpoll.NewDialer()},
+	}
+	for _, tt := range dialers {
+		t.Run(tt.name, func(t *testing.T) {
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			assert.Nil(t, err)
+			defer ln.Close()
+
+			serverResult := make(chan error, 1)
+			var accepted, requests int
+			go func() {
+				conn, err := ln.Accept()
+				if err != nil {
+					serverResult <- err
+					return
+				}
+				defer conn.Close()
+				accepted++
+				reader := bufio.NewReader(conn)
+				for i := 0; i < 2; i++ {
+					req, err := http.ReadRequest(reader)
+					if err != nil {
+						serverResult <- err
+						return
+					}
+					body, err := io.ReadAll(req.Body)
+					req.Body.Close()
+					if err != nil || req.Method != consts.MethodPost || string(body) != "payload" {
+						serverResult <- fmt.Errorf("unexpected request method=%q body=%q err=%v", req.Method, body, err)
+						return
+					}
+					requests++
+					if _, err := io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok"); err != nil {
+						serverResult <- err
+						return
+					}
+				}
+				serverResult <- nil
+			}()
+
+			c := &HostClient{
+				ClientOptions: &ClientOptions{
+					Dialer:                tt.dialer,
+					PooledConnHealthCheck: true,
+				},
+				Addr: ln.Addr().String(),
+			}
+			defer c.CloseIdleConnections()
+			for i := 0; i < 2; i++ {
+				req := protocol.AcquireRequest()
+				req.Header.SetMethod(consts.MethodPost)
+				req.SetRequestURI("http://" + ln.Addr().String() + "/health-check")
+				req.SetBodyString("payload")
+				resp := protocol.AcquireResponse()
+				err := c.Do(context.Background(), req, resp)
+				assert.Nil(t, err)
+				assert.DeepEqual(t, 200, resp.StatusCode())
+				assert.DeepEqual(t, "ok", string(resp.Body()))
+				protocol.ReleaseRequest(req)
+				protocol.ReleaseResponse(resp)
+			}
+
+			select {
+			case err := <-serverResult:
+				assert.Nil(t, err)
+			case <-time.After(time.Second):
+				t.Fatal("server did not receive both requests")
+			}
+			assert.DeepEqual(t, 1, accepted)
+			assert.DeepEqual(t, 2, requests)
+		})
+	}
 }
 
 func TestConnInPoolRetry(t *testing.T) {

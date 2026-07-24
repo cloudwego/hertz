@@ -33,6 +33,7 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 0, opt.MaxConnsPerHost)
 	assert.DeepEqual(t, consts.DefaultDialTimeout, opt.DialTimeout)
 	assert.DeepEqual(t, consts.DefaultMaxIdleConnDuration, opt.MaxIdleConnDuration)
+	assert.DeepEqual(t, false, opt.PooledConnHealthCheck)
 	assert.DeepEqual(t, true, opt.KeepAlive)
 	assert.DeepEqual(t, 5*time.Second, opt.ObservationInterval)
 
@@ -41,6 +42,7 @@ func TestClientOptions(t *testing.T) {
 		WithDialTimeout(100 * time.Millisecond),
 		WithMaxConnsPerHost(128),
 		WithMaxIdleConnDuration(5 * time.Second),
+		WithPooledConnHealthCheck(true),
 		WithMaxConnDuration(10 * time.Second),
 		WithMaxConnWaitTimeout(5 * time.Second),
 		WithKeepAlive(false),
@@ -59,6 +61,7 @@ func TestClientOptions(t *testing.T) {
 	assert.DeepEqual(t, 100*time.Millisecond, opt.DialTimeout)
 	assert.DeepEqual(t, 128, opt.MaxConnsPerHost)
 	assert.DeepEqual(t, 5*time.Second, opt.MaxIdleConnDuration)
+	assert.DeepEqual(t, true, opt.PooledConnHealthCheck)
 	assert.DeepEqual(t, 10*time.Second, opt.MaxConnDuration)
 	assert.DeepEqual(t, 5*time.Second, opt.MaxConnWaitTimeout)
 	assert.DeepEqual(t, false, opt.KeepAlive)

@@ -49,6 +49,17 @@ func WithMaxIdleConnDuration(t time.Duration) config.ClientOption {
 	}}
 }
 
+// WithPooledConnHealthCheck determines whether idle pooled connections are
+// probed before reuse. Unhealthy connections are discarded before writing a
+// request.
+//
+// The check uses a short read probe and is disabled by default.
+func WithPooledConnHealthCheck(enabled bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.PooledConnHealthCheck = enabled
+	}}
+}
+
 // WithMaxConnDuration sets max connection duration, keep-alive connections are closed after this duration.
 func WithMaxConnDuration(t time.Duration) config.ClientOption {
 	return config.ClientOption{F: func(o *config.ClientOptions) {

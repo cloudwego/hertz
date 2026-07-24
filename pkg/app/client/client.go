@@ -669,6 +669,7 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		MaxConns:                      c.options.MaxConnsPerHost,
 		MaxConnDuration:               c.options.MaxConnDuration,
 		MaxIdleConnDuration:           c.options.MaxIdleConnDuration,
+		PooledConnHealthCheck:         c.options.PooledConnHealthCheck,
 		ReadTimeout:                   c.options.ReadTimeout,
 		WriteTimeout:                  c.options.WriteTimeout,
 		MaxResponseBodySize:           c.options.MaxResponseBodySize,

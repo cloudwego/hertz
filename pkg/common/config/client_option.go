@@ -56,12 +56,15 @@ type ClientOptions struct {
 	MaxConnsPerHost int
 
 	MaxIdleConnDuration time.Duration
-	MaxConnDuration     time.Duration
-	MaxConnWaitTimeout  time.Duration
-	KeepAlive           bool
-	ReadTimeout         time.Duration
-	TLSConfig           *tls.Config
-	ResponseBodyStream  bool
+	// PooledConnHealthCheck determines whether an idle pooled connection is
+	// probed before reuse. It is disabled by default.
+	PooledConnHealthCheck bool
+	MaxConnDuration       time.Duration
+	MaxConnWaitTimeout    time.Duration
+	KeepAlive             bool
+	ReadTimeout           time.Duration
+	TLSConfig             *tls.Config
+	ResponseBodyStream    bool
 
 	// Client name. Used in User-Agent request header.
 	//
