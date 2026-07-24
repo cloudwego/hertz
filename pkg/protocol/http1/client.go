@@ -558,6 +558,9 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	conn := cc.c
 	resp.ParseNetAddr(conn)
 	if c.PooledConnHealthCheck {
+		// Health checks may discard stale pooled connections and acquire a
+		// replacement. Recompute the remaining dial/handshake budget after that
+		// work instead of reusing the timeout calculated before acquireConn.
 		timeout = calcTimeout(deadline, dtimeout)
 		if timeout < 0 {
 			c.closeConn(cc)
@@ -836,15 +839,24 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) 
 		return c.acquireConnOnce(dialTimeout)
 	}
 
+	// Probe reused connections before any request bytes are written. A stale
+	// connection is closed and the loop acquires another one; this is connection
+	// selection, not a request retry.
 	for {
+		// Previous probes and replacement attempts consume the request deadline,
+		// so every acquisition must use the remaining budget.
 		currentDialTimeout := calcTimeout(deadline, dialTimeout)
 		if currentDialTimeout < 0 {
 			return nil, false, errTimeout
 		}
 		cc, inPool, err = c.acquireConnOnce(currentDialTimeout)
+		// Newly dialed connections have no last-use time and do not need a
+		// preflight probe. Only connections returned by the pool are checked.
 		if err != nil || cc == nil || !c.PooledConnHealthCheck || cc.lastUseTime.IsZero() {
 			return cc, inPool, err
 		}
+		// Bound the probe by both its short fixed window and the remaining
+		// request deadline.
 		healthCheckTimeout := calcTimeout(deadline, pooledConnHealthCheckTimeout)
 		if healthCheckTimeout < 0 {
 			c.closeConn(cc)
@@ -853,6 +865,8 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) 
 		if c.isPooledConnHealthy(cc.c, healthCheckTimeout) {
 			return cc, inPool, nil
 		}
+		// No request bytes have been written yet, so discard the stale connection
+		// and safely continue looking for a usable one.
 		c.closeConn(cc)
 	}
 }
@@ -933,20 +947,35 @@ func (c *HostClient) acquireConnOnce(dialTimeout time.Duration) (cc *clientConn,
 	return cc, false, nil
 }
 
+// isPooledConnHealthy performs a non-consuming pre-write read probe. A timeout
+// with no buffered data means the connection is still usable; readable data or
+// any other error makes the connection ineligible for reuse.
 func (c *HostClient) isPooledConnHealthy(conn network.Conn, timeout time.Duration) bool {
+	// Prefer a transport-specific implementation because its buffered reader may
+	// need special handling to avoid consuming data or retaining a probe timeout.
 	if checker, ok := conn.(pooledConnHealthChecker); ok {
 		return checker.IsHealthy(timeout)
 	}
+	// Keep the probe short so an idle but healthy connection does not delay the
+	// request while waiting for a byte that should not arrive.
 	if err := conn.SetReadTimeout(timeout); err != nil {
 		return false
 	}
+	// Peek preserves any byte for the protocol reader; the health check must not
+	// consume application data.
 	p, err := conn.Peek(1)
+	// Restore the normal read deadline before the connection is reused. If the
+	// deadline cannot be restored, the connection is unsafe to return.
 	if resetErr := conn.SetReadTimeout(0); resetErr != nil {
 		return false
 	}
+	// Any readable byte is unexpected on an idle connection. Check the data
+	// independently because some implementations may return data with an error.
 	if len(p) != 0 {
 		return false
 	}
+	// No data until the probe deadline is the expected healthy result. Accept
+	// both Hertz's timeout sentinel and transport-specific net.Error values.
 	if errors.Is(err, errs.ErrTimeout) {
 		return true
 	}
