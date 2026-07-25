@@ -42,12 +42,17 @@ const (
 	maxConsecutiveEmptyReads = 100
 )
 
+type connHealthChecker interface {
+	isHealthy() bool
+}
+
 type Conn struct {
-	c            net.Conn
-	inputBuffer  *linkBuffer
-	outputBuffer *linkBuffer
-	caches       [][]byte // buf allocated by Next when cross-package, which should be freed when release
-	maxSize      int      // history max malloc size
+	c             net.Conn
+	inputBuffer   *linkBuffer
+	outputBuffer  *linkBuffer
+	caches        [][]byte // buf allocated by Next when cross-package, which should be freed when release
+	maxSize       int      // history max malloc size
+	healthChecker connHealthChecker
 
 	err error
 }
@@ -80,9 +85,16 @@ func (c *Conn) SetReadTimeout(t time.Duration) error {
 // IsHealthy checks whether the peer has closed the connection without
 // consuming data from the buffered reader used by the HTTP protocol.
 func (c *Conn) IsHealthy(timeout time.Duration) bool {
-	if timeout <= 0 || c.Len() > 0 || c.err != nil {
+	if c == nil || c.c == nil || timeout <= 0 || c.Len() > 0 || c.err != nil {
 		return false
 	}
+	if c.healthChecker != nil {
+		return c.healthChecker.isHealthy()
+	}
+	return c.isHealthyWithTimedPeek(timeout)
+}
+
+func (c *Conn) isHealthyWithTimedPeek(timeout time.Duration) bool {
 	if err := c.SetReadTimeout(timeout); err != nil {
 		return false
 	}
@@ -623,10 +635,11 @@ func newConn(c net.Conn, size int) network.Conn {
 	runtime.SetFinalizer(outputBuffer, (*linkBuffer).release)
 
 	return &Conn{
-		c:            c,
-		inputBuffer:  inputBuffer,
-		outputBuffer: outputBuffer,
-		maxSize:      maxSize,
+		c:             c,
+		inputBuffer:   inputBuffer,
+		outputBuffer:  outputBuffer,
+		maxSize:       maxSize,
+		healthChecker: newTCPHealthChecker(c),
 	}
 }
 

@@ -52,6 +52,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1117,6 +1118,52 @@ func TestPooledConnHealthCheckReusesRealConnection(t *testing.T) {
 			assert.DeepEqual(t, 1, accepted)
 			assert.DeepEqual(t, 2, requests)
 		})
+	}
+}
+
+func TestPooledConnHealthCheckPreservesHealthyStandardReuseAfterReadTimeout(t *testing.T) {
+	var accepted atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			accepted.Add(1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	c := &HostClient{
+		ClientOptions: &ClientOptions{
+			Dialer:                standard.NewDialer(),
+			PooledConnHealthCheck: true,
+			ReadTimeout:           50 * time.Millisecond,
+		},
+		Addr: strings.TrimPrefix(server.URL, "http://"),
+	}
+	defer c.CloseIdleConnections()
+
+	for i := 0; i < 2; i++ {
+		req := protocol.AcquireRequest()
+		req.Header.SetMethod(consts.MethodGet)
+		req.SetRequestURI(server.URL)
+		resp := protocol.AcquireResponse()
+		if err := c.Do(context.Background(), req, resp); err != nil {
+			t.Fatalf("request %d: %v", i+1, err)
+		}
+		if got := resp.StatusCode(); got != http.StatusOK {
+			t.Fatalf("request %d status: got %d, want %d", i+1, got, http.StatusOK)
+		}
+		protocol.ReleaseRequest(req)
+		protocol.ReleaseResponse(resp)
+		if i == 0 {
+			time.Sleep(75 * time.Millisecond)
+		}
+	}
+	if got := accepted.Load(); got != 1 {
+		t.Fatalf("healthy standard connection was redialed: got %d accepts, want 1", got)
 	}
 }
 
