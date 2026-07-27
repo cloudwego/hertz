@@ -70,7 +70,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/dialer"
-	hznetpoll "github.com/cloudwego/hertz/pkg/network/netpoll"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/client"
@@ -79,6 +78,11 @@ import (
 )
 
 var errDialTimeout = errs.New(errs.ErrTimeout, errs.ErrorTypePublic, "dial timeout")
+
+type pooledConnHealthCheckDialer struct {
+	name   string
+	dialer network.Dialer
+}
 
 func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 	var (
@@ -961,14 +965,7 @@ func TestPooledConnHealthCheckChecksConnectionDeliveredToWaiter(t *testing.T) {
 }
 
 func TestPooledConnHealthCheckRealConnection(t *testing.T) {
-	dialers := []struct {
-		name   string
-		dialer network.Dialer
-	}{
-		{name: "standard", dialer: standard.NewDialer()},
-		{name: "netpoll", dialer: hznetpoll.NewDialer()},
-	}
-	for _, tt := range dialers {
+	for _, tt := range pooledConnHealthCheckDialers() {
 		t.Run(tt.name, func(t *testing.T) {
 			ln, err := net.Listen("tcp", "127.0.0.1:0")
 			assert.Nil(t, err)
@@ -1042,14 +1039,7 @@ func TestPooledConnHealthCheckRealConnection(t *testing.T) {
 }
 
 func TestPooledConnHealthCheckReusesRealConnection(t *testing.T) {
-	dialers := []struct {
-		name   string
-		dialer network.Dialer
-	}{
-		{name: "standard", dialer: standard.NewDialer()},
-		{name: "netpoll", dialer: hznetpoll.NewDialer()},
-	}
-	for _, tt := range dialers {
+	for _, tt := range pooledConnHealthCheckDialers() {
 		t.Run(tt.name, func(t *testing.T) {
 			ln, err := net.Listen("tcp", "127.0.0.1:0")
 			assert.Nil(t, err)

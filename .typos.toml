@@ -17,6 +17,7 @@ Flate = "Flate" # flate algorithm
 extend-ignore-re = [
   # Comments showing header normalization examples:
   "\\bcONTENT-lenGTH\\b",
+  "\\bconteNT-tYPE\\b",
   # Test intentionally using odd case:
   "\\bconnecTION\\b",
 ]
