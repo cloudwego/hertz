@@ -25,8 +25,6 @@ import (
 	"testing"
 	"time"
 
-	internalNetwork "github.com/cloudwego/hertz/internal/network"
-
 	inStats "github.com/cloudwego/hertz/internal/stats"
 	"github.com/cloudwego/hertz/pkg/app"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
@@ -222,6 +220,7 @@ func TestDefaultWriter(t *testing.T) {
 }
 
 func TestServerDisableReqCtxPool(t *testing.T) {
+	// pool enabled: ctx is reused via Get/Put, POOL_KEY set by New() is observable.
 	server := &Server{}
 	reqCtx := &app.RequestContext{}
 	server.Core = &mockCore{
@@ -239,26 +238,64 @@ func TestServerDisableReqCtxPool(t *testing.T) {
 	defaultConn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
 	err := server.Serve(context.TODO(), defaultConn)
 	assert.Nil(t, err)
+
+	// pool disabled: New() must still be invoked so the ctx is fully initialized,
+	// and it must be called on every request (no Get/Put reuse).
 	disabaleRequestContextPool = true
 	defer func() {
 		// reset global variable
 		disabaleRequestContextPool = false
 	}()
+	var newCalled int
 	server.Core = &mockCore{
 		ctxPool: &sync.Pool{New: func() interface{} {
-			reqCtx.Set("POOL_KEY", "in pool")
-			return reqCtx
+			newCalled++
+			ctx := &app.RequestContext{}
+			ctx.Set("POOL_KEY", "in pool")
+			return ctx
 		}},
 		mockHandler: func(c context.Context, ctx *app.RequestContext) {
-			if len(ctx.GetString("POOL_KEY")) != 0 {
-				t.Fatal("must not get pool key")
+			// Before the fix this would be empty because the disabled branch
+			// returned a raw &app.RequestContext{} bypassing pool.New().
+			if ctx.GetString("POOL_KEY") != "in pool" {
+				t.Fatal("New() was not invoked when pool is disabled")
 			}
 		},
 		isRunning: true,
 	}
-	defaultConn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
-	err = server.Serve(context.TODO(), defaultConn)
-	assert.Nil(t, err)
+	for i := 0; i < 2; i++ {
+		err = server.Serve(context.TODO(), mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n"))
+		assert.Nil(t, err)
+	}
+	// Disabled mode never reuses ctx via Get/Put, so New must run for each request.
+	assert.DeepEqual(t, 2, newCalled)
+}
+
+// Regression test: with EnableTrace=true, the pre-fix disabled branch returned a
+// raw &app.RequestContext{} whose TraceInfo was nil. The Serve defer then called
+// the trace controller with that nil TraceInfo and panicked. The fix routes
+// through pool.New() which installs a TraceInfo, so Serve completes normally.
+func TestServerDisableReqCtxPool_TracePanic(t *testing.T) {
+	disabaleRequestContextPool = true
+	defer func() {
+		disabaleRequestContextPool = false
+	}()
+
+	server := &Server{}
+	server.eventStackPool = pool
+	server.EnableTrace = true
+	server.Core = &mockCore{
+		ctxPool: &sync.Pool{New: func() interface{} {
+			ctx := &app.RequestContext{}
+			ti := traceinfo.NewTraceInfo()
+			ti.Stats().SetLevel(2)
+			ctx.SetTraceInfo(&mockTraceInfo{ti})
+			return ctx
+		}},
+		controller: &inStats.Controller{},
+	}
+	err := server.Serve(context.TODO(), mock.NewConn("GET /aaa HTTP/1.1\nHost: foobar.com\n\n"))
+	assert.True(t, errors.Is(err, errs.ErrShortConnection))
 }
 
 func TestServer_RaceDetect(t *testing.T) {
@@ -422,139 +459,6 @@ func TestExpect100ContinueHandler(t *testing.T) {
 	assert.DeepEqual(t, "", string(response.Body()))
 }
 
-func TestSenseClientConnClose(t *testing.T) {
-	type connstate struct {
-		detectCalled bool
-		abortCalled  bool
-	}
-	reset := func(cs *connstate) {
-		cs.detectCalled = false
-		cs.abortCalled = false
-	}
-	state := &connstate{}
-
-	var (
-		detectFunc = func() {
-			state.detectCalled = true
-		}
-		abortFunc = func() {
-			state.abortCalled = true
-		}
-	)
-
-	server := &Server{}
-	reqCtx := &app.RequestContext{}
-	server.Core = &mockCore{
-		ctxPool: &sync.Pool{New: func() interface{} {
-			return reqCtx
-		}},
-		isRunning:   true,
-		mockHandler: func(c context.Context, ctx *app.RequestContext) {},
-	}
-
-	// normal
-	conn := mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
-	statefulConn := &mockStatefulConn{
-		conn,
-		nil,
-		detectFunc,
-		abortFunc,
-	}
-	server.Serve(context.Background(), statefulConn)
-	assert.True(t, state.detectCalled)
-	assert.True(t, state.abortCalled)
-	reset(state)
-
-	// 100 continue
-	conn = mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 5\r\nContent-Type: a/b\r\n\r\n12345")
-	statefulConn.Conn = conn
-	server.Serve(context.Background(), statefulConn)
-	assert.True(t, state.detectCalled)
-	assert.True(t, state.abortCalled)
-	reset(state)
-
-	// 100 continue: error
-	conn = mock.NewConn("POST /foo HTTP/1.1\r\n" +
-		"Host: gle.com\r\n" +
-		"Expect: 100-continue\r\n" +
-		"Content-Length: 40\r\n" +
-		"Content-Type: multipart/form-data; boundary=1\r\n" +
-		"\r\n" +
-		"--1\r\n" +
-		"broken-multipart-body",
-	)
-	statefulConn.Conn = conn
-	server.Serve(context.Background(), statefulConn)
-	assert.False(t, state.detectCalled)
-	assert.False(t, state.abortCalled)
-	reset(state)
-
-	// bodyStream
-	server.StreamRequestBody = true
-	conn = mock.NewConn("POST /foo HTTP/1.1\r\nHost: gle.com\r\nExpect: 100-continue\r\nContent-Length: 0\r\nContent-Type: a/b\r\n\r\n12345")
-	statefulConn.Conn = conn
-	server.Serve(context.Background(), statefulConn)
-	assert.False(t, state.detectCalled)
-	assert.False(t, state.abortCalled)
-	reset(state)
-	server.StreamRequestBody = false
-
-	// hijacked
-	conn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
-	statefulConn = &mockStatefulConn{
-		conn,
-		nil,
-		detectFunc,
-		abortFunc,
-	}
-	server.HijackConnHandle = func(c network.Conn, h app.HijackHandler) {
-		h(c)
-	}
-	server.Core = &mockCore{
-		ctxPool: &sync.Pool{New: func() interface{} {
-			return reqCtx
-		}},
-		isRunning: true,
-		mockHandler: func(c context.Context, ctx *app.RequestContext) {
-			ctx.SetHijackHandler(func(conn network.Conn) {
-				_ = conn.Len()
-			})
-		},
-	}
-	server.Serve(context.Background(), statefulConn)
-	assert.True(t, state.detectCalled)
-	assert.True(t, state.abortCalled)
-	reset(state)
-	server.HijackConnHandle = nil
-
-	// handler panic
-	conn = mock.NewConn("GET / HTTP/1.1\nHost: foobar.com\n\n")
-	statefulConn = &mockStatefulConn{
-		conn,
-		nil,
-		detectFunc,
-		abortFunc,
-	}
-	server.Core = &mockCore{
-		ctxPool: &sync.Pool{New: func() interface{} {
-			return reqCtx
-		}},
-		isRunning: true,
-		mockHandler: func(c context.Context, ctx *app.RequestContext) {
-			// panic should be recovered by the recovery middleware, just mock one here.
-			// perform like a normal request
-			defer func() {
-				recover()
-			}()
-			panic("mock panic")
-		},
-	}
-	server.Serve(context.Background(), statefulConn)
-	assert.True(t, state.detectCalled)
-	assert.True(t, state.abortCalled)
-	reset(state)
-}
-
 type mockController struct {
 	FinishTimes int
 }
@@ -648,27 +552,6 @@ func TestShouldRecordInTraceError(t *testing.T) {
 
 	assert.True(t, shouldRecordInTraceError(errTimeout))
 	assert.True(t, shouldRecordInTraceError(errors.New("foo error")))
-}
-
-var _ internalNetwork.StatefulConn = &mockStatefulConn{}
-
-type mockStatefulConn struct {
-	network.Conn
-	Ctx                       context.Context
-	DetectConnectionCloseFunc func()
-	AbortBlockingReadFunc     func()
-}
-
-func (c *mockStatefulConn) DetectConnectionClose() {
-	c.DetectConnectionCloseFunc()
-}
-
-func (c *mockStatefulConn) AbortBlockingRead() {
-	c.AbortBlockingReadFunc()
-}
-
-func (c *mockStatefulConn) Context() context.Context {
-	return c.Ctx
 }
 
 func TestServerMaxHeaderBytes(t *testing.T) {

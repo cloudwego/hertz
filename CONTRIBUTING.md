@@ -3,9 +3,6 @@
 ## Your First Pull Request
 We use github for our codebase. You can start by reading [How To Pull Request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
-## Without Semantic Versioning
-We keep the stable code in branch `main` like `golang.org/x`. Development base on branch `develop`. And we promise the **Forward Compatibility** by adding new package directory with suffix `v2/v3` when code has break changes.
-
 ## Branch Organization
 We use [git-flow](https://nvie.com/posts/a-successful-git-branching-model/) as our branch organization, as known as [FDD](https://en.wikipedia.org/wiki/Feature-driven_development)
 
@@ -32,7 +29,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
 4. [Fork](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo) the cloudwego/hertz repo.
 5. In your forked repository, make your changes in a new git branch:
     ```
-    git checkout -b my-fix-branch develop
+    git checkout -b my-fix-branch main
     ```
 6. Create your patch, including appropriate test cases.
 7. Follow our [Style Guides](#code-style-guides).
@@ -42,7 +39,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
     ```
     git push origin my-fix-branch
     ```
-10. In GitHub, send a pull request to `hertz:develop` with a clear and unambiguous title.
+10. In GitHub, send a pull request to `hertz:main` with a clear and unambiguous title.
 
 ## Contribution Prerequisites
 - Our development environment keeps up with [Go Official](https://golang.org/project/).

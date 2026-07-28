@@ -288,8 +288,8 @@ type wantConn struct {
 // errTimeout is returned if the response wasn't returned during
 // the given timeout.
 //
-// ErrNoFreeConns is returned if all HostClient.MaxConns connections
-// to the host are busy.
+// If MaxConns is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -315,8 +315,8 @@ func (c *HostClient) DoTimeout(ctx context.Context, req *protocol.Request, resp 
 // errTimeout is returned if the response wasn't returned until
 // the given deadline.
 //
-// ErrNoFreeConns is returned if all HostClient.MaxConns connections
-// to the host are busy.
+// If MaxConns is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -338,8 +338,8 @@ func (c *HostClient) DoDeadline(ctx context.Context, req *protocol.Request, resp
 //
 // Response is ignored if resp is nil.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConns is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -357,8 +357,8 @@ func (c *HostClient) DoRedirects(ctx context.Context, req *protocol.Request, res
 //
 // Response is ignored if resp is nil.
 //
-// ErrNoFreeConns is returned if all HostClient.MaxConns connections
-// to the host are busy.
+// If MaxConns is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.

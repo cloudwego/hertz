@@ -246,6 +246,11 @@ func WithKeepAlive(b bool) config.Option {
 // StreamRequestBody enables streaming request body,
 // and calls the handler sooner when given body is
 // larger than the current limit.
+//
+// Note: multipart form requests are still pre-parsed even when streaming is
+// enabled (the body is fully consumed into memory or a temp file before the
+// handler runs). To stream multipart bodies as well, also pass
+// WithDisablePreParseMultipartForm(true).
 func WithStreamBody(b bool) config.Option {
 	return config.Option{F: func(o *config.Options) {
 		o.StreamRequestBody = b

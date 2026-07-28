@@ -21,6 +21,9 @@ import (
 	"strconv"
 )
 
+// The following expression types implement the Literal interface to produce
+// Go source code for default values defined in IDL files.
+
 type BoolExpression struct {
 	Src bool
 }
@@ -41,6 +44,8 @@ func (stringExpr StringExpression) Expression() string {
 	return fmt.Sprintf("%q", stringExpr.Src)
 }
 
+// NumberExpression stores the number as a raw string to preserve the original
+// IDL representation (e.g. hex literals, large numbers).
 type NumberExpression struct {
 	Src string
 }

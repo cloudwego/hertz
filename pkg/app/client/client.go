@@ -85,8 +85,8 @@ var (
 //
 // Response is ignored if resp is nil.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -112,8 +112,8 @@ func Do(ctx context.Context, req *protocol.Request, resp *protocol.Response) err
 // errTimeout is returned if the response wasn't returned during
 // the given timeout.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -145,8 +145,8 @@ func DoTimeout(ctx context.Context, req *protocol.Request, resp *protocol.Respon
 // errTimeout is returned if the response wasn't returned until
 // the given deadline.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -174,8 +174,8 @@ func DoDeadline(ctx context.Context, req *protocol.Request, resp *protocol.Respo
 //
 // Response is ignored if resp is nil.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -369,8 +369,8 @@ func (c *Client) Post(ctx context.Context, dst []byte, url string, postArgs *pro
 // errTimeout is returned if the response wasn't returned during
 // the given timeout.
 //
-// ErrNoFreeConns is returned if all Client.MaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -402,8 +402,8 @@ func (c *Client) DoTimeout(ctx context.Context, req *protocol.Request, resp *pro
 // errTimeout is returned if the response wasn't returned until
 // the given deadline.
 //
-// ErrNoFreeConns is returned if all Client.MaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -425,8 +425,8 @@ func (c *Client) DoDeadline(ctx context.Context, req *protocol.Request, resp *pr
 //
 // Response is ignored if resp is nil.
 //
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
@@ -449,8 +449,8 @@ func (c *Client) DoRedirects(ctx context.Context, req *protocol.Request, resp *p
 //
 // The function doesn't follow redirects. Use Get* for following redirects.
 //
-// ErrNoFreeConns is returned if all Client.MaxConnsPerHost connections
-// to the requested host are busy.
+// If MaxConnsPerHost is configured (> 0), ErrNoFreeConns is returned
+// when all connections to the requested host are busy.
 //
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.

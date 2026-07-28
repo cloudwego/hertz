@@ -30,6 +30,7 @@ import (
 
 //---------------------------------Backend----------------------------------
 
+// Option controls model code generation behavior.
 type Option string
 
 const (
@@ -37,12 +38,14 @@ const (
 	OptionTypedefAsTypeAlias Option = "TypedefAsTypeAlias"
 )
 
+// Backend abstracts the target language for model code generation.
+// Currently only Go is implemented; third-party backends are planned but not yet supported.
 type Backend interface {
 	Template() (*template.Template, error)
-	List() map[string]string
-	SetOption(opts string) error
-	GetOptions() []string
-	Funcs(name string, fn interface{}) error
+	List() map[string]string                 // returns template name -> body mapping
+	SetOption(opts string) error             // configures generation options (e.g. MarshalEnumToText)
+	GetOptions() []string                    // returns active options
+	Funcs(name string, fn interface{}) error // registers custom template functions
 }
 
 type GolangBackend struct{}
@@ -81,6 +84,9 @@ func loadThirdPartyBackend(plugin string) Backend {
 
 /**********************Generating*************************/
 
+// LoadBackend initializes the model template engine for the given backend.
+// It registers a "ROOT" template function that returns the current model being rendered,
+// allowing templates to access cross-model import information.
 func (pkgGen *HttpPackageGenerator) LoadBackend(backend meta.Backend) error {
 	bd := switchBackend(backend)
 	if bd == nil {
@@ -112,6 +118,10 @@ func (pkgGen *HttpPackageGenerator) LoadBackend(backend meta.Backend) error {
 	return nil
 }
 
+// GenModel recursively resolves model file paths and generates Go source files.
+// It first processes all imported models (dependencies), then generates the current model.
+// The gen flag controls whether to actually render the template (false for dependency-only path resolution).
+// processedModels tracks already-visited models to avoid duplicate work.
 func (pkgGen *HttpPackageGenerator) GenModel(data *model.Model, gen bool) error {
 	if pkgGen.processedModels == nil {
 		pkgGen.processedModels = map[*model.Model]bool{}

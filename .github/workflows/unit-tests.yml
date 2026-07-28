@@ -6,7 +6,7 @@ jobs:
   unit-test-x64:
     strategy:
       matrix:
-        version: ["1.19", "1.20", oldstable, stable]
+        version: ["1.20", oldstable, stable]
     runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
@@ -14,7 +14,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
@@ -22,28 +22,42 @@ jobs:
   unit-test-arm64:
     strategy:
       matrix:
-        version: ["1.19", "1.20", oldstable, stable]
-    runs-on: [self-hosted, ARM64]
+        version: ["1.20", oldstable, stable]
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.version }}
-          cache: false # don't use cache for self-hosted runners
+          cache: true # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
 
-  ut-windows:
-    runs-on: [self-hosted, Windows]
+
+  unit-test-no-netpoll:
+    runs-on: [self-hosted, Linux]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
+
+      - name: Unit Test
+        run: HERTZ_NO_NETPOLL=1 go test -race ./...
+
+  ut-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true # false for self-hosted runners
 
       - name: Unit Test
         run: go test -race ./...
@@ -56,7 +70,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: false # don't use cache for self-hosted runners
+          cache: false # false for self-hosted runners
 
       - name: Unit Test
         run: go test -coverpkg=./... -coverprofile=coverage.txt ./...

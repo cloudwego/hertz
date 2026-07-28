@@ -17,31 +17,53 @@
 package thrift
 
 import (
-	"io/ioutil"
 	"testing"
 
+	"github.com/cloudwego/hertz/cmd/hz/config"
 	"github.com/cloudwego/hertz/cmd/hz/generator"
 	"github.com/cloudwego/hertz/cmd/hz/meta"
-	"github.com/cloudwego/thriftgo/plugin"
+	"github.com/cloudwego/hertz/cmd/hz/util"
+	"github.com/cloudwego/thriftgo/parser"
+	thriftgo_plugin "github.com/cloudwego/thriftgo/plugin"
 )
 
-func TestRun(t *testing.T) {
-	data, err := ioutil.ReadFile("../testdata/request_thrift.out")
+// buildTestRequest parses the test thrift IDL and builds a thriftgo plugin request.
+func buildTestRequest(t *testing.T) *thriftgo_plugin.Request {
+	t.Helper()
+	idlPath := "../testdata/thrift/psm.thrift"
+	ast, err := parser.ParseFile(idlPath, []string{"../testdata/thrift"}, true)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("parse thrift IDL failed: %v", err)
 	}
 
-	req, err := plugin.UnmarshalRequest(data)
+	args := config.NewArgument()
+	args.Gomod = "github.com/cloudwego/hertz/test"
+	args.OutDir = t.TempDir()
+	args.CmdType = meta.CmdNew
+	packed, err := util.PackArgs(args)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("pack args failed: %v", err)
 	}
+
+	return &thriftgo_plugin.Request{
+		Version:             "0.2.0",
+		GeneratorParameters: []string{"go:reserve_comments,gen_json_tag=false,package_prefix=github.com/cloudwego/hertz/test/biz/model"},
+		PluginParameters:    packed,
+		Language:            "go",
+		OutputPath:          args.OutDir,
+		Recursive:           true,
+		AST:                 ast,
+	}
+}
+
+func TestRun(t *testing.T) {
+	req := buildTestRequest(t)
 
 	plu := new(Plugin)
 	plu.setLogger()
-
 	plu.req = req
 
-	_, err = plu.parseArgs()
+	_, err := plu.parseArgs()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,15 +127,12 @@ func TestRun(t *testing.T) {
 	}
 	files, err := sg.GetFormatAndExcludedFiles()
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
 	res, err := plu.GetResponse(files, sg.OutputDir)
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 	plu.response(res)
-	if err != nil {
-		return
-	}
 }

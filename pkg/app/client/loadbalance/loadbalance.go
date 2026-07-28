@@ -17,9 +17,11 @@
 package loadbalance
 
 import (
+	"context"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/client/discovery"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 // Loadbalancer picks instance for the given service discovery result.
@@ -35,6 +37,21 @@ type Loadbalancer interface {
 
 	// Name returns the name of the Loadbalancer.
 	Name() string
+}
+
+// LoadbalancerCtx is an optional extension of Loadbalancer that is aware of
+// the per-call context and request. When a Loadbalancer also implements this
+// interface, BalancerFactory.GetInstance prefers PickCtx over Pick so the
+// balancer can make decisions based on ctx values or request fields (e.g.
+// region/zone affinity, tenant routing, header-based stickiness, gray release).
+//
+// Implementations should fall back to plain Pick semantics when ctx/req carry
+// no relevant information.
+type LoadbalancerCtx interface {
+	Loadbalancer
+
+	// PickCtx selects an instance with access to the request context.
+	PickCtx(ctx context.Context, req *protocol.Request, e discovery.Result) discovery.Instance
 }
 
 const (

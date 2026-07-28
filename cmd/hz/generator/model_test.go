@@ -116,7 +116,8 @@ func TestIdlGenerator_GenModel(t *testing.T) {
 					},
 					Enums: []model.Enum{
 						{
-							Name: "Sex",
+							Name:   "Sex",
+							GoType: "int",
 							Values: []model.Constant{
 								{
 									Name: "Male",

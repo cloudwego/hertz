@@ -276,6 +276,9 @@ func (resolver *Resolver) ResolveIdentifier(id string) (ret ResolvedSymbol, err 
 		ref.Referred = true
 		ret.Base = typeName
 		ret.Src = ref.Model.PackageName
+		if ret.Type == nil {
+			ret.Type = &model.Type{}
+		}
 		ret.Type.Scope = ref.Model
 	} else {
 		return ResolvedSymbol{}, fmt.Errorf("can't resolve identifier '%s'", id)

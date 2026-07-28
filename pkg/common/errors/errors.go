@@ -58,11 +58,22 @@ var (
 	ErrIdleTimeout        = errors.New("idle timeout")
 	ErrNothingRead        = errors.New("nothing read")
 	ErrShortConnection    = errors.New("short connection")
-	ErrNoFreeConns        = errors.New("no free connections available to host")
 	ErrConnectionClosed   = errors.New("connection closed")
 	ErrNotSupportProtocol = errors.New("not support protocol")
 	ErrNoMultipartForm    = errors.New("request has no multipart/form-data Content-Type")
 	ErrBadPoolConn        = errors.New("connection is closed by peer while being in the connection pool")
+
+	// ErrNoFreeConns is returned by the HTTP client when MaxConnsPerHost (or
+	// HostClient.MaxConns) is set to a positive value and all connections to
+	// the target host are in use.
+	// If MaxConnWaitTimeout is also set, the client waits for a free connection
+	// up to that duration before returning this error.
+	//
+	// Before v0.10.3, MaxConnsPerHost defaulted to consts.DefaultMaxConnsPerHost
+	// (512), so this error could be returned even when no limit was intended.
+	// Since v0.10.3, MaxConnsPerHost defaults to 0 (no limit), meaning this
+	// error is only returned when MaxConnsPerHost is explicitly configured.
+	ErrNoFreeConns = errors.New("no free connections available to host")
 )
 
 // ErrorType is an unsigned 64-bit error code as defined in the hertz spec.

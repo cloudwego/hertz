@@ -22,6 +22,7 @@ import (
 	"strings"
 )
 
+// Kind mirrors reflect.Kind to represent Go type kinds for code generation.
 type Kind uint
 
 const (
@@ -54,6 +55,8 @@ const (
 	KindUnsafePointer
 )
 
+// Category represents the IDL-level semantic type category (Thrift/Protobuf).
+// Values align with Thrift type IDs where applicable.
 type Category int64
 
 const (
@@ -70,22 +73,22 @@ const (
 	CategoryService   Category = 17
 )
 
+// Model represents a single IDL file translated into Go code generation data.
+// Each Model corresponds to one output .go file.
 type Model struct {
-	FilePath string
-	Package  string
-	Imports  map[string]*Model //{{import}}:Model
+	FilePath string            // output file path (set during generation)
+	Package  string            // Go import path for this model
+	Imports  map[string]*Model // imported models, keyed by import path
 
-	// rendering data
-	PackageName string
-	// Imports     map[string]string //{{alias}}:{{import}}
-	Typedefs  []TypeDef
-	Constants []Constant
-	Variables []Variable
-	Functions []Function
-	Enums     []Enum
-	Structs   []Struct
-	Methods   []Method
-	Oneofs    []Oneof
+	PackageName string // short package name (last segment of Package)
+	Typedefs    []TypeDef
+	Constants   []Constant
+	Variables   []Variable
+	Functions   []Function
+	Enums       []Enum
+	Structs     []Struct
+	Methods     []Method
+	Oneofs      []Oneof // protobuf oneof fields
 }
 
 func (m Model) IsEmpty() bool {
@@ -95,6 +98,7 @@ func (m Model) IsEmpty() bool {
 
 type Models []*Model
 
+// MergeMap appends models from b that are not already in a (by pointer identity).
 func (a *Models) MergeMap(b map[string]*Model) {
 	for _, v := range b {
 		insert := true
@@ -125,22 +129,24 @@ func (a *Models) MergeArray(b []*Model) {
 	return
 }
 
+// RequiredNess maps to Thrift field requiredness semantics.
 type RequiredNess int
 
 const (
-	RequiredNess_Default  RequiredNess = 0
+	RequiredNess_Default  RequiredNess = 0 // Thrift "default" requiredness
 	RequiredNess_Required RequiredNess = 1
 	RequiredNess_Optional RequiredNess = 2
 )
 
+// Type describes a Go type for code generation, bridging IDL types to Go types.
 type Type struct {
-	Name     string
-	Scope    *Model
-	Kind     Kind
-	Indirect bool
-	Category Category
-	Extra    []*Type // [{key_type},{value_type}] for map, [{element_type}] for list or set
-	HasNew   bool
+	Name     string   // Go type name (e.g. "int64", "MyStruct")
+	Scope    *Model   // owning model; nil means unresolved, &BaseModel means builtin
+	Kind     Kind     // Go type kind
+	Indirect bool     // whether this type is referenced indirectly (pointer)
+	Category Category // IDL semantic category
+	Extra    []*Type  // container element types: [elem] for list/set, [key, value] for map
+	HasNew   bool     // whether this type needs a constructor (e.g. structs, enums)
 }
 
 func (rt *Type) ResolveDefaultValue() string {
@@ -160,6 +166,9 @@ func (rt *Type) ResolveDefaultValue() string {
 	}
 }
 
+// ResolveNameForTypedef returns the fully qualified Go type name for a typedef alias.
+// Unlike ResolveName, it does not add pointer prefix for struct types since typedefs
+// define new named types rather than references.
 func (rt *Type) ResolveNameForTypedef(scope *Model) (string, error) {
 	if rt == nil {
 		return "", errors.New("type is nil")
@@ -209,6 +218,9 @@ func (rt *Type) ResolveNameForTypedef(scope *Model) (string, error) {
 	return name, nil
 }
 
+// ResolveName returns the fully qualified Go type name relative to scope.
+// For structs, it prepends "*" (pointer). For types from different packages,
+// it prepends the package name qualifier.
 func (rt *Type) ResolveName(scope *Model) (string, error) {
 	if rt == nil {
 		return "", fmt.Errorf("type is nil")
@@ -285,6 +297,7 @@ func (rt *Type) IsBaseType() bool {
 	return rt.Kind < KindComplex64
 }
 
+// IsSettable returns true if the type is a reference type that can be nil-checked.
 func (rt *Type) IsSettable() bool {
 	switch rt.Kind {
 	case KindArray, KindChan, KindFunc, KindInterface, KindMap, KindPtr, KindSlice, KindUnsafePointer:
@@ -352,13 +365,13 @@ type Field struct {
 	Scope            *Struct
 	Name             string
 	Type             *Type
-	IsSetDefault     bool
-	DefaultValue     Literal
-	Required         RequiredNess
-	Tags             Tags
+	IsSetDefault     bool         // whether a default value is explicitly set in IDL
+	DefaultValue     Literal      // the default value expression
+	Required         RequiredNess // Thrift requiredness
+	Tags             Tags         // struct field tags (json, query, form, etc.)
 	LeadingComments  string
 	TrailingComments string
-	IsPointer        bool
+	IsPointer        bool // whether to generate as pointer type (for optional fields)
 }
 
 type Oneof struct {
@@ -379,7 +392,7 @@ type Tags []Tag
 type Tag struct {
 	Key       string
 	Value     string
-	IsDefault bool // default tag
+	IsDefault bool // true if auto-generated (not explicitly set in IDL annotation)
 }
 
 func (ts Tags) String() string {

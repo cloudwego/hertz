@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cloudwego/hertz/cmd/hz/generator/model"
@@ -29,25 +30,27 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util/logs"
 )
 
+// HttpMethod represents a single API endpoint parsed from IDL annotations.
+// One IDL method may map to multiple HTTP methods (e.g. GET + POST), in which
+// case GenHandler is true only for the first to avoid duplicate handler functions.
 type HttpMethod struct {
 	Name               string
-	HTTPMethod         string
-	Comment            string
-	RequestTypeName    string
-	RequestTypePackage string
-	RequestTypeRawName string
-	ReturnTypeName     string
-	ReturnTypePackage  string
-	ReturnTypeRawName  string
-	Path               string
-	Serializer         string
-	OutputDir          string
-	RefPackage         string // handler import dir
-	RefPackageAlias    string // handler import alias
-	ModelPackage       map[string]string
-	GenHandler         bool // Whether to generate one handler, when an idl interface corresponds to multiple http method
-	// Annotations     map[string]string
-	Models map[string]*model.Model
+	HTTPMethod         string                  // GET, POST, PUT, DELETE, etc.
+	Comment            string                  // doc comment (formatted by InitComment)
+	RequestTypeName    string                  // Go type name for request struct
+	RequestTypePackage string                  // import path for request type
+	RequestTypeRawName string                  // original IDL name before Go conversion
+	ReturnTypeName     string                  // Go type name for response struct
+	ReturnTypePackage  string                  // import path for response type
+	ReturnTypeRawName  string                  // original IDL name before Go conversion
+	Path               string                  // HTTP route path (e.g. "/api/v1/users/:id")
+	Serializer         string                  // serialization format: JSON, Thrift, ProtoBuf
+	OutputDir          string                  // handler output subdirectory (for handler_by_method mode)
+	RefPackage         string                  // handler import path (set during router tree construction)
+	RefPackageAlias    string                  // handler import alias
+	ModelPackage       map[string]string       // model package aliases
+	GenHandler         bool                    // false to skip handler generation (dedup for multi-method IDL)
+	Models             map[string]*model.Model // all model dependencies for this method
 }
 
 type Handler struct {
@@ -70,6 +73,8 @@ type Client struct {
 	ServiceName string
 }
 
+// genHandler generates handler files and populates the router tree.
+// Two modes: HandlerByMethod creates one file per method, otherwise one file per service.
 func (pkgGen *HttpPackageGenerator) genHandler(pkg *HttpPackage, handlerDir, handlerPackage string, root *RouterNode) error {
 	for _, s := range pkg.Services {
 		var handler Handler
@@ -182,6 +187,9 @@ func (pkgGen *HttpPackageGenerator) processHandler(handler *Handler, root *Route
 	return nil
 }
 
+// updateHandler creates a new handler file or appends new methods to an existing one.
+// For existing files, it parses the Go source to insert missing imports and appends
+// handler functions that don't already exist (matched by function name regex).
 func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTpl, filePath string, noRepeat bool) error {
 	if pkgGen.tplsInfo[handlerTpl].Disable {
 		return nil
@@ -233,7 +241,9 @@ func (pkgGen *HttpPackageGenerator) updateHandler(handler interface{}, handlerTp
 
 	// insert new handler
 	for _, method := range handler.(Handler).Methods {
-		if bytes.Contains(file, []byte(fmt.Sprintf("func %s(", method.Name))) {
+		// match both plain functions "func Name(" and receiver methods "func (x Type) Name("
+		re := regexp.MustCompile(fmt.Sprintf(`func\s+(\([^)]*\)\s+)?%s\s*\(`, regexp.QuoteMeta(method.Name)))
+		if re.Match(file) {
 			continue
 		}
 
@@ -284,6 +294,8 @@ func (pkgGen *HttpPackageGenerator) updateClient(client interface{}, clientTpl, 
 	return nil
 }
 
+// InitComment formats the method comment as a Go doc comment with @router annotation.
+// The @router tag is used by swagger-like tools to document the endpoint.
 func (m *HttpMethod) InitComment() {
 	text := strings.TrimLeft(strings.TrimSpace(m.Comment), "/")
 	if text == "" {

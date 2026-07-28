@@ -308,9 +308,6 @@ func (req *Request) FormFile(name string) (*multipart.FileHeader, error) {
 	if err != nil {
 		return nil, err
 	}
-	if mf.File == nil {
-		return nil, err
-	}
 	fhh := mf.File[name]
 	if fhh == nil {
 		return nil, ErrMissingFile

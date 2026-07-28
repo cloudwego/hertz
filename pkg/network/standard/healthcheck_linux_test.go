@@ -155,6 +155,16 @@ func TestConnIsHealthyTLSUsesTimedFallback(t *testing.T) {
 	if calls := trackingConn.readDeadlineCalls.Load(); calls != 2 {
 		t.Fatalf("TLS read deadline calls: got %d, want 2 for set and reset", calls)
 	}
+	if _, err := serverTLS.Write([]byte("x")); err != nil {
+		t.Fatalf("write after TLS health check: %v", err)
+	}
+	data, err := conn.Peek(1)
+	if err != nil {
+		t.Fatalf("peek after TLS health check: %v", err)
+	}
+	if string(data) != "x" {
+		t.Fatalf("read after TLS health check: got %q, want %q", data, "x")
+	}
 }
 
 func TestConnIsHealthyUnsupportedConnUsesTimedFallback(t *testing.T) {
@@ -169,6 +179,21 @@ func TestConnIsHealthyUnsupportedConnUsesTimedFallback(t *testing.T) {
 	}
 	if calls := trackingConn.readDeadlineCalls.Load(); calls != 2 {
 		t.Fatalf("read deadline calls: got %d, want 2 for set and reset", calls)
+	}
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := serverConn.Write([]byte("x"))
+		writeDone <- err
+	}()
+	data, err := conn.Peek(1)
+	if err != nil {
+		t.Fatalf("peek after fallback health check: %v", err)
+	}
+	if string(data) != "x" {
+		t.Fatalf("read after fallback health check: got %q, want %q", data, "x")
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write after fallback health check: %v", err)
 	}
 }
 

@@ -18,8 +18,15 @@
 
 package dialer
 
-import "github.com/cloudwego/hertz/pkg/network/netpoll"
+import (
+	"os"
+	"strconv"
+
+	"github.com/cloudwego/hertz/pkg/network/netpoll"
+)
 
 func init() {
-	defaultDialer = netpoll.NewDialer()
+	if v, _ := strconv.ParseBool(os.Getenv("HERTZ_NO_NETPOLL")); !v {
+		defaultDialer = netpoll.NewDialer()
+	}
 }

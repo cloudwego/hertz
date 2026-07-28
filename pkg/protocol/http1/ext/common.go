@@ -176,6 +176,12 @@ func appendBodyFixedSize(r network.Reader, dst []byte, n int) ([]byte, error) {
 	}
 	dst = dst[:dstLen]
 
+	// Prefer io.Reader over Peek to avoid holding a ref to the underlying buffer.
+	if rd, ok := r.(io.Reader); ok {
+		rn, err := io.ReadFull(rd, dst[offset:])
+		return dst[:offset+rn], err
+	}
+
 	// Peek can get all data, otherwise it will through error
 	buf, err := r.Peek(n)
 	if err != nil {

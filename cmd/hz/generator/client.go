@@ -25,6 +25,8 @@ import (
 	"github.com/cloudwego/hertz/cmd/hz/util"
 )
 
+// ClientMethod extends HttpMethod with generated code snippets for
+// building HTTP requests (setting body, query, path params, etc.).
 type ClientMethod struct {
 	*HttpMethod
 	BodyParamsCode   string
@@ -49,6 +51,9 @@ type ClientFile struct {
 	ClientMethods []*ClientMethod
 }
 
+// genClient generates client code for each service. It creates two files per service:
+// 1. hertz_client.go - the base HTTP client (only generated once unless ForceUpdateClient)
+// 2. <service_name>.go - service-specific client methods
 func (pkgGen *HttpPackageGenerator) genClient(pkg *HttpPackage, clientDir string) error {
 	for _, s := range pkg.Services {
 		cliDir := util.SubDir(clientDir, util.ToSnakeCase(s.Name))

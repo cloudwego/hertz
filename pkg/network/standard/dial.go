@@ -30,10 +30,10 @@ func (d *dialer) DialConnection(n, address string, timeout time.Duration, tlsCon
 	c, err := net.DialTimeout(n, address, timeout)
 	if tlsConfig != nil {
 		cTLS := tls.Client(c, tlsConfig)
-		conn = newTLSConn(cTLS, defaultMallocSize)
+		conn = newTLSConn(cTLS, 0)
 		return
 	}
-	conn = newConn(c, defaultMallocSize)
+	conn = newConn(c, 0)
 	return
 }
 
@@ -48,7 +48,7 @@ func (d *dialer) AddTLS(conn network.Conn, tlsConfig *tls.Config) (network.Conn,
 	if err != nil {
 		return nil, err
 	}
-	conn = newTLSConn(cTlS, defaultMallocSize)
+	conn = newTLSConn(cTlS, 0)
 	return conn, nil
 }
 

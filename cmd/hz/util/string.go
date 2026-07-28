@@ -23,6 +23,8 @@ import (
 	"unsafe"
 )
 
+// Str2Bytes performs a zero-copy string to byte slice conversion using unsafe pointer casting.
+// The returned slice shares memory with the input string; do NOT modify it.
 func Str2Bytes(in string) (out []byte) {
 	op := (*reflect.SliceHeader)(unsafe.Pointer(&out))
 	ip := (*reflect.StringHeader)(unsafe.Pointer(&in))
@@ -55,11 +57,13 @@ func AddSlashForComments(s string) string {
 	return s
 }
 
-// CamelString converts the string 's' to a camel string
+// CamelString converts the string 's' to PascalCase (upper camel case).
+// Underscores before lowercase letters are removed and the following letter is capitalized.
+// State flags: j = next char should be uppercased (after underscore), k = seen first letter already.
 func CamelString(s string) string {
 	data := make([]byte, 0, len(s))
-	j := false
-	k := false
+	j := false // capitalize next character
+	k := false // have we seen the first letter
 	num := len(s) - 1
 	for i := 0; i <= num; i++ {
 		d := s[i]
@@ -67,23 +71,25 @@ func CamelString(s string) string {
 			k = true
 		}
 		if d >= 'a' && d <= 'z' && (j || k == false) {
-			d = d - 32
+			d = d - 32 // to uppercase
 			j = false
 			k = true
 		}
 		if k && d == '_' && num > i && s[i+1] >= 'a' && s[i+1] <= 'z' {
 			j = true
-			continue
+			continue // skip the underscore
 		}
 		data = append(data, d)
 	}
 	return Bytes2Str(data[:])
 }
 
-// SnakeString converts the string 's' to a snake string
+// SnakeString converts the string 's' to snake_case.
+// Inserts '_' before uppercase letters that follow a lowercase letter or non-underscore.
+// j tracks whether we've seen a non-underscore lowercase char (to avoid leading underscores).
 func SnakeString(s string) string {
 	data := make([]byte, 0, len(s)*2)
-	j := false
+	j := false // true after seeing a non-underscore char (prevents "_" before first upper)
 	for _, d := range Str2Bytes(s) {
 		if d >= 'A' && d <= 'Z' {
 			if j {

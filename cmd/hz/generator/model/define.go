@@ -17,9 +17,12 @@
 package model
 
 var (
+	// BaseTypes enumerates all IDL primitive types mapped to Go types.
 	BaseTypes      = []*Type{TypeBool, TypeByte, TypeInt8, TypeInt16, TypeInt32, TypeInt64, TypeUint8, TypeUint16, TypeUint32, TypeUint64, TypeFloat64, TypeString, TypeBinary}
 	ContainerTypes = []*Type{TypeBaseList, TypeBaseMap, TypeBaseSet}
-	BaseModel      = Model{}
+	// BaseModel is a sentinel Model used as Scope for builtin types.
+	// Types with Scope == &BaseModel are treated as built-in and don't need cross-package qualification.
+	BaseModel = Model{}
 )
 
 var (
@@ -28,11 +31,13 @@ var (
 		Scope: &BaseModel,
 		Kind:  KindBool,
 	}
+	// TypeByte maps Thrift's "byte" to Go's "int8" (Thrift byte is signed).
 	TypeByte = &Type{
 		Name:  "int8",
 		Scope: &BaseModel,
 		Kind:  KindInt8,
 	}
+	// TypePbByte maps Protobuf's "bytes" element to Go's "byte" (unsigned).
 	TypePbByte = &Type{
 		Name:  "byte",
 		Scope: &BaseModel,
@@ -131,6 +136,8 @@ var (
 	}
 )
 
+// NewCategoryType creates a shallow copy of typ with a different Category.
+// Used when the same Go type has different IDL semantics (e.g. int64 as enum vs constant).
 func NewCategoryType(typ *Type, cg Category) *Type {
 	cyp := *typ
 	cyp.Category = cg

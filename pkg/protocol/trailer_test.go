@@ -72,6 +72,14 @@ func TestHeaderTrailerSet(t *testing.T) {
 	assert.True(t, strings.Contains(string(h.Trailer().Header()), "Aaa:"))
 }
 
+func TestTrailerSetTrailersRejectsEmptyKey(t *testing.T) {
+	var tr Trailer
+	assert.NotNil(t, tr.SetTrailers([]byte(",")))
+	assert.True(t, tr.Empty())
+	assert.NotNil(t, tr.SetTrailers([]byte("foo, ")))
+	assert.False(t, tr.Empty())
+}
+
 func TestTrailerAddError(t *testing.T) {
 	var tr Trailer
 	assert.NotNil(t, tr.Add(consts.HeaderContentType, ""))
@@ -140,6 +148,8 @@ func TestTrailerVisitAll(t *testing.T) {
 }
 
 func TestIsBadTrailer(t *testing.T) {
+	assert.True(t, IsBadTrailer(nil))
+	assert.True(t, IsBadTrailer([]byte{}))
 	assert.True(t, IsBadTrailer(bytestr.StrAuthorization))
 	assert.True(t, IsBadTrailer(bytestr.StrContentEncoding))
 	assert.True(t, IsBadTrailer(bytestr.StrContentLength))

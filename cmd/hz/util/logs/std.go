@@ -24,16 +24,19 @@ import (
 	"os"
 )
 
+// StdLogger buffers log output in memory and flushes to stderr.
+// By default, each log call flushes immediately. When Defer is true, output
+// is buffered until Flush() is called explicitly (useful for capturing logs in tests).
 type StdLogger struct {
 	level      int
-	outLogger  *log.Logger
-	warnLogger *log.Logger
-	errLogger  *log.Logger
-	out        *bytes.Buffer
-	warn       *bytes.Buffer
-	err        *bytes.Buffer
-	Defer      bool
-	ErrOnly    bool
+	outLogger  *log.Logger   // handles Debug and Info levels
+	warnLogger *log.Logger   // handles Warn level
+	errLogger  *log.Logger   // handles Error level
+	out        *bytes.Buffer // buffer for outLogger
+	warn       *bytes.Buffer // buffer for warnLogger
+	err        *bytes.Buffer // buffer for errLogger
+	Defer      bool          // if true, buffer logs until Flush() is called
+	ErrOnly    bool          // if true, Flush() only flushes error/warn (suppresses info/debug)
 }
 
 func NewStdLogger(level int) *StdLogger {

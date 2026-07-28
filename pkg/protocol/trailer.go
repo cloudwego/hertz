@@ -163,6 +163,9 @@ func (t *Trailer) SetTrailers(trailers []byte) (err error) {
 		for len(trailerKey) > 0 && trailerKey[len(trailerKey)-1] == ' ' {
 			trailerKey = trailerKey[:len(trailerKey)-1]
 		}
+		if len(trailerKey) == 0 {
+			return errs.NewPublicf("empty trailer key")
+		}
 
 		utils.NormalizeHeaderKey(trailerKey, t.disableNormalizing)
 		err = t.addArgBytes(trailerKey, nil, argsNoValue)
@@ -186,6 +189,9 @@ func (t *Trailer) AppendBytes(dst []byte) []byte {
 }
 
 func IsBadTrailer(key []byte) bool {
+	if len(key) == 0 {
+		return true
+	}
 	switch key[0] | 0x20 {
 	case 'a':
 		return utils.CaseInsensitiveCompare(key, bytestr.StrAuthorization)

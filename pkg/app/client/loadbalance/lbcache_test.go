@@ -210,3 +210,71 @@ func (m mockLoadbalancer) Pick(d discovery.Result) discovery.Instance {
 	}
 	return nil
 }
+
+type mockLoadbalancerCtx struct {
+	mockLoadbalancer
+	pickCtxFunc func(ctx context.Context, req *protocol.Request, d discovery.Result) discovery.Instance
+}
+
+func (m mockLoadbalancerCtx) PickCtx(ctx context.Context, req *protocol.Request, d discovery.Result) discovery.Instance {
+	if m.pickCtxFunc != nil {
+		return m.pickCtxFunc(ctx, req, d)
+	}
+	return nil
+}
+
+func TestLoadbalancerCtx(t *testing.T) {
+	insA := discovery.NewInstance("tcp", "10.0.0.1:80", 10, map[string]string{"region": "us"})
+	insB := discovery.NewInstance("tcp", "10.0.0.2:80", 10, map[string]string{"region": "eu"})
+	r := &discovery.SynthesizedResolver{
+		ResolveFunc: func(ctx context.Context, key string) (discovery.Result, error) {
+			return discovery.Result{CacheKey: key, Instances: []discovery.Instance{insA, insB}}, nil
+		},
+		TargetFunc: func(ctx context.Context, target *discovery.TargetInfo) string { return target.Host },
+		NameFunc:   func() string { return t.Name() },
+	}
+
+	type ctxKey struct{}
+	var pickCtxCalled, pickCalled int32
+
+	lb := mockLoadbalancerCtx{
+		mockLoadbalancer: mockLoadbalancer{
+			pickFunc: func(d discovery.Result) discovery.Instance {
+				atomic.AddInt32(&pickCalled, 1)
+				return d.Instances[0]
+			},
+			nameFunc: func() string { return "ctxLB" },
+		},
+		pickCtxFunc: func(ctx context.Context, req *protocol.Request, d discovery.Result) discovery.Instance {
+			atomic.AddInt32(&pickCtxCalled, 1)
+			want, _ := ctx.Value(ctxKey{}).(string)
+			for _, in := range d.Instances {
+				if v, _ := in.Tag("region"); v == want {
+					return in
+				}
+			}
+			return d.Instances[0]
+		},
+	}
+
+	blf := NewBalancerFactory(Config{Balancer: lb, LbOpts: DefaultLbOpts, Resolver: r})
+	req := &protocol.Request{}
+	req.SetHost("ctx.svc")
+
+	ctx := context.WithValue(context.Background(), ctxKey{}, "eu")
+	ins, err := blf.GetInstance(ctx, req)
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, ins.Address().String() == "10.0.0.2:80", ins.Address().String())
+	assert.Assert(t, atomic.LoadInt32(&pickCtxCalled) == 1)
+	assert.Assert(t, atomic.LoadInt32(&pickCalled) == 0)
+
+	// Plain Loadbalancer still falls back to Pick.
+	plainLB := mockLoadbalancer{
+		pickFunc: func(d discovery.Result) discovery.Instance { return d.Instances[0] },
+		nameFunc: func() string { return "plainLB" },
+	}
+	blf2 := NewBalancerFactory(Config{Balancer: plainLB, LbOpts: DefaultLbOpts, Resolver: r})
+	ins2, err := blf2.GetInstance(context.Background(), req)
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, ins2.Address().String() == "10.0.0.1:80")
+}
