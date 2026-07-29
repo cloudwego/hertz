@@ -852,7 +852,7 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) 
 		cc, inPool, err = c.acquireConnOnce(currentDialTimeout)
 		// Newly dialed connections have no last-use time and do not need a
 		// preflight probe. Only connections returned by the pool are checked.
-		if err != nil || cc == nil || !c.PooledConnHealthCheck || cc.lastUseTime.IsZero() {
+		if err != nil || cc == nil || cc.lastUseTime.IsZero() {
 			return cc, inPool, err
 		}
 		// Bound the probe by both its short fixed window and the remaining
