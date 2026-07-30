@@ -827,7 +827,7 @@ func TestPooledConnHealthCheckFallbackRejectsProbeFailures(t *testing.T) {
 			Conn:                mock.NewConn(""),
 			failReadTimeoutCall: failCall,
 		}
-		if c.isPooledConnHealthy(probe, time.Second, time.Second) {
+		if c.isPooledConnHealthy(probe, time.Millisecond, time.Millisecond) {
 			t.Fatalf("read timeout failure on call %d must fail closed", failCall)
 		}
 		if probe.readTimeoutCalls != failCall {
