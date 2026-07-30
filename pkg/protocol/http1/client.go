@@ -831,7 +831,7 @@ func (c *HostClient) SetMaxConns(newMaxConns int) {
 const pooledConnHealthCheckTimeout = 50 * time.Microsecond
 
 type pooledConnHealthChecker interface {
-	IsHealthy(timeout time.Duration) bool
+	IsHealthy(probeTimeout, ownerWaitTimeout time.Duration) bool
 }
 
 func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) (cc *clientConn, inPool bool, err error) {
@@ -855,14 +855,20 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration, deadline time.Time) 
 		if err != nil || cc == nil || cc.lastUseTime.IsZero() {
 			return cc, inPool, err
 		}
-		// Bound the probe by both its short fixed window and the remaining
-		// request deadline.
+		// Bound the socket probe by the short fixed window and bound the netpoll
+		// owner acquisition by the smaller of that window and the remaining
+		// request/dial budget. Older transports ignore the owner budget and use
+		// the probe timeout in their timed-Peek fallback.
 		healthCheckTimeout := calcTimeout(deadline, pooledConnHealthCheckTimeout)
 		if healthCheckTimeout < 0 {
 			c.closeConn(cc)
 			return nil, false, errTimeout
 		}
-		if c.isPooledConnHealthy(cc.c, healthCheckTimeout) {
+		ownerWaitTimeout := healthCheckTimeout
+		if currentDialTimeout > 0 && currentDialTimeout < ownerWaitTimeout {
+			ownerWaitTimeout = currentDialTimeout
+		}
+		if c.isPooledConnHealthy(cc.c, healthCheckTimeout, ownerWaitTimeout) {
 			return cc, inPool, nil
 		}
 		// No request bytes have been written yet, so discard the stale connection
@@ -949,16 +955,18 @@ func (c *HostClient) acquireConnOnce(dialTimeout time.Duration) (cc *clientConn,
 
 // isPooledConnHealthy performs a non-consuming pre-write read probe. A timeout
 // with no buffered data means the connection is still usable; readable data or
-// any other error makes the connection ineligible for reuse.
-func (c *HostClient) isPooledConnHealthy(conn network.Conn, timeout time.Duration) bool {
+// any other error makes the connection ineligible for reuse. The owner wait
+// budget is kept separate because transports with an owner-side probe must
+// bound operator acquisition without changing the fallback read timeout.
+func (c *HostClient) isPooledConnHealthy(conn network.Conn, probeTimeout, ownerWaitTimeout time.Duration) bool {
 	// Prefer a transport-specific implementation because its buffered reader may
 	// need special handling to avoid consuming data or retaining a probe timeout.
 	if checker, ok := conn.(pooledConnHealthChecker); ok {
-		return checker.IsHealthy(timeout)
+		return checker.IsHealthy(probeTimeout, ownerWaitTimeout)
 	}
 	// Keep the probe short so an idle but healthy connection does not delay the
 	// request while waiting for a byte that should not arrive.
-	if err := conn.SetReadTimeout(timeout); err != nil {
+	if err := conn.SetReadTimeout(probeTimeout); err != nil {
 		return false
 	}
 	// Peek preserves any byte for the protocol reader; the health check must not

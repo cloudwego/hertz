@@ -756,6 +756,21 @@ type pooledConnHealthProbe struct {
 	currentReadTimeout time.Duration
 }
 
+type pooledConnOwnerHealthProbe struct {
+	network.Conn
+	healthy          bool
+	calls            int
+	probeTimeout     time.Duration
+	ownerWaitTimeout time.Duration
+}
+
+func (c *pooledConnOwnerHealthProbe) IsHealthy(probeTimeout, ownerWaitTimeout time.Duration) bool {
+	c.calls++
+	c.probeTimeout = probeTimeout
+	c.ownerWaitTimeout = ownerWaitTimeout
+	return c.healthy
+}
+
 func (c *pooledConnHealthProbe) Peek(n int) ([]byte, error) {
 	if c.currentReadTimeout > 0 && c.healthCheckPeeks == 0 {
 		c.healthCheckPeeks++
@@ -852,6 +867,37 @@ func TestPooledConnHealthCheckUsesShortProbeTimeout(t *testing.T) {
 	assert.DeepEqual(t, 1, healthy.healthCheckPeeks)
 	assert.DeepEqual(t, pooledConnHealthCheckTimeout, healthy.readTimeouts[0])
 	assert.DeepEqual(t, time.Duration(0), healthy.readTimeouts[1])
+
+	c.closeConn(got)
+}
+
+func TestPooledConnHealthCheckBoundsOwnerWaitBudget(t *testing.T) {
+	const requestBudget = 200 * time.Millisecond
+	probe := &pooledConnOwnerHealthProbe{
+		Conn:    mock.NewConn(""),
+		healthy: true,
+	}
+	c := &HostClient{ClientOptions: &ClientOptions{
+		PooledConnHealthCheck: true,
+	}}
+	addPooledConn(c, probe)
+
+	got, inPool, err := c.acquireConn(requestBudget, time.Time{})
+	assert.Nil(t, err)
+	assert.True(t, inPool)
+	assert.DeepEqual(t, 1, probe.calls)
+	assert.DeepEqual(t, pooledConnHealthCheckTimeout, probe.probeTimeout)
+	assert.DeepEqual(t, pooledConnHealthCheckTimeout, probe.ownerWaitTimeout)
+
+	c.closeConn(got)
+
+	probe = &pooledConnOwnerHealthProbe{Conn: mock.NewConn(""), healthy: true}
+	c = &HostClient{ClientOptions: &ClientOptions{PooledConnHealthCheck: true}}
+	addPooledConn(c, probe)
+	got, inPool, err = c.acquireConn(10*time.Microsecond, time.Time{})
+	assert.Nil(t, err)
+	assert.True(t, inPool)
+	assert.DeepEqual(t, 10*time.Microsecond, probe.ownerWaitTimeout)
 
 	c.closeConn(got)
 }

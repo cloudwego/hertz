@@ -30,7 +30,7 @@ func TestConnIsHealthyTCPFastPath(t *testing.T) {
 		if err := conn.c.SetReadDeadline(time.Now().Add(-time.Second)); err != nil {
 			t.Fatalf("set expired read deadline: %v", err)
 		}
-		if !conn.IsHealthy(5 * time.Millisecond) {
+		if !conn.IsHealthy(5*time.Millisecond, time.Second) {
 			t.Fatal("idle TCP connection should be healthy after clearing its prior deadline")
 		}
 		if _, err := peer.Write([]byte("x")); err != nil {
@@ -84,7 +84,7 @@ func TestConnIsHealthyTCPFastPath(t *testing.T) {
 		if err := conn.Close(); err != nil {
 			t.Fatalf("close connection: %v", err)
 		}
-		if conn.IsHealthy(5 * time.Millisecond) {
+		if conn.IsHealthy(5*time.Millisecond, time.Second) {
 			t.Fatal("locally closed TCP connection should not be healthy")
 		}
 	})
@@ -149,7 +149,7 @@ func TestConnIsHealthyTLSUsesTimedFallback(t *testing.T) {
 
 	trackingConn.readDeadlineCalls.Store(0)
 	conn := newTLSConn(clientTLS, 0).(*TLSConn)
-	if !conn.IsHealthy(time.Millisecond) {
+	if !conn.IsHealthy(time.Millisecond, time.Second) {
 		t.Fatal("idle TLS connection should remain healthy through fallback")
 	}
 	if calls := trackingConn.readDeadlineCalls.Load(); calls != 2 {
@@ -174,7 +174,7 @@ func TestConnIsHealthyUnsupportedConnUsesTimedFallback(t *testing.T) {
 
 	trackingConn := &readDeadlineTrackingConn{Conn: clientConn}
 	conn := newConn(trackingConn, 0).(*Conn)
-	if !conn.IsHealthy(time.Millisecond) {
+	if !conn.IsHealthy(time.Millisecond, time.Second) {
 		t.Fatal("idle unsupported connection should remain healthy through fallback")
 	}
 	if calls := trackingConn.readDeadlineCalls.Load(); calls != 2 {
@@ -199,14 +199,14 @@ func TestConnIsHealthyUnsupportedConnUsesTimedFallback(t *testing.T) {
 
 func BenchmarkConnIsHealthyTCP(b *testing.B) {
 	conn, _ := newStandardTCPPair(b)
-	if !conn.IsHealthy(5 * time.Millisecond) {
+	if !conn.IsHealthy(5*time.Millisecond, time.Second) {
 		b.Fatal("warmup rejected idle TCP connection")
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if !conn.IsHealthy(5 * time.Millisecond) {
+		if !conn.IsHealthy(5*time.Millisecond, time.Second) {
 			b.Fatal("idle TCP connection was rejected")
 		}
 	}
@@ -272,7 +272,7 @@ func waitForStandardTCPUnhealthy(tb testing.TB, conn *Conn) {
 	tb.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		if !conn.IsHealthy(5 * time.Millisecond) {
+		if !conn.IsHealthy(5*time.Millisecond, time.Second) {
 			return
 		}
 		time.Sleep(time.Millisecond)

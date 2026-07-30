@@ -25,13 +25,15 @@ import (
 )
 
 type reusableConnHealthChecker interface {
-	IsHealthyForReuse() bool
+	IsHealthyForReuse(ownerWaitTimeout time.Duration) bool
 }
 
 // IsHealthy checks whether an idle pooled connection is safe to reuse without
-// consuming application data.
-func (c *Conn) IsHealthy(timeout time.Duration) bool {
-	if c == nil || c.Conn == nil || timeout <= 0 || c.Len() > 0 {
+// consuming application data. probeTimeout bounds the fallback timed Peek;
+// ownerWaitTimeout bounds waiting for the netpoll operator. The owner-side
+// probe itself is non-blocking once acquired.
+func (c *Conn) IsHealthy(probeTimeout, ownerWaitTimeout time.Duration) bool {
+	if c == nil || c.Conn == nil || probeTimeout <= 0 || ownerWaitTimeout <= 0 || c.Len() > 0 {
 		return false
 	}
 
@@ -39,12 +41,12 @@ func (c *Conn) IsHealthy(timeout time.Duration) bool {
 	// Keep the narrow assertion here so Hertz remains compatible with older
 	// netpoll versions and third-party network.Conn implementations.
 	if checker, ok := c.Conn.(reusableConnHealthChecker); ok {
-		return checker.IsHealthyForReuse()
+		return checker.IsHealthyForReuse(ownerWaitTimeout)
 	}
 
 	// Older netpoll versions have no owner-side probe. Preserve the bounded
 	// Peek fallback for rolling upgrades instead of inspecting their raw fd.
-	if err := c.SetReadTimeout(timeout); err != nil {
+	if err := c.SetReadTimeout(probeTimeout); err != nil {
 		return false
 	}
 	p, err := c.Peek(1)

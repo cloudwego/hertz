@@ -26,12 +26,14 @@ import (
 
 type reuseHealthProbe struct {
 	network.Conn
-	healthy bool
-	calls   int
+	healthy          bool
+	calls            int
+	ownerWaitTimeout time.Duration
 }
 
-func (p *reuseHealthProbe) IsHealthyForReuse() bool {
+func (p *reuseHealthProbe) IsHealthyForReuse(ownerWaitTimeout time.Duration) bool {
 	p.calls++
+	p.ownerWaitTimeout = ownerWaitTimeout
 	return p.healthy
 }
 
@@ -46,11 +48,14 @@ func TestConnIsHealthyDelegatesToOwnerProbe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			probe := &reuseHealthProbe{Conn: mock.NewConn(""), healthy: tt.healthy}
 			conn := &Conn{Conn: probe}
-			if got := conn.IsHealthy(50 * time.Microsecond); got != tt.healthy {
+			if got := conn.IsHealthy(50*time.Microsecond, time.Second); got != tt.healthy {
 				t.Fatalf("owner probe result: got %v, want %v", got, tt.healthy)
 			}
 			if probe.calls != 1 {
 				t.Fatalf("owner probe calls: got %d, want 1", probe.calls)
+			}
+			if probe.ownerWaitTimeout != time.Second {
+				t.Fatalf("owner wait timeout: got %v, want %v", probe.ownerWaitTimeout, time.Second)
 			}
 		})
 	}
@@ -58,14 +63,14 @@ func TestConnIsHealthyDelegatesToOwnerProbe(t *testing.T) {
 
 func TestConnIsHealthyFallsBackToTimedPeek(t *testing.T) {
 	conn := &Conn{Conn: mock.NewConn("")}
-	if !conn.IsHealthy(50 * time.Microsecond) {
+	if !conn.IsHealthy(50*time.Microsecond, time.Second) {
 		t.Fatal("old netpoll without owner probe should use the timed Peek fallback")
 	}
 }
 
 func TestConnIsHealthyFallbackRejectsStaleConnection(t *testing.T) {
 	conn := &Conn{Conn: mock.NewBrokenConn("")}
-	if conn.IsHealthy(50 * time.Microsecond) {
+	if conn.IsHealthy(50*time.Microsecond, time.Second) {
 		t.Fatal("timed Peek fallback must reject a stale connection")
 	}
 }

@@ -75,14 +75,14 @@ func (c *Conn) SetReadTimeout(t time.Duration) error {
 
 // IsHealthy checks whether the peer has closed the connection without
 // consuming data from the buffered reader used by the HTTP protocol.
-func (c *Conn) IsHealthy(timeout time.Duration) bool {
-	if c == nil || c.c == nil || timeout <= 0 || c.Len() > 0 {
+func (c *Conn) IsHealthy(probeTimeout, _ time.Duration) bool {
+	if c == nil || c.c == nil || probeTimeout <= 0 || c.Len() > 0 {
 		return false
 	}
 	if c.healthChecker != nil {
 		return c.healthChecker.isHealthy()
 	}
-	return c.isHealthyWithTimedPeek(timeout)
+	return c.isHealthyWithTimedPeek(probeTimeout)
 }
 
 func (c *Conn) isHealthyWithTimedPeek(timeout time.Duration) bool {

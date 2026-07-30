@@ -245,7 +245,7 @@ func TestConnIsHealthy(t *testing.T) {
 	defer clientConn.Close()
 
 	conn := newConn(clientConn, 0).(*Conn)
-	assert.True(t, conn.IsHealthy(time.Millisecond))
+	assert.True(t, conn.IsHealthy(time.Millisecond, time.Second))
 
 	writeDone := make(chan error, 1)
 	go func() {
@@ -260,7 +260,7 @@ func TestConnIsHealthy(t *testing.T) {
 	assert.Nil(t, conn.Release())
 
 	assert.Nil(t, serverConn.Close())
-	assert.DeepEqual(t, false, conn.IsHealthy(time.Millisecond))
+	assert.DeepEqual(t, false, conn.IsHealthy(time.Millisecond, time.Second))
 
 	t.Run("unexpected data", func(t *testing.T) {
 		serverConn, clientConn := net.Pipe()
@@ -273,7 +273,7 @@ func TestConnIsHealthy(t *testing.T) {
 			_, err := serverConn.Write([]byte("x"))
 			writeDone <- err
 		}()
-		assert.DeepEqual(t, false, conn.IsHealthy(time.Second))
+		assert.DeepEqual(t, false, conn.IsHealthy(time.Second, time.Second))
 		assert.Nil(t, <-writeDone)
 		b, err := conn.Peek(1)
 		assert.Nil(t, err)
@@ -296,7 +296,7 @@ func TestConnIsHealthy(t *testing.T) {
 		assert.DeepEqual(t, []byte("x"), b)
 		assert.Nil(t, <-writeDone)
 
-		assert.DeepEqual(t, false, conn.IsHealthy(time.Millisecond))
+		assert.DeepEqual(t, false, conn.IsHealthy(time.Millisecond, time.Second))
 		b, err = conn.Peek(1)
 		assert.Nil(t, err)
 		assert.DeepEqual(t, []byte("x"), b)
