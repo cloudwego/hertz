@@ -42,6 +42,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"time"
@@ -241,13 +242,36 @@ func DoRequestFollowRedirects(ctx context.Context, req *protocol.Request, resp *
 			err = errMissingLocation
 			break
 		}
+		previousScheme := append([]byte(nil), req.URI().Scheme()...)
+		previousHost := append([]byte(nil), req.URI().Host()...)
 		url = getRedirectURL(url, location)
+		if shouldRemoveSensitiveHeadersForRedirect(previousScheme, previousHost, url) {
+			removeSensitiveHeadersForRedirect(req)
+		}
 
 		// Remove the former host header.
 		req.Header.Del(consts.HeaderHost)
 	}
 
 	return statusCode, body, err
+}
+
+func shouldRemoveSensitiveHeadersForRedirect(previousScheme, previousHost []byte, redirectURL string) bool {
+	u := protocol.AcquireURI()
+	u.Update(redirectURL)
+	remove := !bytes.Equal(previousHost, u.Host()) ||
+		bytes.Equal(previousScheme, bytestr.StrHTTPS) && bytes.Equal(u.Scheme(), bytestr.StrHTTP)
+	protocol.ReleaseURI(u)
+	return remove
+}
+
+func removeSensitiveHeadersForRedirect(req *protocol.Request) {
+	req.Header.Del(consts.HeaderAuthorization)
+	req.Header.Del(consts.HeaderWWWAuthenticate)
+	req.Header.Del(consts.HeaderCookie)
+	req.Header.Del(consts.HeaderCookie2)
+	req.Header.Del(consts.HeaderProxyAuthorization)
+	req.Header.Del(consts.HeaderProxyAuthenticate)
 }
 
 // StatusCodeIsRedirect returns true if the status code indicates a redirect.

@@ -33,6 +33,7 @@ const (
 
 	// Controls
 	HeaderCookie         = "Cookie"
+	HeaderCookie2        = "Cookie2"
 	HeaderExpect         = "Expect"
 	HeaderMaxForwards    = "Max-Forwards"
 	HeaderSetCookie      = "Set-Cookie"
