@@ -764,11 +764,33 @@ type pooledConnOwnerHealthProbe struct {
 	ownerWaitTimeout time.Duration
 }
 
+type pooledConnFallbackHealthProbe struct {
+	network.Conn
+	failReadTimeoutCall int
+	readTimeoutCalls    int
+	peekData            []byte
+}
+
 func (c *pooledConnOwnerHealthProbe) IsHealthy(probeTimeout, ownerWaitTimeout time.Duration) bool {
 	c.calls++
 	c.probeTimeout = probeTimeout
 	c.ownerWaitTimeout = ownerWaitTimeout
 	return c.healthy
+}
+
+func (c *pooledConnFallbackHealthProbe) SetReadTimeout(timeout time.Duration) error {
+	c.readTimeoutCalls++
+	if c.readTimeoutCalls == c.failReadTimeoutCall {
+		return errors.New("set read timeout failed")
+	}
+	return c.Conn.SetReadTimeout(timeout)
+}
+
+func (c *pooledConnFallbackHealthProbe) Peek(int) ([]byte, error) {
+	if c.peekData != nil {
+		return c.peekData, nil
+	}
+	return c.Conn.Peek(1)
 }
 
 func (c *pooledConnHealthProbe) Peek(n int) ([]byte, error) {
@@ -796,6 +818,33 @@ func addPooledConn(c *HostClient, conn network.Conn) *clientConn {
 	c.conns = append(c.conns, cc)
 	c.connsCount++
 	return cc
+}
+
+func TestPooledConnHealthCheckFallbackRejectsProbeFailures(t *testing.T) {
+	c := &HostClient{}
+	for _, failCall := range []int{1, 2} {
+		probe := &pooledConnFallbackHealthProbe{
+			Conn:                mock.NewConn(""),
+			failReadTimeoutCall: failCall,
+		}
+		if c.isPooledConnHealthy(probe, time.Second, time.Second) {
+			t.Fatalf("read timeout failure on call %d must fail closed", failCall)
+		}
+		if probe.readTimeoutCalls != failCall {
+			t.Fatalf("read timeout calls: got %d, want %d", probe.readTimeoutCalls, failCall)
+		}
+	}
+
+	probe := &pooledConnFallbackHealthProbe{
+		Conn:     mock.NewConn(""),
+		peekData: []byte("x"),
+	}
+	if c.isPooledConnHealthy(probe, time.Second, time.Second) {
+		t.Fatal("fallback probe must reject unread data")
+	}
+	if probe.readTimeoutCalls != 2 {
+		t.Fatalf("read timeout calls: got %d, want 2", probe.readTimeoutCalls)
+	}
 }
 
 func TestPooledConnHealthCheckDisabledByDefault(t *testing.T) {
