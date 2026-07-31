@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/gopkg v0.1.4
 	github.com/bytedance/sonic v1.15.0
 	github.com/cloudwego/gopkg v0.2.0
-	github.com/cloudwego/netpoll v0.7.3
+	github.com/cloudwego/netpoll v0.7.5-0.20260730165643-598bbe1df4d1
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.4
@@ -28,3 +28,5 @@ require (
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/cloudwego/netpoll => github.com/StellarisW/netpoll v0.7.5-0.20260730165643-598bbe1df4d1
