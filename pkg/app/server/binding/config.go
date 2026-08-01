@@ -96,7 +96,6 @@ func NewBindConfig() *BindConfig {
 
 // RegTypeUnmarshal registers customized type unmarshaler.
 func (config *BindConfig) RegTypeUnmarshal(t reflect.Type, fn inDecoder.CustomizeDecodeFunc) error {
-	// check
 	switch t.Kind() {
 	case reflect.String, reflect.Bool,
 		reflect.Float32, reflect.Float64,
