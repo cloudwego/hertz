@@ -6,7 +6,7 @@ require (
 	github.com/bytedance/gopkg v0.1.4
 	github.com/bytedance/sonic v1.15.0
 	github.com/cloudwego/gopkg v0.2.0
-	github.com/cloudwego/netpoll v0.7.5-0.20260804042038-d63d249a3ba0
+	github.com/cloudwego/netpoll v0.7.5
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.14.4
