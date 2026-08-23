@@ -324,12 +324,10 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		cn = previous.parent
 		valid = cn != nil
 
-		// Next node type by priority
-		if previous.kind == akind {
-			nextNodeKind = skind
-		} else {
-			nextNodeKind = previous.kind + 1
-		}
+		// Next node type by priority.
+		// previous.kind is never akind here: when we enter an anyChild node
+		// we break immediately, so backtracking always starts from skind or pkind.
+		nextNodeKind = previous.kind + 1
 
 		if fromKind == skind {
 			// when backtracking is done from static kind block we did not change search so nothing to restore
@@ -386,14 +384,14 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			if search == "/" && cn.handlers != nil {
 				res.tsr = true
 			}
-			if child := cn.findChild(search[0]); child != nil {
+			if child := cn.findChildWithLabel(search[0]); child != nil {
 				cn = child
 				continue
 			}
 		}
 
 		if search == nilString {
-			if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
+			if cd := cn.findChildWithLabel('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 				res.tsr = true
 			}
 		}
@@ -418,7 +416,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			search = search[i:]
 			searchIndex = searchIndex + i
 			if search == nilString {
-				if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
+				if cd := cn.findChildWithLabel('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 					res.tsr = true
 				}
 			}
@@ -469,15 +467,6 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 	}
 
 	return
-}
-
-func (n *node) findChild(l byte) *node {
-	for _, c := range n.children {
-		if c.label == l {
-			return c
-		}
-	}
-	return nil
 }
 
 func (n *node) findChildWithLabel(l byte) *node {
