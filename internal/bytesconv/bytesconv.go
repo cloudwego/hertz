@@ -42,6 +42,7 @@
 package bytesconv
 
 import (
+	"math"
 	"net/http"
 	"time"
 	"unsafe"
@@ -162,12 +163,13 @@ func ParseUintBuf(b []byte) (int, int, error) {
 			}
 			return v, i, nil
 		}
-		vNew := 10*v + int(k)
-		// Test for overflow.
-		if vNew < v {
+		// Test for overflow before multiplying, because 10*v may wrap around
+		// to a value that is still greater than v, which would make a
+		// post-multiplication check unreliable.
+		if v > (math.MaxInt-int(k))/10 {
 			return -1, i, errTooLongInt
 		}
-		v = vNew
+		v = 10*v + int(k)
 	}
 	return v, n, nil
 }
