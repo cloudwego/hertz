@@ -229,3 +229,8 @@ func TestDoRequestFollowRedirectsTooManyRedirects(t *testing.T) {
 	assert.ErrorIs(t, err, errTooManyRedirects)
 	assert.Equal(t, consts.StatusFound, statusCode)
 }
+
+func TestGetRedirectURLWithAbsoluteURLInQuery(t *testing.T) {
+	redirectURL := getRedirectURL("https://example.com/", []byte("/login/redirect_to_sso?redirect=https://example.com/"))
+	assert.Equal(t, "https://example.com/login/redirect_to_sso?redirect=https://example.com/", redirectURL)
+}

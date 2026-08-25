@@ -281,6 +281,7 @@ func TestURIUpdate(t *testing.T) {
 
 	// request uri
 	testURIUpdate(t, "ftp://aaa/xxx/yyy?aaa=bb#aa", "/boo/bar?xx", "ftp://aaa/boo/bar?xx")
+	testURIUpdate(t, "https://example.com/", "/login/redirect_to_sso?redirect=https://example.com/", "https://example.com/login/redirect_to_sso?redirect=https://example.com/")
 
 	// relative uri
 	testURIUpdate(t, "http://foo.bar/baz/xxx.html?aaa=22#aaa", "bb.html?xx=12#pp", "http://foo.bar/baz/bb.html?xx=12#pp")
