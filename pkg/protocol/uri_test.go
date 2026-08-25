@@ -491,6 +491,18 @@ func TestSplitHostURI(t *testing.T) {
 			[]byte("example3.com"), []byte("https://foobar.com?a=b"),
 			[]byte("https"), []byte("foobar.com"), []byte("?a=b"),
 		},
+		{
+			[]byte("example4.com"), []byte("h:"),
+			[]byte("http"), []byte("example4.com"), []byte("h:"),
+		},
+		{
+			[]byte("example4.com"), []byte("h:/"),
+			[]byte("http"), []byte("example4.com"), []byte("h:/"),
+		},
+		{
+			[]byte("example4.com"), []byte("https>://example/path"),
+			[]byte("http"), []byte("example4.com"), []byte("https>://example/path"),
+		},
 	}
 
 	for _, c := range cases {

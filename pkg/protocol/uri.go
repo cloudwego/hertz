@@ -479,13 +479,15 @@ func stringContainsCTLByte(s []byte) bool {
 }
 
 func splitHostURI(host, uri []byte) ([]byte, []byte, []byte) {
-	scheme, path := getScheme(uri)
+	scheme, remainder := getScheme(uri)
 
-	if scheme == nil {
+	// getScheme recognizes the generic "scheme:remainder" form. Only
+	// "scheme://authority/path" contains a host that can be split here.
+	if scheme == nil || !bytes.HasPrefix(remainder, bytestr.StrSlashSlash) {
 		return bytestr.StrHTTP, host, uri
 	}
 
-	uri = path[len(bytestr.StrSlashSlash):]
+	uri = remainder[len(bytestr.StrSlashSlash):]
 	n := bytes.IndexByte(uri, '/')
 	if n < 0 {
 		// A hack for bogus urls like foobar.com?a=b without
