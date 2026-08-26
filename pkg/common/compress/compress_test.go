@@ -93,29 +93,34 @@ func TestCompressAppendGunzipBytes(t *testing.T) {
 
 func TestCompressAppendGzipBytesLevel(t *testing.T) {
 	// test the byteSliceWriter case for WriteGzipLevel
-	dst1 := []byte("")
-	src1 := []byte("hello")
-	res1 := AppendGzipBytesLevel(dst1, src1, 5)
-	expectedRes1 := []byte{31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 72, 205, 201, 201, 7, 4, 0, 0, 255, 255, 134, 166, 16, 54, 5, 0, 0, 0}
-	if string(res1) != string(expectedRes1) {
-		t.Fatalf("Unexpected : %s. Expecting : %s", res1, expectedRes1)
-	}
+	src := []byte("hello")
+	compressed := AppendGzipBytesLevel(nil, src, 5)
+	assertGzipRoundTrip(t, compressed, src)
 }
 
 func TestCompressWriteGzipLevel(t *testing.T) {
 	// test default case for WriteGzipLevel
 	var w defaultByteWriter
-	p := []byte("hello")
-	expectedW := []byte{31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 72, 205, 201, 201, 7, 4, 0, 0, 255, 255, 134, 166, 16, 54, 5, 0, 0, 0}
-	num, err := WriteGzipLevel(&w, p, 5)
-	if string(expectedW) != string(w.b) {
-		t.Fatalf("Unexpected : %s. Expecting: %s.", w.b, expectedW)
-	}
-	if num != len(p) {
+	src := []byte("hello")
+	num, err := WriteGzipLevel(&w, src, 5)
+	if num != len(src) {
 		t.Fatalf("Unexpected number of compressed bytes: %d", num)
 	}
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
+	}
+	assertGzipRoundTrip(t, w.b, src)
+}
+
+func assertGzipRoundTrip(t *testing.T, compressed, want []byte) {
+	t.Helper()
+
+	got, err := AppendGunzipBytes(nil, compressed)
+	if err != nil {
+		t.Fatalf("Unexpected gunzip error: %s", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("Unexpected gunzipped data: %q. Expecting: %q.", got, want)
 	}
 }
 
