@@ -517,10 +517,12 @@ func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	if engine.options.H2C {
 		// protocol sniffer
 		buf, _ := conn.Peek(len(bytestr.StrClientPreface))
-		if bytes.Equal(buf, bytestr.StrClientPreface) && engine.protocolServers[suite.HTTP2] != nil {
-			return engine.protocolServers[suite.HTTP2].Serve(c, conn)
+		if bytes.Equal(buf, bytestr.StrClientPreface) {
+			if engine.protocolServers[suite.HTTP2] != nil {
+				return engine.protocolServers[suite.HTTP2].Serve(c, conn)
+			}
+			hlog.SystemLogger().Warn("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 		}
-		hlog.SystemLogger().Warn("HTTP2 server is not loaded, request is going to fallback to HTTP1 server")
 	}
 
 	// ALPN path
