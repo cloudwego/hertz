@@ -735,3 +735,14 @@ func TestTreeParamNotOptimize(t *testing.T) {
 		{"/1", false, "/:paramb", param.Params{param.Param{Key: "paramb", Value: "1"}}},
 	})
 }
+
+func TestDuplicateParamNamePanic(t *testing.T) {
+	tree := &router{method: "GET", root: &node{}}
+
+	recv := catchPanic(func() {
+		tree.addRoute("/user/:id/order/:id", fakeHandler("/user/:id/order/:id"))
+	})
+	if recv == nil {
+		t.Error("expected panic for duplicate param names, but got none")
+	}
+}
