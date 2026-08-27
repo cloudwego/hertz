@@ -325,11 +325,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 		valid = cn != nil
 
 		// Next node type by priority
-		if previous.kind == akind {
-			nextNodeKind = skind
-		} else {
-			nextNodeKind = previous.kind + 1
-		}
+		nextNodeKind = previous.kind + 1
 
 		if fromKind == skind {
 			// when backtracking is done from static kind block we did not change search so nothing to restore
