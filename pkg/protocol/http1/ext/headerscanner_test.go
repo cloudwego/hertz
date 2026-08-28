@@ -112,3 +112,40 @@ func testTestHeaderScannerError(t *testing.T, rawHeaders string, expectError err
 	assert.NotNil(t, hs.Err)
 	assert.True(t, errors.Is(hs.Err, expectError))
 }
+
+func TestHeaderScannerMaxHeaderSize(t *testing.T) {
+	// normal case: headers within limit
+	rawHeaders := "Host: example.com\r\nContent-Type: text/html\r\n\r\n"
+	hs := &HeaderScanner{}
+	hs.B = []byte(rawHeaders)
+	hs.MaxHeaderSize = 4096
+	count := 0
+	for hs.Next() {
+		count++
+	}
+	assert.Nil(t, hs.Err)
+	assert.DeepEqual(t, 2, count)
+
+	// headers exceed limit
+	hs2 := &HeaderScanner{}
+	hs2.B = []byte(rawHeaders)
+	hs2.MaxHeaderSize = 10 // very small limit
+	for hs2.Next() {
+	}
+	assert.NotNil(t, hs2.Err)
+	assert.True(t, errors.Is(hs2.Err, errHeaderTooLong))
+}
+
+func TestHeaderScannerMaxHeaderSizeDisabled(t *testing.T) {
+	// MaxHeaderSize=0 means no limit (default, backward compatible)
+	rawHeaders := "Host: example.com\r\nContent-Type: text/html\r\n\r\n"
+	hs := &HeaderScanner{}
+	hs.B = []byte(rawHeaders)
+	// MaxHeaderSize defaults to 0
+	count := 0
+	for hs.Next() {
+		count++
+	}
+	assert.Nil(t, hs.Err)
+	assert.DeepEqual(t, 2, count)
+}
