@@ -386,14 +386,14 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			if search == "/" && cn.handlers != nil {
 				res.tsr = true
 			}
-			if child := cn.findChild(search[0]); child != nil {
+			if child := cn.findChildWithLabel(search[0]); child != nil {
 				cn = child
 				continue
 			}
 		}
 
 		if search == nilString {
-			if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
+			if cd := cn.findChildWithLabel('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 				res.tsr = true
 			}
 		}
@@ -418,7 +418,7 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 			search = search[i:]
 			searchIndex = searchIndex + i
 			if search == nilString {
-				if cd := cn.findChild('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
+				if cd := cn.findChildWithLabel('/'); cd != nil && (cd.handlers != nil || cd.anyChild != nil) {
 					res.tsr = true
 				}
 			}
@@ -469,15 +469,6 @@ func (r *router) find(path string, paramsPointer *param.Params, unescape bool) (
 	}
 
 	return
-}
-
-func (n *node) findChild(l byte) *node {
-	for _, c := range n.children {
-		if c.label == l {
-			return c
-		}
-	}
-	return nil
 }
 
 func (n *node) findChildWithLabel(l byte) *node {
