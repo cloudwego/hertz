@@ -567,6 +567,14 @@ func normalizePath(dst, src []byte) []byte {
 		b = b[:nn+1]
 	}
 
+	// remove trailing /. so that a "." segment at the end of the path is
+	// dropped just like a middle "/./" (e.g. "/foo/." -> "/foo/", "/." -> "/").
+	// The middle-"/./" loop above only matches the "/./" token, so a bare
+	// trailing "/." was left untouched, diverging from RFC 3986 5.2.4.
+	if len(b) >= 2 && b[len(b)-1] == '.' && b[len(b)-2] == '/' {
+		b = b[:len(b)-1]
+	}
+
 	return b
 }
 

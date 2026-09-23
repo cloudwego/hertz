@@ -423,6 +423,16 @@ func TestURIPathNormalize(t *testing.T) {
 	// fake dotdot
 	testURIPathNormalize(t, &u, "/aaa/..bbb/ccc/..", "/aaa/..bbb/")
 
+	// trailing single dot
+	testURIPathNormalize(t, &u, "/foo/.", "/foo/")
+	testURIPathNormalize(t, &u, "/.", "/")
+	testURIPathNormalize(t, &u, "/a/b/.", "/a/b/")
+	testURIPathNormalize(t, &u, "/a/./b/.", "/a/b/")
+	// a segment that merely starts/ends with a dot must be preserved
+	testURIPathNormalize(t, &u, "/foo.", "/foo.")
+	testURIPathNormalize(t, &u, "/.foo", "/.foo")
+	testURIPathNormalize(t, &u, "/a/.b", "/a/.b")
+
 	// single dot
 	testURIPathNormalize(t, &u, "/a/./b/././c/./d.html", "/a/b/c/d.html")
 	testURIPathNormalize(t, &u, "./foo/", "/foo/")
