@@ -339,6 +339,35 @@ func TestCookieMaxAgeExpires(t *testing.T) {
 	}
 }
 
+func TestCookieMaxAgeNegativeParse(t *testing.T) {
+	// RFC 6265 5.2.2: a leading "-" is valid and a non-positive Max-Age means
+	// "expire immediately". Parsing must not error out and must round-trip to
+	// the same output SetMaxAge(-1) produces ("max-age=0"), rather than
+	// silently dropping the attribute.
+	var c Cookie
+	for _, in := range []string{"k=v; max-age=-1", "k=v; Max-Age=-100"} {
+		if err := c.Parse(in); err != nil {
+			t.Fatalf("Parse(%q) unexpected error: %v", in, err)
+		}
+		if c.MaxAge() != -1 {
+			t.Fatalf("Parse(%q): MaxAge()=%d, want -1", in, c.MaxAge())
+		}
+		if s := string(c.Cookie()); s != "k=v; max-age=0" {
+			t.Fatalf("Parse(%q) re-serialize=%q, want \"k=v; max-age=0\"", in, s)
+		}
+	}
+	// max-age=0 stays unset (no attribute emitted), matching prior behavior.
+	if err := c.Parse("k=v; max-age=0"); err != nil {
+		t.Fatalf("Parse max-age=0 error: %v", err)
+	}
+	if c.MaxAge() != 0 {
+		t.Fatalf("max-age=0: MaxAge()=%d, want 0", c.MaxAge())
+	}
+	if s := string(c.Cookie()); s != "k=v" {
+		t.Fatalf("max-age=0 re-serialize=%q, want \"k=v\"", s)
+	}
+}
+
 func TestCookieHttpOnly(t *testing.T) {
 	t.Parallel()
 

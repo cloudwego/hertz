@@ -393,11 +393,28 @@ func (c *Cookie) ParseBytes(src []byte) error {
 			switch kv.key[0] | 0x20 {
 			case 'm':
 				if utils.CaseInsensitiveCompare(bytestr.StrCookieMaxAge, kv.key) {
-					maxAge, err := bytesconv.ParseUint(kv.value)
+					// RFC 6265 5.2.2 allows a leading "-" in Max-Age, and a
+					// non-positive value means "expire immediately". ParseUint
+					// rejects the "-", which used to make Parse return an error
+					// and leave maxAge at 0 (== unset), dropping the attribute
+					// on re-serialization. Mirror SetMaxAge's model instead: a
+					// negative value is stored as -1 and later serialized as
+					// "max-age=0".
+					value := kv.value
+					negative := false
+					if len(value) > 0 && value[0] == '-' {
+						negative = true
+						value = value[1:]
+					}
+					maxAge, err := bytesconv.ParseUint(value)
 					if err != nil {
 						return err
 					}
-					c.maxAge = maxAge
+					if negative && maxAge > 0 {
+						c.maxAge = -1
+					} else {
+						c.maxAge = maxAge
+					}
 				}
 
 			case 'e': // "expires"
