@@ -232,9 +232,27 @@ func AppendQuotedArg(dst, src []byte) []byte {
 	return dst
 }
 
-// ParseHTTPDate parses HTTP-compliant (RFC1123) date.
+// ParseHTTPDate parses an HTTP-date. RFC 7231 7.1.1.1 requires a recipient to
+// accept all three date formats: the preferred IMF-fixdate (RFC1123), the
+// obsolete RFC 850 format, and ANSI C's asctime. Previously only RFC1123 was
+// accepted, so a legal If-Modified-Since / If-Unmodified-Since sent in one of
+// the other two formats silently failed to parse.
+//
+// time.RFC1123 (rather than the stricter GMT-only http.TimeFormat) is kept as
+// the first layout so that RFC1123 dates carrying a non-GMT zone abbreviation,
+// which were accepted before, keep working.
 func ParseHTTPDate(date []byte) (time.Time, error) {
-	return time.Parse(time.RFC1123, B2s(date))
+	s := B2s(date)
+	var (
+		t   time.Time
+		err error
+	)
+	for _, layout := range []string{time.RFC1123, time.RFC850, time.ANSIC} {
+		if t, err = time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	return t, err
 }
 
 // ParseUint parses uint from buf.

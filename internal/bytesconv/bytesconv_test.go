@@ -198,6 +198,24 @@ func TestParseHTTPDate(t *testing.T) {
 		}
 		assert.DeepEqual(t, t1, t2)
 	}
+
+	// RFC 7231 7.1.1.1 requires accepting all three date formats. The same
+	// instant expressed as RFC1123 / RFC850 / asctime must parse to the same
+	// time; previously only RFC1123 was accepted.
+	ref := time.Date(1994, 11, 6, 8, 49, 37, 0, time.UTC)
+	for _, in := range []string{
+		"Sun, 06 Nov 1994 08:49:37 GMT",  // IMF-fixdate (RFC1123)
+		"Sunday, 06-Nov-94 08:49:37 GMT", // RFC 850
+		"Sun Nov  6 08:49:37 1994",       // ANSI C asctime
+	} {
+		got, err := ParseHTTPDate(S2b(in))
+		if err != nil {
+			t.Fatalf("ParseHTTPDate(%q) unexpected error: %v", in, err)
+		}
+		if !got.Equal(ref) {
+			t.Fatalf("ParseHTTPDate(%q) = %v, want %v", in, got.UTC(), ref)
+		}
+	}
 }
 
 // For test only, but it will import golang.org/x/net/http.
