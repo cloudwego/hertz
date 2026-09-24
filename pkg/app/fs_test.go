@@ -487,6 +487,9 @@ func TestParseByteRangeError(t *testing.T) {
 
 	// startPos exceeding endPos
 	testParseByteRangeError(t, "bytes=123-34", 1234)
+
+	// suffix length of zero ("bytes=-0") is unsatisfiable per RFC 7233 2.1
+	testParseByteRangeError(t, "bytes=-0", 10)
 }
 
 func testParseByteRangeError(t *testing.T, v string, contentLength int) {

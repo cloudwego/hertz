@@ -1116,6 +1116,13 @@ func ParseByteRange(byteRange []byte, contentLength int) (startPos, endPos int, 
 		if err != nil {
 			return 0, 0, err
 		}
+		// A suffix-length of 0 ("bytes=-0") is unsatisfiable per RFC 7233 2.1:
+		// it selects the last zero bytes, i.e. nothing. Without this check the
+		// branch below returns startPos == contentLength (past the end) with a
+		// nil error, producing an invalid range instead of a 416.
+		if v == 0 {
+			return 0, 0, fmt.Errorf("unsatisfiable suffix byte range in %q", byteRange)
+		}
 		startPos := contentLength - v
 		if startPos < 0 {
 			startPos = 0
