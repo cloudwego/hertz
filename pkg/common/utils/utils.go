@@ -92,7 +92,14 @@ func NormalizeHeaderKey(b []byte, disableNormalizing bool) {
 		return
 	}
 
-	b[0] = bytesconv.ToUpperTable[b[0]]
+	// The first byte is only capitalized when it is not a '-', matching
+	// net/http's canonical MIME header key form (CanonicalHeaderKey("-x") ==
+	// "-X", i.e. the byte right after the '-' is capitalized, not the '-').
+	if b[0] != '-' {
+		b[0] = bytesconv.ToUpperTable[b[0]]
+	} else if n > 1 {
+		b[1] = bytesconv.ToUpperTable[b[1]]
+	}
 	for i := 1; i < n; i++ {
 		p := &b[i]
 		if *p == '-' {
@@ -100,6 +107,11 @@ func NormalizeHeaderKey(b []byte, disableNormalizing bool) {
 			if i < n {
 				b[i] = bytesconv.ToUpperTable[b[i]]
 			}
+			continue
+		}
+		// Keep the byte after a leading '-' lower/upper-cased by the loop
+		// below; skip it here since it was handled above.
+		if i == 1 && b[0] == '-' {
 			continue
 		}
 		*p = bytesconv.ToLowerTable[*p]

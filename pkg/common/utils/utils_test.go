@@ -176,6 +176,23 @@ func TestNormalizeHeaderKeyEdgeCases(t *testing.T) {
 	assert.DeepEqual(t, []byte(""), empty)
 	NormalizeHeaderKey(empty, true)
 	assert.DeepEqual(t, []byte(""), empty)
+
+	// A leading '-' is itself a valid header-field token char; canonical form
+	// capitalizes the byte after the leading dash, not the dash (matches
+	// net/http CanonicalHeaderKey): "-x" -> "-X", "--x" -> "--X".
+	dash := []byte("-x")
+	NormalizeHeaderKey(dash, false)
+	assert.DeepEqual(t, []byte("-X"), dash)
+	dash2 := []byte("--x")
+	NormalizeHeaderKey(dash2, false)
+	assert.DeepEqual(t, []byte("--X"), dash2)
+	// normal keys and trailing dashes are unchanged in behavior
+	ct := []byte("content-type")
+	NormalizeHeaderKey(ct, false)
+	assert.DeepEqual(t, []byte("Content-Type"), ct)
+	trailing := []byte("x-")
+	NormalizeHeaderKey(trailing, false)
+	assert.DeepEqual(t, []byte("X-"), trailing)
 }
 
 func TestFilterContentTypeEdgeCases(t *testing.T) {
