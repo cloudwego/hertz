@@ -54,6 +54,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/http1/ext"
 )
 
@@ -315,7 +316,7 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 				err = ext.WriteBodyFixedSize(w, resp.BodyStream(), int64(contentLength))
 			}
 		}
-	} else {
+	} else if resp.Header.IsHTTP11() || resp.Header.GetProtocol() == "" {
 		resp.Header.SetContentLength(-1)
 		if err = WriteHeader(&resp.Header, w); err == nil && sendBody {
 			if resp.ImmediateHeaderFlush {
@@ -326,6 +327,19 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 			}
 			if err == nil {
 				err = ext.WriteTrailer(resp.Header.Trailer(), w)
+			}
+		}
+	} else {
+		// no chunked framing before HTTP/1.1: the body ends where the connection does, and the
+		// server closes it for a response whose length is unknown
+		resp.Header.Del(consts.HeaderTransferEncoding)
+		resp.Header.SetContentLength(-1)
+		if err = WriteHeader(&resp.Header, w); err == nil && sendBody {
+			if resp.ImmediateHeaderFlush {
+				err = w.Flush()
+			}
+			if err == nil {
+				_, err = utils.CopyZeroAlloc(w, resp.BodyStream())
 			}
 		}
 	}
