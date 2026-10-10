@@ -106,8 +106,52 @@ func (routerNode *RouterNode) Update(method *HttpMethod, handlerType, handlerPkg
 
 func (routerNode *RouterNode) RawHandlerName() string {
 	parts := strings.Split(routerNode.Handler, ".")
-	handlerName := parts[len(parts)-1]
-	return handlerName
+	return parts[len(parts)-1]
+}
+
+// RawGroupName returns the path-derived group name with its original case.
+func (routerNode *RouterNode) RawGroupName() string {
+	if routerNode.Path == "/" {
+		return "root"
+	}
+	path := strings.TrimPrefix(routerNode.Path, "/")
+	return util.ToVarName([]string{path})
+}
+
+// RawHandlerMiddleware returns the handler middleware base name with the
+// handler's original case. It preserves any disambiguating suffix assigned by
+// Hertz without changing HandlerMiddleware itself.
+func (routerNode *RouterNode) RawHandlerMiddleware() string {
+	if routerNode.Handler == "" {
+		return ""
+	}
+	name := routerNode.RawHandlerName()
+	return rawMiddlewareName(name, convertToMiddlewareName(name), strings.TrimPrefix(routerNode.HandlerMiddleware, "_"))
+}
+
+// RawGroupMiddleware returns the group middleware base name with path casing
+// preserved. Snake-style middleware already uses the case-preserving full path,
+// so return it without the leading underscore but with any disambiguating
+// suffix.
+func (routerNode *RouterNode) RawGroupMiddleware() string {
+	if routerNode.Path == "/" {
+		return "root"
+	}
+	if routerNode.PathPrefix != "" && strings.HasPrefix(routerNode.GroupMiddleware, routerNode.PathPrefix) {
+		return strings.TrimPrefix(routerNode.GroupMiddleware, "_")
+	}
+	path := strings.TrimPrefix(routerNode.Path, "/")
+	name := routerNode.RawGroupName()
+	return rawMiddlewareName(name, convertToMiddlewareName(path), strings.TrimPrefix(routerNode.GroupMiddleware, "_"))
+}
+
+func rawMiddlewareName(rawName, normalizedName, middlewareName string) string {
+	for _, prefix := range []string{rawName, normalizedName} {
+		if strings.HasPrefix(middlewareName, prefix) {
+			return rawName + strings.TrimPrefix(middlewareName, prefix)
+		}
+	}
+	return rawName
 }
 
 // DyeGroupName traverses the routing tree in depth and names the handler/group middleware for each node.
@@ -509,15 +553,15 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 	if !isExist {
 		return pkgGen.TemplateGenerator.Generate(router, middlewareTpl, filePath, false)
 	}
-	var middlewareList []string
+	var middlewareList []map[string]string
 
 	_ = router.(Router).Router.DFS(0, func(layer int, node *RouterNode) error {
 		// non-leaf node will generate group middleware
 		if node.Children.Len() > 0 && len(node.GroupMiddleware) > 0 {
-			middlewareList = append(middlewareList, node.GroupMiddleware)
+			middlewareList = append(middlewareList, map[string]string{"MiddleWare": node.GroupMiddleware, "RawName": node.RawGroupMiddleware()})
 		}
 		if len(node.HandlerMiddleware) > 0 {
-			middlewareList = append(middlewareList, node.HandlerMiddleware)
+			middlewareList = append(middlewareList, map[string]string{"MiddleWare": node.HandlerMiddleware, "RawName": node.RawHandlerMiddleware()})
 		}
 		return nil
 	})
@@ -527,10 +571,19 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 		return err
 	}
 
-	for _, mw := range middlewareList {
+	for _, data := range middlewareList {
+		mw := data["MiddleWare"]
 		mwNamePattern := fmt.Sprintf(" %sMw", mw)
 		if pkgGen.SnakeStyleMiddleware {
 			mwNamePattern = fmt.Sprintf(" %s_mw", mw)
+		}
+		// Custom templates can use the same naming expression for generation
+		// and duplicate detection, without changing the default naming rules.
+		if tplInfo := pkgGen.tplsInfo[middlewareSingleTplName]; tplInfo != nil && tplInfo.UpdateBehavior.InsertKey != "" {
+			mwNamePattern, err = renderInsertKey(tplInfo, data)
+			if err != nil {
+				return err
+			}
 		}
 		if bytes.Contains(file, []byte(mwNamePattern)) {
 			continue
@@ -539,8 +592,6 @@ func (pkgGen *HttpPackageGenerator) updateMiddlewareReg(router interface{}, midd
 		if middlewareSingleTpl == nil {
 			return fmt.Errorf("tpl %s not found", middlewareSingleTplName)
 		}
-		data := make(map[string]string, 1)
-		data["MiddleWare"] = mw
 		middlewareFunc := bytes.NewBuffer(nil)
 		err = middlewareSingleTpl.Execute(middlewareFunc, data)
 		if err != nil {
