@@ -597,15 +597,14 @@ func (u *URI) updateBytes(newURI, buf []byte) []byte {
 		return buf
 	}
 
-	n := bytes.Index(newURI, bytestr.StrSlashSlash)
-	if n >= 0 {
+	if isAbsoluteURI(newURI) {
 		// absolute uri
 		var b [32]byte
 		schemeOriginal := b[:0]
 		if len(u.scheme) > 0 {
 			schemeOriginal = append([]byte(nil), u.scheme...)
 		}
-		if n == 0 {
+		if bytes.HasPrefix(newURI, bytestr.StrSlashSlash) {
 			newURI = bytes.Join([][]byte{u.scheme, bytestr.StrColon, newURI}, nil)
 		}
 		u.Parse(nil, newURI)
@@ -636,7 +635,7 @@ func (u *URI) updateBytes(newURI, buf []byte) []byte {
 	default:
 		// update the last path part after the slash
 		path := u.Path()
-		n = bytes.LastIndexByte(path, '/')
+		n := bytes.LastIndexByte(path, '/')
 		if n < 0 {
 			panic("BUG: path must contain at least one slash")
 		}
@@ -646,6 +645,14 @@ func (u *URI) updateBytes(newURI, buf []byte) []byte {
 		u.Parse(nil, buf)
 		return buf
 	}
+}
+
+func isAbsoluteURI(uri []byte) bool {
+	if bytes.HasPrefix(uri, bytestr.StrSlashSlash) {
+		return true
+	}
+	_, path := getScheme(uri)
+	return bytes.HasPrefix(path, bytestr.StrSlashSlash)
 }
 
 // AppendBytes appends full uri to dst and returns the extended dst.

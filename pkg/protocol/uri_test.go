@@ -296,6 +296,12 @@ func TestURIUpdate(t *testing.T) {
 	// uri without scheme
 	testURIUpdate(t, "https://foo.bar/baz", "//aaa.bbb/cc?dd", "https://aaa.bbb/cc?dd")
 	testURIUpdate(t, "http://foo.bar/baz", "//aaa.bbb/cc?dd", "http://aaa.bbb/cc?dd")
+
+	// relative path-absolute URI whose query embeds an absolute URL —
+	// previously misclassified as absolute because bytes.Index found // inside the query.
+	// See issue #1539.
+	testURIUpdate(t, "https://example.com/", "/login/redirect_to_sso?redirect=https://example.com/", "https://example.com/login/redirect_to_sso?redirect=https://example.com/")
+	testURIUpdate(t, "http://example.com/path", "/go?next=http://other.com/x", "http://example.com/go?next=http://other.com/x")
 }
 
 func testURIUpdate(t *testing.T, base, update, result string) {
