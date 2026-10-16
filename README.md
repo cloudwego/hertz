@@ -1,3 +1,4 @@
+本项目基于 CloudWeGo Hertz 框架，新增了 /api/v1/stream/monitor 接口，实现了路由注册与 JSON 数据的序列化返回，用于模拟获取流媒体服务端的实时状态数据（包含码率、客户端数等指标），为后续接入 SRS 流媒体监控提供了验证 Demo。
 # Hertz
 
 English | [中文](README_cn.md)
