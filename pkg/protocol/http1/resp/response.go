@@ -157,19 +157,20 @@ func (c *clientRespStream) ForceClose() (err error) {
 		err = c.closeCallback(true)
 		c.closeCallback = nil
 	}
-	// NOTE: DO NOT put back to pool here,
-	// user may still use clientRespStream and call Close() like `defer body.Close()`
+	// Close releases the body stream after the caller has stopped reading it.
 	return
 }
 
-// Close closes response stream gracefully.
+// Close closes response stream gracefully. Repeated calls are ignored.
 //
 // NOTE:
-// * Since Close() will put it back to pool, MUST ensure it only be called when no longer use.
 // * MUST NOT call Close() and `Read()` concurrently to avoid race issue
 func (c *clientRespStream) Close() (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.r == nil {
+		return nil
+	}
 	runtime.SetFinalizer(c, nil)
 	// If error happened in ReleaseBodyStream, the connection may be in abnormal state.
 	// Close it in the callback in order to avoid other unexpected problems.
@@ -182,7 +183,6 @@ func (c *clientRespStream) Close() (err error) {
 	}
 	c.r = nil
 	c.closeCallback = nil
-	clientRespStreamPool.Put(c)
 	return
 }
 
@@ -190,16 +190,10 @@ func (c *clientRespStream) Read(p []byte) (n int, err error) {
 	return c.r.Read(p)
 }
 
-var clientRespStreamPool = sync.Pool{
-	New: func() interface{} {
-		return &clientRespStream{}
-	},
-}
-
 func convertClientRespStream(bs io.Reader, fn func(shouldClose bool) error) *clientRespStream {
-	clientStream := clientRespStreamPool.Get().(*clientRespStream)
-	clientStream.r = bs
-	clientStream.closeCallback = fn
+	// Callers may retain a closed stream, so reusing the wrapper would let a
+	// subsequent Close affect another response. The underlying body is still pooled.
+	clientStream := &clientRespStream{r: bs, closeCallback: fn}
 	runtime.SetFinalizer(clientStream, (*clientRespStream).Close)
 	return clientStream
 }

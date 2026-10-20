@@ -45,8 +45,11 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -634,6 +637,94 @@ func TestResponseReadBodyStreamBadReader(t *testing.T) {
 	stBody := resp.BodyStream()
 	closer, _ := stBody.(io.Closer)
 	closer.Close()
+}
+
+func TestClientRespStreamCloseAfterAnotherResponse(t *testing.T) {
+	// Make reuse of a pooled stream deterministic, without dropping pool entries during GC.
+	previousProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previousProcs)
+	previousGC := debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(previousGC)
+
+	closed := convertClientRespStream(strings.NewReader("first"), nil)
+	assert.Nil(t, closed.Close())
+
+	closeCalls := 0
+	active := convertClientRespStream(strings.NewReader("second"), func(bool) error {
+		closeCalls++
+		return nil
+	})
+	assert.Nil(t, closed.Close())
+	if closeCalls != 0 {
+		t.Fatal("closing an old stream closed another response")
+	}
+	defer active.Close()
+
+	body, err := io.ReadAll(active)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(body), "second")
+}
+
+func TestClientRespStreamRepeatedClose(t *testing.T) {
+	previousProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previousProcs)
+	previousGC := debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(previousGC)
+
+	closed := convertClientRespStream(strings.NewReader("closed"), nil)
+	assert.Nil(t, closed.Close())
+	assert.Nil(t, closed.Close())
+
+	first := convertClientRespStream(strings.NewReader("first"), nil)
+	second := convertClientRespStream(strings.NewReader("second"), nil)
+	defer first.Close()
+	defer second.Close()
+
+	firstBody, err := io.ReadAll(first)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(firstBody), "first")
+	secondBody, err := io.ReadAll(second)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, string(secondBody), "second")
+}
+
+func TestClientRespStreamConcurrentClose(t *testing.T) {
+	closeCalls := 0
+	stream := convertClientRespStream(strings.NewReader("body"), func(bool) error {
+		closeCalls++
+		return nil
+	})
+
+	const callers = 8
+	results := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			results <- stream.Close()
+		}()
+	}
+	for i := 0; i < callers; i++ {
+		assert.Nil(t, <-results)
+	}
+	assert.DeepEqual(t, closeCalls, 1)
+}
+
+func TestClientRespStreamForceClose(t *testing.T) {
+	for _, forceFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("forceFirst=%t", forceFirst), func(t *testing.T) {
+			var calls []bool
+			stream := convertClientRespStream(strings.NewReader("body"), func(shouldClose bool) error {
+				calls = append(calls, shouldClose)
+				return nil
+			})
+			if forceFirst {
+				assert.Nil(t, stream.ForceClose())
+			}
+			assert.Nil(t, stream.Close())
+			assert.Nil(t, stream.ForceClose())
+			assert.Nil(t, stream.Close())
+			assert.DeepEqual(t, calls, []bool{forceFirst})
+		})
+	}
 }
 
 func TestSetResponseBodyStreamFixedSize(t *testing.T) {
