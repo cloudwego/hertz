@@ -48,7 +48,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
-var errInvalidName = errs.NewPublic("invalid header name")
+var (
+	errInvalidName   = errs.NewPublic("invalid header name")
+	errHeaderTooLong = errs.NewPublic("header block exceeds maximum size")
+)
 
 type HeaderScanner struct {
 	B     []byte
@@ -61,14 +64,12 @@ type HeaderScanner struct {
 
 	DisableNormalizing bool
 
-	// by checking whether the Next line contains a colon or not to tell
-	// it's a header entry or a multi line value of current header entry.
-	// the side effect of this operation is that we know the index of the
-	// Next colon and new line, so this can be used during Next iteration,
-	// instead of find them again.
+	// MaxHeaderSize limits total header bytes parsed. 0 means no limit.
+	// When exceeded, Err is set to errHeaderTooLong.
+	MaxHeaderSize int
+
 	nextColon   int
 	nextNewLine int
-
 	initialized bool
 }
 
@@ -82,6 +83,10 @@ func (s *HeaderScanner) Next() bool {
 		s.nextColon = -1
 		s.nextNewLine = -1
 		s.initialized = true
+	}
+	if s.MaxHeaderSize > 0 && s.HLen > s.MaxHeaderSize {
+		s.Err = errHeaderTooLong
+		return false
 	}
 	bLen := len(s.B)
 	if bLen >= 2 && s.B[0] == '\r' && s.B[1] == '\n' {
