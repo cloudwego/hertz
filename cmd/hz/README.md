@@ -131,6 +131,31 @@ Template update behaviors:
 - `cover` — overwrite existing file completely
 - `append` — append new content (e.g. new handler methods) to existing file
 
+For `middleware_single.go`, `MiddleWare` is the default middleware name and
+`RawName` is that middleware name with its original method or path casing.
+It omits the generated leading underscore but retains any disambiguating suffix
+assigned by Hertz; the root remains `root`. Set
+`update_behavior.insert_key` to match a custom function name when checking for
+existing middleware. Without it, the default duplicate check is unchanged:
+
+```yaml
+  - path: middleware_single.go
+    update_behavior:
+      insert_key: 'func {{if ne .MiddleWare "root"}}_{{end}}{{untitle .RawName}}Mw('
+    body: |
+
+      func {{if ne .MiddleWare "root"}}_{{end}}{{untitle .RawName}}Mw() []app.HandlerFunc {
+        return nil
+      }
+```
+
+Use matching names in `router.go` and the initial `middleware.go` template,
+where `RawGroupMiddleware` and `RawHandlerMiddleware` are available on each
+router node. For example, `/:collectionUid` can generate
+`_collectionUidMw()` and `GetLLMResponse` can generate
+`_getLLMResponseMw()`.
+Keep the built-in `middleware.go` template enabled for incremental updates.
+
 ## Example Output
 
 Run `generate.sh` to see what hz generates for the test IDL files:
