@@ -140,7 +140,8 @@ func ReadRespBody(resp *protocol.Response, r network.Reader, maxBodySize int) (e
 }
 
 type clientRespStream struct {
-	mu sync.Mutex
+	mu     sync.Mutex
+	closed bool
 
 	r             io.Reader
 	closeCallback func(shouldClose bool) error
@@ -153,6 +154,9 @@ type clientRespStream struct {
 func (c *clientRespStream) ForceClose() (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
 	if c.closeCallback != nil {
 		err = c.closeCallback(true)
 		c.closeCallback = nil
@@ -165,11 +169,15 @@ func (c *clientRespStream) ForceClose() (err error) {
 // Close closes response stream gracefully.
 //
 // NOTE:
-// * Since Close() will put it back to pool, MUST ensure it only be called when no longer use.
+// * Close() is idempotent and safe to call multiple times.
 // * MUST NOT call Close() and `Read()` concurrently to avoid race issue
 func (c *clientRespStream) Close() (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
 	runtime.SetFinalizer(c, nil)
 	// If error happened in ReleaseBodyStream, the connection may be in abnormal state.
 	// Close it in the callback in order to avoid other unexpected problems.
@@ -198,6 +206,7 @@ var clientRespStreamPool = sync.Pool{
 
 func convertClientRespStream(bs io.Reader, fn func(shouldClose bool) error) *clientRespStream {
 	clientStream := clientRespStreamPool.Get().(*clientRespStream)
+	clientStream.closed = false
 	clientStream.r = bs
 	clientStream.closeCallback = fn
 	runtime.SetFinalizer(clientStream, (*clientRespStream).Close)
