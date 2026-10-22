@@ -49,6 +49,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -62,6 +63,7 @@ import (
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/network"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -515,6 +517,17 @@ func TestSetEngineRun(t *testing.T) {
 	assert.True(t, !e.IsRunning())
 	e.MarkAsRunning()
 	assert.True(t, e.IsRunning())
+}
+
+func TestEngine_InitNoRouteAndNoMethod(t *testing.T) {
+	e := NewEngine(config.NewOptions(nil))
+	err := e.Init()
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, len(e.allNoRoute) == 1, e.allNoRoute)
+	hdlName := utils.NameOfFunction(e.allNoRoute[0])
+	assert.Assert(t, strings.HasSuffix(hdlName, ".hertzRouteNotFound"))
+	hdlName = utils.NameOfFunction(e.allNoMethod[0])
+	assert.Assert(t, strings.HasSuffix(hdlName, ".hertzNotAllowedMethod"))
 }
 
 type mockConn struct{}
