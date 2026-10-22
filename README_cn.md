@@ -11,7 +11,7 @@
 ![Stars](https://img.shields.io/github/stars/cloudwego/hertz)
 ![Forks](https://img.shields.io/github/forks/cloudwego/hertz)
 
-Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](https://github.com/valyala/fasthttp)，并在设计时参考了其他开源框架[gin](https://github.com/gin-gonic/gin)、[echo](https://github.com/labstack/echo) 的优势，并结合字节跳动内部的需求，使其具有高易用性、高
+Hertz [həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](https://github.com/valyala/fasthttp)，并在设计时参考了其他开源框架[gin](https://github.com/gin-gonic/gin)、[echo](https://github.com/labstack/echo) 的优势，并结合字节跳动内部的需求，使其具有高易用性、高
 性能、高扩展性等特点，目前在字节跳动内部已广泛使用。如今越来越多的微服务选择使用 Golang，如果对微服务性能有要求，又希望框架能够充分满足内部的可定制化需求，Hertz 会是一个不错的选择。
 
 ## 框架特点
@@ -38,7 +38,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](
   Hertz 实现了 Netpoll 和 Golang 原生网络库 间按需切换能力，用户可以针对不同的场景选择合适的网络库，同时也支持以插件的方式为 Hertz 扩展网络库实现。
 ## 详细文档
 ### [快速开始](https://www.cloudwego.io/zh/docs/hertz/getting-started/)
-### Example
+### 示例
   Hertz-Examples 仓库提供了开箱即用的代码，[详见](https://www.cloudwego.io/zh/docs/hertz/tutorials/example/)。
 ### 用户指南
 ### 基本特性
@@ -75,7 +75,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](
 | [Registry](https://github.com/hertz-contrib/registry)                                              | 提供服务注册与发现功能。到现在为止，支持的服务发现拓展有 nacos， consul， etcd， eureka， polaris， servicecomb， zookeeper， redis。 |
 | [Sentry](https://github.com/hertz-contrib/hertzsentry)                                             | Sentry 拓展提供了一些统一的接口来帮助用户进行实时的错误监控。                                                                |
 | [Tracer](https://github.com/hertz-contrib/tracer)                                                  | 基于 Opentracing 的链路追踪。                                                                             |
-| [Basicauth](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/basic_auth) | Basicauth 中间件能够提供 HTTP 基本身份验证。                                                                    |
+| [Basicauth](https://github.com/cloudwego/hertz/tree/main/pkg/app/middlewares/server/basic_auth) | Basicauth 中间件能够提供 HTTP 基本身份验证。                                                                    |
 | [Jwt](https://github.com/hertz-contrib/jwt)                                                        | Jwt 拓展。                                                                                           |
 | [Keyauth](https://github.com/hertz-contrib/keyauth)                                                | 提供基于 token 的身份验证。                                                                                 |
 | [Requestid](https://github.com/hertz-contrib/requestid)                                            | 在 response 中添加 request id。                                                                        |
@@ -89,7 +89,7 @@ Hertz[həːts] 是一个 Golang 微服务 HTTP 框架，最初fork自[fasthttp](
 | [Lark](https://github.com/hertz-contrib/lark-hertz)                                                | 在 Hertz 中处理 Lark/飞书的卡片消息和事件的回调。                                                                   |
 | [Loadbalance](https://github.com/hertz-contrib/loadbalance)                                        | 提供适用于 Hertz 的负载均衡算法。                                                                              |
 | [Logger](https://github.com/hertz-contrib/logger)                                                  | Hertz 的日志拓展，提供了对 zap、logrus、zerologs 日志框架的支持。                                                     |
-| [Recovery](https://github.com/cloudwego/hertz/tree/develop/pkg/app/middlewares/server/recovery)    | Hertz 的异常恢复中间件。                                                                                   |
+| [Recovery](https://github.com/cloudwego/hertz/tree/main/pkg/app/middlewares/server/recovery)    | Hertz 的异常恢复中间件。                                                                                   |
 | [Reverseproxy](https://github.com/hertz-contrib/reverseproxy)                                      | 实现反向代理。                                                                                           |
 | [Swagger](https://github.com/hertz-contrib/swagger)                                                | 使用 Swagger 2.0 自动生成 RESTful API 文档。                                                               |
 | [Cache](https://github.com/hertz-contrib/cache)                                                    | 用于缓存 HTTP 接口内容的 Hertz 中间件，支持多种客户端。                                                                |
