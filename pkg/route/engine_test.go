@@ -41,6 +41,7 @@
 package route
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -49,6 +50,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -60,6 +63,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server/registry"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/test/assert"
 	"github.com/cloudwego/hertz/pkg/common/test/mock"
 	"github.com/cloudwego/hertz/pkg/network"
@@ -96,6 +100,37 @@ func TestNew_Engine_WithTransporter(t *testing.T) {
 func TestGetTransporterName(t *testing.T) {
 	name := getTransporterName(&fakeTransporter{})
 	assert.DeepEqual(t, "route", name)
+}
+
+func TestPrintNode(t *testing.T) {
+	var output bytes.Buffer
+	hlog.SetOutput(&output)
+	hlog.SetLevel(hlog.LevelDebug)
+	t.Cleanup(func() {
+		hlog.SetOutput(os.Stderr)
+		hlog.SetLevel(hlog.LevelTrace)
+	})
+
+	root := &node{
+		prefix: "root",
+		ppath:  "/root",
+		children: children{
+			&node{
+				prefix: "child",
+				ppath:  "/root/child",
+			},
+		},
+	}
+
+	printNode(root, 0)
+
+	logs := output.String()
+	assert.True(t, strings.Contains(logs, "node.prefix: root"))
+	assert.True(t, strings.Contains(logs, "node.ppath: /root"))
+	assert.True(t, strings.Contains(logs, "level: 0"))
+	assert.True(t, strings.Contains(logs, "node.prefix: child"))
+	assert.True(t, strings.Contains(logs, "node.ppath: /root/child"))
+	assert.True(t, strings.Contains(logs, "level: 1"))
 }
 
 func TestEngineUnescape(t *testing.T) {
