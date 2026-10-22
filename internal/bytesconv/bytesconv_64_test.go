@@ -104,6 +104,12 @@ func TestParseUintError(t *testing.T) {
 		{"-9223372036854775808"},
 		{"9223372036854775808"},
 		{"18446744073709551615"},
+		// Values whose intermediate 10*v wraps past 2^64 and lands back on a
+		// positive number, which a post-multiplication overflow check misses.
+		{"21000000000000000000"},
+		{"25000000000000000000"},
+		{"46000000000000000000"},
+		{"83000000000000000000"},
 	} {
 		n, err := ParseUint(S2b(v.s))
 		if err == nil {
