@@ -57,6 +57,78 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
+func TestSetMaxPooledBodySize(t *testing.T) {
+	// Do not run in parallel: these pools are shared by all protocol tests.
+	SetMaxPooledBodySize(512 << 10)
+	defer SetMaxPooledBodySize(0)
+
+	for _, size := range []int{1, 4 << 20} {
+		reqBody := &bytebufferpool.ByteBuffer{B: make([]byte, size, 4<<20)}
+		respBody := &bytebufferpool.ByteBuffer{B: make([]byte, size, 4<<20)}
+		req := Request{body: reqBody}
+		resp := Response{body: respBody}
+		req.ResetBody()
+		resp.ResetBody()
+		if req.body != nil || resp.body != nil {
+			t.Fatal("request/response retained body after reset")
+		}
+		// Rejected buffers are not reset by Pool.Put, even if their length shrank.
+		if len(reqBody.B) != size || len(respBody.B) != size {
+			t.Fatal("oversized body accepted by pool")
+		}
+	}
+
+	// Object-level retention remains controlled by MaxKeepBodySize.
+	resp := Response{body: &bytebufferpool.ByteBuffer{B: make([]byte, 1, 4<<20)}}
+	resp.SetMaxKeepBodySize(4 << 20)
+	resp.ResetBody()
+	if resp.body == nil || cap(resp.body.B) != 4<<20 {
+		t.Fatal("pool limit unexpectedly changed object-level retention")
+	}
+}
+
+func TestSetMaxPooledBodySizeIndependent(t *testing.T) {
+	// Do not run in parallel: these pools are shared by all protocol tests.
+	defer SetMaxPooledBodySize(0)
+	for _, tt := range []struct {
+		name         string
+		configure    func()
+		keepRequest  bool
+		keepResponse bool
+	}{
+		{"request", func() { SetMaxPooledRequestBodySize(64) }, true, false},
+		{"response", func() { SetMaxPooledResponseBodySize(64) }, false, true},
+		{"disable_request", func() { SetMaxPooledRequestBodySize(0) }, true, false},
+		{"disable_response", func() { SetMaxPooledResponseBodySize(0) }, false, true},
+		{"both_override", func() {
+			SetMaxPooledRequestBodySize(16)
+			SetMaxPooledResponseBodySize(8)
+			SetMaxPooledBodySize(64)
+		}, true, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			SetMaxPooledBodySize(32)
+			tt.configure()
+			// 64 bytes is the smallest calibration bucket, so the automatic
+			// limit cannot reject these buffers and mask the configured limits.
+			reqBody := &bytebufferpool.ByteBuffer{B: make([]byte, 1, 64)}
+			respBody := &bytebufferpool.ByteBuffer{B: make([]byte, 1, 64)}
+			req := Request{body: reqBody}
+			resp := Response{body: respBody}
+			req.ResetBody()
+			resp.ResetBody()
+			// Pool.Put resets accepted buffers. Inspect that effect rather than
+			// requiring sync.Pool to retain them, which it does not guarantee.
+			if kept := len(reqBody.B) == 0; kept != tt.keepRequest {
+				t.Fatalf("request buffer accepted = %v, want %v", kept, tt.keepRequest)
+			}
+			if kept := len(respBody.B) == 0; kept != tt.keepResponse {
+				t.Fatalf("response buffer accepted = %v, want %v", kept, tt.keepResponse)
+			}
+		})
+	}
+}
+
 func TestResponseCopyTo(t *testing.T) {
 	t.Parallel()
 

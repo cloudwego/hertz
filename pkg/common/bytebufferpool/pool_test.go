@@ -43,9 +43,94 @@ package bytebufferpool
 
 import (
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestPoolMaxRetainedCapacity(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		limit    int
+		autoMax  uint64
+		capacity int
+		keep     bool
+	}{
+		{"default", 0, 0, 1024, true},
+		{"negative", -1, 0, 1024, true},
+		{"below", 512, 0, 511, true},
+		{"equal", 512, 0, 512, true},
+		{"above", 512, 0, 513, false},
+		{"auto_smaller", 512, 128, 256, false},
+		{"auto_larger", 512, 1024, 513, false},
+		{"auto_without_limit", 0, 128, 256, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Pool{maxSize: tt.autoMax}
+			p.SetMaxRetainedCapacity(tt.limit)
+			// Keep length small to verify that the limit applies to capacity.
+			b := &ByteBuffer{B: make([]byte, 1, tt.capacity)}
+			p.Put(b)
+			// This isolated pool has no concurrent users. Inspect Reset's effect
+			// because sync.Pool may discard even an accepted buffer (e.g. with -race).
+			if reset := len(b.B) == 0; reset != tt.keep {
+				t.Fatalf("buffer reset = %v, want %v", reset, tt.keep)
+			}
+			if v := p.pool.Get(); !tt.keep && v != nil {
+				t.Fatal("oversized buffer retained")
+			}
+		})
+	}
+}
+
+func TestPoolMaxRetainedCapacityAfterCalibration(t *testing.T) {
+	var p Pool
+	p.SetMaxRetainedCapacity(512)
+	p.calls[index(4096)] = calibrateCallsThreshold
+	p.Put(&ByteBuffer{B: make([]byte, 4096)})
+	if p.defaultSize != 4096 || p.maxSize != 4096 {
+		t.Fatal("expected calibration from large buffers")
+	}
+	if p.pool.Get() != nil {
+		t.Fatal("calibration bypassed the configured limit")
+	}
+	if b := p.Get(); cap(b.B) > 512 {
+		t.Fatalf("preallocated capacity = %d, exceeds limit", cap(b.B))
+	}
+	// Disabling the limit restores automatic preallocation.
+	p.SetMaxRetainedCapacity(0)
+	if b := p.Get(); cap(b.B) != 4096 {
+		t.Fatalf("preallocated capacity = %d, want 4096", cap(b.B))
+	}
+}
+
+func TestDefaultPoolMaxRetainedCapacity(t *testing.T) {
+	SetMaxRetainedCapacity(512)
+	defer SetMaxRetainedCapacity(0)
+	b := &ByteBuffer{B: make([]byte, 1, 4096)}
+	Put(b)
+	if len(b.B) == 0 {
+		t.Fatal("oversized buffer accepted by default pool")
+	}
+}
+
+func TestPoolMaxRetainedCapacityConcurrent(t *testing.T) {
+	var p Pool
+	var wg sync.WaitGroup
+	for worker := 0; worker < 4; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				p.SetMaxRetainedCapacity(i % 1024)
+				b := p.Get()
+				b.B = allocNBytes(b.B, 1025)
+				p.Put(b)
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 func TestIndex(t *testing.T) {
 	testIndex(t, 0, 0)

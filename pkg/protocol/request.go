@@ -73,6 +73,38 @@ var (
 	requestPool sync.Pool
 )
 
+// SetMaxPooledBodySize sets the maximum buffer capacity, in bytes, retained by
+// the shared request and response body pools. It affects all clients and servers
+// in the process. A non-positive size disables this additional limit (the default).
+// Configure it before serving traffic; existing cached buffers may still be
+// reused, but oversized buffers are rejected when subsequently returned.
+//
+// This does not limit body size or the buffers kept directly by Request/Response.
+// SetMaxKeepBodySize (or server.WithMaxKeepBodySize) controls that separate limit.
+// This is a per-buffer capacity limit, not a limit on total pooled memory.
+// Use SetMaxPooledRequestBodySize and SetMaxPooledResponseBodySize to configure
+// the pools independently.
+func SetMaxPooledBodySize(size int) {
+	SetMaxPooledRequestBodySize(size)
+	SetMaxPooledResponseBodySize(size)
+}
+
+// SetMaxPooledRequestBodySize sets the maximum buffer capacity, in bytes, retained
+// by the shared request body pool, without changing the response body pool limit.
+// A non-positive size disables this additional limit (the default).
+// See SetMaxPooledBodySize for the scope and lifecycle of this configuration.
+func SetMaxPooledRequestBodySize(size int) {
+	requestBodyPool.SetMaxRetainedCapacity(size)
+}
+
+// SetMaxPooledResponseBodySize sets the maximum buffer capacity, in bytes, retained
+// by the shared response body pool, without changing the request body pool limit.
+// A non-positive size disables this additional limit (the default).
+// See SetMaxPooledBodySize for the scope and lifecycle of this configuration.
+func SetMaxPooledResponseBodySize(size int) {
+	responseBodyPool.SetMaxRetainedCapacity(size)
+}
+
 // NoBody is an io.ReadCloser with no bytes. Read always returns EOF
 // and Close always returns nil. It can be used in an outgoing client
 // request to explicitly signal that a request has zero bytes.

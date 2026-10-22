@@ -68,12 +68,34 @@ type Pool struct {
 	calibrating uint64
 
 	defaultSize uint64
-	maxSize     uint64
+	// Dynamic capacity limit for Put, updated by calibrate; zero means no limit.
+	maxSize uint64
+	// User-configured capacity limit, unchanged by calibrate; zero disables it.
+	maxRetainedCapacity uint64
 
 	pool sync.Pool
 }
 
 var defaultPool Pool
+
+// SetMaxRetainedCapacity sets the maximum buffer capacity, in bytes, retained
+// by the default pool. A non-positive size disables this additional limit.
+func SetMaxRetainedCapacity(size int) { defaultPool.SetMaxRetainedCapacity(size) }
+
+// SetMaxRetainedCapacity limits the capacity of buffers accepted by Put and the
+// capacity preallocated by Get. Automatic calibration may impose a smaller limit.
+// A non-positive size disables this additional limit (the default).
+// Buffers may still grow beyond the limit while in use.
+//
+// It is safe to call concurrently with Get and Put. Configure it before use
+// where possible: existing cached and in-use buffers are unchanged. Oversized
+// buffers are rejected when subsequently returned via Put.
+func (p *Pool) SetMaxRetainedCapacity(size int) {
+	if size < 0 {
+		size = 0
+	}
+	atomic.StoreUint64(&p.maxRetainedCapacity, uint64(size))
+}
 
 // Get returns an empty byte buffer from the pool.
 //
@@ -91,8 +113,15 @@ func (p *Pool) Get() *ByteBuffer {
 	if v != nil {
 		return v.(*ByteBuffer)
 	}
+	size := atomic.LoadUint64(&p.defaultSize)
+	limit := atomic.LoadUint64(&p.maxRetainedCapacity)
+	// Calibration may select a defaultSize above the configured limit. Cap
+	// preallocation to avoid repeatedly allocating buffers that Put would reject.
+	if limit > 0 && size > limit {
+		size = limit
+	}
 	return &ByteBuffer{
-		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
+		B: make([]byte, 0, size),
 	}
 }
 
@@ -113,7 +142,8 @@ func (p *Pool) Put(b *ByteBuffer) {
 	}
 
 	maxSize := int(atomic.LoadUint64(&p.maxSize))
-	if maxSize == 0 || cap(b.B) <= maxSize {
+	limit := atomic.LoadUint64(&p.maxRetainedCapacity)
+	if (limit == 0 || uint64(cap(b.B)) <= limit) && (maxSize == 0 || cap(b.B) <= maxSize) {
 		b.Reset()
 		p.pool.Put(b)
 	}
