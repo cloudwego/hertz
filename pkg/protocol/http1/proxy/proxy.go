@@ -41,6 +41,10 @@ import (
 )
 
 func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfig *tls.Config, isTLS bool, dialer network.Dialer) (network.Conn, error) {
+	if proxyURI == nil {
+		return conn, nil
+	}
+
 	var err error
 	if bytes.Equal(proxyURI.Scheme(), bytestr.StrHTTPS) {
 		conn, err = dialer.AddTLS(conn, tlsConfig)
@@ -50,8 +54,6 @@ func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfi
 	}
 
 	switch {
-	case proxyURI == nil:
-		// Do nothing. Not using a proxy.
 	case isTLS: // target addr is https
 		connectReq, connectResp := protocol.AcquireRequest(), protocol.AcquireResponse()
 		defer func() {
@@ -113,7 +115,7 @@ func SetupProxy(conn network.Conn, addr string, proxyURI *protocol.URI, tlsConfi
 		}
 	}
 
-	if proxyURI != nil && isTLS {
+	if isTLS {
 		conn, err = dialer.AddTLS(conn, tlsConfig)
 		if err != nil {
 			return nil, err
