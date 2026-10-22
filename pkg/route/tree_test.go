@@ -735,3 +735,25 @@ func TestTreeParamNotOptimize(t *testing.T) {
 		{"/1", false, "/:paramb", param.Params{param.Param{Key: "paramb", Value: "1"}}},
 	})
 }
+
+func TestWildcardNameMismatchPanic(t *testing.T) {
+	// Param node name mismatch at same position
+	tree := &router{method: "GET", root: &node{}}
+	tree.addRoute("/users/:id", fakeHandler("handler1"))
+	recv := catchPanic(func() {
+		tree.addRoute("/users/:name", fakeHandler("handler2"))
+	})
+	if recv == nil {
+		t.Error("expected panic for param name mismatch, but got none")
+	}
+
+	// Catch-all node name mismatch at same position
+	tree2 := &router{method: "GET", root: &node{}}
+	tree2.addRoute("/files/*path", fakeHandler("handler3"))
+	recv2 := catchPanic(func() {
+		tree2.addRoute("/files/*filepath", fakeHandler("handler4"))
+	})
+	if recv2 == nil {
+		t.Error("expected panic for catch-all name mismatch, but got none")
+	}
+}
