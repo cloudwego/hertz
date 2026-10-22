@@ -627,7 +627,7 @@ func BenchmarkRouteStatic(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.SetIndex(-1)
 	}
 }
 
@@ -640,7 +640,7 @@ func BenchmarkRouteParam(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.SetIndex(-1)
 	}
 }
 
@@ -653,6 +653,6 @@ func BenchmarkRouteAny(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.ServeHTTP(context.Background(), ctx)
-		// ctx.index = -1
+		ctx.SetIndex(-1)
 	}
 }
