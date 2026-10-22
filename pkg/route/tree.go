@@ -147,10 +147,30 @@ func checkPathValid(path string) {
 	}
 }
 
+func checkDuplicateParams(path string) {
+	seen := make(map[string]bool)
+
+	for i := 0; i < len(path); i++ {
+		if path[i] == ':' {
+			start := i + 1
+			end := start
+			for end < len(path) && path[end] != '/' {
+				end++
+			}
+			name := path[start:end]
+			if seen[name] {
+				panic(fmt.Sprintf("duplicate param name %q in path %q", name, path))
+			}
+			seen[name] = true
+			i = end - 1
+		}
+	}
+}
+
 // addRoute adds a node with the given handle to the path.
 func (r *router) addRoute(path string, h app.HandlersChain) {
 	checkPathValid(path)
-
+	checkDuplicateParams(path)
 	var (
 		pnames []string // Param names
 		ppath  = path   // Pristine path
