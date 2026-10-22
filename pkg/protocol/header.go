@@ -876,7 +876,20 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 	if statusCode < 0 {
 		statusCode = consts.StatusOK
 	}
-	dst = append(dst, consts.StatusLine(statusCode)...)
+	if h.protocol == consts.HTTP10 {
+		// consts.StatusLine holds precomputed HTTP/1.1 lines, so keep everything after the
+		// version and swap the version itself
+		const prefix = "HTTP/1.1 "
+		line := consts.StatusLine(statusCode)
+		if bytes.HasPrefix(line, []byte(prefix)) {
+			dst = append(dst, "HTTP/1.0 "...)
+			dst = append(dst, line[len(prefix):]...)
+		} else {
+			dst = append(dst, line...)
+		}
+	} else {
+		dst = append(dst, consts.StatusLine(statusCode)...)
+	}
 
 	server := h.Server()
 	if len(server) != 0 {

@@ -474,6 +474,16 @@ func writeResponse(ctx *app.RequestContext, w network.Writer) error {
 		return ctx.Response.GetHijackWriter().Finalize()
 	}
 
+	// Answer with the version the client used. RFC 9112 section 2.3 requires the response
+	// version to be no higher than the request's, and an HTTP/1.0 client cannot parse chunked
+	// framing, which is what it received whenever a handler wrote a body of unknown length.
+	// The request parser already maps anything that is not HTTP/1.1 to HTTP/1.0, and it is read
+	// here rather than when the request is parsed because the response header is reset while
+	// the request is being handled.
+	if p := ctx.Request.Header.GetProtocol(); p != "" {
+		ctx.Response.Header.SetProtocol(p)
+	}
+
 	err := resp.Write(&ctx.Response, w)
 	if err != nil {
 		return err

@@ -824,3 +824,62 @@ func TestResponseReadBodyStreamBadTrailer(t *testing.T) {
 	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 300 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: bar\r\n\r\n5\r\n56789\r\n0\r\ncontent-type: bar\r\n\r\n")
 	testResponseReadBodyStreamBadTrailer(t, resp, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nqwer\r\n2\r\nty\r\n0\r\nproxy-connection: bar2\r\n\r\n")
 }
+
+// An HTTP/1.0 client cannot parse chunked framing, so a response with an unknown body length
+// must be written as it is for HTTP/1.0 and left to the connection close. RFC 9112 section 2.3
+// also requires the response version to be no higher than the request version.
+func TestResponseBodyStreamHTTP10IsNotChunked(t *testing.T) {
+	t.Parallel()
+
+	const body = "foobar baz aaa bbb ccc"
+
+	write := func(protocolVersion string) string {
+		var resp protocol.Response
+		if protocolVersion != "" {
+			resp.Header.SetProtocol(protocolVersion)
+		}
+		resp.SetBodyStream(bytes.NewBufferString(body), -1)
+
+		var w bytes.Buffer
+		zw := netpoll.NewWriter(&w)
+		if err := Write(&resp, zw); err != nil {
+			t.Fatalf("unexpected error when writing response: %s", err)
+		}
+		if err := zw.Flush(); err != nil {
+			t.Fatalf("unexpected error when flushing response: %s", err)
+		}
+		return w.String()
+	}
+
+	for _, version := range []string{"HTTP/1.0", ""} {
+		if version == "" {
+			continue // the empty case keeps the historical HTTP/1.1 default, checked below
+		}
+		got := write(version)
+		if !bytes.HasPrefix([]byte(got), []byte("HTTP/1.0 200 OK"+string(rune(13))+string(rune(10)))) {
+			t.Fatalf("a %s response must not claim HTTP/1.1, got %q", version, firstLine(got))
+		}
+		if bytes.Contains(bytes.ToLower([]byte(got)), []byte("transfer-encoding")) {
+			t.Fatalf("HTTP/1.0 has no chunked framing, got %q", got)
+		}
+		if !bytes.HasSuffix([]byte(got), []byte(body)) {
+			t.Fatalf("the body must be written as it is, got %q", got)
+		}
+	}
+
+	// the default is unchanged: with no version set the response is HTTP/1.1 and may chunk
+	chunked := write("")
+	if !bytes.Contains(bytes.ToLower([]byte(chunked)), []byte("transfer-encoding: chunked")) {
+		t.Fatalf("an HTTP/1.1 response of unknown length must still use chunked framing, got %q", chunked)
+	}
+	if !bytes.HasPrefix([]byte(chunked), []byte("HTTP/1.1 ")) {
+		t.Fatalf("unexpected status line %q", firstLine(chunked))
+	}
+}
+
+func firstLine(s string) string {
+	if i := bytes.IndexByte([]byte(s), 10); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
