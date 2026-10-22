@@ -43,11 +43,9 @@ package route
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -396,33 +394,24 @@ func TestRouteParamsByNameWithExtraSlash(t *testing.T) {
 
 // TestHandleStaticFile - ensure the static file handles properly
 func TestRouteStaticFile(t *testing.T) {
-	// SETUP file
-	testRoot, _ := os.Getwd()
-	f, err := ioutil.TempFile(testRoot, "")
-	if err != nil {
-		t.Error(err)
-	}
-	defer os.Remove(f.Name())
-	_, err = f.WriteString("Hertz Web Framework")
+	testFile := "routes_test.go"
+	expectedContent, err := os.ReadFile(testFile)
 	assert.Nil(t, err)
-	f.Close()
-
-	dir, filename := filepath.Split(f.Name())
 
 	// SETUP engine
 	router := NewEngine(config.NewOptions(nil))
-	router.StaticFS("/using_static", &app.FS{Root: dir, AcceptByteRange: true, PathRewrite: app.NewPathSlashesStripper(1)})
-	router.StaticFile("/result", f.Name())
+	router.StaticFS("/using_static", &app.FS{Root: "./", AcceptByteRange: true, PathRewrite: app.NewPathSlashesStripper(1)})
+	router.StaticFile("/result", testFile)
 
-	w := performRequest(router, consts.MethodGet, "/using_static/"+filename)
+	w := performRequest(router, consts.MethodGet, "/using_static/"+testFile)
 	w2 := performRequest(router, consts.MethodGet, "/result")
 
 	assert.DeepEqual(t, w, w2)
 	assert.DeepEqual(t, consts.StatusOK, w.Code)
-	assert.DeepEqual(t, "Hertz Web Framework", w.Body.String())
+	assert.DeepEqual(t, string(expectedContent), w.Body.String())
 	assert.DeepEqual(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
 
-	w3 := performRequest(router, consts.MethodHead, "/using_static/"+filename)
+	w3 := performRequest(router, consts.MethodHead, "/using_static/"+testFile)
 	w4 := performRequest(router, consts.MethodHead, "/result")
 
 	assert.DeepEqual(t, w3, w4)
