@@ -100,7 +100,7 @@ func WriteHeader(h *protocol.ResponseHeader, w network.Writer) error {
 
 // ConnectionUpgrade returns true if 'Connection: Upgrade' header is set.
 func ConnectionUpgrade(h *protocol.ResponseHeader) bool {
-	return ext.HasHeaderValue(h.Peek(consts.HeaderConnection), bytestr.StrKeepAlive)
+	return ext.HasHeaderValue(h.Peek(consts.HeaderConnection), bytestr.StrUpgrade)
 }
 
 func tryRead(h *protocol.ResponseHeader, r network.Reader, n int) error {
