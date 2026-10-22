@@ -755,7 +755,7 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 		defer engine.recv(ctx)
 	}
 
-	rPath := string(ctx.Request.URI().Path())
+	rPath := bytesconv.B2s(ctx.Request.URI().Path())
 
 	// align with https://datatracker.ietf.org/doc/html/rfc2616#section-5.2
 	if len(ctx.Request.Host()) == 0 && ctx.Request.Header.IsHTTP11() && bytesconv.B2s(ctx.Request.Method()) != consts.MethodConnect {
@@ -767,7 +767,7 @@ func (engine *Engine) ServeHTTP(c context.Context, ctx *app.RequestContext) {
 	httpMethod := bytesconv.B2s(ctx.Request.Header.Method())
 	unescape := false
 	if engine.options.UseRawPath {
-		rPath = string(ctx.Request.URI().PathOriginal())
+		rPath = bytesconv.B2s(ctx.Request.URI().PathOriginal())
 		unescape = engine.options.UnescapePathValues
 	}
 
