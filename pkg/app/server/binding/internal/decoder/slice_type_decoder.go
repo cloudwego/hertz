@@ -188,7 +188,7 @@ func getSliceFieldDecoder(field reflect.StructField, index int, tagInfos []TagIn
 			tagInfos[idx].Getter = path
 		case formTag:
 			tagInfos[idx].SliceGetter = postFormSlice
-			tagInfos[idx].Getter = postForm
+			tagInfos[idx].Getter = formGetter(field)
 		case queryTag:
 			tagInfos[idx].SliceGetter = querySlice
 			tagInfos[idx].Getter = query
