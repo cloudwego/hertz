@@ -664,6 +664,23 @@ func TestBind_ThriftBodyAnnotation(t *testing.T) {
 	}
 }
 
+func TestBind_JSONBodyWithDefaults(t *testing.T) {
+	type input struct {
+		Name string `form:"name" json:"name" default:"fallback"`
+		Tags []string `form:"tags" json:"tags" default:"['fallback']"`
+	}
+	for _, ct := range []string{"application/json", "Application/JSON; charset=utf-8"} {
+		t.Run(ct, func(t *testing.T) {
+			req := newMockRequest().SetRequestURI("http://example.org/?name=query&tags=query").
+				SetHeader("Content-Type", ct).SetBody([]byte(`{"name":"body","tags":["body"]}`))
+			req.Req.Header.SetMethod("POST")
+			var got input
+			assert.Nil(t, DefaultBinder().Bind(req.Req, &got, nil))
+			assert.DeepEqual(t, input{Name: "body", Tags: []string{"body"}}, got)
+		})
+	}
+}
+
 func TestBind_ResetJSONUnmarshal(t *testing.T) {
 	bindConfig := &BindConfig{}
 	bindConfig.UseStdJSONUnmarshaler()
