@@ -48,6 +48,7 @@ import (
 	"mime/multipart"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -633,6 +634,50 @@ func TestBind_JSON(t *testing.T) {
 	}
 	for idx, val := range J4s {
 		assert.DeepEqual(t, val, result.J4[idx])
+	}
+}
+
+func TestBind_ThriftBodyAnnotation(t *testing.T) {
+	// hz generates both form and JSON tags for a Thrift api.body annotation.
+	type input struct {
+		Name     string `form:"name" json:"name"`
+		FormOnly string `form:"name" json:"-"`
+	}
+	for _, tc := range []struct {
+		contentType, body, want string
+	}{
+		{"application/json; charset=utf-8", `{"name":"Alice"}`, "Alice"},
+		{"application/json", `{}`, ""},
+		{"application/x-www-form-urlencoded", "name=Alice", "Alice"},
+		{"application/x-www-form-urlencoded", "", "Ryan"},
+	} {
+		req := newMockRequest().SetRequestURI("http://example.org/?name=Ryan").
+			SetHeader("Content-Type", tc.contentType).SetBody([]byte(tc.body))
+		req.Req.Header.SetMethod("POST")
+		var value input
+		err := DefaultBinder().Bind(req.Req, &value, nil)
+		assert.Nil(t, err)
+		assert.DeepEqual(t, tc.want, value.Name)
+		if strings.HasPrefix(tc.contentType, "application/json") {
+			assert.DeepEqual(t, "Ryan", value.FormOnly)
+		}
+	}
+}
+
+func TestBind_JSONBodyWithDefaults(t *testing.T) {
+	type input struct {
+		Name string `form:"name" json:"name" default:"fallback"`
+		Tags []string `form:"tags" json:"tags" default:"['fallback']"`
+	}
+	for _, ct := range []string{"application/json", "Application/JSON; charset=utf-8"} {
+		t.Run(ct, func(t *testing.T) {
+			req := newMockRequest().SetRequestURI("http://example.org/?name=query&tags=query").
+				SetHeader("Content-Type", ct).SetBody([]byte(`{"name":"body","tags":["body"]}`))
+			req.Req.Header.SetMethod("POST")
+			var got input
+			assert.Nil(t, DefaultBinder().Bind(req.Req, &got, nil))
+			assert.DeepEqual(t, input{Name: "body", Tags: []string{"body"}}, got)
+		})
 	}
 }
 

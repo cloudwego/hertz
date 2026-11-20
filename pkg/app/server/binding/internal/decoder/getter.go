@@ -41,7 +41,13 @@
 package decoder
 
 import (
+	"reflect"
+	"strings"
+
+	"github.com/cloudwego/hertz/internal/bytesconv"
+	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/hertz/pkg/route/param"
 )
 
@@ -56,6 +62,23 @@ func path(req *protocol.Request, params param.Params, key string, defaultValue .
 		ret = defaultValue[0]
 	}
 	return ret, exist
+}
+
+func formGetter(field reflect.StructField) getter {
+	jsonTagValue, ok := field.Tag.Lookup(jsonTag)
+	jsonName, _ := head(jsonTagValue, ",")
+	if !ok || jsonName == "-" {
+		return postForm
+	}
+	return func(req *protocol.Request, params param.Params, key string, defaultValue ...string) (string, bool) {
+		// JSON binding already populated this field. Only an explicit query
+		// tag should override it with a value from the URL.
+		ct := utils.FilterContentType(bytesconv.B2s(req.Header.ContentType()))
+		if strings.EqualFold(ct, consts.MIMEApplicationJSON) {
+			return "", false
+		}
+		return postForm(req, params, key, defaultValue...)
+	}
 }
 
 func postForm(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string, exist bool) {
