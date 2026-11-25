@@ -587,7 +587,7 @@ func (ctx *RequestContext) URI() *protocol.URI {
 }
 
 func (ctx *RequestContext) String(code int, format string, values ...interface{}) {
-	ctx.Render(code, render.String{Format: format, Data: values})
+	renderTyped(ctx, code, render.String{Format: format, Data: values})
 }
 
 // FullPath returns a matched route full path. For not found routes
@@ -1129,28 +1129,42 @@ func (ctx *RequestContext) Render(code int, r render.Render) {
 	}
 }
 
+// renderTyped is Render for a concrete render type, so that r does not escape to the heap.
+func renderTyped[R render.Render](ctx *RequestContext, code int, r R) {
+	ctx.SetStatusCode(code)
+
+	if !bodyAllowedForStatus(code) {
+		r.WriteContentType(&ctx.Response)
+		return
+	}
+
+	if err := r.Render(&ctx.Response); err != nil {
+		panic(err)
+	}
+}
+
 // ProtoBuf serializes the given struct as ProtoBuf into the response body.
 func (ctx *RequestContext) ProtoBuf(code int, obj interface{}) {
-	ctx.Render(code, render.ProtoBuf{Data: obj})
+	renderTyped(ctx, code, render.ProtoBuf{Data: obj})
 }
 
 // JSON serializes the given struct as JSON into the response body.
 //
 // It also sets the Content-Type as "application/json".
 func (ctx *RequestContext) JSON(code int, obj interface{}) {
-	ctx.Render(code, render.JSONRender{Data: obj})
+	renderTyped(ctx, code, render.JSONRender{Data: obj})
 }
 
 // PureJSON serializes the given struct as JSON into the response body.
 // PureJSON, unlike JSON, does not replace special html characters with their unicode entities.
 func (ctx *RequestContext) PureJSON(code int, obj interface{}) {
-	ctx.Render(code, render.PureJSON{Data: obj})
+	renderTyped(ctx, code, render.PureJSON{Data: obj})
 }
 
 // IndentedJSON serializes the given struct as pretty JSON (indented + endlines) into the response body.
 // It also sets the Content-Type as "application/json".
 func (ctx *RequestContext) IndentedJSON(code int, obj interface{}) {
-	ctx.Render(code, render.IndentedJSON{Data: obj})
+	renderTyped(ctx, code, render.IndentedJSON{Data: obj})
 }
 
 // HTML renders the HTTP template specified by its file name.
@@ -1164,7 +1178,7 @@ func (ctx *RequestContext) HTML(code int, name string, obj interface{}) {
 
 // Data writes some data into the body stream and updates the HTTP code.
 func (ctx *RequestContext) Data(code int, contentType string, data []byte) {
-	ctx.Render(code, render.Data{
+	renderTyped(ctx, code, render.Data{
 		ContentType: contentType,
 		Data:        data,
 	})
@@ -1174,7 +1188,7 @@ func (ctx *RequestContext) Data(code int, contentType string, data []byte) {
 //
 // It also sets the Content-Type as "application/xml".
 func (ctx *RequestContext) XML(code int, obj interface{}) {
-	ctx.Render(code, render.XML{Data: obj})
+	renderTyped(ctx, code, render.XML{Data: obj})
 }
 
 // AbortWithError calls `AbortWithStatus()` and `Error()` internally.
